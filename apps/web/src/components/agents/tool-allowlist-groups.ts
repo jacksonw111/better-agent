@@ -15,12 +15,6 @@ export interface ToolGroup {
 	tools: ToolRow[];
 }
 
-export type Mode = "all" | "selected";
-
-export function modeOf(allowlist: string[] | null): Mode {
-	return allowlist === null ? "all" : "selected";
-}
-
 export function allToolNames(groups: ToolGroup[]): string[] {
 	return groups.flatMap((group) => group.tools.map((tool) => tool.name));
 }
@@ -66,30 +60,6 @@ function buildMcpGroups(
 		);
 		return { key: `mcp:${serverId}`, label, tools };
 	});
-}
-
-// Toggle handlers for the allowlist array: flip a single tool, or a whole
-// group at once (used by the picker's "Select all" / "Clear" pair).
-export function useToolToggles(
-	selected: string[],
-	set: (patch: { toolAllowlist: string[] }) => void
-) {
-	const toggleTool = (name: string, checked: boolean) => {
-		const next = checked
-			? [...selected, name]
-			: selected.filter((value) => value !== name);
-		set({ toolAllowlist: next });
-	};
-
-	const toggleGroup = (group: ToolGroup, checked: boolean) => {
-		const names = group.tools.map((tool) => tool.name);
-		const next = checked
-			? [...new Set([...selected, ...names])]
-			: selected.filter((value) => !names.includes(value));
-		set({ toolAllowlist: next });
-	};
-
-	return { toggleTool, toggleGroup };
 }
 
 // Cheap group labels: reuse the account/server list queries the Composio and

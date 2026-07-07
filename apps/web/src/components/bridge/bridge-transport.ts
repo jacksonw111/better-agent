@@ -19,7 +19,7 @@ export interface ConnectStreamArgs {
 /** One persisted row from `orpc.bridge.history` — `seq` is the same relay id
  * the live SSE/observe feed uses, so it can be fed through the identical
  * `mergeEvents` dedupe path as a live frame (see use-bridge-connection-effects.ts). */
-export interface BridgeHistoryEvent {
+interface BridgeHistoryEvent {
 	event: unknown;
 	seq: number;
 }

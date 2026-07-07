@@ -18,7 +18,7 @@ function prefersReducedMotion(): boolean {
 	);
 }
 
-export function celebrate(): void {
+function celebrate(): void {
 	if (prefersReducedMotion()) {
 		return;
 	}

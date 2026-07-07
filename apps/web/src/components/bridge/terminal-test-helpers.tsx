@@ -63,12 +63,6 @@ export function turnUsageRaw(id: number, detail: Record<string, unknown>) {
 	return { id, data: { kind: "status", status: "turn_usage", detail } };
 }
 
-/** A curated `session_list` status event — the claude adapter's reply to a
- * `{ control: listSessions }` command (see past-conversations.tsx). */
-export function sessionListRaw(id: number, detail: Record<string, unknown>) {
-	return { id, data: { kind: "status", status: "session_list", detail } };
-}
-
 export function approvalRaw(id: number, requestId: string) {
 	return {
 		id,

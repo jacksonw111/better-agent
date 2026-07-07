@@ -46,7 +46,7 @@ export function compactNumber(n: number): string {
 	return `${trimDecimal(n / MEGA)}M`;
 }
 
-export function relativeTime(iso: string): string {
+function relativeTime(iso: string): string {
 	if (!iso) {
 		return "";
 	}

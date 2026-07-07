@@ -24,7 +24,7 @@ function sessionShortId(session: BridgeSessionRow): string {
 
 /** The human title for a session row: its CLI-reported label, falling back to a
  * short slice of its id so an unlabeled session is still distinguishable. */
-export function sessionTitle(session: BridgeSessionRow): string {
+function sessionTitle(session: BridgeSessionRow): string {
 	return session.label ?? sessionShortId(session);
 }
 

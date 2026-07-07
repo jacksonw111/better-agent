@@ -1,15 +1,10 @@
-import { Button } from "@better-agent/ui/components/button";
 import {
-	DropdownMenu,
 	DropdownMenuCheckboxItem,
-	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSub,
 	DropdownMenuSubContent,
 	DropdownMenuSubTrigger,
-	DropdownMenuTrigger,
 } from "@better-agent/ui/components/dropdown-menu";
-import { ChevronDownIcon } from "lucide-react";
 
 import type { ToolGroup } from "./tool-allowlist-groups";
 
@@ -79,81 +74,5 @@ export function GroupSubmenu({
 				))}
 			</DropdownMenuSubContent>
 		</DropdownMenuSub>
-	);
-}
-
-function ToolPickerTrigger({
-	label,
-	disabled,
-}: {
-	label: string;
-	disabled: boolean;
-}) {
-	return (
-		<DropdownMenuTrigger
-			render={
-				<Button
-					className="w-full justify-between sm:w-80"
-					disabled={disabled}
-					size="sm"
-					type="button"
-					variant="outline"
-				/>
-			}
-		>
-			<span className="truncate">{label}</span>
-			<ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
-		</DropdownMenuTrigger>
-	);
-}
-
-/**
- * Level 1 = purpose groups (composio tool-name prefixes, one group per MCP
- * server); level 2 = that group's tools. Patterned on the chat session
- * picker's cascading DropdownMenu.
- */
-export function ToolPicker({
-	groups,
-	isPending,
-	errors,
-	selected,
-	onToggleTool,
-	onToggleGroup,
-}: {
-	groups: ToolGroup[];
-	isPending: boolean;
-	errors: Error[];
-	selected: string[];
-	onToggleTool: (name: string, checked: boolean) => void;
-	onToggleGroup: (group: ToolGroup, checked: boolean) => void;
-}) {
-	const label = isPending
-		? "Loading tools…"
-		: `Configure tools — ${selected.length} selected`;
-	return (
-		<div className="flex flex-col gap-1.5">
-			<DropdownMenu>
-				<ToolPickerTrigger disabled={isPending} label={label} />
-				<DropdownMenuContent
-					align="start"
-					className="w-[calc(100vw-2rem)] max-w-72"
-				>
-					{groups.map((group) => (
-						<GroupSubmenu
-							group={group}
-							key={group.key}
-							onToggleGroup={onToggleGroup}
-							onToggleTool={onToggleTool}
-							selected={selected}
-						/>
-					))}
-				</DropdownMenuContent>
-			</DropdownMenu>
-			{errors.length > 0 ? (
-				<p className="text-destructive text-xs">
-					{errors.map((error) => error.message).join(" · ")}
-				</p>
-			) : null}
-		</div>
 	);
 }

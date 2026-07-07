@@ -23,13 +23,8 @@ import { parseTodoItems } from "./todo-list";
 import { flattenToolResult } from "./tool-result-text";
 
 export type {
-	ApprovalTurn,
 	AssistantTurn,
 	BridgeTurn,
-	ErrorTurn,
-	FileTurn,
-	PlanTurn,
-	StatusTurn,
 	TaskTurn,
 	UserTurn,
 } from "./bridge-turn-types";

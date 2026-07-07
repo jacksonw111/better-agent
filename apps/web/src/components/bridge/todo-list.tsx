@@ -5,7 +5,7 @@ import {
 	CircleDotIcon,
 } from "lucide-react";
 
-export type TodoStatus = "pending" | "in_progress" | "completed";
+type TodoStatus = "pending" | "in_progress" | "completed";
 
 export interface TodoItem {
 	content: string;

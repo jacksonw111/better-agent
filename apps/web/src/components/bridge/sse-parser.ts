@@ -2,7 +2,7 @@
 // arrive off a fetch body reader, get back any complete events found so far.
 // Kept free of fetch/DOM APIs so it's testable with plain strings.
 
-export interface RawSseEvent {
+interface RawSseEvent {
 	data: string;
 	id: number;
 }

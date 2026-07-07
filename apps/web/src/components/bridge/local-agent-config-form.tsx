@@ -177,7 +177,7 @@ export interface AgentConfigFormProps extends DraftFieldProps {
 
 /** The per-agent startup config form (claude-code fields for now; other agents
  * extend this same pattern — see docs/research/agent-config-*.md). */
-export function AgentConfigForm({
+function AgentConfigForm({
 	draft,
 	onDraft,
 	onSubmit,
