@@ -17,10 +17,12 @@ name: better-agent
 
 services:
   postgres:
-    # pgvector-enabled Postgres (for the memory system's `vector` columns).
-    # Same PG major (16) as the previous postgres:16.6 image, so the existing
-    # data volume stays compatible; adds `CREATE EXTENSION vector` support.
-    image: pgvector/pgvector:pg16
+    # pgvector-enabled Postgres (for the memory system's `vector` columns),
+    # PG 18. NOTE: this is a MAJOR version bump from the previous postgres:16.6
+    # image — a PG18 server will NOT start against a PG16 `pgdata` volume. On a
+    # host with existing data, migrate first (pg_upgrade or dump→restore); on a
+    # fresh deploy, the volume is created as PG18 and this is a no-op.
+    image: pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
       POSTGRES_DB: better_agent
