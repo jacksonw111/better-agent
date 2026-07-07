@@ -2,7 +2,10 @@ name: better-agent
 
 services:
   postgres:
-    image: postgres
+    # pgvector-enabled Postgres (for the memory system's `vector` columns).
+    # Same PG major (18) as the image's base, so the extension is available via
+    # `CREATE EXTENSION vector`.
+    image: pgvector/pgvector:pg18
     container_name: better-agent-postgres
     environment:
       POSTGRES_DB: better-agent

@@ -17,7 +17,10 @@ name: better-agent
 
 services:
   postgres:
-    image: postgres:16.6-alpine
+    # pgvector-enabled Postgres (for the memory system's `vector` columns).
+    # Same PG major (16) as the previous postgres:16.6 image, so the existing
+    # data volume stays compatible; adds `CREATE EXTENSION vector` support.
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_DB: better_agent
