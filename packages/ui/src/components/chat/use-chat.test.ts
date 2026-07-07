@@ -11,7 +11,7 @@ function fakeStream(events: unknown[]) {
 				yield e;
 			}
 		},
-	} as unknown as import("@curiousbus/agent-client").AgentClient;
+	} as unknown as import("@jacksonw111/agent-client").AgentClient;
 }
 
 function draftAssistant(): ChatMessage {

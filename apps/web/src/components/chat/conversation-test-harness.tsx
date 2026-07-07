@@ -1,5 +1,5 @@
 import { Conversation } from "@better-agent/ui/components/chat/conversation";
-import type { AgentClient, MessageHistory } from "@curiousbus/agent-client";
+import type { AgentClient, MessageHistory } from "@jacksonw111/agent-client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { expect } from "vitest";

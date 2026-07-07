@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { act, waitFor } from "@testing-library/react";
 import { expect, it } from "vitest";
 import {

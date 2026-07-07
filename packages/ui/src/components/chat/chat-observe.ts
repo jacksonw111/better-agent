@@ -1,4 +1,4 @@
-import type { MessageHistory } from "@curiousbus/agent-client";
+import type { MessageHistory } from "@jacksonw111/agent-client";
 import type { MutableRefObject } from "react";
 
 // ── observing mode ───────────────────────────────────────────────────────────

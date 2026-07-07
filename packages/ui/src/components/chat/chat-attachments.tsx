@@ -1,4 +1,4 @@
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { Loader2Icon, XIcon } from "lucide-react";
 import { useState } from "react";
 

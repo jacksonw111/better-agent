@@ -1,4 +1,4 @@
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useSyncExternalStore } from "react";
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// One-click release for @curiousbus/agent-client.
+// One-click release for @jacksonw111/agent-client.
 //
-//   pnpm -F @curiousbus/agent-client release <patch|minor|major|x.y.z>
+//   pnpm -F @jacksonw111/agent-client release <patch|minor|major|x.y.z>
 //
 // Pre-flights (typecheck + test + build), bumps the version, commits, tags
 // `client-v<version>`, and pushes — the tag triggers the GitHub Packages
@@ -26,7 +26,7 @@ function fail(message) {
 const bump = process.argv[2];
 if (!bump) {
 	fail(
-		"Usage: pnpm -F @curiousbus/agent-client release <patch|minor|major|x.y.z>"
+		"Usage: pnpm -F @jacksonw111/agent-client release <patch|minor|major|x.y.z>"
 	);
 }
 

@@ -1,7 +1,7 @@
 import { Button } from "@better-agent/ui/components/button";
 import { Conversation } from "@better-agent/ui/components/chat/conversation";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { PlusIcon, XIcon } from "lucide-react";
 import { AgentToolsMenu } from "@/components/chat/agent-tools-menu";
 import { renderToolResult } from "@/genui/tool-renderers";

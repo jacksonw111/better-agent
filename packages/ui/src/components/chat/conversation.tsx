@@ -6,7 +6,7 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useRef } from "react";
 

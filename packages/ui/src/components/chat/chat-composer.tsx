@@ -6,7 +6,7 @@ import {
 	PromptInputToolbar,
 	PromptInputTools,
 } from "@better-agent/ui/components/prompt-input";
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { ImagePlusIcon } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import {

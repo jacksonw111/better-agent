@@ -2,7 +2,7 @@ import {
 	createStreamReveal,
 	type StreamReveal,
 } from "@better-agent/ui/lib/stream-reveal";
-import type { AgentClient, RunEvent } from "@curiousbus/agent-client";
+import type { AgentClient, RunEvent } from "@jacksonw111/agent-client";
 
 import type { ChatMessage } from "./chat-blocks";
 

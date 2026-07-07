@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useChat } from "@better-agent/ui/components/chat/use-chat";
-import type { AgentClient, MessageHistory } from "@curiousbus/agent-client";
+import type { AgentClient, MessageHistory } from "@jacksonw111/agent-client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";

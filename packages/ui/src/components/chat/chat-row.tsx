@@ -16,7 +16,7 @@ import {
 	ReasoningTrigger,
 } from "@better-agent/ui/components/reasoning";
 import { Response } from "@better-agent/ui/components/response";
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
 
 import { AttachmentImage } from "./attachment-image";
