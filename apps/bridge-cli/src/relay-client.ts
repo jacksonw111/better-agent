@@ -10,7 +10,6 @@ import { type PollLoopOptions, pollLoop } from "./poll-loop";
 import { createPushQueue, type PushQueue } from "./push-queue";
 import { truncateEvents } from "./truncate-event";
 
-export type { PollLoopOptions } from "./poll-loop";
 export { pollLoop } from "./poll-loop";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */

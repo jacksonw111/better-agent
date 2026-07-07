@@ -153,7 +153,7 @@ const CODEX_APPROVAL_METHODS = new Set([
 
 /** The only two decisions `answerApproval` can currently produce for codex;
  * see the ASSUMPTION above about the decisions this collapses away. */
-export const CODEX_APPROVAL_OPTIONS = [
+const CODEX_APPROVAL_OPTIONS = [
 	{ id: "accept", label: "Allow" },
 	{ id: "decline", label: "Deny" },
 ];

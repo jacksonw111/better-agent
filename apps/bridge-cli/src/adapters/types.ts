@@ -1,4 +1,4 @@
-import type { NormalizedEvent } from "../normalize";
+import type { NormalizedEvent } from "../normalize/types";
 
 /** Which local coding agent a bridge session drives. Mirrors `AGENT_KINDS`
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */

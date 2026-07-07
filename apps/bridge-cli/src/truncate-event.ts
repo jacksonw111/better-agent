@@ -51,7 +51,7 @@ const EVENT_TRUNCATED_STATUS = "event_truncated";
  * `MAX_EVENT_BYTES` in the worst case (every character a 4-byte-UTF-8 astral
  * symbol). This is what lets `truncateApprovalEvent` guarantee an approval
  * never has to degrade wholesale — see `truncateEvent`. */
-export const MAX_APPROVAL_FIELD_CHARS = 1000;
+const MAX_APPROVAL_FIELD_CHARS = 1000;
 
 /** Max number of `options[]` kept on an `ApprovalEvent` that's still over
  * `MAX_EVENT_BYTES` after every field is truncated to
