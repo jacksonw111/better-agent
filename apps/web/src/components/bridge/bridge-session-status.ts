@@ -130,7 +130,9 @@ function asOptionalMcpServers(value: unknown): McpServerStatus[] | undefined {
 	return servers;
 }
 
-function parseSessionReadyDetail(detail: unknown): SessionReadyDetail | null {
+export function parseSessionReadyDetail(
+	detail: unknown
+): SessionReadyDetail | null {
 	if (!isRecord(detail)) {
 		return null;
 	}
@@ -169,7 +171,9 @@ function asOptionalSessionListItems(
 	return items;
 }
 
-function parseSessionListDetail(detail: unknown): SessionListDetail | null {
+export function parseSessionListDetail(
+	detail: unknown
+): SessionListDetail | null {
 	if (!isRecord(detail)) {
 		return null;
 	}
@@ -196,7 +200,7 @@ function parseUsageTokens(value: unknown): TurnUsageTokens | undefined {
 	};
 }
 
-function parseTurnUsageDetail(detail: unknown): TurnUsageDetail | null {
+export function parseTurnUsageDetail(detail: unknown): TurnUsageDetail | null {
 	if (!isRecord(detail)) {
 		return null;
 	}
@@ -220,7 +224,9 @@ function parseUsageUpdateCost(value: unknown): UsageUpdateCost | undefined {
 	};
 }
 
-function parseUsageUpdateDetail(detail: unknown): UsageUpdateDetail | null {
+export function parseUsageUpdateDetail(
+	detail: unknown
+): UsageUpdateDetail | null {
 	if (!isRecord(detail)) {
 		return null;
 	}

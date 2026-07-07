@@ -1,4 +1,18 @@
 import type { RawBridgeEvent, StreamEvent } from "./bridge-events";
+import {
+	parseSessionListDetail,
+	parseSessionReadyDetail,
+	parseTurnUsageDetail,
+	parseUsageUpdateDetail,
+	SESSION_LIST_STATUS,
+	SESSION_READY_STATUS,
+	type SessionListDetail,
+	type SessionReadyDetail,
+	TURN_USAGE_STATUS,
+	type TurnUsageDetail,
+	USAGE_UPDATE_STATUS,
+	type UsageUpdateDetail,
+} from "./bridge-session-status";
 import { mergeEvents } from "./event-feed";
 
 /** First id handed to an optimistic local echo. Local echoes count DOWN from
@@ -17,6 +31,21 @@ export interface FeedState {
 	/** Next id for an optimistic local echo — decrements on each `localEcho`,
 	 * staying negative so it never collides with a server id. */
 	nextLocalId: number;
+	/** Count of optimistic echoes (negative-id user messages) still awaiting a
+	 * server-persisted twin. Incremented on `localEcho`, decremented as
+	 * `stripAckedEchoes` cancels one — a fast path skips that whole
+	 * Map-build+filter pass on every merge while this is zero (the common,
+	 * no-pending-echo case). */
+	pendingEchoes: number;
+	/** The latest curated status details, folded incrementally off each merge's
+	 * new tail instead of rescanning the whole `events` array per render.
+	 * `null` before an event of that kind has arrived (or its latest one was
+	 * malformed) — identical semantics to the old `latest*Detail(events)`
+	 * tail scans, latest wins. */
+	sessionList: SessionListDetail | null;
+	sessionReady: SessionReadyDetail | null;
+	turnUsage: TurnUsageDetail | null;
+	usageUpdate: UsageUpdateDetail | null;
 }
 
 export const initialFeedState: FeedState = {
@@ -24,7 +53,46 @@ export const initialFeedState: FeedState = {
 	maxSeenId: 0,
 	answered: {},
 	nextLocalId: INITIAL_LOCAL_ID,
+	pendingEchoes: 0,
+	sessionList: null,
+	sessionReady: null,
+	turnUsage: null,
+	usageUpdate: null,
 };
+
+interface StatusDetails {
+	sessionList: SessionListDetail | null;
+	sessionReady: SessionReadyDetail | null;
+	turnUsage: TurnUsageDetail | null;
+	usageUpdate: UsageUpdateDetail | null;
+}
+
+/** Folds the newly-merged events' curated status details onto the prior ones:
+ * for each matching status kind the LATEST such event in `parsed` wins (events
+ * are id-ascending), and a kind absent from this batch keeps its prior value.
+ * Runs only over the fresh tail, so a session's whole append cost stays linear
+ * rather than O(n²). */
+function nextStatusDetails(
+	prev: StatusDetails,
+	parsed: StreamEvent[]
+): StatusDetails {
+	let { sessionList, sessionReady, turnUsage, usageUpdate } = prev;
+	for (const { event } of parsed) {
+		if (event.kind !== "status") {
+			continue;
+		}
+		if (event.status === SESSION_READY_STATUS) {
+			sessionReady = parseSessionReadyDetail(event.detail);
+		} else if (event.status === TURN_USAGE_STATUS) {
+			turnUsage = parseTurnUsageDetail(event.detail);
+		} else if (event.status === USAGE_UPDATE_STATUS) {
+			usageUpdate = parseUsageUpdateDetail(event.detail);
+		} else if (event.status === SESSION_LIST_STATUS) {
+			sessionList = parseSessionListDetail(event.detail);
+		}
+	}
+	return { sessionList, sessionReady, turnUsage, usageUpdate };
+}
 
 export type FeedAction =
 	| { type: "events"; events: RawBridgeEvent[] }
@@ -44,11 +112,19 @@ function isUserMessage(entry: StreamEvent): entry is StreamEvent & {
 	);
 }
 
+interface StripResult {
+	events: StreamEvent[];
+	/** How many pending echoes this pass cancelled — subtracted from
+	 * `FeedState.pendingEchoes` so the fast-path gate stays accurate. */
+	stripped: number;
+}
+
 /** Drops each optimistic echo (negative id) once its server-persisted twin
  * (id ≥ 0, same text) has arrived, so the user's own line shows instantly on
  * send AND isn't duplicated when the CLI's persisted copy comes back through
- * history/live. One server copy cancels exactly one pending echo. */
-function stripAckedEchoes(events: StreamEvent[]): StreamEvent[] {
+ * history/live. One server copy cancels exactly one pending echo. Only called
+ * when at least one echo is actually pending (see the reducer's fast path). */
+function stripAckedEchoes(events: StreamEvent[]): StripResult {
 	const serverTextCounts = new Map<string, number>();
 	for (const entry of events) {
 		if (entry.id >= 0 && isUserMessage(entry)) {
@@ -59,18 +135,21 @@ function stripAckedEchoes(events: StreamEvent[]): StreamEvent[] {
 		}
 	}
 	if (serverTextCounts.size === 0) {
-		return events;
+		return { events, stripped: 0 };
 	}
-	return events.filter((entry) => {
+	let stripped = 0;
+	const filtered = events.filter((entry) => {
 		if (entry.id < 0 && isUserMessage(entry)) {
 			const remaining = serverTextCounts.get(entry.event.text) ?? 0;
 			if (remaining > 0) {
 				serverTextCounts.set(entry.event.text, remaining - 1);
+				stripped += 1;
 				return false;
 			}
 		}
 		return true;
 	});
+	return { events: filtered, stripped };
 }
 
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
@@ -99,15 +178,38 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 				...state,
 				events: [...state.events, echo],
 				nextLocalId: state.nextLocalId - 1,
+				pendingEchoes: state.pendingEchoes + 1,
 			};
 		}
-		default: {
-			const result = mergeEvents(state.events, state.maxSeenId, action.events);
-			return {
-				...state,
-				events: stripAckedEchoes(result.events),
-				maxSeenId: result.maxSeenId,
-			};
-		}
+		default:
+			return mergeFeedEvents(state, action.events);
 	}
+}
+
+/** The `events` merge path: appends/dedupes the incoming batch, folds its
+ * curated status details incrementally, and only runs the echo-strip pass when
+ * an echo is actually pending. Split out to keep `feedReducer` under the repo's
+ * max-lines-per-function gate. */
+function mergeFeedEvents(
+	state: FeedState,
+	incoming: RawBridgeEvent[]
+): FeedState {
+	const result = mergeEvents(state.events, state.maxSeenId, incoming);
+	const details = nextStatusDetails(state, result.parsed);
+	if (state.pendingEchoes === 0) {
+		return {
+			...state,
+			...details,
+			events: result.events,
+			maxSeenId: result.maxSeenId,
+		};
+	}
+	const { events, stripped } = stripAckedEchoes(result.events);
+	return {
+		...state,
+		...details,
+		events,
+		maxSeenId: result.maxSeenId,
+		pendingEchoes: state.pendingEchoes - stripped,
+	};
 }

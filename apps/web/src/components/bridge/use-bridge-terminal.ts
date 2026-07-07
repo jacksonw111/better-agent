@@ -1,14 +1,10 @@
-import { type Dispatch, useMemo, useReducer, useState } from "react";
+import { type Dispatch, useReducer, useState } from "react";
 import type { StreamEvent } from "./bridge-events";
-import {
-	latestSessionListDetail,
-	latestSessionReadyDetail,
-	latestTurnUsageDetail,
-	latestUsageUpdateDetail,
-	type SessionListDetail,
-	type SessionReadyDetail,
-	type TurnUsageDetail,
-	type UsageUpdateDetail,
+import type {
+	SessionListDetail,
+	SessionReadyDetail,
+	TurnUsageDetail,
+	UsageUpdateDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
 import {
@@ -102,29 +98,6 @@ function useSendInput(
 		return sendRaw(trimmed);
 	};
 	return { sending, sendInput, sendRaw };
-}
-
-interface LatestSessionStatus {
-	sessionList: SessionListDetail | null;
-	sessionReady: SessionReadyDetail | null;
-	turnUsage: TurnUsageDetail | null;
-	usageUpdate: UsageUpdateDetail | null;
-}
-
-/** Extracts the latest curated `session_ready`/`turn_usage`/`session_list`
- * detail off the feed — recomputed only when the event list itself changes,
- * not on every render (cheap either way, a tail scan, but no reason to redo it
- * for e.g. a `sending` state flip). Split out purely to keep
- * `useBridgeTerminal` itself under the repo's max-lines-per-function gate. */
-function useLatestSessionStatus(events: StreamEvent[]): LatestSessionStatus {
-	const sessionReady = useMemo(
-		() => latestSessionReadyDetail(events),
-		[events]
-	);
-	const turnUsage = useMemo(() => latestTurnUsageDetail(events), [events]);
-	const usageUpdate = useMemo(() => latestUsageUpdateDetail(events), [events]);
-	const sessionList = useMemo(() => latestSessionListDetail(events), [events]);
-	return { sessionReady, turnUsage, usageUpdate, sessionList };
 }
 
 interface LiveConnectionArgs {
@@ -235,12 +208,16 @@ export function useBridgeTerminal(
 		dispatchFeed
 	);
 	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
+	// Curated status details are now folded incrementally into the feed reducer
+	// (see use-bridge-feed.ts) rather than rescanned off `feed.events` on every
+	// render — the same latest-wins semantics, without the four full tail scans
+	// per event that made a streaming session O(n²).
 	const {
 		sessionReady,
 		turnUsage,
 		usageUpdate,
 		sessionList: feedSessionList,
-	} = useLatestSessionStatus(feed.events);
+	} = feed;
 	const {
 		interrupt,
 		setModel,

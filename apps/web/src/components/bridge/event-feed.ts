@@ -7,6 +7,10 @@ import {
 export interface MergeResult {
 	events: StreamEvent[];
 	maxSeenId: number;
+	/** Only the newly-parsed events appended by this merge (empty when nothing
+	 * was fresh) — lets the feed reducer fold per-kind status details off just
+	 * the new tail instead of rescanning the whole `events` array. */
+	parsed: StreamEvent[];
 }
 
 /**
@@ -28,7 +32,7 @@ export function mergeEvents(
 ): MergeResult {
 	const fresh = incoming.filter((raw) => raw.id > maxSeenId);
 	if (fresh.length === 0) {
-		return { events: current, maxSeenId };
+		return { events: current, maxSeenId, parsed: [] };
 	}
 	const parsed: StreamEvent[] = [];
 	let nextMaxSeenId = maxSeenId;
@@ -39,5 +43,5 @@ export function mergeEvents(
 		}
 		nextMaxSeenId = Math.max(nextMaxSeenId, raw.id);
 	}
-	return { events: [...current, ...parsed], maxSeenId: nextMaxSeenId };
+	return { events: [...current, ...parsed], maxSeenId: nextMaxSeenId, parsed };
 }
