@@ -200,11 +200,20 @@ function useTerminalView(
 		() => deriveTurnInFlight(bridge.events, ended),
 		[bridge.events, ended]
 	);
-	const avatars: ChatAvatars = {
-		assistant: agentAvatar(session.tokenId),
-		user: userAvatarUrl,
-	};
-	const caps = capabilities(session.agentKind);
+	// Stable across renders so `React.memo`'d rows can skip re-rendering on the
+	// many non-event renders (sending flips, connection-status changes): avatars
+	// only depends on tokenId + user url, caps only on agentKind.
+	const avatars = useMemo<ChatAvatars>(
+		() => ({
+			assistant: agentAvatar(session.tokenId),
+			user: userAvatarUrl,
+		}),
+		[session.tokenId, userAvatarUrl]
+	);
+	const caps = useMemo(
+		() => capabilities(session.agentKind),
+		[session.agentKind]
+	);
 	const sessionId = bridge.sessionReady?.sessionId ?? session.id;
 	return { ...bridge, avatars, caps, sessionId, turns, turnInFlight };
 }

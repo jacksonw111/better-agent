@@ -3,6 +3,7 @@ import {
 	type ChatAvatars,
 	ChatRow,
 } from "@better-agent/ui/components/chat/chat-row";
+import { memo } from "react";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
 import { ApprovalLine, ErrorLine, FileLine, StatusLine } from "./event-line";
 import { TaskCard } from "./task-card";
@@ -67,8 +68,13 @@ function StreamingSkeleton() {
  * user/assistant turns as chat bubbles (avatars, markdown, tool cards), and
  * the lifecycle kinds as subtle inline lines. Approval stays the bridge's own
  * card, sitting inside the assistant flow.
+ *
+ * `memo`'d: a streaming session re-renders the feed on every token, but each
+ * already-settled turn's props (its `turn` object, avatars, answered map) are
+ * stable across those renders, so the shallow-prop guard skips re-rendering
+ * every prior row — only the trailing, actually-changing turn re-renders.
  */
-export function BridgeChatRow({
+function BridgeChatRowImpl({
 	answered,
 	attachSkeleton,
 	avatars,
@@ -108,3 +114,5 @@ export function BridgeChatRow({
 			);
 	}
 }
+
+export const BridgeChatRow = memo(BridgeChatRowImpl);
