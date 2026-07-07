@@ -1,4 +1,3 @@
-import { Card } from "@better-agent/ui/components/card";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import {
 	Table,
@@ -69,7 +68,7 @@ export function ModelsCard() {
 	const view = useListView(models.data ?? [], { filter: matchModel });
 
 	return (
-		<Card className="flex flex-col gap-3 p-4">
+		<div className="flex flex-col gap-3">
 			<ListToolbar
 				action={
 					<ProviderSelect
@@ -103,6 +102,6 @@ export function ModelsCard() {
 					/>
 				</>
 			)}
-		</Card>
+		</div>
 	);
 }

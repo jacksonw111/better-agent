@@ -1,5 +1,4 @@
 import { Button } from "@better-agent/ui/components/button";
-import { Card } from "@better-agent/ui/components/card";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import {
 	Table,
@@ -70,7 +69,7 @@ export function CatalogCard() {
 	);
 
 	return (
-		<Card className="flex flex-col gap-3 p-4">
+		<div className="flex flex-col gap-3">
 			<ListToolbar
 				action={
 					<Button
@@ -96,6 +95,6 @@ export function CatalogCard() {
 				pageCount={view.pageCount}
 				total={view.total}
 			/>
-		</Card>
+		</div>
 	);
 }

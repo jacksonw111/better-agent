@@ -1,6 +1,5 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
-import { Card } from "@better-agent/ui/components/card";
 import {
 	Popover,
 	PopoverContent,
@@ -202,7 +201,7 @@ export function CredentialsCard() {
 			enabled: form.enabled,
 		});
 	return (
-		<Card className="flex flex-col gap-3 p-4">
+		<div className="flex flex-col gap-3">
 			<ListToolbar
 				action={
 					<Button onClick={openAdd} size="sm">
@@ -229,6 +228,6 @@ export function CredentialsCard() {
 					providers={catalog.data ?? []}
 				/>
 			) : null}
-		</Card>
+		</div>
 	);
 }
