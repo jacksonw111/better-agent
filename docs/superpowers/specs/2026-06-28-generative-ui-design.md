@@ -119,7 +119,7 @@ const ui = defineComponents([...defs])
 ```
 
 `defineComponents` lives in the framework-agnostic SDK
-(`@curiousbus/agent-client`). The React renderer lives in `@better-agent/ui`.
+(`@jacksonw111/agent-client`). The React renderer lives in `@better-agent/ui`.
 
 ### Schema derivation
 
@@ -348,14 +348,14 @@ selection quality.)
 
 ### External consumers
 
-The SDK (`@curiousbus/agent-client`) stays framework-agnostic: it ships
+The SDK (`@jacksonw111/agent-client`) stays framework-agnostic: it ships
 `defineComponents` + partial-stream + `validate`. The React renderer lives in
 `@better-agent/ui` (internal). External SDK consumers write their own renderer
 (or a future published React-renderer package).
 
 ## Package boundaries
 
-- `@curiousbus/agent-client` (framework-agnostic SDK): `defineComponents`,
+- `@jacksonw111/agent-client` (framework-agnostic SDK): `defineComponents`,
   schema derivation, `validate`, partial-stream forwarding, action routing
   helper. No React.
 - `@better-agent/ui` (React): the generic `<GenerativeUI>` renderer that

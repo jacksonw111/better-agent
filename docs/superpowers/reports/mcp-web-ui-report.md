@@ -74,7 +74,7 @@ string[]` to `AgentForm`, `EMPTY_AGENT_FORM`, `toAgentInput`, and
    (files already formatted correctly by the Write/Edit-time formatter
    hook).
 2. `pnpm check-types` — **7/7 tasks passed** (`@better-agent/agent`,
-   `server`, `@curiousbus/agent-client`, `@better-agent/ui`,
+   `server`, `@jacksonw111/agent-client`, `@better-agent/ui`,
    `authz`, `@better-agent/admin`, `web`).
 3. `npx eslint <changed files>` — **0 errors** (after splitting
    `ServerForm`; first pass had 1 `max-lines-per-function` error, fixed).

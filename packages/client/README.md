@@ -1,4 +1,4 @@
-# @curiousbus/agent-client
+# @jacksonw111/agent-client
 
 TypeScript SDK for connecting to a **Better Agent** server — run agents, stream
 events, and manage sessions over [oRPC](https://orpc.unnoq.com). Fully typed, with
@@ -14,12 +14,12 @@ both ESM and CommonJS, so `import` and `require` both work.
 ## Install
 
 This package is published to **GitHub Packages**, so installing it takes a one-time
-setup: point the `@curiousbus` scope at GitHub's registry and authenticate.
+setup: point the `@jacksonw111` scope at GitHub's registry and authenticate.
 
 1. Add a `.npmrc` next to your `package.json`:
 
    ```ini
-   @curiousbus:registry=https://npm.pkg.github.com
+   @jacksonw111:registry=https://npm.pkg.github.com
    ```
 
 2. Authenticate. GitHub Packages requires a token even for public packages — create
@@ -33,14 +33,14 @@ setup: point the `@curiousbus` scope at GitHub's registry and authenticate.
 3. Install:
 
    ```bash
-   npm install @curiousbus/agent-client
-   # or: pnpm add @curiousbus/agent-client
+   npm install @jacksonw111/agent-client
+   # or: pnpm add @jacksonw111/agent-client
    ```
 
 ## Quick start
 
 ```ts
-import { createAgentClient } from "@curiousbus/agent-client";
+import { createAgentClient } from "@jacksonw111/agent-client";
 
 const agent = createAgentClient({
   // The Better Agent server root. The SDK appends "/rpc" for you.

@@ -1,15 +1,15 @@
 {
-  "name": "@curiousbus/agent-client",
+  "name": "@jacksonw111/agent-client",
   "version": "0.1.0",
   "type": "module",
   "description": "TypeScript SDK for connecting to a Better Agent server — run agents, stream events, and manage sessions over oRPC.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/curiousbus/better-agent.git",
+    "url": "git+https://github.com/jacksonw111/better-agent.git",
     "directory": "packages/client"
   },
-  "homepage": "https://github.com/curiousbus/better-agent/tree/main/packages/client#readme",
+  "homepage": "https://github.com/jacksonw111/better-agent/tree/main/packages/client#readme",
   "keywords": [
     "better-agent",
     "agent",

@@ -99,7 +99,7 @@ const ui = defineComponents([...defs])
 //   ui.components     → registry，type → ComponentDef（给 renderer 用）
 ```
 
-`defineComponents` 放在框架无关的 SDK（`@curiousbus/agent-client`）。React renderer 放在 `@better-agent/ui`。
+`defineComponents` 放在框架无关的 SDK（`@jacksonw111/agent-client`）。React renderer 放在 `@better-agent/ui`。
 
 ### Schema 派生
 
@@ -244,11 +244,11 @@ interface GenerativeUIProps {
 
 ### 外部消费者
 
-SDK（`@curiousbus/agent-client`）保持框架无关：它出 `defineComponents` + partial 流 + `validate`。React 渲染器放在 `@better-agent/ui`（内部）。外部 SDK 消费者自己写渲染器（或将来发布一个 React 渲染器包）。
+SDK（`@jacksonw111/agent-client`）保持框架无关：它出 `defineComponents` + partial 流 + `validate`。React 渲染器放在 `@better-agent/ui`（内部）。外部 SDK 消费者自己写渲染器（或将来发布一个 React 渲染器包）。
 
 ## 包边界
 
-- `@curiousbus/agent-client`（框架无关 SDK）：`defineComponents`、schema 派生、`validate`、partial 流转发、action 路由 helper。不含 React。
+- `@jacksonw111/agent-client`（框架无关 SDK）：`defineComponents`、schema 派生、`validate`、partial 流转发、action 路由 helper。不含 React。
 - `@better-agent/ui`（React）：通用 `<GenerativeUI>` 渲染器，消费 `renderers` + partial/最终树，含 skeleton/commit-on-complete、未知类型回退、`onAction` dispatch。
 - `apps/web`（第一个消费者）：`genui/` 组件库（清单 + 渲染实现）、mock 数据工具、本地 action handler、`/genui` 路由、`<GenerativeUIView>`（流式 + partial + action 接线）。
 - `packages/agent`：`structured-delta` 事件 + `drainStream` 分支 + partial-JSON 解析 + 节流。缓存断点已存在；增加确定性 schema 序列化。

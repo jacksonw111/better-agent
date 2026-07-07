@@ -1040,7 +1040,7 @@ Note: the stubbed `prompt` ignores the `callId` mismatch by returning a single r
 
 - [ ] **Step 4: Run the test.**
 
-Run: `pnpm -F @curiousbus/agent-client test src/run-tools.test.ts`
+Run: `pnpm -F @jacksonw111/agent-client test src/run-tools.test.ts`
 Expected: 2 passing tests. (Confirm the package name with `packages/client/package.json`; use that filter.)
 
 - [ ] **Step 5: Lint + commit.**
@@ -1327,7 +1327,7 @@ git commit -m "feat(board): /board route + sidebar entry + dnd-kit"
 - [ ] **Step 1: Board client.** Create `apps/web/src/board/board-client.ts` — thin wrappers translating tool results to `BoardTask[]`:
 
 ```ts
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import type { BoardStatus, BoardTask } from "./board-store";
 
 export function parseColumn(result: unknown): BoardTask[] {
@@ -1457,7 +1457,7 @@ export function TaskColumn({
 - [ ] **Step 4: TaskBoard.** Create `apps/web/src/board/task-board.tsx` — orchestration: store, fan-out load, loaded-set, grouping. (≤ 50-line functions; extract handlers as needed.)
 
 ```tsx
-import type { AgentClient } from "@curiousbus/agent-client";
+import type { AgentClient } from "@jacksonw111/agent-client";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { loadColumns } from "./board-client";
 import {
@@ -1732,7 +1732,7 @@ Expected: clean.
 
 - [ ] **Step 5: Run the affected package test suites.**
 
-Run: `pnpm -F @better-agent/db test && pnpm -F @better-agent/agent test && pnpm -F @better-agent/api test && pnpm -F @curiousbus/agent-client test && pnpm -F web test`
+Run: `pnpm -F @better-agent/db test && pnpm -F @better-agent/agent test && pnpm -F @better-agent/api test && pnpm -F @jacksonw111/agent-client test && pnpm -F web test`
 Expected: all green.
 
 - [ ] **Step 6: Commit + push (deploy via GH Action on `dev`).**

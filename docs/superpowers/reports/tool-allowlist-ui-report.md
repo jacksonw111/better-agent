@@ -58,7 +58,7 @@ used as-is.
 - `pnpm check-types` → **7/7 packages pass** (`@better-agent/admin`,
   `@better-agent/agent`, `@better-agent/api`, `@better-agent/config`,
   `@better-agent/db`, `@better-agent/env`, `@better-agent/ui`,
-  `@curiousbus/agent-client`, `authz`, `server`, `web` — `web` was the only
+  `@jacksonw111/agent-client`, `authz`, `server`, `web` — `web` was the only
   cache miss, all green).
 - `npx eslint apps/web/src/components/agents/agent-form.ts apps/web/src/components/agents/agent-wizard-steps.tsx apps/web/src/components/agents/tool-allowlist-field.tsx`
   → **0 errors** ("No issues found").

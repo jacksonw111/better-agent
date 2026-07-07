@@ -1,11 +1,11 @@
-# Publishable `@curiousbus/agent-client` — Design Spec
+# Publishable `@jacksonw111/agent-client` — Design Spec
 
 **Date:** 2026-06-27
 **Status:** Approved (design)
 
 ## Goal
 
-Turn the repo-private `@better-agent/client` package into a standalone, publishable npm SDK named **`@curiousbus/agent-client`**, released to the public npm registry via a tag-triggered GitHub Action. Ship a README that shows a third party how to connect to the Better Agent server with an agent token.
+Turn the repo-private `@better-agent/client` package into a standalone, publishable npm SDK named **`@jacksonw111/agent-client`**, released to the public npm registry via a tag-triggered GitHub Action. Ship a README that shows a third party how to connect to the Better Agent server with an agent token.
 
 ## Why this is possible cleanly
 
@@ -52,23 +52,23 @@ Keep workspace consumers importing TypeScript source (current fast behavior, no 
 
 ### Rename
 
-`@better-agent/client` → `@curiousbus/agent-client` across **11 files** (3 `package.json` workspace refs in apps/web, apps/admin, packages/ui; 8 source import sites). Mechanical find/replace, verified by typecheck + build. Workspace refs stay `"@curiousbus/agent-client": "workspace:*"`.
+`@better-agent/client` → `@jacksonw111/agent-client` across **11 files** (3 `package.json` workspace refs in apps/web, apps/admin, packages/ui; 8 source import sites). Mechanical find/replace, verified by typecheck + build. Workspace refs stay `"@jacksonw111/agent-client": "workspace:*"`.
 
 ### Release workflow
 
 `.github/workflows/release-client.yml`, `on: push: tags: ["client-v*"]`:
-checkout → pnpm/node → `pnpm install --frozen-lockfile` → `pnpm -F @curiousbus/agent-client build` → `pnpm -F @curiousbus/agent-client publish --access public --no-git-checks`, with `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and an `.npmrc` writing `//registry.npmjs.org/:_authToken`. **Prereq (user):** add `NPM_TOKEN` repo secret; the `@curiousbus` npm org exists (user owns it).
+checkout → pnpm/node → `pnpm install --frozen-lockfile` → `pnpm -F @jacksonw111/agent-client build` → `pnpm -F @jacksonw111/agent-client publish --access public --no-git-checks`, with `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` and an `.npmrc` writing `//registry.npmjs.org/:_authToken`. **Prereq (user):** add `NPM_TOKEN` repo secret; the `@jacksonw111` npm org exists (user owns it).
 
 ### package.json metadata
 
-`name`, `version: "0.1.0"`, remove `private`, `description`, `license: "MIT"` (+ `LICENSE` file), `repository` (`github.com/curiousbus/better-agent`, `directory: packages/client`), `keywords`, `sideEffects: false`.
+`name`, `version: "0.1.0"`, remove `private`, `description`, `license: "MIT"` (+ `LICENSE` file), `repository` (`github.com/jacksonw111/better-agent`, `directory: packages/client`), `keywords`, `sideEffects: false`.
 
 ## README (`packages/client/README.md`)
 
 Must show real connection usage:
 
 ```ts
-import { createAgentClient } from "@curiousbus/agent-client";
+import { createAgentClient } from "@jacksonw111/agent-client";
 
 const agent = createAgentClient({
   // server root; the SDK appends "/rpc". Default deployed server:
@@ -95,8 +95,8 @@ Sections: install, quick start (above), `BETTER_AGENT_URL` note (server root, `/
 
 ## Testing / verification
 
-- `pnpm -F @curiousbus/agent-client test` (existing vitest: `index.test.ts`, `cancel.test.ts`) still passes after rename.
-- `pnpm -F @curiousbus/agent-client build` emits `dist/index.{js,cjs,d.ts}`; `dist/index.d.ts` contains the inlined `AppRouter` shape and has **no** `import … from "@better-agent/api"`.
+- `pnpm -F @jacksonw111/agent-client test` (existing vitest: `index.test.ts`, `cancel.test.ts`) still passes after rename.
+- `pnpm -F @jacksonw111/agent-client build` emits `dist/index.{js,cjs,d.ts}`; `dist/index.d.ts` contains the inlined `AppRouter` shape and has **no** `import … from "@better-agent/api"`.
 - `npm pack --dry-run` (or `pnpm pack`) shows the tarball contains only `dist` + `README` + `LICENSE` + `package.json`, and the manifest's `dependencies` are just `@orpc/*` (no `@better-agent/api`).
 - Repo-wide `pnpm check-types` + `pnpm -F web build` + `pnpm -F admin build` pass after the rename.
 

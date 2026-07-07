@@ -14,7 +14,7 @@
 
 - **Branch:** work on `dev`. Never commit to `main`. (Deploy is a GitHub Action on push to `dev`.)
 - **No local deploys.** Verify by running tests/typecheck locally; do not run wrangler deploy.
-- **Published-SDK purity:** `@curiousbus/agent-client` must gain **no new runtime dependencies**. `ComponentDef.props` is a JSON Schema object (`Record<string, unknown>`), NOT a Zod schema, so the SDK needs neither `zod` nor a JSON-schema lib. (apps/web authors props with `z.toJSONSchema` on its own side — apps/web already depends on zod.)
+- **Published-SDK purity:** `@jacksonw111/agent-client` must gain **no new runtime dependencies**. `ComponentDef.props` is a JSON Schema object (`Record<string, unknown>`), NOT a Zod schema, so the SDK needs neither `zod` nor a JSON-schema lib. (apps/web authors props with `z.toJSONSchema` on its own side — apps/web already depends on zod.)
 - **File-size cap:** every source file ≤ 300 lines (enforced by `scripts/check-file-rules.js`; there is NO override). Split proactively.
 - **ESLint gates (block on warning):** `max-lines-per-function` 50, `complexity` 10, `max-params` 4, `no-magic-numbers`. Use object params past 4 args; extract helpers to stay under 50 lines; name constants.
 - **Biome/ultracite:** interfaces over type aliases for object shapes (`useConsistentTypeDefinitions`), `T[]` not `Array<T>` (`useConsistentArrayType`), no barrel files (`noBarrelFile`), no namespace/`import *`, no `void` operator — use `.then()/.catch()`. Run `pnpm dlx ultracite fix` before each commit.
@@ -23,7 +23,7 @@
 
 ## File Structure
 
-**`@curiousbus/agent-client` (packages/client):**
+**`@jacksonw111/agent-client` (packages/client):**
 - `src/genui/types.ts` — `ComponentDef`, `UINode`, `UIAction`, `GenerativeUI` interfaces (NEW)
 - `src/genui/define-components.ts` — `defineComponents()` schema builder + structural `validate` (NEW)
 - `src/index.ts` — re-export the genui surface (MODIFY)
@@ -126,7 +126,7 @@ describe("defineComponents", () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm -F @curiousbus/agent-client test`
+Run: `pnpm -F @jacksonw111/agent-client test`
 Expected: FAIL — `Cannot find module './define-components'`.
 
 - [ ] **Step 3: Write the types**
@@ -288,7 +288,7 @@ export {
 
 - [ ] **Step 6: Run tests + typecheck + lint**
 
-Run: `pnpm -F @curiousbus/agent-client test && pnpm -F @curiousbus/agent-client check-types && pnpm dlx ultracite check packages/client/src/genui`
+Run: `pnpm -F @jacksonw111/agent-client test && pnpm -F @jacksonw111/agent-client check-types && pnpm dlx ultracite check packages/client/src/genui`
 Expected: tests PASS, typecheck clean, lint clean.
 
 - [ ] **Step 7: Commit**
@@ -360,7 +360,7 @@ Add a `makeUserSessionsStub` next to `makeSessionsStub` (mirror it, but `create`
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm -F @curiousbus/agent-client test`
+Run: `pnpm -F @jacksonw111/agent-client test`
 Expected: FAIL — user-plane stream does not forward `tools` / does not call `submitToolResult`.
 
 - [ ] **Step 3: Extract the shared dispatcher**
@@ -471,7 +471,7 @@ Note: `stripToolDefs` may become unused in `internal.ts`; remove it if so (lint 
 
 - [ ] **Step 5: Run tests + typecheck**
 
-Run: `pnpm -F @curiousbus/agent-client test && pnpm -F @curiousbus/agent-client check-types`
+Run: `pnpm -F @jacksonw111/agent-client test && pnpm -F @jacksonw111/agent-client check-types`
 Expected: PASS (both the new test and the existing agent-plane tool tests).
 
 - [ ] **Step 6: Commit**
@@ -804,7 +804,7 @@ git commit -m "feat(agent): surface StructuredOutput tool-input as structured-de
 - Create: `packages/ui/src/lib/genui-tree.test.ts`
 
 **Interfaces:**
-- Consumes: `UINode` (from `@curiousbus/agent-client`).
+- Consumes: `UINode` (from `@jacksonw111/agent-client`).
 - Produces:
   - `function readRoot(tree: unknown): unknown` — returns `tree.root` if present, else `tree`.
   - `function asNode(value: unknown): PartialNode | null` — structural shape `{ id?; type?; props?; children?; action? }`.
@@ -904,7 +904,7 @@ git commit -m "feat(ui): pure tree logic for the generative-UI renderer"
 - Modify: `packages/ui/package.json` (exports)
 
 **Interfaces:**
-- Consumes: `readRoot`, `asNode`, `nodeComplete`, `PartialNode` (Task 5); `UIAction`, `UINode` (from `@curiousbus/agent-client`).
+- Consumes: `readRoot`, `asNode`, `nodeComplete`, `PartialNode` (Task 5); `UIAction`, `UINode` (from `@jacksonw111/agent-client`).
 - Produces:
   - `interface NodeProps { node: UINode; onAction: (a: UIAction) => void; renderChildren: (children?: UINode[]) => ReactNode }`
   - `interface GenerativeUIProps { tree: unknown; renderers: Record<string, ComponentType<NodeProps>>; onAction: (a: UIAction) => void }`
@@ -923,7 +923,7 @@ In `packages/ui/package.json`, add to `exports` (after the `./components/chat/*`
 Create `packages/ui/src/components/genui/node-view.tsx`:
 
 ```tsx
-import type { UIAction, UINode } from "@curiousbus/agent-client";
+import type { UIAction, UINode } from "@jacksonw111/agent-client";
 import type { ComponentType, ReactNode } from "react";
 import { asNode, nodeComplete } from "@better-agent/ui/lib/genui-tree";
 
@@ -980,7 +980,7 @@ export function NodeView({ value, renderers, onAction }: NodeViewProps) {
 Create `packages/ui/src/components/genui/generative-ui.tsx`:
 
 ```tsx
-import type { UIAction } from "@curiousbus/agent-client";
+import type { UIAction } from "@jacksonw111/agent-client";
 import type { ComponentType } from "react";
 import { readRoot } from "@better-agent/ui/lib/genui-tree";
 import { type NodeProps, NodeView } from "./node-view";
@@ -1024,7 +1024,7 @@ git commit -m "feat(ui): GenerativeUI renderer (skeleton + unknown-type fallback
 - Create: `apps/web/src/genui/manifest.test.ts`
 
 **Interfaces:**
-- Consumes: `ComponentDef` (from `@curiousbus/agent-client`), `z` (from `zod`).
+- Consumes: `ComponentDef` (from `@jacksonw111/agent-client`), `z` (from `zod`).
 - Produces: `export const MANIFEST: ComponentDef[]` and `export const COMPONENT_TYPES: string[]` covering: `Stack`, `Card`, `Heading`, `Text`, `Badge`, `Stat`, `List`, `Button`, `Form`, `TextField`.
 
 - [ ] **Step 1: Write the failing test**
@@ -1032,7 +1032,7 @@ git commit -m "feat(ui): GenerativeUI renderer (skeleton + unknown-type fallback
 Create `apps/web/src/genui/manifest.test.ts`:
 
 ```ts
-import { defineComponents } from "@curiousbus/agent-client";
+import { defineComponents } from "@jacksonw111/agent-client";
 import { expect, it } from "vitest";
 import { COMPONENT_TYPES, MANIFEST } from "./manifest";
 
@@ -1062,7 +1062,7 @@ Expected: FAIL — module not found.
 Create `apps/web/src/genui/manifest.ts`. Use `z.toJSONSchema` for each props shape. Keep the file ≤ 300 lines (it will be ~120):
 
 ```ts
-import type { ComponentDef } from "@curiousbus/agent-client";
+import type { ComponentDef } from "@jacksonw111/agent-client";
 import { z } from "zod";
 
 const props = (shape: z.ZodRawShape): Record<string, unknown> =>
@@ -1322,7 +1322,7 @@ git commit -m "feat(web): renderers for the starter component library"
 - Create: `apps/web/src/genui/tools.test.ts`
 
 **Interfaces:**
-- Consumes: `ClientToolDef`, `UIAction` (from `@curiousbus/agent-client`).
+- Consumes: `ClientToolDef`, `UIAction` (from `@jacksonw111/agent-client`).
 - Produces:
   - `export const DATA_TOOLS: ClientToolDef[]` — `listTasks`, `getStats`, `searchItems` returning JSON strings.
   - `export const HANDLERS: Record<string, (payload: unknown) => void>` — local handlers (e.g. `press`).
@@ -1369,7 +1369,7 @@ Expected: FAIL — modules not found.
 Create `apps/web/src/genui/tools.ts`:
 
 ```ts
-import type { ClientToolDef } from "@curiousbus/agent-client";
+import type { ClientToolDef } from "@jacksonw111/agent-client";
 
 const TASKS = [
 	{ id: 1, title: "Draft proposal", done: false },
@@ -1416,7 +1416,7 @@ export const DATA_TOOLS: ClientToolDef[] = [
 Create `apps/web/src/genui/handlers.ts`:
 
 ```ts
-import type { UIAction } from "@curiousbus/agent-client";
+import type { UIAction } from "@jacksonw111/agent-client";
 import { toast } from "sonner";
 
 export const HANDLERS: Record<string, (payload: unknown) => void> = {
@@ -1459,7 +1459,7 @@ git commit -m "feat(web): mock data tools + A2 action routing"
 - Create: `apps/web/src/components/genui/genui-view.tsx`
 
 **Interfaces:**
-- Consumes: `defineComponents` + `MANIFEST` (Task 7), `RENDERERS` (Task 8), `DATA_TOOLS` + `HANDLERS` + `routeAction` (Task 9), `GenerativeUI` renderer (Task 6), `AgentClient` (from `@curiousbus/agent-client`).
+- Consumes: `defineComponents` + `MANIFEST` (Task 7), `RENDERERS` (Task 8), `DATA_TOOLS` + `HANDLERS` + `routeAction` (Task 9), `GenerativeUI` renderer (Task 6), `AgentClient` (from `@jacksonw111/agent-client`).
 - Produces: `function GenerativeUIView({ agentClient }: { agentClient: AgentClient }): ReactNode`
 
 - [ ] **Step 1: Write the component**
@@ -1469,7 +1469,7 @@ Create `apps/web/src/components/genui/genui-view.tsx` (keep ≤ 300 lines, funct
 ```tsx
 import { Button } from "@better-agent/ui/components/button";
 import { GenerativeUI } from "@better-agent/ui/components/genui/generative-ui";
-import { type AgentClient, defineComponents, type UIAction } from "@curiousbus/agent-client";
+import { type AgentClient, defineComponents, type UIAction } from "@jacksonw111/agent-client";
 import { useMemo, useRef, useState } from "react";
 import { HANDLERS, routeAction } from "@/genui/handlers";
 import { MANIFEST } from "@/genui/manifest";
@@ -1666,7 +1666,7 @@ git commit -m "test(agent): guard structured-output schema stays in the cached t
 - [ ] **Run all touched suites + typechecks:**
 
 ```bash
-pnpm -F @curiousbus/agent-client test && pnpm -F @curiousbus/agent-client check-types
+pnpm -F @jacksonw111/agent-client test && pnpm -F @jacksonw111/agent-client check-types
 pnpm -F @better-agent/agent test && pnpm -F @better-agent/agent check-types
 pnpm -F @better-agent/ui test && pnpm -F @better-agent/ui check-types
 pnpm -F web check-types
@@ -1677,7 +1677,7 @@ Expected: all green.
 - [ ] **SDK build still produces a clean d.ts (new exports bundle):**
 
 ```bash
-pnpm -F @curiousbus/agent-client build
+pnpm -F @jacksonw111/agent-client build
 ```
 
 Expected: build succeeds; `dist/index.d.ts` includes `defineComponents`, `UINode`, `ComponentDef`.

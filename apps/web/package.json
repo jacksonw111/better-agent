@@ -16,7 +16,7 @@
     "@dnd-kit/utilities": "3.2.2",
     "@better-agent/agent": "workspace:*",
     "@better-agent/api": "workspace:*",
-    "@curiousbus/agent-client": "workspace:*",
+    "@jacksonw111/agent-client": "workspace:*",
     "@better-agent/env": "workspace:*",
     "@better-agent/ui": "workspace:*",
     "@orpc/client": "catalog:",

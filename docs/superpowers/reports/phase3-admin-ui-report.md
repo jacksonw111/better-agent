@@ -113,7 +113,7 @@ Grepped `apps/web/src` + `apps/admin/src` for `rounded-lg border` /
   packages/ui/src/components/table.tsx` → "Checked 44 files in 31ms. No
   fixes applied." (clean)
 - `pnpm check-types` → **all 7 packages passed**: `@better-agent/agent`,
-  `server`, `@curiousbus/agent-client`, `@better-agent/ui`, `authz`, `web`,
+  `server`, `@jacksonw111/agent-client`, `@better-agent/ui`, `authz`, `web`,
   `@better-agent/admin` (7 successful, 7 total).
 - `npx eslint` on all changed admin + ui files (sidebar.tsx, index.tsx,
   users.tsx, api-types.ts, table.tsx, all of `components/customers/`,

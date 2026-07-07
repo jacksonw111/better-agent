@@ -44,4 +44,4 @@
 - GenerativeUI/NodeView tree renderer components: if TweetCard etc. are reused by Task 1 keep the component files; delete the tree-walking renderer (generative-ui.tsx, node-view, genui-tree lib) only if nothing references them after the refactor.
 - grep for `structured`, `outputSchema`, `StructuredOutput`, `hasTree`, `renderTree` across the repo at the end — zero live references (docs/plans may mention them historically; leave docs).
 
-**Tests:** full suites green: `pnpm -F @better-agent/agent test`, `pnpm -F @curiousbus/agent-client test` (check actual pkg name), `pnpm -F @better-agent/ui test`, `pnpm -F web test`, `pnpm -F server test`, `pnpm check-types`.
+**Tests:** full suites green: `pnpm -F @better-agent/agent test`, `pnpm -F @jacksonw111/agent-client test` (check actual pkg name), `pnpm -F @better-agent/ui test`, `pnpm -F web test`, `pnpm -F server test`, `pnpm check-types`.

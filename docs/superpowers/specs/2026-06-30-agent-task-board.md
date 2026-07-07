@@ -152,7 +152,7 @@ unknown tool name yields a `tool-result` with `isError: true` for that `callId`
 only (one bad call never sinks the batch). This reuses the existing RunEvent
 stream; no new endpoint, no new transport.
 
-SDK: `@curiousbus/agent-client`'s user-plane client gains:
+SDK: `@jacksonw111/agent-client`'s user-plane client gains:
 - `runTools(sessionId, calls, onResult): Promise<void>` — opens the stream with
   a `toolCalls` input and invokes `onResult({ callId, name, result, isError })`
   for each `tool-result` as it streams in, resolving on `done`. This is the

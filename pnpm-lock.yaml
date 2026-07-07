@@ -132,7 +132,7 @@ importers:
       '@better-agent/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@curiousbus/agent-client':
+      '@jacksonw111/agent-client':
         specifier: workspace:*
         version: link:../../packages/client
       '@orpc/client':
@@ -464,9 +464,6 @@ importers:
       '@better-agent/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@curiousbus/agent-client':
-        specifier: workspace:*
-        version: link:../../packages/client
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -476,6 +473,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: 3.2.2
         version: 3.2.2(react@19.2.7)
+      '@jacksonw111/agent-client':
+        specifier: workspace:*
+        version: link:../../packages/client
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.14.6(@opentelemetry/api@1.9.1)
@@ -781,9 +781,6 @@ importers:
       '@base-ui/react':
         specifier: ^1.0.0
         version: 1.5.0(@types/react@19.2.17)(date-fns@4.4.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@curiousbus/agent-client':
-        specifier: workspace:*
-        version: link:../client
       '@fontsource-variable/geist':
         specifier: 5.2.9
         version: 5.2.9
@@ -793,6 +790,9 @@ importers:
       '@fontsource-variable/inter':
         specifier: ^5.2.8
         version: 5.2.8
+      '@jacksonw111/agent-client':
+        specifier: workspace:*
+        version: link:../client
       '@shadcn/react':
         specifier: ^0.1.0
         version: 0.1.0(@types/react@19.2.17)(react@19.2.7)

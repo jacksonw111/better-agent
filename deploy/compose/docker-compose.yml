@@ -46,7 +46,7 @@ services:
   # One-shot: applies pending drizzle migrations, then exits. The server waits
   # for it to complete successfully. Reuses the server image.
   migrate:
-    image: ghcr.io/curiousbus/better-agent-server:${IMAGE_TAG:-latest}
+    image: ghcr.io/jacksonw111/better-agent-server:${IMAGE_TAG:-latest}
     command: ["node", "dist/migrate.mjs"]
     environment:
       DATABASE_URL: postgres://better_agent:${POSTGRES_PASSWORD}@postgres:5432/better_agent
@@ -59,7 +59,7 @@ services:
     restart: "no"
 
   server:
-    image: ghcr.io/curiousbus/better-agent-server:${IMAGE_TAG:-latest}
+    image: ghcr.io/jacksonw111/better-agent-server:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -91,13 +91,13 @@ services:
         condition: service_healthy
 
   web:
-    image: ghcr.io/curiousbus/better-agent-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/jacksonw111/better-agent-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - server
 
   admin:
-    image: ghcr.io/curiousbus/better-agent-admin:${IMAGE_TAG:-latest}
+    image: ghcr.io/jacksonw111/better-agent-admin:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - server
