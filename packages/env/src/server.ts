@@ -53,6 +53,13 @@ export const env = createEnv({
 			),
 		GOOGLE_CLIENT_ID: z.string().optional(),
 		GOOGLE_CLIENT_SECRET: z.string().optional(),
+		/** SiliconFlow (OpenAI-compatible) embeddings — powers memory embeddings
+		 * (decision D1, `BAAI/bge-m3`, 1024 dims). Optional so non-embedding
+		 * runtimes and tests validate; the client throws a clear error if a call
+		 * is made without the key. BASE_URL / model default when unset. */
+		SILICONFLOW_API_KEY: z.string().optional(),
+		SILICONFLOW_BASE_URL: z.string().optional(),
+		EMBEDDING_MODEL: z.string().optional(),
 		/** Standalone authz (invite) service — the gate is off when unset. */
 		AUTHZ_URL: z.string().optional(),
 		AUTHZ_SERVICE_SECRET: z.string().optional(),

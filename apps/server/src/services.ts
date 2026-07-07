@@ -24,6 +24,8 @@ import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-tok
 import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usage-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
+import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item-store";
+import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import {
 	createModelCacheStore,
@@ -40,6 +42,7 @@ import Redis from "ioredis";
 import { createAttachmentStore, type R2Bucket } from "./attachment-store";
 import { buildAuthServices } from "./auth-services";
 import { buildAuthzClient, type ServiceBinding } from "./authz-client";
+import { buildEmbeddingClient } from "./embedding-client";
 import { buildMcpResolver } from "./mcp";
 import {
 	buildComposioAccountResolver,
@@ -173,6 +176,7 @@ function buildStores(parts: {
 	usageStore: ReturnType<typeof createUsageStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
+	db: Db;
 }) {
 	const { deps, authStores } = parts;
 	return {
@@ -193,10 +197,11 @@ function buildStores(parts: {
 		bridgeSession: parts.bridgeSessionStore,
 		bridgeMessage: parts.bridgeMessageStore,
 		bridgeUsage: parts.bridgeUsageStore,
+		memory: createMemoryStore(parts.db),
+		memoryItem: createMemoryItemStore(parts.db),
 		...authStores,
 	};
 }
-
 function assembleServices(parts: {
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
 	auth: ReturnType<typeof buildAuthServices>;
@@ -217,6 +222,7 @@ function assembleServices(parts: {
 	usageStore: ReturnType<typeof createUsageStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
+	db: Db;
 }) {
 	const { deps, auth } = parts;
 	return {
@@ -237,6 +243,7 @@ function assembleServices(parts: {
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
 		composio: buildComposioAccountResolver(parts.composioAccount),
+		embeddingClient: buildEmbeddingClient(),
 		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
 		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
@@ -285,6 +292,7 @@ export function buildServices(
 		bridgeSessionStore: createBridgeSessionStore(db),
 		bridgeMessageStore: createBridgeMessageStore(db),
 		bridgeUsageStore: createBridgeUsageStore(db),
+		db,
 		authzBinding,
 		mcpBinding,
 	});

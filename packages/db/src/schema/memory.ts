@@ -13,11 +13,13 @@ import {
 } from "drizzle-orm/pg-core";
 import { agents } from "./agents";
 import { users } from "./auth";
+import { bridgeTokens } from "./bridge";
 
-// Cloudflare Workers AI `bge-base` output width (decision D1). The embedding
-// table is split from memory_items so switching models / re-embedding never
-// rewrites the facts — only this column's dimension is model-bound.
-const EMBEDDING_DIMENSIONS = 768;
+// SiliconFlow `BAAI/bge-m3` output width (decision D1, self-hosted-compatible
+// provider). The embedding table is split from memory_items so switching models
+// / re-embedding never rewrites the facts — only this column's dimension is
+// model-bound.
+const EMBEDDING_DIMENSIONS = 1024;
 // A curated fact carries no learned salience yet; start every item mid-scale.
 const DEFAULT_IMPORTANCE = 0.5;
 
@@ -61,6 +63,27 @@ export const agentMemories = pgTable(
 			.defaultNow(),
 	},
 	(table) => [primaryKey({ columns: [table.agentId, table.memoryId] })]
+);
+
+// The parallel link for LOCAL/bridge agents, which key off `bridge_tokens`
+// rather than `agents` — so a local agent gets memory the same many-to-many,
+// role-scoped way a web agent does (decision C2). Same shape as
+// `agent_memories`, just keyed to a token id.
+export const bridgeTokenMemories = pgTable(
+	"bridge_token_memories",
+	{
+		tokenId: uuid("token_id")
+			.notNull()
+			.references(() => bridgeTokens.id),
+		memoryId: uuid("memory_id")
+			.notNull()
+			.references(() => memories.id),
+		role: text("role").$type<MemoryRole>().notNull().default("read"),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [primaryKey({ columns: [table.tokenId, table.memoryId] })]
 );
 
 // The atomic, retrievable facts. `validTo` is a soft-delete watermark: null =

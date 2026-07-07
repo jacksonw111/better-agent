@@ -25,10 +25,18 @@ export interface MemoryRow {
 	userId: string;
 }
 
-/** An agent↔memory link with its access role. */
+/** A memory link (agent↔memory or bridge-token↔memory) with its access role. */
 export interface AgentMemoryRow {
 	memoryId: string;
 	role: MemoryRole;
+}
+
+/** Produces a fixed-width embedding vector for a text (decision D1: Cloudflare
+ * Workers AI `bge-base`, 768 dims). `model` names the producing model so it can
+ * be persisted alongside the vector for later re-embedding / A-B tests. */
+export interface EmbeddingClient {
+	embed(text: string): Promise<number[]>;
+	readonly model: string;
 }
 
 /** An atomic, retrievable fact. `validTo` null = current (soft-delete sets it). */
@@ -53,6 +61,12 @@ export interface MemoryStore {
 		memoryId: string;
 		role?: MemoryRole;
 	}): Promise<void>;
+	/** Links a memory to a local/bridge agent (or updates the role). */
+	assignToken(input: {
+		tokenId: string;
+		memoryId: string;
+		role?: MemoryRole;
+	}): Promise<void>;
 	create(input: {
 		userId: string;
 		name: string;
@@ -60,11 +74,17 @@ export interface MemoryStore {
 	}): Promise<MemoryRow>;
 	/** Owner-scoped delete: only removes the row when it belongs to `userId`. */
 	delete(id: string, userId: string): Promise<void>;
+	/** Owner-scoped cascade delete: removes the memory plus its items,
+	 * embeddings and agent/token links in one transaction. No-op if not owned. */
+	deleteWithChildren(id: string, userId: string): Promise<void>;
 	get(id: string): Promise<MemoryRow | null>;
 	/** The memory ids (+role) assigned to an agent. */
 	listAgentMemories(agentId: string): Promise<AgentMemoryRow[]>;
 	listByUser(userId: string): Promise<MemoryRow[]>;
+	/** The memory ids (+role) assigned to a local/bridge agent. */
+	listTokenMemories(tokenId: string): Promise<AgentMemoryRow[]>;
 	unassignAgent(agentId: string, memoryId: string): Promise<void>;
+	unassignToken(tokenId: string, memoryId: string): Promise<void>;
 }
 
 export interface MemoryItemStore {
@@ -78,6 +98,9 @@ export interface MemoryItemStore {
 		importance?: number;
 		metadata?: Record<string, unknown>;
 	}): Promise<MemoryItemRow>;
+	/** A single item by id (regardless of valid_to), or null. Used to resolve
+	 * the owning memory for owner-scoped mutations. */
+	get(id: string): Promise<MemoryItemRow | null>;
 	/** Current (valid_to IS NULL) items of a memory, newest first. */
 	listCurrent(memoryId: string): Promise<MemoryItemRow[]>;
 	/** kNN over the given memories: top-k current items by cosine distance to

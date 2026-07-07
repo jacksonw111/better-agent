@@ -133,6 +133,7 @@ export type { RelayDir, RelayEvent, RelayStore } from "./bridge/relay-store";
 // `@better-agent/agent/ports` surface is unchanged.
 export type {
 	AgentMemoryRow,
+	EmbeddingClient,
 	MemoryItemRow,
 	MemoryItemSource,
 	MemoryItemStore,

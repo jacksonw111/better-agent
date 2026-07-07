@@ -18,7 +18,7 @@ CREATE TABLE "memories" (
 --> statement-breakpoint
 CREATE TABLE "memory_embeddings" (
 	"item_id" uuid PRIMARY KEY NOT NULL,
-	"embedding" vector(768) NOT NULL,
+	"embedding" vector(1024) NOT NULL,
 	"model" text NOT NULL
 );
 --> statement-breakpoint

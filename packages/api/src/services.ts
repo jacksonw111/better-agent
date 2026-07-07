@@ -12,9 +12,12 @@ import type {
 	BridgeTokenStore,
 	ComposioAccountStore,
 	EmailSender,
+	EmbeddingClient,
 	GoogleOAuth,
 	MagicLinkStore,
 	McpServerStore,
+	MemoryItemStore,
+	MemoryStore,
 	MessageStore,
 	ModelCacheStore,
 	PasswordResetStore,
@@ -52,6 +55,8 @@ export interface AgentServices {
 	catalog: ModelCatalog;
 	composio: (accountId: string) => Promise<ComposioService | null>;
 	emailSender: EmailSender;
+	/** Memory embeddings via Workers AI (decision D1); null when CF creds unset. */
+	embeddingClient: EmbeddingClient | null;
 	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;
 	mcp: (serverId: string) => Promise<McpService | null>;
@@ -82,6 +87,8 @@ export interface AgentServices {
 		bridgeSession: BridgeSessionStore;
 		bridgeMessage: BridgeMessageStore;
 		bridgeUsage: BridgeUsageStore;
+		memory: MemoryStore;
+		memoryItem: MemoryItemStore;
 	};
 	tokenService: TokenService;
 }

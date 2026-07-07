@@ -1,6 +1,6 @@
 {
-  "id": "708bfe5f-4ce6-403e-9ef7-8e5ae4af07dc",
-  "prevId": "6cc288dc-58c6-412d-a578-25b8fcfb448d",
+  "id": "baead85a-ac78-45fd-af76-305e78d190d9",
+  "prevId": "708bfe5f-4ce6-403e-9ef7-8e5ae4af07dc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1133,6 +1133,69 @@
         "agent_memories_agent_id_memory_id_pk": {
           "name": "agent_memories_agent_id_memory_id_pk",
           "columns": ["agent_id", "memory_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.bridge_token_memories": {
+      "name": "bridge_token_memories",
+      "schema": "",
+      "columns": {
+        "token_id": {
+          "name": "token_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memory_id": {
+          "name": "memory_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'read'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "bridge_token_memories_token_id_bridge_tokens_id_fk": {
+          "name": "bridge_token_memories_token_id_bridge_tokens_id_fk",
+          "tableFrom": "bridge_token_memories",
+          "tableTo": "bridge_tokens",
+          "columnsFrom": ["token_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "bridge_token_memories_memory_id_memories_id_fk": {
+          "name": "bridge_token_memories_memory_id_memories_id_fk",
+          "tableFrom": "bridge_token_memories",
+          "tableTo": "memories",
+          "columnsFrom": ["memory_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "bridge_token_memories_token_id_memory_id_pk": {
+          "name": "bridge_token_memories_token_id_memory_id_pk",
+          "columns": ["token_id", "memory_id"]
         }
       },
       "uniqueConstraints": {},

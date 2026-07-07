@@ -10,6 +10,7 @@ import { bridgeRouter } from "./bridge";
 import { composioRouter } from "./composio";
 import { inviteRouter } from "./invite";
 import { mcpRouter } from "./mcp";
+import { memoryRouter } from "./memory";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
 import { usageRouter } from "./usage";
@@ -25,6 +26,7 @@ export const appRouter = {
 	composio: composioRouter,
 	invite: inviteRouter,
 	mcp: mcpRouter,
+	memory: memoryRouter,
 	providers: providersRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,

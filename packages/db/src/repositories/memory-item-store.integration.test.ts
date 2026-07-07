@@ -5,8 +5,8 @@ import { memories } from "../schema/memory";
 import { createTestDb, type TestDb } from "../testing/test-db";
 import { createMemoryItemStore } from "./memory-item-store";
 
-const EMBEDDING_DIMENSIONS = 768;
-const MODEL = "bge-base";
+const EMBEDDING_DIMENSIONS = 1024;
+const MODEL = "bge-m3";
 
 let db: TestDb;
 let client: PGlite;
@@ -19,7 +19,7 @@ afterEach(async () => {
 	await client.close();
 });
 
-// A 768-d unit-ish vector whose direction is set by its leading components; the
+// A 1024-d unit-ish vector whose direction is set by its leading components; the
 // trailing dims stay zero so cosine distance is driven by `lead` alone.
 function vec(...lead: number[]): number[] {
 	const values = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);

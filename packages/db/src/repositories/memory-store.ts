@@ -1,5 +1,5 @@
 import type { MemoryRow, MemoryStore } from "@better-agent/agent/ports";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -56,9 +56,90 @@ function makeAgentLinkOps(
 	};
 }
 
+// The bridge-token↔memory link ops (local agents), mirroring the agent link
+// ops in their own factory so createMemoryStore stays under the max-lines gate.
+function makeTokenLinkOps(
+	db: Db
+): Pick<MemoryStore, "assignToken" | "unassignToken" | "listTokenMemories"> {
+	return {
+		async assignToken({ tokenId, memoryId, role = "read" }) {
+			await db
+				.insert(schema.bridgeTokenMemories)
+				.values({ tokenId, memoryId, role })
+				.onConflictDoUpdate({
+					target: [
+						schema.bridgeTokenMemories.tokenId,
+						schema.bridgeTokenMemories.memoryId,
+					],
+					set: { role },
+				});
+		},
+		async unassignToken(tokenId, memoryId) {
+			await db
+				.delete(schema.bridgeTokenMemories)
+				.where(
+					and(
+						eq(schema.bridgeTokenMemories.tokenId, tokenId),
+						eq(schema.bridgeTokenMemories.memoryId, memoryId)
+					)
+				);
+		},
+		async listTokenMemories(tokenId) {
+			const rows = await db
+				.select({
+					memoryId: schema.bridgeTokenMemories.memoryId,
+					role: schema.bridgeTokenMemories.role,
+				})
+				.from(schema.bridgeTokenMemories)
+				.where(eq(schema.bridgeTokenMemories.tokenId, tokenId));
+			return rows.map((row) => ({ memoryId: row.memoryId, role: row.role }));
+		},
+	};
+}
+
+// Owner-scoped cascade delete in one transaction: FKs are ON DELETE no action
+// (matching the repo convention), so children are removed explicitly, innermost
+// first (embeddings → items → links → memory). The final memory delete is
+// owner-scoped, so a non-owner's call removes nothing.
+async function deleteMemoryWithChildren(
+	db: Db,
+	id: string,
+	userId: string
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		const items = await tx
+			.select({ id: schema.memoryItems.id })
+			.from(schema.memoryItems)
+			.where(eq(schema.memoryItems.memoryId, id));
+		const itemIds = items.map((item) => item.id);
+		if (itemIds.length > 0) {
+			await tx
+				.delete(schema.memoryEmbeddings)
+				.where(inArray(schema.memoryEmbeddings.itemId, itemIds));
+		}
+		await tx
+			.delete(schema.memoryItems)
+			.where(eq(schema.memoryItems.memoryId, id));
+		await tx
+			.delete(schema.agentMemories)
+			.where(eq(schema.agentMemories.memoryId, id));
+		await tx
+			.delete(schema.bridgeTokenMemories)
+			.where(eq(schema.bridgeTokenMemories.memoryId, id));
+		await tx
+			.delete(schema.memories)
+			.where(
+				and(eq(schema.memories.id, id), eq(schema.memories.userId, userId))
+			);
+	});
+}
+
 export function createMemoryStore(db: Db): MemoryStore {
 	return {
 		...makeAgentLinkOps(db),
+		...makeTokenLinkOps(db),
+		deleteWithChildren: (id, userId) =>
+			deleteMemoryWithChildren(db, id, userId),
 		async create({ userId, name, description }) {
 			const rows = await db
 				.insert(schema.memories)

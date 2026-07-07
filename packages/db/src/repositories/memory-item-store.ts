@@ -113,6 +113,15 @@ async function searchItems(
 export function createMemoryItemStore(db: Db): MemoryItemStore {
 	return {
 		add: (input) => addItem(db, input),
+		async get(id) {
+			const rows = await db
+				.select()
+				.from(schema.memoryItems)
+				.where(eq(schema.memoryItems.id, id))
+				.limit(1);
+			const row = rows[0];
+			return row ? toRow(row) : null;
+		},
 		async listCurrent(memoryId) {
 			const rows = await db
 				.select()
