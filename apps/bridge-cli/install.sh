@@ -34,19 +34,52 @@ case "$(uname -m)" in
 esac
 
 asset="${BIN_NAME}-${os}-${arch}"
-url="https://github.com/${OWNER_REPO}/releases/latest/download/${asset}"
 
-# --- download + install ---
+# --- resolve the download URL + auth ---
+# Public repo: the releases/latest/download/<asset> shortcut works with no auth.
+# Private repo: that shortcut 404s for everyone — a private asset must be fetched
+# via the authenticated API endpoint (Accept: octet-stream → signed redirect).
+# So when GITHUB_TOKEN is set, resolve the asset id through the API and use it;
+# otherwise try the public shortcut.
 mkdir -p "$INSTALL_DIR"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+	api="https://api.github.com/repos/${OWNER_REPO}/releases/latest"
+	# Resolve the asset id from the release JSON. python3 is the robust path
+	# (independent of GitHub's field ordering); grep -B is the fallback.
+	json="$(curl -fsSL \
+		-H "Authorization: Bearer ${GITHUB_TOKEN}" \
+		-H "Accept: application/vnd.github+json" \
+		"$api")"
+	if command -v python3 >/dev/null 2>&1; then
+		asset_id="$(printf '%s' "$json" | python3 -c "import json,sys;print(next((a['id'] for a in json.load(sys.stdin).get('assets',[]) if a.get('name')=='${asset}'),''))" || true)"
+	else
+		asset_id="$(printf '%s' "$json" | grep -B4 "\"name\": \"${asset}\"" | grep -oE "\"id\": [0-9]+" | tail -1 | grep -oE "[0-9]+" || true)"
+	fi
+	if [ -z "${asset_id:-}" ]; then
+		echo "✗ No '${asset}' found in the latest release." >&2
+		echo "  Check the token has access to ${OWNER_REPO}, and the asset exists:" >&2
+		echo "    https://github.com/${OWNER_REPO}/releases/latest" >&2
+		exit 1
+	fi
+	dl_url="https://api.github.com/repos/${OWNER_REPO}/releases/assets/${asset_id}"
+	curl_flags=(-H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/octet-stream")
+else
+	dl_url="https://github.com/${OWNER_REPO}/releases/latest/download/${asset}"
+	curl_flags=()
+fi
+
 echo "↓ Downloading ${asset}…"
-if ! curl -fL --progress-bar "$url" -o "$tmp"; then
+if ! curl -fL --progress-bar "${curl_flags[@]}" "$dl_url" -o "$tmp"; then
 	echo "" >&2
-	echo "✗ Download failed: ${url}" >&2
-	echo "  Most likely no '${asset}' binary is attached to the latest release." >&2
-	echo "  Check available assets: https://github.com/${OWNER_REPO}/releases/latest" >&2
+	echo "✗ Download failed: ${dl_url}" >&2
+	if [ -z "${GITHUB_TOKEN:-}" ]; then
+		echo "  If ${OWNER_REPO} is a private repo, set a read-access token first:" >&2
+		echo "    export GITHUB_TOKEN=ghp_…   # then re-run this installer" >&2
+	fi
+	echo "  Available assets: https://github.com/${OWNER_REPO}/releases/latest" >&2
 	exit 1
 fi
 chmod +x "$tmp"
