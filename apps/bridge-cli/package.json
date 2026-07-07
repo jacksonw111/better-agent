@@ -1,10 +1,23 @@
 {
-  "name": "bridge-cli",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@jacksonw111/better-agent-bridge",
+  "version": "0.1.0",
+  "description": "Bridge CLI that connects a local coding agent (claude-code, opencode, codex, pi) to a Better Agent server — relays events and approvals over oRPC.",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jacksonw111/better-agent.git",
+    "directory": "apps/bridge-cli"
+  },
+  "homepage": "https://github.com/jacksonw111/better-agent/tree/main/apps/bridge-cli#readme",
   "bin": {
-    "better-agent-bridge": "./dist/index.js"
+    "better-agent-bridge": "./dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
     "build": "tsdown",

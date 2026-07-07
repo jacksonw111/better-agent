@@ -1,0 +1,43 @@
+name: Release CLI (GitHub Packages)
+
+# Push a tag like `cli-v0.1.0` to build + publish @jacksonw111/better-agent-bridge
+# (the `better-agent-bridge` command) to GitHub Packages. Uses the automatic
+# GITHUB_TOKEN — no manual npm token / secret needed.
+#
+# Install (others): GitHub Packages requires auth even for public packages, so
+# users add to ~/.npmrc:
+#   @jacksonw111:registry=https://npm.pkg.github.com
+#   //npm.pkg.github.com/:_authToken=<a PAT with read:packages>
+# then:  npm install -g @jacksonw111/better-agent-bridge
+on:
+  push:
+    tags:
+      - "cli-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@jacksonw111"
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -F @jacksonw111/better-agent-bridge check-types
+      - name: Test
+        run: pnpm -F @jacksonw111/better-agent-bridge test
+      - name: Build
+        run: pnpm -F @jacksonw111/better-agent-bridge build
+      - name: Publish to GitHub Packages
+        run: pnpm -F @jacksonw111/better-agent-bridge publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
