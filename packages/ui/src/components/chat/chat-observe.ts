@@ -14,7 +14,7 @@ export type StallRef = MutableRefObject<{
 	since: number;
 } | null>;
 
-export function liveTrailingTurn(rows: MessageHistory | undefined) {
+function liveTrailingTurn(rows: MessageHistory | undefined) {
 	const last = rows?.at(-1);
 	return last &&
 		last.message.role === "assistant" &&

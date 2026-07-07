@@ -1,6 +1,6 @@
 import type { ChatMessage } from "./chat-blocks";
 
-export interface ChatSessionState {
+interface ChatSessionState {
 	/** Turns completed THIS session, accumulated client-side. The live draft is
 	 * moved here on completion — we never re-fetch the server's copy mid-session
 	 * (server history seeds the view once, on mount/refresh only). */

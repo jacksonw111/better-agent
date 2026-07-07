@@ -57,12 +57,6 @@ export interface UploadedAttachment {
 	size: number;
 }
 
-export interface ToolCallRequest {
-	args: Record<string, unknown>;
-	callId: string;
-	name: string;
-}
-
 export interface AgentClient {
 	/** Cancel the in-flight turn for a session (server-side cancellation). */
 	cancel(sessionId: string): Promise<void>;
