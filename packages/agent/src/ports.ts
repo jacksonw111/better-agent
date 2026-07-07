@@ -128,6 +128,19 @@ export type {
 // so all ports keep a single import path.
 export type { RelayDir, RelayEvent, RelayStore } from "./bridge/relay-store";
 
+// Memory-system ports live in memory-ports.ts (split out to keep this file
+// under the 300-line limit) and are re-exported here so the public
+// `@better-agent/agent/ports` surface is unchanged.
+export type {
+	AgentMemoryRow,
+	MemoryItemRow,
+	MemoryItemSource,
+	MemoryItemStore,
+	MemoryRole,
+	MemoryRow,
+	MemoryStore,
+} from "./memory-ports";
+
 export interface SettingsStore {
 	delete(key: string): Promise<void>;
 	get(key: string): Promise<string | null>;
