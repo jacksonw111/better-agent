@@ -230,6 +230,9 @@ export interface BridgeMessageRow {
 export interface BridgeMessageStore {
 	/** Persists one relayed event under its relay-assigned seq. */
 	append(sessionId: string, seq: number, event: unknown): Promise<void>;
+	/** Persists a batch of relayed events (each under its own relay-assigned
+	 * seq) in a single round trip. A no-op for an empty batch. */
+	appendMany(sessionId: string, rows: BridgeMessageRow[]): Promise<void>;
 	/** Returns persisted events with seq > afterSeq, in ascending seq order. */
 	list(
 		sessionId: string,

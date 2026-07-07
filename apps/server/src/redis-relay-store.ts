@@ -6,7 +6,7 @@ import {
 	WINDOW_TTL_SEC,
 } from "@better-agent/agent/bridge/relay-store";
 import { log } from "evlog";
-import type { Redis } from "ioredis";
+import type { ChainableCommander, Redis } from "ioredis";
 
 const LAST_INDEX = -1;
 const WINDOW_START_INDEX = -MAX_WINDOW;
@@ -36,22 +36,44 @@ function logRelayError(action: string, err: Error): void {
 	log.error({ action, error: String(err) });
 }
 
+/** Runs a pipeline and throws the first command error, if any — `.exec()`
+ * itself never rejects per-command errors, it just reports them inline, so a
+ * caller awaiting this the way it would a single command gets the same
+ * fail-loud behavior the sequential calls it replaces used to have. */
+async function execPipeline(pipeline: ChainableCommander): Promise<void> {
+	const results = await pipeline.exec();
+	for (const [err] of results ?? []) {
+		if (err) {
+			throw err;
+		}
+	}
+}
+
 async function appendEvent(
 	redis: Redis,
 	sessionId: string,
 	dir: RelayDir,
 	data: unknown
 ): Promise<number> {
+	// INCR must happen first (and stay its own round trip) — the assigned id
+	// is embedded in the payload the rest of the commands operate on. Once we
+	// have it, the list write + both TTL refreshes + the live publish have no
+	// ordering dependency on each other, so they're batched into a single
+	// pipelined round trip instead of 5 sequential ones.
 	const id = await redis.incr(seqKey(sessionId, dir));
 	const event: RelayEvent = { id, data };
 	const payload = JSON.stringify(event);
 	const key = listKey(sessionId, dir);
 
-	await redis.rpush(key, payload);
-	await redis.ltrim(key, WINDOW_START_INDEX, LAST_INDEX);
-	await redis.expire(key, WINDOW_TTL_SEC);
-	await redis.expire(seqKey(sessionId, dir), SEQ_TTL_SEC);
-	await redis.publish(channelFor(sessionId, dir), payload);
+	await execPipeline(
+		redis
+			.pipeline()
+			.rpush(key, payload)
+			.ltrim(key, WINDOW_START_INDEX, LAST_INDEX)
+			.expire(key, WINDOW_TTL_SEC)
+			.expire(seqKey(sessionId, dir), SEQ_TTL_SEC)
+			.publish(channelFor(sessionId, dir), payload)
+	);
 
 	return id;
 }

@@ -46,18 +46,15 @@ const historyInput = z.object({
 		.default(DEFAULT_HISTORY_LIMIT),
 });
 
-/** Best-effort persistence of one relayed event under the relay's own
- * SERVER-assigned seq — a failure here must never break the live relay
- * (the CLI/web still get the event via pollCommands/observe), so it's
- * logged and swallowed rather than thrown. */
-async function persistEventBestEffort(
+/** Best-effort persistence of a pushEvents batch as one multi-row insert —
+ * logged and swallowed, since a failure must never break the live relay. */
+async function persistEventsBestEffort(
 	context: Context,
 	sessionId: string,
-	seq: number,
-	event: unknown
+	rows: { seq: number; event: unknown }[]
 ): Promise<void> {
 	try {
-		await context.services.stores.bridgeMessage.append(sessionId, seq, event);
+		await context.services.stores.bridgeMessage.appendMany(sessionId, rows);
 	} catch (err) {
 		log.error({ action: "bridge pushEvents persist", error: String(err) });
 	}
@@ -172,15 +169,19 @@ export const bridgeRouter = {
 				input.sessionId
 			);
 			assertEventsWithinSizeLimit(input.events);
+			// Relay appends stay sequential (each assigns the next seq off the
+			// previous one); Postgres persistence doesn't, so it's batched below.
+			const persisted: { seq: number; event: unknown }[] = [];
 			for (const event of input.events) {
 				const seq = await context.services.relayStore.append(
 					input.sessionId,
 					"events",
 					event
 				);
-				await persistEventBestEffort(context, input.sessionId, seq, event);
+				persisted.push({ seq, event });
 				await maybePersistAgentSessionId(context, input.sessionId, event);
 			}
+			await persistEventsBestEffort(context, input.sessionId, persisted);
 			await context.services.stores.bridgeSession.touch(input.sessionId);
 			return { ok: true };
 		}),

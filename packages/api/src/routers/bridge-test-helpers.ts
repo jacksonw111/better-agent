@@ -189,6 +189,12 @@ function memoryBridgeMessageStore(
 			rowsBySession.set(sessionId, rows);
 			return Promise.resolve();
 		},
+		appendMany(sessionId, newRows) {
+			const rows = rowsBySession.get(sessionId) ?? [];
+			rows.push(...newRows);
+			rowsBySession.set(sessionId, rows);
+			return Promise.resolve();
+		},
 		list(sessionId, afterSeq, limit) {
 			const rows = rowsBySession.get(sessionId) ?? [];
 			return Promise.resolve(

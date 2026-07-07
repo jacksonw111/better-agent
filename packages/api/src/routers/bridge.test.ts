@@ -286,7 +286,7 @@ it("pushEvents still succeeds live when message persistence fails", async () => 
 		agentKind: AGENT_KIND,
 	});
 
-	services.stores.bridgeMessage.append = () =>
+	services.stores.bridgeMessage.appendMany = () =>
 		Promise.reject(new Error("db unavailable"));
 
 	await expect(

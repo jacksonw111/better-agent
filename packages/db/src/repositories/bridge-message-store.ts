@@ -26,6 +26,14 @@ export function createBridgeMessageStore(db: Db): BridgeMessageStore {
 		async append(sessionId, seq, event) {
 			await db.insert(schema.bridgeMessages).values({ sessionId, seq, event });
 		},
+		async appendMany(sessionId, rows) {
+			if (rows.length === 0) {
+				return;
+			}
+			await db
+				.insert(schema.bridgeMessages)
+				.values(rows.map(({ seq, event }) => ({ sessionId, seq, event })));
+		},
 		async list(sessionId, afterSeq, limit) {
 			const rows = await db
 				.select()

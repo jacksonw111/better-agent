@@ -89,3 +89,30 @@ it("list is scoped to the given session", async () => {
 	const rowsA = await store.list(sessionA, 0, 10);
 	expect(rowsA).toEqual([{ seq: 1, event: { from: "a" } }]);
 });
+
+it("appendMany persists a batch in one insert, listed in seq order", async () => {
+	const store = createBridgeMessageStore(db);
+	const sessionId = await seedSession();
+
+	await store.appendMany(sessionId, [
+		{ seq: 1, event: { i: 1 } },
+		{ seq: 2, event: { i: 2 } },
+		{ seq: 3, event: { i: 3 } },
+	]);
+
+	const rows = await store.list(sessionId, 0, 10);
+	expect(rows).toEqual([
+		{ seq: 1, event: { i: 1 } },
+		{ seq: 2, event: { i: 2 } },
+		{ seq: 3, event: { i: 3 } },
+	]);
+});
+
+it("appendMany is a no-op for an empty batch", async () => {
+	const store = createBridgeMessageStore(db);
+	const sessionId = await seedSession();
+
+	await store.appendMany(sessionId, []);
+
+	expect(await store.list(sessionId, 0, 10)).toEqual([]);
+});
