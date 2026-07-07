@@ -1,25 +1,22 @@
-name: Release CLI (GitHub Packages)
+name: Release CLI (standalone binaries)
 
-# Push a tag like `cli-v0.1.0` to build + publish @jacksonw111/better-agent-bridge
-# (the `better-agent-bridge` command) to GitHub Packages. Uses the automatic
-# GITHUB_TOKEN — no manual npm token / secret needed.
+# Push a tag like `cli-v0.1.0` to build standalone binaries and publish them
+# as a GitHub Release. `bun build --compile` embeds the Bun runtime, so each
+# binary runs with NO Node.js / npm installed on the user's machine.
 #
-# Install (others): GitHub Packages requires auth even for public packages, so
-# users add to ~/.npmrc:
-#   @jacksonw111:registry=https://npm.pkg.github.com
-#   //npm.pkg.github.com/:_authToken=<a PAT with read:packages>
-# then:  npm install -g @jacksonw111/better-agent-bridge
+# Install (users):
+#   curl -fsSL https://github.com/jacksonw111/better-agent/releases/latest/download/install.sh | bash
+#   better-agent-bridge --agent claude-code --token bt_… --server https://…
 on:
   push:
     tags:
       - "cli-v*"
 
 permissions:
-  contents: read
-  packages: write
+  contents: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,16 +25,33 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://npm.pkg.github.com
-          scope: "@jacksonw111"
       - run: pnpm install --frozen-lockfile
-      - name: Typecheck
-        run: pnpm -F @jacksonw111/better-agent-bridge check-types
-      - name: Test
-        run: pnpm -F @jacksonw111/better-agent-bridge test
-      - name: Build
-        run: pnpm -F @jacksonw111/better-agent-bridge build
-      - name: Publish to GitHub Packages
-        run: pnpm -F @jacksonw111/better-agent-bridge publish --no-git-checks
+      - uses: oven-sh/setup-bun@v2
+      - name: Build cross-platform binaries (Bun --compile)
+        run: |
+          for entry in \
+            "bun-darwin-arm64 better-agent-bridge-darwin-arm64" \
+            "bun-darwin-x64   better-agent-bridge-darwin-x64" \
+            "bun-linux-x64    better-agent-bridge-linux-x64" \
+            "bun-linux-arm64  better-agent-bridge-linux-arm64"; do
+            set -- $entry
+            target="$1"
+            out="$2"
+            echo "::group::Build ${target} → ${out}"
+            bun build --compile --target="${target}" apps/bridge-cli/src/index.ts --outfile "${out}"
+            ls -lh "${out}"
+            echo "::endgroup::"
+          done
+      - name: Create GitHub Release with binaries + installer
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "${tag}" \
+            better-agent-bridge-darwin-arm64 \
+            better-agent-bridge-darwin-x64 \
+            better-agent-bridge-linux-x64 \
+            better-agent-bridge-linux-arm64 \
+            apps/bridge-cli/install.sh \
+            --title "${tag}" \
+            --generate-notes
