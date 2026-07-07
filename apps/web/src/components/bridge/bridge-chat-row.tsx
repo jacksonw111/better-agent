@@ -33,6 +33,11 @@ function userMessage(turn: UserTurn): ChatMessage {
 export interface BridgeChatRowProps {
 	/** requestId -> chosen optionId, for approvals already answered. */
 	answered: Record<string, string>;
+	/** When true, shimmer skeleton lines are appended right under this assistant
+	 * message — attached (indented to the text column) so it reads as "this
+	 * message is still being produced". Only set on the trailing in-flight
+	 * assistant turn by `TerminalFeed`. */
+	attachSkeleton?: boolean;
 	avatars?: ChatAvatars;
 	/** True once the session has ended — suppresses the streaming caret. */
 	ended: boolean;
@@ -40,6 +45,21 @@ export interface BridgeChatRowProps {
 	/** True while a sendInput mutation is in flight — gates approval buttons. */
 	sending: boolean;
 	turn: BridgeTurn;
+}
+
+/** Shimmer lines attached to the trailing in-flight assistant message. Indented
+ * past the avatar column (`pl-9` ≈ avatar + row gap) so they sit directly under
+ * the message text, and tucked up with a small negative margin so the skeleton
+ * reads as a continuation of the bubble above rather than a separate row.
+ * Decorative — hidden from assistive tech (the streaming caret + "Thinking…"
+ * already convey state). */
+function StreamingSkeleton() {
+	return (
+		<div aria-hidden className="-mt-0.5 flex flex-col gap-1.5 pl-9">
+			<div className="working-shimmer h-3 w-3/4 rounded" />
+			<div className="working-shimmer h-3 w-2/5 rounded" />
+		</div>
+	);
 }
 
 /**
@@ -50,6 +70,7 @@ export interface BridgeChatRowProps {
  */
 export function BridgeChatRow({
 	answered,
+	attachSkeleton,
 	avatars,
 	ended,
 	onAnswerApproval,
@@ -61,7 +82,10 @@ export function BridgeChatRow({
 			return <ChatRow avatars={avatars} message={userMessage(turn)} />;
 		case "assistant":
 			return (
-				<ChatRow avatars={avatars} message={assistantMessage(turn, ended)} />
+				<>
+					<ChatRow avatars={avatars} message={assistantMessage(turn, ended)} />
+					{attachSkeleton && <StreamingSkeleton />}
+				</>
 			);
 		case "status":
 			return <StatusLine event={turn.event} />;
