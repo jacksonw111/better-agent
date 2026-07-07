@@ -42,10 +42,15 @@ export function buildPiGetAvailableModelsCommand(): string {
 }
 
 /** Builds the `set_model` stdin command — switches the model used for
- * subsequent turns (the model menu's pick). ASSUMPTION (unverified, same
- * source): `{ type: "set_model", model: Model.id }`. */
-export function buildPiSetModelCommand(model: string): string {
-	return JSON.stringify({ type: "set_model", model });
+ * subsequent turns (the model menu's pick). pi's `set_model` takes SEPARATE
+ * `provider` + `modelId` fields (NOT a single `model` string — that form was a
+ * no-op), so callers must resolve the provider for the chosen model id (see the
+ * pi adapter's model→provider map). Ref: pi rpc.md `set_model`. */
+export function buildPiSetModelCommand(
+	provider: string,
+	modelId: string
+): string {
+	return JSON.stringify({ type: "set_model", provider, modelId });
 }
 
 /** A command entry as returned by `get_commands` — see
@@ -173,6 +178,44 @@ function piModelId(model: unknown): string | undefined {
 	return isRecord(model)
 		? (asString(model.id) ?? asString(model.name))
 		: undefined;
+}
+
+/** A single `{id, provider}` pair from a pi Model, or null when either is
+ * missing — keeps `normalizePiModelProviders` under the complexity gate. */
+function piModelProviderEntry(model: unknown): [string, string] | null {
+	if (!isRecord(model)) {
+		return null;
+	}
+	const id = asString(model.id);
+	const provider = asString(model.provider);
+	return id && provider ? [id, provider] : null;
+}
+
+/** Parses `get_available_models` into a model-id → provider map so the adapter
+ * can build `set_model`'s required `{provider, modelId}` from the bare id the
+ * web menu sends. `undefined` if `raw` isn't a successful
+ * `get_available_models` response; entries missing an id or provider are
+ * skipped. */
+export function normalizePiModelProviders(
+	raw: unknown
+): Record<string, string> | undefined {
+	if (
+		!isRecord(raw) ||
+		raw.type !== "response" ||
+		raw.command !== "get_available_models" ||
+		raw.success !== true
+	) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const data = raw.data;
+	if (!(isRecord(data) && Array.isArray(data.models))) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	return Object.fromEntries(
+		data.models.map(piModelProviderEntry).filter((entry) => entry !== null)
+	);
 }
 
 function isDefinedString(value: unknown): value is string {

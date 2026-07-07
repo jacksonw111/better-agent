@@ -7,6 +7,7 @@ import {
 	buildPiSetModelCommand,
 	normalizePiAvailableModels,
 	normalizePiCommandsResponse,
+	normalizePiModelProviders,
 	normalizePiStateModel,
 } from "../normalize/pi-commands";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
@@ -28,6 +29,43 @@ function tryParseJson(line: string): unknown {
 	} catch {
 		return null;
 	}
+}
+
+/** Resolves the `{provider, modelId}` pi's `set_model` needs from the bare id
+ * the web menu sends: a `provider/id` string splits directly; otherwise the
+ * provider is looked up in the model→provider map built from
+ * `get_available_models`. `null` when the provider can't be resolved. */
+function resolvePiSetModel(
+	model: string,
+	providers: Record<string, string>
+): { modelId: string; provider: string } | null {
+	const slash = model.indexOf("/");
+	if (slash > 0) {
+		return { provider: model.slice(0, slash), modelId: model.slice(slash + 1) };
+	}
+	const provider = providers[model];
+	return provider ? { provider, modelId: model } : null;
+}
+
+/** The `setModel` control: resolves the provider for the chosen id, then writes
+ * pi's `{provider, modelId}` set_model frame — or an error event if the
+ * provider is unknown. Extracted so `start` stays under the line gate. */
+function makePiSetModel(
+	io: { writeLine(line: string): void },
+	events: { push(event: NormalizedEvent): void },
+	modelProviders: Record<string, string>
+): (model: string) => void {
+	return (model: string) => {
+		const resolved = resolvePiSetModel(model, modelProviders);
+		if (resolved) {
+			io.writeLine(buildPiSetModelCommand(resolved.provider, resolved.modelId));
+		} else {
+			events.push({
+				kind: "error",
+				message: `pi setModel: unknown provider for model "${model}"`,
+			});
+		}
+	};
 }
 
 /**
@@ -90,10 +128,17 @@ export const piAdapter: Adapter = {
 		});
 
 		const sessionReady = makePiSessionReadyTracker(events);
+		// modelId → provider, accumulated from get_available_models, so setModel
+		// can build set_model's required {provider, modelId} from a bare id.
+		const modelProviders: Record<string, string> = {};
 		(async () => {
 			for await (const line of io.lines) {
 				const raw = tryParseJson(line);
 				sessionReady.onLine(raw);
+				const nextProviders = normalizePiModelProviders(raw);
+				if (nextProviders) {
+					Object.assign(modelProviders, nextProviders);
+				}
 				for (const event of normalizePi(raw)) {
 					events.push(event);
 				}
@@ -123,9 +168,7 @@ export const piAdapter: Adapter = {
 				events.push(userMessageEvent(text));
 				io.writeLine(buildPiPromptCommand(text));
 			},
-			setModel(model: string): void {
-				io.writeLine(buildPiSetModelCommand(model));
-			},
+			setModel: makePiSetModel(io, events, modelProviders),
 			stop(): void {
 				io.stop();
 				events.close();

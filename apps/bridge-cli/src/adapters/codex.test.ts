@@ -25,12 +25,12 @@ function createFakeRpc(): {
 			onNotification: vi.fn(),
 			onRequest: (handler) => requestHandlers.push(handler),
 			respond: vi.fn(),
-			request: (method: string) => {
+			request: vi.fn((method: string) => {
 				if (method === "thread/start") {
 					return Promise.resolve({ thread: { id: "thread_1" } });
 				}
 				return Promise.resolve({});
-			},
+			}),
 			stop: vi.fn(),
 		},
 		triggerExit(info: ProcessExitInfo): void {
@@ -61,6 +61,19 @@ describe("codexAdapter", () => {
 
 		const result = await iterator.next();
 		expect(result.done).toBe(true);
+	});
+
+	it("interrupt() cancels the active turn via turn/interrupt (not a process kill)", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		handle.interrupt?.();
+
+		expect(rpc.request).toHaveBeenCalledWith("turn/interrupt", {
+			threadId: "thread_1",
+		});
+		expect(rpc.stop).not.toHaveBeenCalled();
 	});
 });
 

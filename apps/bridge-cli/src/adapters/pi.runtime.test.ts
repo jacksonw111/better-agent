@@ -125,17 +125,46 @@ describe("piAdapter - stop()", () => {
 });
 
 describe("piAdapter - setModel()", () => {
-	it("writes a set_model command frame to stdin", async () => {
+	it("writes a set_model frame with separate provider + modelId (provider/id form)", async () => {
 		const { io } = createFakeProcessIo();
 		vi.mocked(spawnProcessIo).mockResolvedValue(io);
 		const handle = await piAdapter.start("/tmp/project");
 
-		handle.setModel?.("claude-sonnet-4-20250514");
+		// A `provider/id` string resolves directly, no model list needed.
+		handle.setModel?.("anthropic/claude-sonnet-4-20250514");
 
 		expect(io.writeLine).toHaveBeenCalledWith(
 			JSON.stringify({
 				type: "set_model",
-				model: "claude-sonnet-4-20250514",
+				provider: "anthropic",
+				modelId: "claude-sonnet-4-20250514",
+			})
+		);
+	});
+
+	it("resolves the provider from get_available_models for a bare model id", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+		const handle = await piAdapter.start("/tmp/project");
+
+		pushLine(
+			JSON.stringify({
+				type: "response",
+				command: "get_available_models",
+				success: true,
+				data: { models: [{ id: "gpt-5", provider: "openai" }] },
+			})
+		);
+		// Let the stdout line loop process the frame into the provider map.
+		await new Promise((resolve) => setImmediate(resolve));
+
+		handle.setModel?.("gpt-5");
+
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({
+				type: "set_model",
+				provider: "openai",
+				modelId: "gpt-5",
 			})
 		);
 	});

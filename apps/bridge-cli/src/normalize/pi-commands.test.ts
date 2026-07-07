@@ -7,6 +7,7 @@ import {
 	buildPiSetModelCommand,
 	normalizePiAvailableModels,
 	normalizePiCommandsResponse,
+	normalizePiModelProviders,
 	normalizePiStateModel,
 } from "./pi-commands";
 
@@ -34,10 +35,38 @@ describe("buildPiGetAvailableModelsCommand / buildPiSetModelCommand", () => {
 		expect(JSON.parse(buildPiGetAvailableModelsCommand())).toEqual({
 			type: "get_available_models",
 		});
-		expect(JSON.parse(buildPiSetModelCommand("gpt-5"))).toEqual({
+		expect(JSON.parse(buildPiSetModelCommand("openai", "gpt-5"))).toEqual({
 			type: "set_model",
-			model: "gpt-5",
+			provider: "openai",
+			modelId: "gpt-5",
 		});
+	});
+});
+
+describe("normalizePiModelProviders", () => {
+	it("maps model ids to their provider from get_available_models", () => {
+		const raw = {
+			type: "response",
+			command: "get_available_models",
+			success: true,
+			data: {
+				models: [
+					{ id: "claude-sonnet-4", provider: "anthropic" },
+					{ id: "gpt-5", provider: "openai" },
+					{ id: "no-provider" },
+				],
+			},
+		};
+		expect(normalizePiModelProviders(raw)).toEqual({
+			"claude-sonnet-4": "anthropic",
+			"gpt-5": "openai",
+		});
+	});
+
+	it("returns undefined for a non-get_available_models frame", () => {
+		expect(
+			normalizePiModelProviders({ type: "response", command: "get_state" })
+		).toBeUndefined();
 	});
 });
 
