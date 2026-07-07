@@ -3,8 +3,10 @@ import {
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
 import type { PGlite } from "@electric-sql/pglite";
+import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { users } from "../schema/auth";
+import { bridgeSessions } from "../schema/bridge";
 import { createTestDb, type TestDb } from "../testing/test-db";
 import { createBridgeSessionStore } from "./bridge-session-store";
 import { createBridgeTokenStore } from "./bridge-token-store";
@@ -95,23 +97,47 @@ it("listByUser scopes sessions per owner", async () => {
 	expect(await store.listByUser(bob)).toHaveLength(1);
 });
 
-it("touch bumps lastSeenAt", async () => {
-	const store = createBridgeSessionStore(db);
+// touch() throttles to one write per 15s (see TOUCH_THROTTLE_SECONDS in
+// bridge-session-store.ts), so these back-date lastSeenAt directly (bypassing
+// the store) to exercise both sides of the guard.
+async function backdateLastSeenAt(seconds: number): Promise<string> {
 	const userId = await seedUser("alice@x.com");
 	const tokenId = await seedToken(userId);
+	const store = createBridgeSessionStore(db);
 	const created = await store.create({
 		userId,
 		tokenId,
 		agentKind: "claude-code",
 	});
+	await db
+		.update(bridgeSessions)
+		.set({ lastSeenAt: sql`now() - (${seconds} * interval '1 second')` })
+		.where(eq(bridgeSessions.id, created.id));
+	return created.id;
+}
 
-	await new Promise((resolve) => setTimeout(resolve, 5));
-	await store.touch(created.id);
+it("touch bumps lastSeenAt once the throttle window has elapsed", async () => {
+	const store = createBridgeSessionStore(db);
+	const id = await backdateLastSeenAt(20);
+	const before = await store.get(id);
 
-	const after = await store.get(created.id);
+	await store.touch(id);
+
+	const after = await store.get(id);
 	expect(after?.lastSeenAt.getTime()).toBeGreaterThan(
-		created.lastSeenAt.getTime()
+		before?.lastSeenAt.getTime() ?? 0
 	);
+});
+
+it("touch is throttled: a call inside the window is a no-op", async () => {
+	const store = createBridgeSessionStore(db);
+	const id = await backdateLastSeenAt(5);
+	const before = await store.get(id);
+
+	await store.touch(id);
+
+	const after = await store.get(id);
+	expect(after?.lastSeenAt.getTime()).toBe(before?.lastSeenAt.getTime());
 });
 
 it("end sets status to ended and only for the owner", async () => {

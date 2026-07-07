@@ -2,13 +2,21 @@ import type {
 	BridgeSessionRow,
 	BridgeSessionStore,
 } from "@better-agent/agent/ports";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
 
 // Driver-agnostic db type: satisfied by node-postgres (production) and PGlite (tests).
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
+
+// touch() is called on every bridge poll (pollCommands runs every 0.5-2s per
+// connected agent, pushEvents on every relayed batch), so an unconditional
+// UPDATE on every call is 10-30x more writes than needed. Throttling to once
+// per this window still keeps liveness correct: the web's "live vs idle"
+// threshold is ~30s, so a connected-but-quiet agent's lastSeenAt is never
+// more than TOUCH_THROTTLE_SECONDS stale.
+const TOUCH_THROTTLE_SECONDS = 15;
 
 function toRow(
 	row: typeof schema.bridgeSessions.$inferSelect
@@ -26,11 +34,19 @@ function toRow(
 	};
 }
 
+// A single guarded UPDATE (not a read-then-write) so the throttle check and
+// the write stay atomic under concurrent pollers: `now()` is evaluated
+// server-side for both the SET and the WHERE guard, avoiding app-clock skew.
 async function touchSession(db: Db, id: string): Promise<void> {
 	await db
 		.update(schema.bridgeSessions)
-		.set({ lastSeenAt: new Date() })
-		.where(eq(schema.bridgeSessions.id, id));
+		.set({ lastSeenAt: sql`now()` })
+		.where(
+			and(
+				eq(schema.bridgeSessions.id, id),
+				sql`${schema.bridgeSessions.lastSeenAt} < now() - (${TOUCH_THROTTLE_SECONDS} * interval '1 second')`
+			)
+		);
 }
 
 async function setSessionAgentSessionId(
