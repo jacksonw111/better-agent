@@ -1,5 +1,5 @@
 import { Button } from "@better-agent/ui/components/button";
-import { SettingsIcon } from "lucide-react";
+import { PowerIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import type { AgentCapabilities } from "./agent-capabilities";
@@ -150,8 +150,16 @@ function TerminalHeaderActions({
 				/>
 			)}
 			{showEnd && (
-				<Button disabled={ending} onClick={onEnd} size="xs" variant="outline">
-					End session
+				<Button
+					aria-label="End local agent session"
+					className="text-destructive hover:text-destructive"
+					disabled={ending}
+					onClick={onEnd}
+					size="icon-sm"
+					title="End local agent session"
+					variant="ghost"
+				>
+					<PowerIcon className="size-4" />
 				</Button>
 			)}
 		</div>
@@ -177,15 +185,21 @@ export function TerminalHeader({
 	...actions
 }: TerminalHeaderProps) {
 	return (
-		<div className="flex shrink-0 flex-col gap-2 bg-muted/40 px-3 py-2.5 sm:px-4">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div className="flex min-w-0 items-center gap-2.5">
-					<SessionIdLabel agentKind={agentKind} sessionId={sessionId} />
-					<TerminalStatus status={status} />
+		<div className="shrink-0 bg-muted/40">
+			{/* Inner column matches the chat feed's `max-w-3xl mx-auto` so the
+			 * session id, status strip, and actions sit on the SAME grid lines
+			 * as the messages below — the muted background spans the terminal's
+			 * full width while the content stays aligned with the conversation. */}
+			<div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-2.5 sm:px-4">
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<div className="flex min-w-0 items-center gap-2.5">
+						<SessionIdLabel agentKind={agentKind} sessionId={sessionId} />
+						<TerminalStatus status={status} />
+					</div>
+					<TerminalHeaderActions {...actions} status={status} />
 				</div>
-				<TerminalHeaderActions {...actions} status={status} />
+				<SessionStatusHeader detail={sessionReady} />
 			</div>
-			<SessionStatusHeader detail={sessionReady} />
 		</div>
 	);
 }

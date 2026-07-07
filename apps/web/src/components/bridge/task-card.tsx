@@ -64,28 +64,46 @@ function TaskStatusIcon({ status }: { status: TaskInvocation["status"] }) {
  * running/failed states need the card too.
  */
 export function TaskCard({ task }: { task: TaskInvocation }) {
+	const isError = task.status === "error";
 	return (
-		<Collapsible.Root
+		<div
 			className={cn(
-				"rounded-md border bg-muted/40 p-2",
-				task.status === "error" && "border-destructive/40"
+				"flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs",
+				isError ? "border-destructive/40" : "border-border"
 			)}
-			defaultOpen={task.status === "error"}
 		>
-			<Collapsible.Trigger className="flex w-full items-center gap-1.5 text-left text-muted-foreground text-xs hover:text-foreground">
-				<BotIcon className="size-3.5 shrink-0" />
-				<span className="truncate font-medium text-foreground">
-					{task.title}
+			<div className="flex items-center gap-2 text-left">
+				<span
+					className={cn(
+						"flex size-6 shrink-0 items-center justify-center rounded-md",
+						isError
+							? "bg-destructive/10 text-destructive"
+							: "bg-primary/10 text-primary"
+					)}
+				>
+					<BotIcon className="size-3.5" />
 				</span>
-				<TaskStatusIcon status={task.status} />
-				<span className="opacity-70">{TASK_STATUS_LABEL[task.status]}</span>
-				<ChevronDownIcon className="ml-auto size-3.5 shrink-0 transition-transform data-[panel-open]:rotate-180" />
-			</Collapsible.Trigger>
-			<Collapsible.Panel className="mt-2">
-				<pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-muted-foreground text-xs">
-					{task.resultText || "No result yet."}
-				</pre>
-			</Collapsible.Panel>
-		</Collapsible.Root>
+				<span className="truncate font-medium text-sm">{task.title}</span>
+				<span className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+					<TaskStatusIcon status={task.status} />
+					{TASK_STATUS_LABEL[task.status]}
+				</span>
+			</div>
+			<Collapsible.Root defaultOpen={isError}>
+				<Collapsible.Trigger className="flex w-full items-center justify-between rounded-md px-1 text-muted-foreground text-xs hover:text-foreground">
+					<span>
+						{task.status === "running"
+							? "Subagent working…"
+							: "Subagent result"}
+					</span>
+					<ChevronDownIcon className="size-3.5 shrink-0 transition-transform data-[panel-open]:rotate-180" />
+				</Collapsible.Trigger>
+				<Collapsible.Panel className="mt-1.5">
+					<pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-2 font-mono text-muted-foreground text-xs">
+						{task.resultText || "No result yet."}
+					</pre>
+				</Collapsible.Panel>
+			</Collapsible.Root>
+		</div>
 	);
 }

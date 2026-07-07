@@ -15,6 +15,7 @@ import {
 	SESSION_LIST_STATUS,
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
+	USAGE_UPDATE_STATUS,
 } from "./bridge-session-status";
 import type { AssistantTurn, BridgeTurn, PlanTurn } from "./bridge-turn-types";
 import { stripTaskWrapper, type TaskInvocation } from "./task-card";
@@ -33,16 +34,27 @@ export type {
 	UserTurn,
 } from "./bridge-turn-types";
 
-/** These curated status events carry session METADATA (capabilities,
- * cost/tokens, the past-conversations list) surfaced by dedicated header/chip
- * UI — see session-status-header.tsx, turn-usage-panel.tsx, and
- * past-conversations.tsx — never as an inline chat row. They still act as a
- * turn boundary (closing any open assistant accumulation) but are dropped
- * from the rendered turn list. */
+/** Status events hidden from the chat feed: curated metadata statuses (session
+ * capabilities, cost/tokens, past-conversations — surfaced by dedicated header/
+ * chip UI) AND pure lifecycle heartbeats (pi's agent_start/turn_start, codex's
+ * turn_started, opencode's usage_update) that carry nothing worth reading inline.
+ * All still act as a turn boundary (closing any open assistant accumulation). */
 const HIDDEN_STATUS_KINDS = new Set<string>([
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
 	SESSION_LIST_STATUS,
+	USAGE_UPDATE_STATUS,
+	"agent_start",
+	"agent_end",
+	"turn_start",
+	"turn_end",
+	"turn_started",
+	"turn_completed",
+	"queue_update",
+	"compaction_start",
+	"compaction_end",
+	"auto_retry_start",
+	"auto_retry_end",
 ]);
 
 interface FoldState {
@@ -190,7 +202,10 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
 		applyToolResult(existing, event);
 		return;
 	}
-	if (isTaskToolInput(event.input)) {
+	// A subagent "Task" tool: identified by input shape (subagent_type, or
+	// description+prompt) OR by claude's fixed tool name "Task" — the name
+	// fallback catches calls whose args arrive late, folding into a TaskCard.
+	if (event.name === "Task" || isTaskToolInput(event.input)) {
 		foldTaskTool(state, id, event);
 		return;
 	}

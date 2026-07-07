@@ -33,7 +33,7 @@ export function MessageAvatar({ className, ...props }: ComponentProps<"div">) {
 	return (
 		<div
 			className={cn(
-				"flex w-fit min-w-8 shrink-0 items-center justify-center self-start overflow-hidden rounded-full bg-muted group-has-data-[slot=message-footer]/message:-translate-y-8",
+				"flex w-fit min-w-8 shrink-0 items-center justify-center self-start overflow-hidden rounded-full group-has-data-[slot=message-footer]/message:-translate-y-8",
 				className
 			)}
 			data-slot="message-avatar"

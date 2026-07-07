@@ -1,3 +1,4 @@
+import { CopyAction } from "@better-agent/ui/components/actions";
 import {
 	Dialog,
 	DialogContent,
@@ -23,18 +24,69 @@ import {
 } from "./local-agent-config-form";
 import { AGENT_KIND_LABEL } from "./local-agent-kind-icon";
 
+const CODE_CLASS =
+	"block w-full overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-2 py-1.5 font-mono text-xs";
+
+function Row({
+	label,
+	children,
+}: {
+	label: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<div className="flex items-center gap-3">
+			<dt className="w-32 shrink-0 text-muted-foreground text-xs">{label}</dt>
+			<dd className="min-w-0 flex-1 font-medium text-sm">{children}</dd>
+		</div>
+	);
+}
+
+function formatConfigSummary(config: BridgeTokenRow["config"]): string {
+	if (!config) {
+		return "Defaults";
+	}
+	const parts: string[] = [];
+	if (config.effort) {
+		parts.push(`effort: ${config.effort}`);
+	}
+	if (config.maxTurns !== undefined) {
+		parts.push(`${config.maxTurns} turns`);
+	}
+	if (config.maxBudgetUsd !== undefined) {
+		parts.push(`$${config.maxBudgetUsd} cap`);
+	}
+	return parts.length > 0 ? parts.join(" · ") : "Defaults";
+}
+
 function GeneralTab({ token }: { token: BridgeTokenRow }) {
+	const raw = token.token;
+	const created = new Date(token.createdAt);
 	return (
 		<TabsContent value="general">
-			<dl className="flex flex-col gap-3 text-sm">
-				<div className="flex items-center justify-between gap-4">
-					<dt className="text-muted-foreground">Agent</dt>
-					<dd className="font-medium">{AGENT_KIND_LABEL[token.agentKind]}</dd>
-				</div>
-				<div className="flex items-center justify-between gap-4">
-					<dt className="text-muted-foreground">Name</dt>
-					<dd className="font-medium">{token.name ?? "Untitled"}</dd>
-				</div>
+			<dl className="flex flex-col gap-3">
+				<Row label="Agent">{AGENT_KIND_LABEL[token.agentKind]}</Row>
+				<Row label="Name">{token.name ?? "Untitled"}</Row>
+				<Row label="Token">
+					{raw ? (
+						<div className="flex items-center gap-1.5">
+							<code className={CODE_CLASS}>
+								…{token.last4 ?? raw.slice(-4)}
+							</code>
+							<CopyAction label="Copy token" text={raw} />
+						</div>
+					) : (
+						<span className="text-muted-foreground">—</span>
+					)}
+				</Row>
+				<Row label="Token usage">{formatConfigSummary(token.config)}</Row>
+				<Row label="Created">
+					{created.toLocaleDateString(undefined, {
+						year: "numeric",
+						month: "short",
+						day: "numeric",
+					})}
+				</Row>
 			</dl>
 		</TabsContent>
 	);
@@ -91,25 +143,31 @@ export function LocalAgentSettingsDialog({
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="sm:max-w-2xl">
-				<DialogHeader>
+			<DialogContent className="flex h-5/6 w-full flex-col gap-0 p-0 sm:max-w-7xl">
+				<DialogHeader className="px-5 pt-5">
 					<DialogTitle>Agent settings</DialogTitle>
 				</DialogHeader>
-				<Tabs defaultValue="general" orientation="vertical">
-					<TabsList>
+				<Tabs
+					className="flex min-h-0 flex-1 flex-row gap-4 px-5 pt-3 pb-5"
+					defaultValue="general"
+					orientation="vertical"
+				>
+					<TabsList className="h-fit w-44 shrink-0 flex-col items-stretch">
 						<TabsTrigger value="general">General</TabsTrigger>
 						<TabsTrigger value="config">Config</TabsTrigger>
 					</TabsList>
-					<GeneralTab token={token} />
-					<ConfigTab
-						draft={draft}
-						onDraft={setDraft}
-						onSubmit={() =>
-							save.mutate({ config: configFromDraft(draft), id: token.id })
-						}
-						pending={save.isPending}
-						token={token}
-					/>
+					<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+						<GeneralTab token={token} />
+						<ConfigTab
+							draft={draft}
+							onDraft={setDraft}
+							onSubmit={() =>
+								save.mutate({ config: configFromDraft(draft), id: token.id })
+							}
+							pending={save.isPending}
+							token={token}
+						/>
+					</div>
 				</Tabs>
 			</DialogContent>
 		</Dialog>
