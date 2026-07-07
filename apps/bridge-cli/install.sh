@@ -72,7 +72,9 @@ else
 fi
 
 echo "↓ Downloading ${asset}…"
-if ! curl -fL --progress-bar "${curl_flags[@]}" "$dl_url" -o "$tmp"; then
+# ${curl_flags[@]+...} expands safely to nothing when the array is empty — a bare
+# "${curl_flags[@]}" trips `set -u` on older bashes (e.g. macOS 3.2).
+if ! curl -fL --progress-bar "${curl_flags[@]+"${curl_flags[@]}"}" "$dl_url" -o "$tmp"; then
 	echo "" >&2
 	echo "✗ Download failed: ${dl_url}" >&2
 	if [ -z "${GITHUB_TOKEN:-}" ]; then
