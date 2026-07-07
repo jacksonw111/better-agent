@@ -11,6 +11,7 @@ import { normalizeClaudeCode } from "../normalize/claude-code";
 import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
 import { isRecord, userMessageEvent } from "../normalize/types";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import { findOnPath } from "./process-io";
 import type { Adapter, AgentHandle, StartOptions } from "./types";
 
 // Drives the LOCAL claude via the official Claude Agent SDK rather than
@@ -237,8 +238,8 @@ export const claudeCodeAdapter: Adapter = {
 			prompt: input,
 			options: {
 				cwd: dir,
-				// A prior claude session id to continue (from `--resume`, see
-				// args.ts) — undefined starts a fresh conversation as before.
+				pathToClaudeCodeExecutable: findOnPath("claude"), // user's PATH claude (standalone binary omits the SDK's bundled one)
+				// A prior `--resume` claude session id (undefined starts fresh).
 				resume: opts?.resume,
 				canUseTool: makeCanUseTool(events, approvals),
 				// Phase 4: apply persisted startup config from the bridge token.

@@ -15,9 +15,33 @@
 //    finishing) — `onExit` is the single place adapters hook to close their
 //    event queues, so a relay loop never hangs waiting on an agent that's
 //    already gone.
-import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import {
+	type ChildProcessWithoutNullStreams,
+	execFileSync,
+	spawn,
+} from "node:child_process";
 import { createInterface } from "node:readline";
 import { createAsyncQueue } from "./async-queue";
+
+/** Resolves a command's absolute path on PATH (`command -v`), or `undefined`
+ * if it isn't installed. The standalone bridge binary doesn't bundle ANY
+ * agent's CLI — every adapter drives the user's own `claude` / `opencode` /
+ * `codex` / `pi` on PATH — so this powers the startup pre-flight ("is the
+ * chosen agent's CLI installed?") and points claude's SDK at the user's
+ * `claude` (its bundled native binary is dropped by `bun --compile`). */
+export function findOnPath(command: string): string | undefined {
+	let found: string | undefined;
+	try {
+		found =
+			execFileSync("sh", ["-c", `command -v ${command}`], {
+				encoding: "utf8",
+				stdio: ["ignore", "pipe", "ignore"],
+			}).trim() || undefined;
+	} catch {
+		found = undefined;
+	}
+	return found;
+}
 
 export interface ProcessIo {
 	child: ChildProcessWithoutNullStreams;

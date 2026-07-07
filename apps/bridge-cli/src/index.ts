@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-import { selectAdapter } from "./adapters/index";
+import { AGENT_CLI, selectAdapter } from "./adapters";
+import { findOnPath } from "./adapters/process-io";
+import type { AgentKind } from "./adapters/types";
 import { parseArgs } from "./args";
 import { runBridgeSession } from "./relay-client";
 import { createRelayTransport } from "./relay-transport";
@@ -7,9 +9,26 @@ import { createRelayTransport } from "./relay-transport";
 // `process.argv` is `[nodeExecutable, scriptPath, ...userArgs]`.
 const CLI_ARGS_START_INDEX = 2;
 
+/** Fails fast with a precise install hint when the chosen agent's CLI isn't on
+ * PATH. The standalone binary bundles no agent CLI, so this beats a confusing
+ * mid-session spawn/SDK error and tells a new user exactly what to install. */
+function requireAgentCli(agentKind: AgentKind): void {
+	const cli = AGENT_CLI[agentKind];
+	if (!findOnPath(cli.binary)) {
+		process.stderr.write(
+			`✗ '${cli.binary}' not found on PATH — the ${agentKind} agent needs it.\n` +
+				`  Install:  ${cli.install}\n` +
+				`  Then ensure '${cli.binary}' is on your PATH and retry.\n`
+		);
+		process.exit(1);
+	}
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(CLI_ARGS_START_INDEX));
 	const adapter = selectAdapter(args.agentKind);
+	requireAgentCli(args.agentKind);
+
 	const transport = createRelayTransport({
 		serverUrl: args.serverUrl,
 		token: args.token,
