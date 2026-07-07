@@ -7,7 +7,6 @@ import {
 	TableRow,
 } from "@better-agent/ui/components/table";
 import { useNavigate } from "@tanstack/react-router";
-import type { KeyboardEvent } from "react";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { localAgentDisplayName } from "./local-agent-format";
 import type { LocalAgentEntry } from "./local-agent-join";
@@ -16,7 +15,6 @@ import { LocalAgentStatusChip } from "./local-agent-status-chip";
 import { LocalAgentTokenCell } from "./local-agent-token-cell";
 
 const COLUMN_COUNT = 6;
-const ENTER_KEY = "Enter";
 
 const createdFormatter = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
@@ -27,8 +25,13 @@ export interface LocalAgentTableRow {
 	sessionCount: number;
 }
 
+/** The agent identity cell. Its NAME is the ONLY navigation target in the row
+ * (a text-styled button carrying the detail-page link), so the rest of the row
+ * — token, status, session count, created date — stays plain and freely
+ * selectable/copyable: clicking those no longer jumps to the detail page. */
 function AgentCell({ entry }: { entry: LocalAgentEntry }) {
 	const { token } = entry;
+	const navigate = useNavigate();
 	return (
 		<div className="flex min-w-0 items-center gap-2">
 			<AgentKindIcon
@@ -36,9 +39,18 @@ function AgentCell({ entry }: { entry: LocalAgentEntry }) {
 				kind={token.agentKind}
 			/>
 			<div className="flex min-w-0 flex-col">
-				<span className="truncate font-medium">
+				<button
+					className="truncate text-left font-medium hover:underline"
+					onClick={() =>
+						navigate({
+							params: { tokenId: token.id },
+							to: "/local-agents/$tokenId",
+						})
+					}
+					type="button"
+				>
 					{localAgentDisplayName(entry)}
-				</span>
+				</button>
 				<span className="truncate text-muted-foreground text-xs">
 					{AGENT_KIND_LABEL[token.agentKind]}
 				</span>
@@ -47,9 +59,6 @@ function AgentCell({ entry }: { entry: LocalAgentEntry }) {
 	);
 }
 
-/** The delete control, isolated so its clicks/keys — including those from its
- * portaled confirm popup, which bubble through React's tree back to the row —
- * never trigger the row's navigate handler. */
 function RowActions({
 	entry,
 	onDelete,
@@ -57,17 +66,11 @@ function RowActions({
 	entry: LocalAgentEntry;
 	onDelete: (tokenId: string) => void;
 }) {
-	const stop = (event: { stopPropagation: () => void }) =>
-		event.stopPropagation();
 	return (
-		// biome-ignore lint/a11y/noNoninteractiveElementInteractions: guards row navigation only
-		// biome-ignore lint/a11y/noStaticElementInteractions: guards row navigation only
-		<span className="inline-flex" onClick={stop} onKeyDown={stop}>
-			<DeleteConfirm
-				label={`Delete ${localAgentDisplayName(entry)}? Its token and all sessions are removed.`}
-				onConfirm={() => onDelete(entry.token.id)}
-			/>
-		</span>
+		<DeleteConfirm
+			label={`Delete ${localAgentDisplayName(entry)}? Its token and all sessions are removed.`}
+			onConfirm={() => onDelete(entry.token.id)}
+		/>
 	);
 }
 
@@ -78,25 +81,9 @@ function AgentRow({
 	row: LocalAgentTableRow;
 	onDelete: (tokenId: string) => void;
 }) {
-	const navigate = useNavigate();
 	const { entry, sessionCount } = row;
-	const open = () =>
-		navigate({
-			params: { tokenId: entry.token.id },
-			to: "/local-agents/$tokenId",
-		});
-	const onKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
-		if (event.key === ENTER_KEY) {
-			open();
-		}
-	};
 	return (
-		<TableRow
-			className="cursor-pointer"
-			onClick={open}
-			onKeyDown={onKeyDown}
-			tabIndex={0}
-		>
+		<TableRow>
 			<TableCell>
 				<AgentCell entry={entry} />
 			</TableCell>

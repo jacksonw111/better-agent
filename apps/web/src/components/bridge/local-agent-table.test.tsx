@@ -65,7 +65,7 @@ it("renders a row per token with its kind, status and session count", () => {
 	expect(row.getByText("2")).toBeDefined();
 });
 
-it("navigates to the agent detail on row click", () => {
+it("navigates to the agent detail when the name is clicked", () => {
 	const { row } = renderTable(() => {
 		// no-op
 	});
@@ -75,6 +75,17 @@ it("navigates to the agent detail on row click", () => {
 		to: "/local-agents/$tokenId",
 		params: { tokenId: "token-1" },
 	});
+});
+
+it("does not navigate when clicking outside the name (e.g. the token cell)", () => {
+	const { row } = renderTable(() => {
+		// no-op
+	});
+
+	// Only the name navigates — the rest of the row must stay plain so the
+	// token (and other cells) can be selected/copied without jumping away.
+	fireEvent.click(row.getByTitle("Show token & run command"));
+	expect(store.navigatedTo).toHaveLength(0);
 });
 
 it("deletes from the Actions cell after confirming, without navigating", () => {
