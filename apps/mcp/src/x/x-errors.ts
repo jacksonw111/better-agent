@@ -19,24 +19,3 @@ export class XNotFoundError extends XError {
 	// 404 → 账号侧问题，不罚 token
 	override readonly name: string = "XNotFoundError";
 }
-
-export class XDuplicateAccountError extends XError {
-	// twitterUserId 已被其他账号占用
-	override readonly name: string = "XDuplicateAccountError";
-	readonly existingAccountId: string;
-	readonly twitterUserId: string;
-	constructor(
-		message: string,
-		existingAccountId: string,
-		twitterUserId: string
-	) {
-		super(message);
-		this.existingAccountId = existingAccountId;
-		this.twitterUserId = twitterUserId;
-	}
-}
-
-export class NoActiveTokenError extends XError {
-	// token 池空
-	override readonly name: string = "NoActiveTokenError";
-}

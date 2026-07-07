@@ -97,7 +97,7 @@ function contentToOutput(result: {
 	return { output: text, isError: result.isError === true };
 }
 
-export function createMcpService(target: McpTarget): McpService {
+function createMcpService(target: McpTarget): McpService {
 	return {
 		listTools() {
 			return withLog("listTools", () =>

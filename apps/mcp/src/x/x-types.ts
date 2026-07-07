@@ -52,12 +52,3 @@ export interface NormalizedProfile {
 	twitterUserId: string;
 	verified: boolean;
 }
-
-export interface XCollectResult {
-	errorMessage?: string;
-	fetched: number;
-	inserted: number;
-	newTweetIds: string[];
-	runId: string;
-	status: "success" | "failed" | "skipped";
-}
