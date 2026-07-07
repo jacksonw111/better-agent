@@ -3,6 +3,7 @@ import type {
 	BridgeSessionStatus,
 	BridgeTokenConfig,
 } from "@better-agent/agent/ports";
+import { sql } from "drizzle-orm";
 import {
 	bigint,
 	index,
@@ -102,5 +103,14 @@ export const bridgeMessages = pgTable(
 	},
 	(table) => [
 		index("bridge_messages_session_id_seq_idx").on(table.sessionId, table.seq),
+		// Partial expression index backing usageByAgentKind's aggregation
+		// (bridge-usage-store.ts): that query joins to bridge_sessions and
+		// filters WHERE event->>'status' = 'turn_usage' AND created_at >=
+		// since, which without this index falls back to a full scan of every
+		// row in the table. Only turn_usage rows (one per completed turn, a
+		// small fraction of all relayed events) are indexed.
+		index("bridge_messages_turn_usage_idx")
+			.on(table.sessionId, table.createdAt)
+			.where(sql`(${table.event}->>'status') = 'turn_usage'`),
 	]
 );

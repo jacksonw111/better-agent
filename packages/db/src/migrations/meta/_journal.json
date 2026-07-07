@@ -239,6 +239,13 @@
       "when": 1783347083221,
       "tag": "0033_careful_sabra",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1783431510901,
+      "tag": "0034_yellow_karnak",
+      "breakpoints": true
     }
   ]
 }
