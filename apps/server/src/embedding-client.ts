@@ -3,8 +3,8 @@ import { env } from "@better-agent/env/server";
 
 // Memory embeddings via SiliconFlow's OpenAI-compatible embeddings API. NOTE:
 // despite decision D1 ("Cloudflare Workers AI, read path on-edge"), we call an
-// EXTERNAL API from Node — the read path is NOT on-edge. `Pro/BAAI/bge-m3`
-// emits 1024-dim vectors, matching the `vector(1024)` column. The response is
+// EXTERNAL API from Node — the read path is NOT on-edge. `BAAI/bge-m3` emits
+// 1024-dim vectors, matching the `vector(1024)` column. The response is
 // `{ data: [{ embedding: number[] }] }`; we parse it defensively so a
 // shape/length change surfaces as a clear error rather than a silently bad
 // vector. Transient failures (429/5xx/network/timeout) are retried with
@@ -13,7 +13,7 @@ import { env } from "@better-agent/env/server";
 // the rest of the server runs without embeddings configured.
 
 const DEFAULT_BASE_URL = "https://api.siliconflow.cn/v1";
-const DEFAULT_MODEL = "Pro/BAAI/bge-m3";
+const DEFAULT_MODEL = "BAAI/bge-m3";
 const EMBEDDING_DIMENSIONS = 1024;
 // Cap on how much upstream error text is echoed back, so a huge body can't
 // bloat the thrown message.

@@ -22,7 +22,10 @@ function okResponse(): Response {
 	});
 }
 
-function errorResponse(status: number, headers?: HeadersInit): Response {
+function errorResponse(
+	status: number,
+	headers?: Record<string, string>
+): Response {
 	return new Response("upstream boom", { status, headers });
 }
 
