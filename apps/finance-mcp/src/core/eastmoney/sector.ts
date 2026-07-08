@@ -5,7 +5,9 @@
 import { fetchWithRetry } from "../http";
 import type { SectorConstituent, SectorRow } from "../types";
 
-const CLIST_URL = "https://push2.eastmoney.com/api/qt/clist/get";
+// The base push2 host 502s on the clist path from Cloudflare egress; the
+// numbered mirrors serve it fine (verified live from the Worker).
+const CLIST_URL = "https://1.push2.eastmoney.com/api/qt/clist/get";
 // EastMoney clist requires this public `ut` token or it returns an empty set.
 const CLIST_UT = "bd1d9ddb04089700cf9c27f6f7426281";
 const SECTOR_LIST_FIELDS = "f12,f14,f2,f3,f62,f128,f136";
