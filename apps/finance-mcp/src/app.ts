@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { handleMessage } from "./mcp-server";
+import { registerRest } from "./rest";
 
 // Streamable HTTP endpoint in stateless JSON mode: every POST carries one
 // JSON-RPC message; responses come back as application/json (the spec allows
@@ -33,6 +34,8 @@ export function buildApp(): Hono {
 		}
 		return c.json(response);
 	});
+
+	registerRest(app);
 
 	return app;
 }

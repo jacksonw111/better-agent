@@ -1,3 +1,5 @@
+import { getQuote } from "./core/tencent/quote";
+
 export interface ToolResult {
 	content: { type: "text"; text: string }[];
 	isError: boolean;
@@ -12,9 +14,13 @@ export function toolJson(value: unknown): ToolResult {
 }
 
 // Feature tasks add `if (name === "finance_x") { ... }` branches above the fallback.
-export function runTool(
+export async function runTool(
 	name: string,
 	_args: Record<string, unknown>
 ): Promise<ToolResult> {
-	return Promise.resolve(toolText(`Unknown tool: ${name}`, true));
+	if (name === "finance_quote") {
+		const symbol = typeof _args.symbol === "string" ? _args.symbol : "";
+		return toolJson(await getQuote(symbol));
+	}
+	return toolText(`Unknown tool: ${name}`, true);
 }
