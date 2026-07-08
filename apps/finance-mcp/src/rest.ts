@@ -11,6 +11,8 @@ import { searchAStocks } from "./core/eastmoney/search";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
+import { getCommodities } from "./core/tencent/commodity";
+import { getIndices } from "./core/tencent/indices";
 import { getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 
@@ -142,6 +144,17 @@ async function forecastHandler(c: Context) {
 	);
 }
 
+async function indicesHandler(c: Context) {
+	const region = c.req.query("region") ?? "all";
+	return c.json(
+		await withCache(`indices:${region}`, 30, () => getIndices(region))
+	);
+}
+
+async function commodityHandler(c: Context) {
+	return c.json(await withCache("commodity", 30, () => getCommodities()));
+}
+
 export function registerRest(app: Hono): void {
 	app.get("/api/quote", quoteHandler);
 	app.get("/api/kline", klineHandler);
@@ -156,4 +169,6 @@ export function registerRest(app: Hono): void {
 	app.get("/api/search", searchHandler);
 	app.get("/api/research", researchHandler);
 	app.get("/api/forecast", forecastHandler);
+	app.get("/api/indices", indicesHandler);
+	app.get("/api/commodity", commodityHandler);
 }

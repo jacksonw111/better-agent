@@ -152,3 +152,25 @@ export interface ForecastRow {
 	revenue?: number | null;
 	year: string;
 }
+
+export interface IndexQuote {
+	changePct: number;
+	code: string;
+	high: number;
+	last: number;
+	low: number;
+	name: string;
+	prevClose: number;
+	region: "cn" | "hk" | "us";
+}
+
+export interface CommodityQuote {
+	changePct: number;
+	high: number;
+	key: string;
+	last: number;
+	low: number;
+	name: string;
+	prevClose: number;
+	time: string;
+}
