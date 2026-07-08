@@ -174,3 +174,20 @@ export interface CommodityQuote {
 	prevClose: number;
 	time: string;
 }
+
+export interface TechnicalSnapshot {
+	asOf: string;
+	boll: { lower: number; mid: number; upper: number } | null;
+	close: number;
+	ema12: number | null;
+	ema26: number | null;
+	kdj: { d: number; j: number; k: number } | null;
+	ma5: number | null;
+	ma10: number | null;
+	ma20: number | null;
+	ma60: number | null;
+	macd: { dea: number; dif: number; macd: number } | null;
+	period: string;
+	rsi14: number | null;
+	symbol: string;
+}

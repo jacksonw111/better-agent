@@ -10,6 +10,7 @@ import { searchAStocks } from "./core/eastmoney/search";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
+import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
@@ -236,6 +237,18 @@ async function handleCommodity(): Promise<ToolResult> {
 	return toolJson(await withCache("commodity", 30, () => getCommodities()));
 }
 
+async function handleTechnical(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	const period = argKlinePeriod(args);
+	return toolJson(
+		await withCache(`tech:${symbol}:${period}`, 60, () =>
+			getTechnical(symbol, period)
+		)
+	);
+}
+
 type ToolHandler = (
 	args: Record<string, unknown>,
 	env: ToolEnv
@@ -258,6 +271,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_earnings_forecast: (args) => handleEarningsForecast(args),
 	finance_index_quote: (args) => handleIndexQuote(args),
 	finance_commodity: () => handleCommodity(),
+	finance_technical: (args) => handleTechnical(args),
 };
 
 export function runTool(

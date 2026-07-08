@@ -38,3 +38,28 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_commodity");
+
+TOOLS.push({
+	name: "finance_technical",
+	description:
+		"Technical indicators (MA5/10/20/60, EMA12/26, MACD, RSI14, KDJ, BOLL) " +
+		"computed from daily/weekly/monthly candles for a US/HK/A-share symbol. " +
+		"Returns the latest snapshot; indicators with insufficient history are null.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "Ticker, e.g. 600000.SH / 00700.HK / AAPL.",
+			},
+			period: {
+				type: "string",
+				enum: ["day", "week", "month"],
+				description: "Candle period (default day).",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_technical");
