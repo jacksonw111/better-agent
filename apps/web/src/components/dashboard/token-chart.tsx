@@ -11,12 +11,26 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { COLOR_INPUT, COLOR_OUTPUT } from "./dashboard-constants";
+import {
+	CENTS_PER_DOLLAR,
+	COLOR_COST,
+	COLOR_INPUT,
+	COLOR_OUTPUT,
+} from "./dashboard-constants";
 import type { DayPoint } from "./use-usage-data";
 
 const CHART_HEIGHT = 256;
 const TICK_FONT_SIZE = 12;
 const LINE_STROKE_WIDTH = 2;
+
+const TOOLTIP_STYLE = {
+	background: "var(--popover)",
+	border: "1px solid var(--border)",
+	borderRadius: "6px",
+	fontSize: "12px",
+} as const;
+
+const formatCostTick = (value: number) => `$${value.toFixed(0)}`;
 
 interface TokenChartProps {
 	daily: DayPoint[];
@@ -24,6 +38,7 @@ interface TokenChartProps {
 }
 
 interface ChartRow {
+	Cost: number;
 	day: string;
 	Input: number;
 	Output: number;
@@ -72,6 +87,40 @@ function ChartSkeleton() {
 	);
 }
 
+function ChartLines() {
+	return (
+		<>
+			<Line
+				dataKey="Input"
+				dot={false}
+				name="Input"
+				stroke={COLOR_INPUT}
+				strokeWidth={LINE_STROKE_WIDTH}
+				type="monotone"
+				yAxisId="tokens"
+			/>
+			<Line
+				dataKey="Output"
+				dot={false}
+				name="Output"
+				stroke={COLOR_OUTPUT}
+				strokeWidth={LINE_STROKE_WIDTH}
+				type="monotone"
+				yAxisId="tokens"
+			/>
+			<Line
+				dataKey="Cost"
+				dot={false}
+				name="Cost ($)"
+				stroke={COLOR_COST}
+				strokeWidth={LINE_STROKE_WIDTH}
+				type="monotone"
+				yAxisId="cost"
+			/>
+		</>
+	);
+}
+
 function ChartBody({ data }: { data: ChartRow[] }) {
 	return (
 		<ResponsiveContainer height={CHART_HEIGHT} width="100%">
@@ -85,32 +134,18 @@ function ChartBody({ data }: { data: ChartRow[] }) {
 				<YAxis
 					stroke="var(--muted-foreground)"
 					tick={{ fontSize: TICK_FONT_SIZE }}
+					yAxisId="tokens"
 				/>
-				<Tooltip
-					contentStyle={{
-						background: "var(--popover)",
-						border: "1px solid var(--border)",
-						borderRadius: "6px",
-						fontSize: "12px",
-					}}
+				<YAxis
+					orientation="right"
+					stroke={COLOR_COST}
+					tick={{ fontSize: TICK_FONT_SIZE }}
+					tickFormatter={formatCostTick}
+					yAxisId="cost"
 				/>
+				<Tooltip contentStyle={TOOLTIP_STYLE} />
 				<Legend wrapperStyle={{ fontSize: "12px" }} />
-				<Line
-					dataKey="Input"
-					dot={false}
-					name="Input"
-					stroke={COLOR_INPUT}
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-				/>
-				<Line
-					dataKey="Output"
-					dot={false}
-					name="Output"
-					stroke={COLOR_OUTPUT}
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-				/>
+				<ChartLines />
 			</LineChart>
 		</ResponsiveContainer>
 	);
@@ -121,9 +156,10 @@ export function TokenChart({ daily, isPending }: TokenChartProps) {
 		return <ChartSkeleton />;
 	}
 	const data = daily.map((d) => ({
-		day: formatDay(d.day),
+		Cost: d.costCents / CENTS_PER_DOLLAR,
 		Input: d.inputTokens,
 		Output: d.outputTokens,
+		day: formatDay(d.day),
 	}));
 	return (
 		<div className="rounded-lg border bg-card p-4 shadow-sm">

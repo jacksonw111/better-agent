@@ -14,3 +14,6 @@ export const COLOR_INPUT = "#6366f1";
 
 /** Chart color for output tokens */
 export const COLOR_OUTPUT = "#f59e0b";
+
+/** Chart color for cost (right axis) */
+export const COLOR_COST = "#10b981";

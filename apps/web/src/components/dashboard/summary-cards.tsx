@@ -1,6 +1,6 @@
 // apps/web/src/components/dashboard/summary-cards.tsx
 
-import { Coins, Zap } from "lucide-react";
+import { Coins, Hash, Zap } from "lucide-react";
 import { CENTS_PER_DOLLAR } from "./dashboard-constants";
 import { SummaryCard } from "./summary-card";
 import type { UsageSummary } from "./use-usage-data";
@@ -32,7 +32,7 @@ function formatCost(costCents: number): string {
 export function SummaryCards({ isPending, totals }: SummaryCardsProps) {
 	const totalTokens = totals.inputTokens + totals.outputTokens;
 	return (
-		<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+		<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
 			<SummaryCard
 				icon={Zap}
 				isPending={isPending}
@@ -44,6 +44,18 @@ export function SummaryCards({ isPending, totals }: SummaryCardsProps) {
 				isPending={isPending}
 				label="Est. Cost"
 				value={formatCost(totals.costCents)}
+			/>
+			<SummaryCard
+				icon={Hash}
+				isPending={isPending}
+				label="Turns"
+				value={String(totals.turns)}
+			/>
+			<SummaryCard
+				icon={Coins}
+				isPending={isPending}
+				label="Input Tokens"
+				value={formatTokens(totals.inputTokens)}
 			/>
 		</div>
 	);
