@@ -32,8 +32,9 @@ TOOL_NAMES.add("finance_quote");
 TOOLS.push({
 	name: "finance_kline",
 	description:
-		"Historical OHLCV candles for a US/HK/A-share symbol. period is day, week, or " +
-		"month; limit caps the number of most-recent candles (default 240).",
+		"Historical OHLCV candles for a US/HK/A-share symbol. period is day, week, month, " +
+		"or an intraday minute interval (1m/5m/15m/30m/60m); limit caps the number of " +
+		"most-recent candles (default 240).",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -43,8 +44,10 @@ TOOLS.push({
 			},
 			period: {
 				type: "string",
-				enum: ["day", "week", "month"],
-				description: "Candle period. Default day.",
+				enum: ["day", "week", "month", "1m", "5m", "15m", "30m", "60m"],
+				description:
+					"Candle period. Default day. Minute values (1m/5m/15m/30m/60m) " +
+					"return intraday bars.",
 			},
 			limit: {
 				type: "number",
@@ -86,8 +89,10 @@ TOOLS.push({
 	description:
 		"Earnings / report-release dates. market='us' → Nasdaq calendar for a given day " +
 		"(date=YYYY-MM-DD). market='a' → A-share appointed-disclosure schedule for a fiscal " +
-		"period-end (date=YYYY-MM-DD, e.g. 2026-06-30 for H1). market='hk' is best-effort and " +
-		"currently returns no data.",
+		"period-end (date=YYYY-MM-DD, e.g. 2026-06-30 for H1). market='hk' → HK " +
+		"results-announcement filings (Interim/Final/Quarterly Results + Board-Meeting " +
+		"notices) from HKEXnews for the given calendar day (date=YYYY-MM-DD) — actual " +
+		"filing dates, since HK has no forward appointment schedule like A-share.",
 	inputSchema: {
 		type: "object",
 		properties: {

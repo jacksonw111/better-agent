@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getKline, parseKline } from "./kline";
+import { getKline, parseKline, parseMinuteKline } from "./kline";
 
 const RAW = {
 	code: 0,
@@ -57,5 +57,39 @@ describe("parseKline", () => {
 		expect(candles).toHaveLength(2);
 		expect(candles[0]?.time).toBe("2026-06-23");
 		expect(candles[1]?.time).toBe("2026-06-24");
+	});
+});
+
+const MINUTE_RAW = {
+	data: {
+		sh600000: {
+			m5: [
+				["202607081500", "9.00", "9.00", "9.02", "8.99", "12940", {}, "0.39"],
+			],
+		},
+	},
+};
+
+describe("parseMinuteKline", () => {
+	it("maps mkline rows to candles with formatted intraday time", () => {
+		const candles = parseMinuteKline(MINUTE_RAW, "sh600000", "5m");
+		expect(candles).toHaveLength(1);
+		expect(candles[0]).toEqual({
+			time: "2026-07-08 15:00",
+			open: 9,
+			close: 9,
+			high: 9.02,
+			low: 8.99,
+			volume: 12_940,
+		});
+	});
+
+	it("getKline fetches and parses minute candles via the mkline endpoint", async () => {
+		const fetchImpl = () => Promise.resolve(Response.json(MINUTE_RAW));
+		const candles = await getKline("600000.SH", "5m", 10, {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(candles).toHaveLength(1);
+		expect(candles[0]?.time).toBe("2026-07-08 15:00");
 	});
 });

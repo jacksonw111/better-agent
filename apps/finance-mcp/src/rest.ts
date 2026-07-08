@@ -21,7 +21,7 @@ import { getYieldCurve } from "./core/fred/yield-curve";
 import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
-import { getKline } from "./core/tencent/kline";
+import { coerceKlinePeriod, getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 
 const DEFAULT_KLINE_LIMIT = 240;
@@ -36,8 +36,7 @@ async function quoteHandler(c: Context) {
 
 async function klineHandler(c: Context) {
 	const symbol = c.req.query("symbol") ?? "";
-	const p = c.req.query("period");
-	const period = p === "week" || p === "month" ? p : "day";
+	const period = coerceKlinePeriod(c.req.query("period"));
 	const limit = Number(c.req.query("limit") ?? "") || DEFAULT_KLINE_LIMIT;
 	return c.json(
 		await withCache(`kline:${symbol}:${period}:${limit}`, 300, () =>
@@ -164,8 +163,7 @@ async function commodityHandler(c: Context) {
 
 async function technicalHandler(c: Context) {
 	const symbol = c.req.query("symbol") ?? "";
-	const p = c.req.query("period");
-	const period = p === "week" || p === "month" ? p : "day";
+	const period = coerceKlinePeriod(c.req.query("period"));
 	return c.json(
 		await withCache(`tech:${symbol}:${period}`, 60, () =>
 			getTechnical(symbol, period)

@@ -12,7 +12,7 @@ import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
-import { getKline, type KlinePeriod } from "./core/tencent/kline";
+import { coerceKlinePeriod, getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
 import {
@@ -72,13 +72,6 @@ export function argOptionalString(
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function argKlinePeriod(args: Record<string, unknown>): KlinePeriod {
-	if (args.period === "week" || args.period === "month") {
-		return args.period;
-	}
-	return "day";
-}
-
 async function handleQuote(args: Record<string, unknown>): Promise<ToolResult> {
 	const symbol = argString(args, "symbol");
 	return toolJson(
@@ -88,7 +81,7 @@ async function handleQuote(args: Record<string, unknown>): Promise<ToolResult> {
 
 async function handleKline(args: Record<string, unknown>): Promise<ToolResult> {
 	const symbol = argString(args, "symbol");
-	const period = argKlinePeriod(args);
+	const period = coerceKlinePeriod(args.period);
 	const limit = argNumber(args, "limit", DEFAULT_KLINE_LIMIT);
 	return toolJson(
 		await withCache(`kline:${symbol}:${period}:${limit}`, 300, () =>
@@ -230,7 +223,7 @@ async function handleTechnical(
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
 	const symbol = argString(args, "symbol");
-	const period = argKlinePeriod(args);
+	const period = coerceKlinePeriod(args.period);
 	return toolJson(
 		await withCache(`tech:${symbol}:${period}`, 60, () =>
 			getTechnical(symbol, period)

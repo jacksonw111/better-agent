@@ -34,7 +34,29 @@ describe("aShareEarnings", () => {
 });
 
 describe("earningsCalendar dispatch", () => {
-	it("HK is best-effort and returns []", async () => {
-		expect(await earningsCalendar("hk", "2026-06-30")).toEqual([]);
+	it("routes hk to the HKEXnews connector", async () => {
+		const payload = {
+			result: JSON.stringify([
+				{
+					STOCK_CODE: "00700",
+					STOCK_NAME: "TENCENT",
+					DATE_TIME: "07/07/2026 22:21",
+					LONG_TEXT: "Announcements and Notices - [Interim Results]",
+				},
+			]),
+		};
+		const fetchImpl = () => Promise.resolve(Response.json(payload));
+		const events = await earningsCalendar("hk", "2026-07-07", {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(events).toEqual([
+			{
+				market: "hk",
+				symbol: "00700",
+				name: "TENCENT",
+				date: "2026-07-07",
+				reportType: "Interim Results",
+			},
+		]);
 	});
 });

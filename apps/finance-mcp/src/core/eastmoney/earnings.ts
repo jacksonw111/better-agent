@@ -1,3 +1,4 @@
+import { hkEarnings } from "../hk/hkex-earnings";
 import { fetchWithRetry } from "../http";
 import type { EarningsEvent, Market } from "../types";
 import { usEarnings } from "../us/nasdaq-earnings";
@@ -60,6 +61,6 @@ export function earningsCalendar(
 	if (market === "a") {
 		return aShareEarnings(date, opts);
 	}
-	// HK: best-effort, not covered in v1.
-	return Promise.resolve([]);
+	// HK: results-announcement filings from HKEXnews.
+	return hkEarnings(date, opts);
 }
