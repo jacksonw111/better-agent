@@ -25,7 +25,8 @@ async function debugClist(c: {
 	json: (v: unknown) => Response;
 }): Promise<Response> {
 	const q = c.req.query("q") ?? "";
-	const res = await fetch(`https://push2.eastmoney.com/api/qt/clist/get?${q}`, {
+	const host = c.req.query("host") ?? "push2.eastmoney.com";
+	const res = await fetch(`https://${host}/api/qt/clist/get?${q}`, {
 		headers: { Referer: "https://quote.eastmoney.com/" },
 	});
 	const body = await res.text();
