@@ -17,6 +17,10 @@ pre-commit:
       glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx}"
       run: node scripts/check-file-rules.js {staged_files}
 
+    - name: no-raw-sql
+      glob: "*.{ts,tsx}"
+      run: node scripts/check-no-raw-sql.js {staged_files}
+
     - name: eslint-rules
       glob: "*.{js,ts,cjs,mjs,jsx,tsx}"
       run: pnpm eslint --no-cache {staged_files}
