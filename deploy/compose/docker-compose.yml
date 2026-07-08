@@ -18,10 +18,10 @@ name: better-agent
 services:
   postgres:
     # pgvector-enabled Postgres (for the memory system's `vector` columns),
-    # PG 18. NOTE: this is a MAJOR version bump from the previous postgres:16.6
-    # image — a PG18 server will NOT start against a PG16 `pgdata` volume. On a
-    # host with existing data, migrate first (pg_upgrade or dump→restore); on a
-    # fresh deploy, the volume is created as PG18 and this is a no-op.
+    # PG 18. PG18+ images use a pg_ctlcluster layout: data lives in a versioned
+    # subdir (/var/lib/postgresql/18/docker), so the volume mounts at the
+    # PARENT /var/lib/postgresql (not /data). Don't set PGDATA — let PG18 use
+    # its versioned default. Fresh volume (no PG16 data to migrate).
     image: pgvector/pgvector:pg18
     restart: unless-stopped
     environment:
@@ -29,7 +29,7 @@ services:
       POSTGRES_USER: better_agent
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U better_agent"]
       interval: 10s
