@@ -6,6 +6,8 @@ import { fetchWithRetry } from "../http";
 import type { SectorConstituent, SectorRow } from "../types";
 
 const CLIST_URL = "https://push2.eastmoney.com/api/qt/clist/get";
+// EastMoney clist requires this public `ut` token or it returns an empty set.
+const CLIST_UT = "bd1d9ddb04089700cf9c27f6f7426281";
 const SECTOR_LIST_FIELDS = "f12,f14,f2,f3,f62,f128,f136";
 const CONSTITUENT_FIELDS = "f12,f14,f2,f3";
 const SECTOR_LIST_PAGE_SIZE = 100;
@@ -92,7 +94,7 @@ export async function getSectorList(
 ): Promise<SectorRow[]> {
 	const fs = fsForType(type);
 	const url =
-		`${CLIST_URL}?pn=1&pz=${SECTOR_LIST_PAGE_SIZE}&po=1&np=1&fltt=2&invt=2` +
+		`${CLIST_URL}?pn=1&pz=${SECTOR_LIST_PAGE_SIZE}&po=1&np=1&ut=${CLIST_UT}&fltt=2&invt=2` +
 		`&fid=f3&fs=${fs}&fields=${SECTOR_LIST_FIELDS}`;
 	const rows = await fetchClistRows(url, opts);
 	return rows.map(toSectorRow);
@@ -103,7 +105,7 @@ export async function getSectorConstituents(
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<SectorConstituent[]> {
 	const url =
-		`${CLIST_URL}?pn=1&pz=${CONSTITUENT_PAGE_SIZE}&po=1&np=1&fltt=2&invt=2` +
+		`${CLIST_URL}?pn=1&pz=${CONSTITUENT_PAGE_SIZE}&po=1&np=1&ut=${CLIST_UT}&fltt=2&invt=2` +
 		`&fid=f3&fs=b:${board}&fields=${CONSTITUENT_FIELDS}`;
 	const rows = await fetchClistRows(url, opts);
 	return rows.map(toConstituent);
