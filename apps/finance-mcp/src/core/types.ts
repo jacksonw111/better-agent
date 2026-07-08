@@ -69,3 +69,59 @@ export interface CbOp {
 	tenor?: string;
 	type: string;
 }
+
+export interface KeyMetrics {
+	changePct: number | null;
+	close: number | null;
+	floatMarketCap: number | null;
+	floatShares: number | null;
+	marketCap: number | null;
+	pb: number | null;
+	pcf: number | null;
+	peg: number | null;
+	peStatic: number | null;
+	peTtm: number | null;
+	ps: number | null;
+	symbol: string;
+	totalShares: number | null;
+	tradeDate: string | null;
+}
+
+export interface CompanyProfile {
+	address: string | null;
+	businessScope: string | null;
+	chairman: string | null;
+	csrcIndustry: string | null;
+	employees: number | null;
+	foundDate: string | null;
+	industry: string | null;
+	listingDate: string | null;
+	market: string | null;
+	name: string | null;
+	profile: string | null;
+	regCapital: number | null;
+}
+
+export type StatementType = "income" | "balance" | "cashflow";
+
+export interface StatementRow {
+	reportDate: string;
+	[key: string]: number | string | null;
+}
+
+export interface IndicatorRow {
+	bps: number | null;
+	debtRatio: number | null;
+	eps: number | null;
+	grossMargin: number | null;
+	netMargin: number | null;
+	netProfit: number | null;
+	netProfitYoy: number | null;
+	opCashPerShare: number | null;
+	reportDate: string;
+	reportName: string | null;
+	revenue: number | null;
+	revenueYoy: number | null;
+	roe: number | null;
+	roeDeducted: number | null;
+}

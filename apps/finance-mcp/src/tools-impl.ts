@@ -1,7 +1,11 @@
 import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
+import { getFinancialIndicators } from "./core/eastmoney/indicators";
 import { listReports } from "./core/eastmoney/periodic-reports";
+import { getCompanyProfile } from "./core/eastmoney/profile";
+import { getStatements } from "./core/eastmoney/statements";
+import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
@@ -137,29 +141,81 @@ async function handleCentralBank(
 	);
 }
 
-// Feature tasks add `if (name === "finance_x") { ... }` branches above the fallback.
-export async function runTool(
+const DEFAULT_STATEMENT_PERIODS = 4;
+const DEFAULT_INDICATOR_PERIODS = 8;
+
+async function handleKeyMetrics(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	return toolJson(
+		await withCache(`metrics:${symbol}`, 300, () => getKeyMetrics(symbol))
+	);
+}
+
+async function handleCompanyProfile(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	return toolJson(
+		await withCache(`profile:${symbol}`, 86_400, () =>
+			getCompanyProfile(symbol)
+		)
+	);
+}
+
+async function handleFinancialStatements(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	const statement = argString(args, "statement");
+	const periods = argNumber(args, "periods", DEFAULT_STATEMENT_PERIODS);
+	return toolJson(
+		await withCache(`fin:${symbol}:${statement}:${periods}`, 3600, () =>
+			getStatements(symbol, statement, periods)
+		)
+	);
+}
+
+async function handleFinancialIndicators(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	const periods = argNumber(args, "periods", DEFAULT_INDICATOR_PERIODS);
+	return toolJson(
+		await withCache(`ind:${symbol}:${periods}`, 3600, () =>
+			getFinancialIndicators(symbol, periods)
+		)
+	);
+}
+
+type ToolHandler = (
+	args: Record<string, unknown>,
+	env: ToolEnv
+) => Promise<ToolResult>;
+
+// Feature tasks add one HANDLERS entry per tool (plus its handleX above).
+const HANDLERS: Record<string, ToolHandler> = {
+	finance_quote: (args) => handleQuote(args),
+	finance_kline: (args) => handleKline(args),
+	finance_list_reports: (args) => handleListReports(args),
+	finance_earnings_calendar: (args) => handleEarningsCalendar(args),
+	finance_economic_calendar: (args, env) => handleEconomicCalendar(args, env),
+	finance_central_bank: (args) => handleCentralBank(args),
+	finance_key_metrics: (args) => handleKeyMetrics(args),
+	finance_company_profile: (args) => handleCompanyProfile(args),
+	finance_financial_statements: (args) => handleFinancialStatements(args),
+	finance_financial_indicators: (args) => handleFinancialIndicators(args),
+};
+
+export function runTool(
 	name: string,
-	_args: Record<string, unknown>,
+	args: Record<string, unknown>,
 	env: ToolEnv = {}
 ): Promise<ToolResult> {
-	if (name === "finance_quote") {
-		return await handleQuote(_args);
+	const handler = HANDLERS[name];
+	if (!handler) {
+		return Promise.resolve(toolText(`Unknown tool: ${name}`, true));
 	}
-	if (name === "finance_kline") {
-		return await handleKline(_args);
-	}
-	if (name === "finance_list_reports") {
-		return await handleListReports(_args);
-	}
-	if (name === "finance_earnings_calendar") {
-		return await handleEarningsCalendar(_args);
-	}
-	if (name === "finance_economic_calendar") {
-		return await handleEconomicCalendar(_args, env);
-	}
-	if (name === "finance_central_bank") {
-		return await handleCentralBank(_args);
-	}
-	return toolText(`Unknown tool: ${name}`, true);
+	return handler(args, env);
 }

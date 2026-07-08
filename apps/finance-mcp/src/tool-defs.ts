@@ -167,3 +167,101 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_central_bank");
+
+TOOLS.push({
+	name: "finance_key_metrics",
+	description:
+		"A-share only. Latest valuation snapshot from EastMoney: trade date, close, change %, " +
+		"total/float market cap, total/float shares, and PE (TTM/static), PB, PS, PCF, PEG. " +
+		"Symbol like 600519.SH / 000001.SZ.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_key_metrics");
+
+TOOLS.push({
+	name: "finance_company_profile",
+	description:
+		"A-share only. Company profile from EastMoney F10: name, industry (EM + CSRC), " +
+		"listing market, chairman, employee count, registered capital, business scope, " +
+		"address, listing date, and founding date. Symbol like 600519.SH / 000001.SZ.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_company_profile");
+
+TOOLS.push({
+	name: "finance_financial_statements",
+	description:
+		"A-share only. Raw financial-statement line items from EastMoney, newest first. " +
+		"statement=income → revenue/operating cost/operating profit/total profit/net profit " +
+		"(incl. deducted). statement=balance → total assets/liabilities/equity, cash, debt " +
+		"ratio. statement=cashflow → operating/investing/financing cashflow and net cash " +
+		"change. periods caps the number of report periods (default 4, max 20).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+			},
+			statement: {
+				type: "string",
+				enum: ["income", "balance", "cashflow"],
+				description: "Which statement to return.",
+			},
+			periods: {
+				type: "number",
+				description:
+					"Number of report periods, newest first (default 4, max 20).",
+			},
+		},
+		required: ["symbol", "statement"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_financial_statements");
+
+TOOLS.push({
+	name: "finance_financial_indicators",
+	description:
+		"A-share only, highest-value fundamentals tool. Per-period key financial indicators " +
+		"from EastMoney: EPS, BPS, revenue + YoY %, net profit + YoY %, gross margin, net " +
+		"margin, ROE (weighted + deducted), debt ratio, operating cashflow per share. " +
+		"periods caps the number of report periods (default 8, max 40).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+			},
+			periods: {
+				type: "number",
+				description:
+					"Number of report periods, newest first (default 8, max 40).",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_financial_indicators");
