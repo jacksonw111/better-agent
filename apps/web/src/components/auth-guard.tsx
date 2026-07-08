@@ -1,4 +1,3 @@
-import { Breadcrumbs } from "@better-agent/ui/components/breadcrumbs";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -14,19 +13,6 @@ import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
 import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
 import { client, orpc } from "@/utils/orpc";
-
-// Breadcrumb labels keyed by URL segment. Detail routes' dynamic id segments
-// (a session/customer id) aren't here — they render truncated.
-const WEB_BREADCRUMBS: Record<string, string> = {
-	account: "Account",
-	agents: "Agents",
-	bridge: "Bridge",
-	chat: "Chat",
-	dashboard: "Dashboard",
-	integrations: "Integrations",
-	"local-agents": "Local Agents",
-	memories: "Memories",
-};
 
 const PUBLIC_PATHS = [
 	"/login",
@@ -70,9 +56,9 @@ function AuthedShell() {
 		<SidebarProvider className="h-svh overflow-hidden">
 			<WebSidebar />
 			<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-				<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:px-4">
+				<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
 					<SidebarTrigger />
-					<Breadcrumbs labels={WEB_BREADCRUMBS} />
+					<span className="font-medium text-sm">better-agent</span>
 				</header>
 				{/* Verify-email banner hidden for now (re-add when needed). */}
 				<div className="flex min-h-0 flex-1 flex-col overflow-auto">

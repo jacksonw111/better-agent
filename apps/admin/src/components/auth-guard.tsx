@@ -1,4 +1,3 @@
-import { Breadcrumbs } from "@better-agent/ui/components/breadcrumbs";
 import { Button } from "@better-agent/ui/components/button";
 import {
 	SidebarInset,
@@ -20,13 +19,6 @@ import {
 	setTokens,
 } from "@/utils/auth";
 import { client, orpc } from "@/utils/orpc";
-
-// Breadcrumb labels keyed by URL segment.
-const ADMIN_BREADCRUMBS: Record<string, string> = {
-	customers: "Customers",
-	providers: "Providers",
-	users: "Users",
-};
 
 const PUBLIC_PATHS = ["/login", "/auth/verify"];
 
@@ -72,10 +64,10 @@ function AdminShell() {
 	return (
 		<SidebarProvider className="h-svh overflow-hidden">
 			<AdminSidebar />
-			<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-				<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:px-4">
+			<SidebarInset className="min-h-0 overflow-hidden">
+				<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
 					<SidebarTrigger />
-					<Breadcrumbs labels={ADMIN_BREADCRUMBS} />
+					<span className="font-medium text-sm">better-agent</span>
 				</header>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<RouteTransition>
