@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { handleMessage } from "./mcp-server";
+import { createPdfProxyHandler } from "./pdf-proxy";
 import { registerRest } from "./rest";
 
 // Streamable HTTP endpoint in stateless JSON mode: every POST carries one
@@ -36,6 +37,8 @@ export function buildApp(): Hono {
 	});
 
 	registerRest(app);
+
+	app.get("/pdf", createPdfProxyHandler(fetch));
 
 	return app;
 }
