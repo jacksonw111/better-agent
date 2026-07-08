@@ -41,6 +41,18 @@ function argNumber(
 	return typeof value === "number" ? value : fallback;
 }
 
+function argBoolean(args: Record<string, unknown>, key: string): boolean {
+	return args[key] === true;
+}
+
+function argOptionalString(
+	args: Record<string, unknown>,
+	key: string
+): string | undefined {
+	const value = args[key];
+	return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 function argKlinePeriod(args: Record<string, unknown>): KlinePeriod {
 	if (args.period === "week" || args.period === "month") {
 		return args.period;
@@ -101,9 +113,15 @@ async function handleEconomicCalendar(
 	const from = argString(args, "from");
 	const to = argString(args, "to");
 	const country = typeof args.country === "string" ? args.country : undefined;
+	const all = argBoolean(args, "all");
+	const event = argOptionalString(args, "event");
+	const cacheKey = `econ:${from}:${to}:${country ?? "all"}:${all ? "all" : "key"}:${event ?? ""}`;
 	return toolJson(
-		await withCache(`econ:${from}:${to}:${country ?? "all"}`, 1800, () =>
-			economicCalendar(from, to, env.FRED_API_KEY ?? "", country)
+		await withCache(cacheKey, 1800, () =>
+			economicCalendar(from, to, env.FRED_API_KEY ?? "", country, {
+				all,
+				event,
+			})
 		)
 	);
 }

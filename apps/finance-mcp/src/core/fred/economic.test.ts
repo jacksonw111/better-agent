@@ -89,3 +89,48 @@ describe("economicCalendar: filtering", () => {
 		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 });
+
+const NOISE_PAYLOAD = {
+	release_dates: [
+		{
+			release_id: 100,
+			release_name: "Coinbase Cryptocurrencies",
+			date: "2026-07-10",
+		},
+		{
+			release_id: 10,
+			release_name: "Consumer Price Index",
+			date: "2026-07-15",
+		},
+	],
+};
+
+describe("economicCalendar: curated allowlist", () => {
+	it("default filter drops noise releases not on the curated allowlist", async () => {
+		const fetchImpl = () => Promise.resolve(Response.json(NOISE_PAYLOAD));
+		const events = await economicCalendar(FROM, TO, "KEY", undefined, {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ event: "Consumer Price Index" });
+	});
+
+	it("all: true returns every release, bypassing the curated allowlist", async () => {
+		const fetchImpl = () => Promise.resolve(Response.json(NOISE_PAYLOAD));
+		const events = await economicCalendar(FROM, TO, "KEY", undefined, {
+			all: true,
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(events).toHaveLength(2);
+	});
+
+	it("event filter matches by case-insensitive substring, bypassing the curated allowlist", async () => {
+		const fetchImpl = () => Promise.resolve(Response.json(NOISE_PAYLOAD));
+		const events = await economicCalendar(FROM, TO, "KEY", undefined, {
+			event: "coinbase",
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({ event: "Coinbase Cryptocurrencies" });
+	});
+});

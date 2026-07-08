@@ -6,6 +6,20 @@ const FRED_URL = "https://api.stlouisfed.org/fred/releases/dates";
 const FRED_LIMIT = 1000;
 const US_COUNTRY = "US";
 
+const KEY_RELEASES: string[] = [
+	"consumer price index",
+	"producer price index",
+	"employment situation",
+	"gross domestic product",
+	"personal income and outlays",
+	"advance monthly sales for retail",
+	"job openings and labor turnover",
+	"industrial production",
+	"new residential construction",
+	"consumer sentiment",
+	"employment cost index",
+];
+
 interface FredReleaseDate {
 	date?: string;
 	release_id?: number;
@@ -33,12 +47,34 @@ function normalizeRow(row: FredReleaseDate): EconomicEvent {
 	};
 }
 
+function applyEventFilter(
+	events: EconomicEvent[],
+	opts: { all?: boolean; event?: string }
+): EconomicEvent[] {
+	if (opts.event) {
+		const needle = opts.event.toLowerCase();
+		return events.filter((e) => e.event.toLowerCase().includes(needle));
+	}
+	if (opts.all === true) {
+		return events;
+	}
+	return events.filter((e) => {
+		const name = e.event.toLowerCase();
+		return KEY_RELEASES.some((substr) => name.includes(substr));
+	});
+}
+
 export async function economicCalendar(
 	from: string,
 	to: string,
 	apiKey: string,
 	country: string | undefined,
-	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
+	opts: {
+		all?: boolean;
+		event?: string;
+		fetchImpl?: typeof fetch;
+		signal?: AbortSignal;
+	} = {}
 ): Promise<EconomicEvent[]> {
 	if (!apiKey) {
 		throw new NotConfiguredError("FRED_API_KEY is not set");
@@ -56,10 +92,11 @@ export async function economicCalendar(
 		release_dates?: FredReleaseDate[] | null;
 	};
 	const rows = json.release_dates ?? [];
-	return rows
+	const events = rows
 		.filter(
 			(r): r is FredReleaseDate & { date: string } =>
 				typeof r.date === "string" && r.date >= from && r.date <= to
 		)
 		.map(normalizeRow);
+	return applyEventFilter(events, opts);
 }

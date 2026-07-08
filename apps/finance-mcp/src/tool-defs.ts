@@ -114,7 +114,10 @@ TOOLS.push({
 		"US economic data-RELEASE SCHEDULE (CPI, PPI, non-farm payrolls, GDP, FOMC, PMI, etc.) " +
 		"from the free FRED (St. Louis Fed) release-dates API: release name + date only " +
 		"(no actual/estimate/prior values). US only. from/to are YYYY-MM-DD; country is an " +
-		"optional ISO-2 filter, but only US is covered — any other value returns no results.",
+		"optional ISO-2 filter, but only US is covered — any other value returns no results. " +
+		"By default returns only KEY US macro releases (CPI, PPI, Employment Situation, GDP, " +
+		"PCE, Retail Sales, JOLTS, Industrial Production, Housing, Consumer Sentiment, ECI); " +
+		"use `event` to search a specific indicator or `all=true` for the full FRED schedule.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -124,6 +127,16 @@ TOOLS.push({
 				type: "string",
 				description:
 					"Optional ISO-2 filter. Only US is supported; other values return [].",
+			},
+			all: {
+				type: "boolean",
+				description:
+					"Return ALL releases instead of only key macro indicators (default false).",
+			},
+			event: {
+				type: "string",
+				description:
+					"Filter to releases whose name contains this text, e.g. 'CPI' or 'Employment' (case-insensitive).",
 			},
 		},
 		required: ["from", "to"],

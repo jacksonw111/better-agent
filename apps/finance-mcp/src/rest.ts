@@ -52,11 +52,14 @@ async function economicHandler(c: Context) {
 	const from = c.req.query("from") ?? "";
 	const to = c.req.query("to") ?? "";
 	const country = c.req.query("country") ?? undefined;
+	const all = c.req.query("all") === "true";
+	const event = c.req.query("event") || undefined;
 	const key =
 		(c.env as { FRED_API_KEY?: string } | undefined)?.FRED_API_KEY ?? "";
+	const cacheKey = `econ:${from}:${to}:${country ?? "all"}:${all ? "all" : "key"}:${event ?? ""}`;
 	return c.json(
-		await withCache(`econ:${from}:${to}:${country ?? "all"}`, 1800, () =>
-			economicCalendar(from, to, key, country)
+		await withCache(cacheKey, 1800, () =>
+			economicCalendar(from, to, key, country, { all, event })
 		)
 	);
 }
