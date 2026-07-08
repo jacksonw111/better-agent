@@ -27,4 +27,9 @@ describe("fedOps", () => {
 		const fetchImpl = () => Promise.resolve(Response.json({}));
 		expect(await fedOps({ fetchImpl: fetchImpl as typeof fetch })).toEqual([]);
 	});
+
+	it("degrades to [] on a non-OK upstream response (no throw)", async () => {
+		const fetchImpl = () => Promise.resolve(new Response("", { status: 400 }));
+		expect(await fedOps({ fetchImpl: fetchImpl as typeof fetch })).toEqual([]);
+	});
 });

@@ -135,10 +135,10 @@ TOOL_NAMES.add("finance_economic_calendar");
 TOOLS.push({
 	name: "finance_central_bank",
 	description:
-		"Recent central-bank money-market operations. market='us' → NY Fed repo/reverse-repo " +
-		"operations. market='cn' (PBOC 逆回购) is best-effort and currently returns no data — " +
-		"the EastMoney source does not expose it; a chinamoney.org.cn integration is deferred " +
-		"to v2.",
+		"Recent central-bank money-market operations. Both markets are best-effort in v1 and may " +
+		"return no data. market='us' → NY Fed repo/reverse-repo operations (the upstream endpoint " +
+		"is being reconfirmed; returns [] until then). market='cn' (PBOC 逆回购) → the EastMoney " +
+		"source does not expose it; a chinamoney.org.cn integration is deferred to v2.",
 	inputSchema: {
 		type: "object",
 		properties: {
