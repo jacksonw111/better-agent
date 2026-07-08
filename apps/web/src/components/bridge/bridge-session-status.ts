@@ -1,9 +1,8 @@
-// Curated metadata carried by two `status` events the CLI's normalize layer
-// emits (see `apps/bridge-cli/src/normalize/claude-code.ts`): `session_ready`
-// (once, at session init — model/cwd/capabilities) and `turn_usage` (once per
-// completed turn — cost/tokens). Both are session METADATA, not chat
-// messages, so they're kept out of `BridgeTurn`/the message list entirely
-// (see bridge-turns.ts) and instead surfaced as dedicated header/chip UI,
+// Curated metadata carried by curated `status` events the CLI's normalize
+// layer emits (see `apps/bridge-cli/src/normalize/claude-code.ts`):
+// `session_ready` (once, at session init), `turn_usage` (once per completed
+// turn). Session METADATA, not chat messages, so kept out of `BridgeTurn`/the
+// message list (see bridge-turns.ts) and surfaced as dedicated header/chip UI,
 // each always showing the LATEST detail seen on the feed.
 import type { StreamEvent } from "./bridge-events";
 
@@ -24,7 +23,10 @@ export const PLAN_STATUS = "plan";
  * `status` event). Rendered as a small, faded one-liner above the composer. */
 export const USAGE_UPDATE_STATUS = "usage_update";
 
-interface McpServerStatus {
+/** Shared MCP-server shape carried by both `session_ready` and
+ * `status_snapshot` details — exported for `bridge-status-snapshot.ts` (split
+ * out to keep this file under the repo's max-lines-per-file gate). */
+export interface McpServerStatus {
 	name: string;
 	status: string;
 }
@@ -94,15 +96,18 @@ export interface UsageUpdateDetail {
 	used?: number;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+// Exported so `bridge-status-snapshot.ts` (split out for the file-line gate)
+// reuses the same "trust nothing off the wire" parse helpers.
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function asOptionalString(value: unknown): string | undefined {
+export function asOptionalString(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
 
-function asOptionalNumber(value: unknown): number | undefined {
+export function asOptionalNumber(value: unknown): number | undefined {
 	return typeof value === "number" ? value : undefined;
 }
 
@@ -113,7 +118,9 @@ function asOptionalStringArray(value: unknown): string[] | undefined {
 		: undefined;
 }
 
-function asOptionalMcpServers(value: unknown): McpServerStatus[] | undefined {
+export function asOptionalMcpServers(
+	value: unknown
+): McpServerStatus[] | undefined {
 	if (!Array.isArray(value)) {
 		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
 		return undefined;
@@ -238,10 +245,12 @@ export function parseUsageUpdateDetail(
 }
 
 /** Finds the most recent status event of the given curated `status` name and
- * parses its detail — `undefined` if none has arrived yet, `null` if one
- * arrived but its detail didn't match the expected shape. Scans from the
- * tail since "most recent" is what every caller wants. */
-function latestStatusDetail(events: StreamEvent[], status: string): unknown {
+ * parses its detail — `undefined` if none arrived, `null` if malformed.
+ * Scans from the tail. Exported for `bridge-status-snapshot.ts`'s finder. */
+export function latestStatusDetail(
+	events: StreamEvent[],
+	status: string
+): unknown {
 	for (let index = events.length - 1; index >= 0; index -= 1) {
 		const { event } = events[index];
 		if (event.kind === "status" && event.status === status) {

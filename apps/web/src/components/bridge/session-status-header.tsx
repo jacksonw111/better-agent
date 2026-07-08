@@ -21,7 +21,18 @@ function mcpDotClass(status: string): string {
 	return "bg-amber-500 animate-pulse";
 }
 
-function McpServerBadge({ name, status }: { name: string; status: string }) {
+/** One MCP server's status pill: a status-colored dot (see `mcpDotClass`)
+ * plus its name, title-tipped with the raw status string. Shared by the
+ * session-ready header and the on-demand status panel
+ * (status-snapshot-panel.tsx) — the one visual language for an MCP server's
+ * connection state across the bridge UI. */
+export function McpServerBadge({
+	name,
+	status,
+}: {
+	name: string;
+	status: string;
+}) {
 	return (
 		<Badge title={`${name}: ${status}`} variant="outline">
 			<span

@@ -7,11 +7,13 @@ import type {
 	SessionListDetail,
 	SessionReadyDetail,
 } from "./bridge-session-status";
+import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import { AgentKindIcon } from "./local-agent-kind-icon";
 import { LocalAgentSessionPicker } from "./local-agent-session-picker";
 import { LocalAgentSettingsDialog } from "./local-agent-settings-dialog";
 import { PastConversations } from "./past-conversations";
 import { SessionStatusHeader } from "./session-status-header";
+import { StatusSnapshotPanel } from "./status-snapshot-panel";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import { TerminalStatus } from "./terminal-status";
 
@@ -54,6 +56,8 @@ interface TerminalHeaderActionsProps {
 	canSend: boolean;
 	caps: AgentCapabilities;
 	ending: boolean;
+	/** Requests a fresh `status_snapshot` — wired to the Status button. */
+	getStatus: () => Promise<void>;
 	listSessions: () => void;
 	onEnd?: () => void;
 	onSelectSession?: (sessionId: string) => void;
@@ -64,6 +68,9 @@ interface TerminalHeaderActionsProps {
 	 * out of a standalone bar above the terminal into the session chrome). */
 	sessions?: BridgeSessionRow[];
 	status: TerminalConnectionStatus;
+	/** The latest `status_snapshot` detail — passed straight to the Status
+	 * button's popover. */
+	statusSnapshot: StatusSnapshotDetail | null;
 	/** The bridge token this session belongs to — drives the Settings dialog
 	 * (edits the token's persisted config). */
 	token?: BridgeTokenRow;
@@ -116,24 +123,84 @@ function SessionControls({
 	);
 }
 
-/** The header's right-hand action cluster: session picker + Settings, past
- * conversations and the End button — each gated on `caps`/props. Split out
- * purely to keep `TerminalHeader` under the repo's max-lines-per-function
- * gate. */
+/** The two on-demand data popovers, each gated on its own capability — split
+ * out purely to keep `TerminalHeaderActions` under the repo's
+ * max-lines-per-function gate. */
+function SessionDataActions({
+	canSend,
+	caps,
+	getStatus,
+	listSessions,
+	sessionList,
+	statusSnapshot,
+}: {
+	canSend: boolean;
+	caps: AgentCapabilities;
+	getStatus: () => Promise<void>;
+	listSessions: () => void;
+	sessionList: SessionListDetail | null;
+	statusSnapshot: StatusSnapshotDetail | null;
+}) {
+	return (
+		<>
+			{caps.sessionList && (
+				<PastConversations
+					disabled={!canSend}
+					onRequestList={listSessions}
+					sessionList={sessionList}
+				/>
+			)}
+			{caps.contextUsage && (
+				<StatusSnapshotPanel
+					detail={statusSnapshot}
+					onRequestStatus={getStatus}
+				/>
+			)}
+		</>
+	);
+}
+
+function EndSessionButton({
+	ending,
+	onEnd,
+}: {
+	ending: boolean;
+	onEnd: () => void;
+}) {
+	return (
+		<Button
+			aria-label="End local agent session"
+			className="text-destructive hover:text-destructive"
+			disabled={ending}
+			onClick={onEnd}
+			size="icon-sm"
+			title="End local agent session"
+			variant="ghost"
+		>
+			<PowerIcon className="size-4" />
+		</Button>
+	);
+}
+
+/** The header's right-hand action cluster: session picker + Settings, the
+ * on-demand data popovers and the End button — each gated on `caps`/props.
+ * Split out purely to keep `TerminalHeader` under the repo's
+ * max-lines-per-function gate. */
 function TerminalHeaderActions({
 	activeSessionId,
 	canSend,
 	caps,
 	ending,
+	getStatus,
 	listSessions,
 	onEnd,
 	onSelectSession,
 	sessionList,
 	sessions,
 	status,
+	statusSnapshot,
 	token,
 }: TerminalHeaderActionsProps) {
-	const showEnd = status !== "ended" && onEnd !== undefined;
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
 			<SessionControls
@@ -142,25 +209,16 @@ function TerminalHeaderActions({
 				sessions={sessions}
 				token={token}
 			/>
-			{caps.sessionList && (
-				<PastConversations
-					disabled={!canSend}
-					onRequestList={listSessions}
-					sessionList={sessionList}
-				/>
-			)}
-			{showEnd && (
-				<Button
-					aria-label="End local agent session"
-					className="text-destructive hover:text-destructive"
-					disabled={ending}
-					onClick={onEnd}
-					size="icon-sm"
-					title="End local agent session"
-					variant="ghost"
-				>
-					<PowerIcon className="size-4" />
-				</Button>
+			<SessionDataActions
+				canSend={canSend}
+				caps={caps}
+				getStatus={getStatus}
+				listSessions={listSessions}
+				sessionList={sessionList}
+				statusSnapshot={statusSnapshot}
+			/>
+			{status !== "ended" && onEnd !== undefined && (
+				<EndSessionButton ending={ending} onEnd={onEnd} />
 			)}
 		</div>
 	);

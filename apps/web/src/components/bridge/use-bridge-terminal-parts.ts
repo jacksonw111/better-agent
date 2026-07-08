@@ -5,6 +5,7 @@ import type {
 	TurnUsageDetail,
 	UsageUpdateDetail,
 } from "./bridge-session-status";
+import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import type { ConnectionState } from "./terminal-connection";
 import type { FeedState } from "./use-bridge-feed";
 import type { UseBridgeTerminalResult } from "./use-bridge-terminal";
@@ -71,6 +72,9 @@ export interface BuildResultArgs {
 	conn: ConnectionState;
 	ended: boolean;
 	feed: FeedState;
+	/** Requests a fresh `status_snapshot` — the detail page's status refresh
+	 * affordance. Fire-and-forget, same shape as `listSessions`. */
+	getStatus: () => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
 	sendInput: (text: string) => Promise<void>;
@@ -79,6 +83,7 @@ export interface BuildResultArgs {
 	sessionReady: SessionReadyDetail | null;
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
+	statusSnapshot: StatusSnapshotDetail | null;
 	turnUsage: TurnUsageDetail | null;
 	usageUpdate: UsageUpdateDetail | null;
 }
@@ -105,6 +110,8 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		listSessions: args.listSessions,
 		sessionReady: args.sessionReady,
 		sessionList: args.sessionList,
+		getStatus: args.getStatus,
+		statusSnapshot: args.statusSnapshot,
 		turnUsage: args.turnUsage,
 		usageUpdate: args.usageUpdate,
 	};

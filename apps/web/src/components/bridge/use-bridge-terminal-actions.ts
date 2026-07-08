@@ -66,6 +66,11 @@ function sendControlCommand(
 }
 
 export interface SessionControls {
+	/** Asks the agent for its current status (model/context/cost/tokens/mcp/
+	 * running) — fire-and-forget like `listSessions`, the reply arrives
+	 * asynchronously as a `status_snapshot` status event (see
+	 * bridge-status-snapshot.ts). */
+	getStatus: () => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
 	setModel: (model: string) => Promise<void>;
@@ -73,9 +78,9 @@ export interface SessionControls {
 }
 
 /** Builds the detail page's session-control callbacks (Interrupt/model
- * picker/permission-mode dropdown/past-conversations request) atop
- * `sendControlCommand`. Split out purely to keep `useBridgeTerminal` itself
- * under the repo's max-lines-per-function gate. */
+ * picker/permission-mode dropdown/past-conversations request/status
+ * refresh) atop `sendControlCommand`. Split out purely to keep
+ * `useBridgeTerminal` itself under the repo's max-lines-per-function gate. */
 export function useSessionControls(
 	sendRaw: (data: unknown) => Promise<void>
 ): SessionControls {
@@ -86,5 +91,6 @@ export function useSessionControls(
 		setPermissionMode: (mode: string) =>
 			sendControlCommand(sendRaw, "setPermissionMode", { mode }),
 		listSessions: () => sendControlCommand(sendRaw, "listSessions"),
+		getStatus: () => sendControlCommand(sendRaw, "getStatus"),
 	};
 }

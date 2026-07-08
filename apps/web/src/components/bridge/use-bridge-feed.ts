@@ -13,6 +13,11 @@ import {
 	USAGE_UPDATE_STATUS,
 	type UsageUpdateDetail,
 } from "./bridge-session-status";
+import {
+	parseStatusSnapshotDetail,
+	STATUS_SNAPSHOT_STATUS,
+	type StatusSnapshotDetail,
+} from "./bridge-status-snapshot";
 import { mergeEvents } from "./event-feed";
 
 /** First id handed to an optimistic local echo. Local echoes count DOWN from
@@ -44,6 +49,9 @@ export interface FeedState {
 	 * tail scans, latest wins. */
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
+	/** The latest `status_snapshot` detail, or `null` before a `getStatus`
+	 * request has gotten a reply — see bridge-status-snapshot.ts. */
+	statusSnapshot: StatusSnapshotDetail | null;
 	turnUsage: TurnUsageDetail | null;
 	usageUpdate: UsageUpdateDetail | null;
 }
@@ -56,6 +64,7 @@ export const initialFeedState: FeedState = {
 	pendingEchoes: 0,
 	sessionList: null,
 	sessionReady: null,
+	statusSnapshot: null,
 	turnUsage: null,
 	usageUpdate: null,
 };
@@ -63,6 +72,7 @@ export const initialFeedState: FeedState = {
 interface StatusDetails {
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
+	statusSnapshot: StatusSnapshotDetail | null;
 	turnUsage: TurnUsageDetail | null;
 	usageUpdate: UsageUpdateDetail | null;
 }
@@ -76,7 +86,8 @@ function nextStatusDetails(
 	prev: StatusDetails,
 	parsed: StreamEvent[]
 ): StatusDetails {
-	let { sessionList, sessionReady, turnUsage, usageUpdate } = prev;
+	let { sessionList, sessionReady, statusSnapshot, turnUsage, usageUpdate } =
+		prev;
 	for (const { event } of parsed) {
 		if (event.kind !== "status") {
 			continue;
@@ -89,9 +100,11 @@ function nextStatusDetails(
 			usageUpdate = parseUsageUpdateDetail(event.detail);
 		} else if (event.status === SESSION_LIST_STATUS) {
 			sessionList = parseSessionListDetail(event.detail);
+		} else if (event.status === STATUS_SNAPSHOT_STATUS) {
+			statusSnapshot = parseStatusSnapshotDetail(event.detail);
 		}
 	}
-	return { sessionList, sessionReady, turnUsage, usageUpdate };
+	return { sessionList, sessionReady, statusSnapshot, turnUsage, usageUpdate };
 }
 
 export type FeedAction =

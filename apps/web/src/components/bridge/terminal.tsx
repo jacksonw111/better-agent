@@ -247,6 +247,7 @@ export function Terminal({
 				canSend={view.canSend}
 				caps={caps}
 				ending={ending}
+				getStatus={view.getStatus}
 				listSessions={view.listSessions}
 				onEnd={onEnd}
 				onSelectSession={onSelectSession}
@@ -255,6 +256,7 @@ export function Terminal({
 				sessionReady={view.sessionReady}
 				sessions={sessions}
 				status={view.status}
+				statusSnapshot={view.statusSnapshot}
 				token={token}
 			/>
 			<BodyFromView caps={caps} view={view} />

@@ -4,6 +4,7 @@ import {
 	formatCostCompact,
 	formatCostUsd,
 	formatDurationMs,
+	formatStatusContextUsage,
 	formatTokenCount,
 	formatTokensCompact,
 	truncateCwd,
@@ -62,4 +63,24 @@ it("formats opencode's streamed context usage as whole-k used/size tok · pct", 
 	expect(formatContextUsage(48_213, 200_000)).toBe("48k/200k tok · 24%");
 	expect(formatContextUsage(847, 1000)).toBe("847/1k tok · 85%");
 	expect(formatContextUsage(0, 0)).toBe("0/0 tok · 0%");
+});
+
+it("formats a status_snapshot's context usage from a reported pct", () => {
+	expect(
+		formatStatusContextUsage({ used: 48_213, size: 200_000, pct: 24 })
+	).toBe("48k/200k tok · 24%");
+});
+
+it("derives the percentage when a status_snapshot omits pct", () => {
+	expect(formatStatusContextUsage({ used: 48_213, size: 200_000 })).toBe(
+		"48k/200k tok · 24%"
+	);
+});
+
+it("formats a status_snapshot's context usage from just a pct, with no token counts", () => {
+	expect(formatStatusContextUsage({ pct: 24 })).toBe("24%");
+});
+
+it("returns null when a status_snapshot reports no context usage at all", () => {
+	expect(formatStatusContextUsage({})).toBeNull();
 });

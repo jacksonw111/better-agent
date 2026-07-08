@@ -74,6 +74,34 @@ const PERCENT_MULTIPLIER = 100;
 
 const CWD_MAX_LENGTH = 40;
 
+/** `status_snapshot`'s context usage as a display string: `48k/200k tok · 24%`.
+ * Unlike opencode's streamed `usage_update` (`formatContextUsage`, which
+ * always gets both used+size together), a `status_snapshot`'s fields can
+ * arrive independently — this tolerates any subset, deriving the percentage
+ * from used/size only when the agent didn't report `pct` itself. `null` when
+ * nothing usable arrived. */
+export function formatStatusContextUsage(usage: {
+	pct?: number;
+	size?: number;
+	used?: number;
+}): string | null {
+	const parts: string[] = [];
+	if (usage.used !== undefined && usage.size !== undefined) {
+		parts.push(
+			`${formatTokensCompact(usage.used)}/${formatTokensCompact(usage.size)} tok`
+		);
+	}
+	const pct =
+		usage.pct ??
+		(usage.used !== undefined && usage.size !== undefined && usage.size > 0
+			? Math.round((usage.used / usage.size) * PERCENT_MULTIPLIER)
+			: undefined);
+	if (pct !== undefined) {
+		parts.push(`${pct}%`);
+	}
+	return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /** Truncates a long cwd path from the front (keeping the tail — the part
  * that actually distinguishes one project directory from another) so the
  * header never wraps or overflows the pill row. Callers should also set

@@ -63,6 +63,12 @@ export function turnUsageRaw(id: number, detail: Record<string, unknown>) {
 	return { id, data: { kind: "status", status: "turn_usage", detail } };
 }
 
+/** A `status_snapshot` status event, sent in reply to a `getStatus` control
+ * request — see bridge-status-snapshot.ts. */
+export function statusSnapshotRaw(id: number, detail: Record<string, unknown>) {
+	return { id, data: { kind: "status", status: "status_snapshot", detail } };
+}
+
 export function approvalRaw(id: number, requestId: string) {
 	return {
 		id,

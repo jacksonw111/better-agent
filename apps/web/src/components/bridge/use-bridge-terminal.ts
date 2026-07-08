@@ -6,6 +6,7 @@ import type {
 	TurnUsageDetail,
 	UsageUpdateDetail,
 } from "./bridge-session-status";
+import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import type { BridgeTransport } from "./bridge-transport";
 import {
 	type ConnectionAction,
@@ -41,6 +42,11 @@ export interface UseBridgeTerminalResult {
 	answered: Record<string, string>;
 	canSend: boolean;
 	events: StreamEvent[];
+	/** Requests a fresh `status_snapshot` — the detail page's status refresh
+	 * affordance. Routed as `{ type: "control", action: "getStatus" }`; the
+	 * reply arrives asynchronously as a `status_snapshot` status event,
+	 * reflected in `statusSnapshot` once it lands. */
+	getStatus: () => Promise<void>;
 	/** Cancels the in-flight turn without ending the session — the detail
 	 * page's Stop/Interrupt button. Routed as `{ type: "control", action:
 	 * "interrupt" }`; see `apps/bridge-cli/src/commands.ts`. */
@@ -67,6 +73,9 @@ export interface UseBridgeTerminalResult {
 	 * mode }`. */
 	setPermissionMode: (mode: string) => Promise<void>;
 	status: TerminalConnectionStatus;
+	/** The latest `status_snapshot` detail (model/context/cost/tokens/mcp/
+	 * running), or `null` before a `getStatus` request has gotten a reply. */
+	statusSnapshot: StatusSnapshotDetail | null;
 	/** The latest `turn_usage` detail (cost/tokens/turns), or `null` before
 	 * any turn has completed. */
 	turnUsage: TurnUsageDetail | null;
@@ -192,6 +201,35 @@ function useFeedPipeline(
 	return { conn, dispatchFeed, feed };
 }
 
+/** Wires the session's control commands (getStatus/interrupt/setModel/
+ * setPermissionMode/listSessions) plus the listSessions timeout fallback —
+ * split out purely to keep `useBridgeTerminal` under the repo's
+ * max-lines-per-function gate. */
+function useControls(
+	sendRaw: (data: unknown) => Promise<void>,
+	feedSessionList: SessionListDetail | null
+) {
+	const {
+		getStatus,
+		interrupt,
+		setModel,
+		setPermissionMode,
+		listSessions: requestSessions,
+	} = useSessionControls(sendRaw);
+	const { listSessions, sessionList } = useListSessionsWithTimeout(
+		requestSessions,
+		feedSessionList
+	);
+	return {
+		getStatus,
+		interrupt,
+		listSessions,
+		sessionList,
+		setModel,
+		setPermissionMode,
+	};
+}
+
 export function useBridgeTerminal(
 	sessionId: string,
 	transport: BridgeTransport,
@@ -212,28 +250,22 @@ export function useBridgeTerminal(
 	// (see use-bridge-feed.ts) rather than rescanned off `feed.events` on every
 	// render — the same latest-wins semantics, without the four full tail scans
 	// per event that made a streaming session O(n²).
+	const { sessionReady, statusSnapshot, turnUsage, usageUpdate } = feed;
 	const {
-		sessionReady,
-		turnUsage,
-		usageUpdate,
-		sessionList: feedSessionList,
-	} = feed;
-	const {
+		getStatus,
 		interrupt,
+		listSessions,
+		sessionList,
 		setModel,
 		setPermissionMode,
-		listSessions: requestSessions,
-	} = useSessionControls(sendRaw);
-	const { listSessions, sessionList } = useListSessionsWithTimeout(
-		requestSessions,
-		feedSessionList
-	);
+	} = useControls(sendRaw, feed.sessionList);
 
 	return buildResult({
 		answerApproval,
 		conn,
 		ended,
 		feed,
+		getStatus,
 		interrupt,
 		listSessions,
 		sendInput,
@@ -242,6 +274,7 @@ export function useBridgeTerminal(
 		sessionReady,
 		setModel,
 		setPermissionMode,
+		statusSnapshot,
 		turnUsage,
 		usageUpdate,
 	});
