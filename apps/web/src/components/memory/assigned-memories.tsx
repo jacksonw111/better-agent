@@ -38,29 +38,51 @@ function useAssignmentMutations(target: MemoryTarget) {
 			assign.mutate({ ...target, memoryId, role }),
 		unassign: (memoryId: string) => unassign.mutate({ ...target, memoryId }),
 		pending: assign.isPending || unassign.isPending,
+		// The memory whose role change is currently in flight (undefined if none),
+		// so its row can show the pulsing progress bar.
+		rolePendingId: assign.isPending ? assign.variables?.memoryId : undefined,
 	};
 }
 
 /** One assigned memory: name, a role toggle (read ⇄ read & write — assign is
  * an upsert, so re-assigning with the other role flips it) and unassign. */
+// Indeterminate, continuously-pulsing bar shown under a row while its role
+// change is in flight (see .role-progress-* in index.css).
+function RolePendingBar({ name }: { name: string }) {
+	return (
+		<div
+			aria-label={`Updating access for ${name}`}
+			aria-valuetext="Updating"
+			className="role-progress-track pointer-events-none absolute inset-x-0 bottom-0 h-0.5"
+			role="progressbar"
+		>
+			<div className="role-progress-bar" />
+		</div>
+	);
+}
+
 function AssignedRow({
 	row,
+	rolePending,
 	onRole,
 	onUnassign,
 }: {
 	row: AssignedMemoryRow;
+	rolePending: boolean;
 	onRole: (memoryId: string, role: MemoryRole) => void;
 	onUnassign: (memoryId: string) => void;
 }) {
 	const name = row.name ?? "Deleted memory";
 	const nextRole: MemoryRole = row.role === "read" ? "read_write" : "read";
 	return (
-		<li className="flex items-center gap-2 rounded-md border px-3 py-2">
+		<li className="relative flex items-center gap-2 overflow-hidden rounded-md border px-3 py-2">
 			<span className="min-w-0 flex-1 truncate text-sm">{name}</span>
 			<Button
+				aria-busy={rolePending}
 				aria-label={`Toggle write access for ${name}`}
 				aria-pressed={row.role === "read_write"}
 				className="text-muted-foreground text-xs"
+				disabled={rolePending}
 				onClick={() => onRole(row.memoryId, nextRole)}
 				size="xs"
 				title="Toggle write access"
@@ -77,6 +99,7 @@ function AssignedRow({
 			>
 				<XIcon className="size-4" />
 			</Button>
+			{rolePending ? <RolePendingBar name={name} /> : null}
 		</li>
 	);
 }
@@ -119,7 +142,7 @@ export function AssignedMemories({ target }: { target: MemoryTarget }) {
 		orpc.memory.listAssigned.queryOptions({ input: target })
 	);
 	const memories = useQuery(orpc.memory.listMemories.queryOptions());
-	const { assign, unassign } = useAssignmentMutations(target);
+	const { assign, unassign, rolePendingId } = useAssignmentMutations(target);
 
 	if (assigned.isPending || memories.isPending) {
 		return <Skeleton className="h-16 w-full rounded-md" />;
@@ -144,6 +167,7 @@ export function AssignedMemories({ target }: { target: MemoryTarget }) {
 							key={row.memoryId}
 							onRole={assign}
 							onUnassign={unassign}
+							rolePending={rolePendingId === row.memoryId}
 							row={row}
 						/>
 					))}
