@@ -28,6 +28,7 @@
     "@ai-sdk/provider": "3.0.10",
     "@ai-sdk/xai": "3.0.95",
     "ai": "6.0.205",
+    "evlog": "catalog:",
     "jose": "^6.2.3",
     "zod": "catalog:"
   },

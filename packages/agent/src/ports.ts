@@ -88,6 +88,9 @@ export interface MessageStore {
 	updatePart(id: string, patch: MessagePartPatch): Promise<MessagePart | null>;
 }
 
+// Usage-ledger port lives beside UsageSnapshot; re-exported for one import path.
+export type { UsageRecordStore } from "./usage/usage-record";
+
 /** An uploaded attachment's metadata (bytes live in object storage). */
 export interface AttachmentRow {
 	createdAt: Date;

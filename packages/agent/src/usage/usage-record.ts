@@ -33,3 +33,12 @@ export interface UsageSnapshot {
 	tokens: UsageTokens;
 	userId: string;
 }
+
+/** Write-side of the unified token-usage ledger (`usage_records`); shape
+ * mirrors `packages/db`'s implementation. Defined here (rather than importing
+ * that implementation's type) so `@better-agent/agent` never depends on
+ * `@better-agent/db`. */
+export interface UsageRecordStore {
+	/** Idempotent: a duplicate dedupKey is a no-op (prevents double-counting). */
+	insert(snapshot: UsageSnapshot): Promise<void>;
+}

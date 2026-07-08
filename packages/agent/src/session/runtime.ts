@@ -9,6 +9,7 @@ import type {
 	ModelCacheStore,
 	ProviderCatalogStore,
 	SessionStore,
+	UsageRecordStore,
 } from "../ports";
 import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
 import type { ModelFactory } from "../provider/model-factory";
@@ -60,6 +61,10 @@ export interface SessionRuntimeDeps {
 	sleep?: (ms: number) => Promise<void>;
 	summarizer: Summarizer;
 	titler?: Titler;
+	/** Dual-write target for `usage_records` (Task 3). Optional like the other
+	 * infra deps above — omitted in most existing runtime tests, which don't
+	 * exercise usage accounting. */
+	usageRecordStore?: UsageRecordStore;
 }
 
 export interface RunTurnInput {
@@ -250,6 +255,7 @@ async function* executeTurn(
 		fallback: assistant,
 		sessionId,
 		outcome,
+		userId: session.userId,
 	});
 	// Settles on done AND error: title derives from the persisted user message.
 	yield* settleTitleEvent(deps.sessionStore, sessionId, titlePromise);

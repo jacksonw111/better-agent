@@ -143,13 +143,13 @@ function buildRuntime(parts: {
 	deps: ReturnType<typeof buildProviderDeps>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
+	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
 }) {
-	const { deps, sessionStore, messageStore, cancellation, attachmentStore } =
-		parts;
+	const { deps } = parts;
 	return createSessionRuntime({
-		sessionStore,
-		messageStore,
-		attachmentStore,
+		sessionStore: parts.sessionStore,
+		messageStore: parts.messageStore,
+		attachmentStore: parts.attachmentStore,
 		agentStore: deps.agentStore,
 		modelFactory: deps.modelFactory,
 		sessionLock: buildSessionLock(),
@@ -157,7 +157,8 @@ function buildRuntime(parts: {
 		providerCatalogStore: deps.providerCatalog,
 		summarizer: createModelSummarizer(deps.modelFactory),
 		titler: createModelTitler(deps.modelFactory),
-		cancellation,
+		cancellation: parts.cancellation,
+		usageRecordStore: parts.usageRecordStore,
 	});
 }
 
@@ -270,6 +271,7 @@ export function buildServices(
 		messageStore,
 		cancellation,
 		attachmentStore,
+		usageRecordStore: createUsageRecordStore(db),
 	});
 	return assembleServices({
 		deps,

@@ -1,4 +1,6 @@
+import { log } from "evlog";
 import { priceUsage } from "../provider/cost";
+import type { UsageSnapshot, UsageTokens } from "../usage/usage-record";
 import type { RunEvent } from "./events";
 import type { StreamOutcome } from "./retry-helpers";
 import type { SessionRuntimeDeps } from "./runtime";
@@ -40,19 +42,59 @@ export interface FinalizeArgs {
 	fallback: Message;
 	outcome: StreamOutcome;
 	sessionId: string;
+	/** Null for anonymous/system-triggered turns; usage_records requires a
+	 * non-null userId (D-1), so those turns skip the dual-write and only get
+	 * the legacy `messages.usage` write below. */
+	userId: string | null;
+}
+
+const ZERO_TOKENS: UsageTokens = {
+	input: 0,
+	output: 0,
+	cacheRead: 0,
+	cacheWrite: 0,
+	reasoning: 0,
+};
+
+function tokensFromUsage(usage: MessageUsage | null): UsageTokens {
+	if (!usage) {
+		return ZERO_TOKENS;
+	}
+	return {
+		input: usage.inputTokens ?? 0,
+		output: usage.outputTokens ?? 0,
+		cacheRead: usage.cacheReadTokens ?? 0,
+		cacheWrite: usage.cacheWriteTokens ?? 0,
+		reasoning: usage.reasoningTokens ?? 0,
+	};
+}
+
+// Best-effort dual-write: a usage_records failure must not fail the user's
+// turn (the legacy `messages.usage` write above already succeeded), so
+// insert errors are logged and swallowed rather than propagated.
+async function recordChatUsage(
+	deps: Pick<SessionRuntimeDeps, "usageRecordStore">,
+	snapshot: UsageSnapshot
+): Promise<void> {
+	if (!deps.usageRecordStore) {
+		return;
+	}
+	try {
+		await deps.usageRecordStore.insert(snapshot);
+	} catch (error) {
+		log.error({ action: "usage-record insert failed", error: String(error) });
+	}
 }
 
 export async function* finalizeAssistant(
 	deps: Pick<
 		SessionRuntimeDeps,
-		"messageStore" | "modelCacheStore" | "sessionStore"
+		"messageStore" | "modelCacheStore" | "sessionStore" | "usageRecordStore"
 	>,
 	args: FinalizeArgs
 ): AsyncGenerator<RunEvent, Message> {
-	const { agent, assistantId, fallback, sessionId, outcome } = args;
-	// costUsd/priced are exposed here (unused for now) for Task 3/4's
-	// usage_records dual-write; only `usage.costCents` is persisted below.
-	const { usage } = await withCost(deps, agent, outcome.usage);
+	const { agent, assistantId, fallback, sessionId, outcome, userId } = args;
+	const { usage, costUsd, priced } = await withCost(deps, agent, outcome.usage);
 	const final = await deps.messageStore.updateMessage(assistantId, {
 		status: outcome.status,
 		usage,
@@ -64,6 +106,19 @@ export async function* finalizeAssistant(
 				}
 			: null,
 	});
+	if (userId !== null) {
+		await recordChatUsage(deps, {
+			source: "chat",
+			userId,
+			sessionId,
+			providerId: agent.providerId,
+			model: agent.modelId,
+			costUsd,
+			priced,
+			tokens: tokensFromUsage(usage),
+			dedupKey: `chat:${assistantId}`,
+		});
+	}
 	if (outcome.status === "error") {
 		await deps.sessionStore.setStatus(sessionId, "error");
 		yield { type: "error", message: outcome.errorMessage ?? "stream error" };
