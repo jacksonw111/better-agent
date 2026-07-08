@@ -16,6 +16,12 @@ import { getIndices } from "./core/tencent/indices";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
+import {
+	handleHsgtFlow,
+	handleMoneyFlow,
+	handleSectorConstituents,
+	handleSectorList,
+} from "./tools-impl-market";
 
 export interface ToolEnv {
 	FRED_API_KEY?: string;
@@ -37,12 +43,12 @@ export function toolJson(value: unknown): ToolResult {
 const DEFAULT_KLINE_LIMIT = 240;
 const DEFAULT_REPORT_YEARS = 2;
 
-function argString(args: Record<string, unknown>, key: string): string {
+export function argString(args: Record<string, unknown>, key: string): string {
 	const value = args[key];
 	return typeof value === "string" ? value : "";
 }
 
-function argNumber(
+export function argNumber(
 	args: Record<string, unknown>,
 	key: string,
 	fallback: number
@@ -272,6 +278,10 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_index_quote: (args) => handleIndexQuote(args),
 	finance_commodity: () => handleCommodity(),
 	finance_technical: (args) => handleTechnical(args),
+	finance_money_flow: (args) => handleMoneyFlow(args),
+	finance_hsgt_flow: (args) => handleHsgtFlow(args),
+	finance_sector_list: (args) => handleSectorList(args),
+	finance_sector_constituents: (args) => handleSectorConstituents(args),
 };
 
 export function runTool(

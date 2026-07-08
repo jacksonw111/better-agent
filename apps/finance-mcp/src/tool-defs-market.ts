@@ -63,3 +63,85 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_technical");
+
+TOOLS.push({
+	name: "finance_money_flow",
+	description:
+		"Daily fund-flow for an A-share stock: net inflow by order size " +
+		"(main-force = large + super-large, plus medium/small), in CNY. " +
+		"A-share only.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+			},
+			days: {
+				type: "number",
+				description: "Number of trading days of history (default 5, max 60).",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_money_flow");
+
+TOOLS.push({
+	name: "finance_hsgt_flow",
+	description:
+		"Shanghai/Shenzhen-Hong Kong Stock Connect (沪深港通) daily fund flow by " +
+		"channel (沪股通/深股通/港股通). Northbound (沪股通/深股通) net flow is " +
+		"unavailable (null) — mainland exchanges stopped disclosing it on " +
+		"2024-08-19; southbound (港股通) is still published.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			days: {
+				type: "number",
+				description: "Number of trading days of history (default 10).",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_hsgt_flow");
+
+TOOLS.push({
+	name: "finance_sector_list",
+	description:
+		"Industry or concept sector boards with change% and main-force net " +
+		"inflow; leading stock.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			type: {
+				type: "string",
+				enum: ["industry", "concept"],
+				description: "Sector board type (default industry).",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_sector_list");
+
+TOOLS.push({
+	name: "finance_sector_constituents",
+	description: "Member stocks of a sector board (by board code, e.g. BK0477).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			board: {
+				type: "string",
+				description: "Sector board code, e.g. BK0477.",
+			},
+		},
+		required: ["board"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_sector_constituents");

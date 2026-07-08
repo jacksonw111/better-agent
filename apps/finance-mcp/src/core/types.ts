@@ -175,6 +175,45 @@ export interface CommodityQuote {
 	time: string;
 }
 
+export interface MoneyFlowRow {
+	date: string;
+	largeNet: number;
+	mainNet: number;
+	mediumNet: number;
+	smallNet: number;
+	superNet: number;
+}
+
+export type HsgtDirection = "north" | "south";
+
+export interface HsgtRow {
+	buyAmt: number | null;
+	channel: string;
+	direction: HsgtDirection;
+	indexChangeRate: number | null;
+	leadStock: string | null;
+	netAmt: number | null;
+	sellAmt: number | null;
+	tradeDate: string;
+}
+
+export interface SectorRow {
+	changePct: number;
+	code: string;
+	leadStockChangePct: number;
+	leadStockCode: string;
+	mainNet: number;
+	name: string;
+	price: number;
+}
+
+export interface SectorConstituent {
+	changePct: number;
+	code: string;
+	name: string;
+	price: number;
+}
+
 export interface TechnicalSnapshot {
 	asOf: string;
 	boll: { lower: number; mid: number; upper: number } | null;

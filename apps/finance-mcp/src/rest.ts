@@ -3,11 +3,14 @@ import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { getEarningsForecast } from "./core/eastmoney/forecast";
+import { getHsgtFlow } from "./core/eastmoney/hsgt";
 import { getFinancialIndicators } from "./core/eastmoney/indicators";
+import { getMoneyFlow } from "./core/eastmoney/money-flow";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getCompanyProfile } from "./core/eastmoney/profile";
 import { getStockResearch } from "./core/eastmoney/research";
 import { searchAStocks } from "./core/eastmoney/search";
+import { getSectorConstituents, getSectorList } from "./core/eastmoney/sector";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
@@ -167,6 +170,40 @@ async function technicalHandler(c: Context) {
 	);
 }
 
+const DEFAULT_MONEY_FLOW_DAYS = 5;
+const DEFAULT_HSGT_DAYS = 10;
+
+async function moneyFlowHandler(c: Context) {
+	const symbol = c.req.query("symbol") ?? "";
+	const days = Number(c.req.query("days") ?? "") || DEFAULT_MONEY_FLOW_DAYS;
+	return c.json(
+		await withCache(`flow:${symbol}:${days}`, 120, () =>
+			getMoneyFlow(symbol, days)
+		)
+	);
+}
+
+async function hsgtFlowHandler(c: Context) {
+	const days = Number(c.req.query("days") ?? "") || DEFAULT_HSGT_DAYS;
+	return c.json(await withCache(`hsgt:${days}`, 300, () => getHsgtFlow(days)));
+}
+
+async function sectorListHandler(c: Context) {
+	const type = c.req.query("type") || "industry";
+	return c.json(
+		await withCache(`sectors:${type}`, 120, () => getSectorList(type))
+	);
+}
+
+async function sectorConstituentsHandler(c: Context) {
+	const board = c.req.query("board") ?? "";
+	return c.json(
+		await withCache(`sectorstocks:${board}`, 120, () =>
+			getSectorConstituents(board)
+		)
+	);
+}
+
 export function registerRest(app: Hono): void {
 	app.get("/api/quote", quoteHandler);
 	app.get("/api/kline", klineHandler);
@@ -184,4 +221,8 @@ export function registerRest(app: Hono): void {
 	app.get("/api/indices", indicesHandler);
 	app.get("/api/commodity", commodityHandler);
 	app.get("/api/technical", technicalHandler);
+	app.get("/api/moneyflow", moneyFlowHandler);
+	app.get("/api/hsgt", hsgtFlowHandler);
+	app.get("/api/sectors", sectorListHandler);
+	app.get("/api/sector-stocks", sectorConstituentsHandler);
 }
