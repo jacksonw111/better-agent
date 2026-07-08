@@ -1,10 +1,14 @@
+import type { BridgeAgentKind } from "@better-agent/agent/ports";
 import type { UsageSnapshot } from "@better-agent/agent/usage/usage-record";
 import type { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { usageRecords } from "../schema/usage";
 import { createTestDb, type TestDb } from "../testing/test-db";
-import { createUsageRecordStore } from "./usage-record-store";
+import {
+	createUsageRecordStore,
+	type UsageAggregateRow,
+} from "./usage-record-store";
 
 let db: TestDb;
 let client: PGlite;
@@ -125,4 +129,151 @@ it("persists unpriced snapshots with null costUsd and DB defaults for omitted fi
 	expect(row.providerId).toBeNull();
 	expect(row.modelId).toBeNull();
 	expect(row.durationMs).toBeNull();
+});
+
+const DAY1 = new Date("2026-06-01T12:00:00.000Z");
+const DAY2 = new Date("2026-06-02T08:00:00.000Z");
+const WINDOW = {
+	from: new Date("2026-06-01T00:00:00.000Z"),
+	to: new Date("2026-06-02T23:59:59.000Z"),
+};
+
+type Tokens = [number, number, number, number, number]; // input, output, cacheRead, cacheWrite, reasoning
+type Row = [
+	dedupKey: string,
+	source: "chat" | "bridge",
+	agentKind: BridgeAgentKind | null,
+	modelId: string | null,
+	tokens: Tokens,
+	costUsd: string | null,
+	priced: boolean,
+	bucketedAt: Date,
+];
+
+// Two days, a mix of chat/bridge, priced/unpriced, and named/null model+agent
+// dimensions — shared by the groupBy:day/model/source assertions below.
+const ROWS: Row[] = [
+	["r1", "chat", null, "claude-opus-4-5", [10, 5, 1, 1, 0], "1.00", true, DAY1],
+	[
+		"r2",
+		"bridge",
+		"claude-code",
+		"gpt-5",
+		[20, 10, 2, 2, 1],
+		null,
+		false,
+		DAY1,
+	],
+	[
+		"r3",
+		"chat",
+		null,
+		"claude-opus-4-5",
+		[30, 15, 3, 3, 0],
+		"2.50",
+		true,
+		DAY2,
+	],
+	["r4", "bridge", "codex", null, [40, 20, 4, 4, 2], "0.75", true, DAY2],
+];
+
+// Inserts directly (bypassing `store.insert`, which always stamps `bucketedAt`
+// via the DB's `defaultNow()`) so tests can control which calendar day a row
+// falls on and pin every other dimension.
+async function insertRow(userId: string, row: Row) {
+	const [input, output, cacheRead, cacheWrite, reasoning] = row[4];
+	await db.insert(usageRecords).values({
+		userId,
+		source: row[1],
+		sessionId: crypto.randomUUID(),
+		agentKind: row[2],
+		modelId: row[3],
+		inputTokens: input,
+		outputTokens: output,
+		cacheReadTokens: cacheRead,
+		cacheWriteTokens: cacheWrite,
+		reasoningTokens: reasoning,
+		costUsd: row[5],
+		priced: row[6],
+		dedupKey: `${userId}:${row[0]}`,
+		bucketedAt: row[7],
+	});
+}
+
+// Seeds `ROWS` for `userId`, plus one big row for an unrelated random user —
+// every aggregate test below asserts that row is excluded (user-scoping).
+async function seedRows(userId: string) {
+	for (const row of ROWS) {
+		await insertRow(userId, row);
+	}
+	await insertRow(crypto.randomUUID(), [
+		"other-user",
+		"chat",
+		null,
+		"claude-opus-4-5",
+		[9999, 9999, 9999, 9999, 9999],
+		"999.00",
+		true,
+		DAY1,
+	]);
+}
+
+function aggregateRow(
+	key: string,
+	t: Tokens,
+	costUsd: number,
+	unpricedCount: number,
+	count: number
+): UsageAggregateRow {
+	return {
+		key,
+		inputTokens: t[0],
+		outputTokens: t[1],
+		cacheReadTokens: t[2],
+		cacheWriteTokens: t[3],
+		reasoningTokens: t[4],
+		costUsd,
+		unpricedCount,
+		count,
+	};
+}
+
+it("aggregate groupBy:day sums per-day tokens/cost and scopes to the user", async () => {
+	const store = createUsageRecordStore(db);
+	const userId = crypto.randomUUID();
+	await seedRows(userId);
+
+	const rows = await store.aggregate({ userId, ...WINDOW, groupBy: "day" });
+
+	expect(rows).toEqual([
+		aggregateRow("2026-06-01", [30, 15, 3, 3, 1], 1, 1, 2),
+		aggregateRow("2026-06-02", [70, 35, 7, 7, 2], 3.25, 0, 2),
+	]);
+});
+
+it("aggregate groupBy:model sums per-model tokens/cost, nulls to 'unknown'", async () => {
+	const store = createUsageRecordStore(db);
+	const userId = crypto.randomUUID();
+	await seedRows(userId);
+
+	const rows = await store.aggregate({ userId, ...WINDOW, groupBy: "model" });
+
+	expect(rows).toEqual([
+		aggregateRow("claude-opus-4-5", [40, 20, 4, 4, 0], 3.5, 0, 2),
+		aggregateRow("gpt-5", [20, 10, 2, 2, 1], 0, 1, 1),
+		aggregateRow("unknown", [40, 20, 4, 4, 2], 0.75, 0, 1),
+	]);
+});
+
+it("aggregate groupBy:source sums per-source tokens, excluding unpriced from costUsd", async () => {
+	const store = createUsageRecordStore(db);
+	const userId = crypto.randomUUID();
+	await seedRows(userId);
+
+	const rows = await store.aggregate({ userId, ...WINDOW, groupBy: "source" });
+
+	expect(rows).toEqual([
+		aggregateRow("bridge", [60, 30, 6, 6, 3], 0.75, 1, 2),
+		aggregateRow("chat", [40, 20, 4, 4, 0], 3.5, 0, 2),
+	]);
 });
