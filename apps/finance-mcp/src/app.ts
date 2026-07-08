@@ -13,6 +13,7 @@ import type { ToolEnv } from "./tools-impl";
 const ACCEPTED = 202;
 const BAD_REQUEST = 400;
 const NOT_CONFIGURED = 503;
+const BAD_GATEWAY = 502;
 const PARSE_ERROR = -32_700;
 
 export function buildApp(): Hono {
@@ -50,6 +51,9 @@ export function buildApp(): Hono {
 		}
 		if (err instanceof BadSymbolError) {
 			return c.json({ error: err.message }, BAD_REQUEST);
+		}
+		if (err instanceof Error) {
+			return c.json({ error: err.message }, BAD_GATEWAY);
 		}
 		throw err;
 	});

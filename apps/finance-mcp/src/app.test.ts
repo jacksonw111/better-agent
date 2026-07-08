@@ -29,4 +29,19 @@ describe("finance-mcp app", () => {
 			globalThis.fetch = orig;
 		}
 	});
+
+	it("GET /api/quote returns 502 JSON when the upstream call throws", async () => {
+		const app = buildApp();
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response("boom", { status: 500 })) as typeof fetch;
+		try {
+			const res = await app.request("/api/quote?symbol=600000.SH");
+			expect(res.status).toBe(502);
+			const body = (await res.json()) as { error: string };
+			expect(body.error).toContain("tencent quote HTTP 500");
+		} finally {
+			globalThis.fetch = orig;
+		}
+	});
 });

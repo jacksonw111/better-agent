@@ -65,6 +65,7 @@ export function createPdfProxyHandler(fetchImpl: typeof fetch) {
 		}
 		const upstream = await fetchImpl(target.toString(), {
 			headers: buildUpstreamHeaders(c.req.header("range")),
+			redirect: "manual",
 		});
 		return new Response(upstream.body, {
 			status: upstream.status,

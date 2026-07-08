@@ -2,8 +2,9 @@ import type { CbOp, Market } from "../types";
 import { fedOps } from "../us/nyfed";
 
 const EM_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get";
-// Report name for PBOC open-market operations. Confirm against akshare
-// macro_china_open_operation at implementation; keep the normalization stable.
+// Verified: EastMoney has no PBOC open-market-operations report under this
+// (or any known) reportName, so this always resolves to []. CN OMO data
+// needs a chinamoney.org.cn integration, deferred to v2.
 const REPORT_NAME = "RPT_OPEN_MARKET_REPO";
 const DATE_LENGTH = 10;
 
