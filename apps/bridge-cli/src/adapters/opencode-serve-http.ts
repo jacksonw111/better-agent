@@ -11,6 +11,13 @@ import type { ProcessIo } from "./process-io";
 /** How long to wait for the spawned server to print its listen URL. */
 const SERVE_URL_TIMEOUT_MS = 15_000;
 
+/** How long any single HTTP request to the serve process may take before it's
+ * aborted — a hung `opencode serve` (TCP connection open, no response) must
+ * never leave `getStatus`/`send`/`setModel`/`interrupt`/an approval reply
+ * waiting forever on a `fetch` that never settles. Same order of magnitude as
+ * `SERVE_URL_TIMEOUT_MS` above. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
 /** ASSUMPTION (unverified): `opencode serve --port 0 --hostname 127.0.0.1`
  * binds an OS-assigned free port and prints a line containing the actual URL,
  * e.g. `opencode server listening on http://127.0.0.1:54321`. We don't rely
@@ -68,7 +75,10 @@ export interface ServeHttp {
 
 export function createServeHttp(
 	baseUrl: string,
-	password: string | undefined
+	password: string | undefined,
+	// Overridable purely so tests can exercise the timeout path without a real
+	// multi-second wait — production callers always take the default.
+	requestTimeoutMs: number = REQUEST_TIMEOUT_MS
 ): ServeHttp {
 	const headers: Record<string, string> = {
 		"content-type": "application/json",
@@ -82,7 +92,11 @@ export function createServeHttp(
 		path: string,
 		init: { body?: string; method: string }
 	): Promise<unknown> => {
-		const response = await fetch(`${baseUrl}${path}`, { ...init, headers });
+		const response = await fetch(`${baseUrl}${path}`, {
+			...init,
+			headers,
+			signal: AbortSignal.timeout(requestTimeoutMs),
+		});
 		if (!response.ok) {
 			throw new Error(
 				`opencode serve ${init.method} ${path} → HTTP ${response.status}`

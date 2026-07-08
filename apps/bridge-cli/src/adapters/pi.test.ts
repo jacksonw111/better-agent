@@ -183,6 +183,10 @@ describe("piAdapter - session_ready model merge", () => {
 	});
 });
 
+// pi's getStatus timeout behavior (makePiStatusTracker's timeout fallback) is
+// covered in pi-get-status.test.ts, split out purely to keep this file under
+// the repo's 300-line limit.
+
 describe("piAdapter - session_ready emitted only once", () => {
 	it("never emits a second session_ready even if get_commands responds twice", async () => {
 		const { io, pushLine } = createFakeProcessIo();
