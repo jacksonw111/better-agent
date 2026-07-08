@@ -14,14 +14,15 @@ function buildClient(
 		turns: number;
 	}>
 ) {
+	const dailySummary = vi.fn().mockResolvedValue(daily);
 	const services = {
 		authz: { enabled: false },
 		stores: {
 			activity: { log: () => Promise.resolve() },
-			usage: { dailySummary: () => Promise.resolve(daily) },
+			usage: { dailySummary },
 		},
 	};
-	return createRouterClient(appRouter, {
+	const client = createRouterClient(appRouter, {
 		context: {
 			services: services as never,
 			authedAgent: null,
@@ -30,6 +31,7 @@ function buildClient(
 			userAgent: null,
 		},
 	});
+	return { client, dailySummary };
 }
 
 function buildAggregateClient(groups: UsageAggregateRow[]) {
@@ -54,7 +56,7 @@ function buildAggregateClient(groups: UsageAggregateRow[]) {
 }
 
 it("summary returns the daily rows and summed totals for the window", async () => {
-	const client = buildClient([
+	const { client } = buildClient([
 		{
 			day: "2026-06-29",
 			inputTokens: 10,
@@ -79,6 +81,49 @@ it("summary returns the daily rows and summed totals for the window", async () =
 		costCents: 3,
 		turns: 4,
 	});
+});
+
+it("dailyActivity returns N days of lean per-day rows, scoped to the authed user", async () => {
+	const { client, dailySummary } = buildClient([
+		{
+			day: "2026-04-10",
+			inputTokens: 10,
+			outputTokens: 5,
+			costCents: 1,
+			turns: 1,
+		},
+		{
+			day: "2026-06-30",
+			inputTokens: 20,
+			outputTokens: 10,
+			costCents: 2,
+			turns: 3,
+		},
+	]);
+
+	const res = await client.usage.dailyActivity({ days: 90 });
+
+	expect(dailySummary).toHaveBeenCalledTimes(1);
+	const [calledUserId, since] = dailySummary.mock.calls[0] as [string, Date];
+	expect(calledUserId).toBe(USER.id);
+	// since should be ~90 days before now, not the 3/7/12 window used by `summary`.
+	const expectedSince = Date.now() - 90 * 86_400_000;
+	expect(Math.abs(since.getTime() - expectedSince)).toBeLessThan(5000);
+
+	expect(res).toEqual([
+		{ day: "2026-04-10", turns: 1, totalTokens: 15 },
+		{ day: "2026-06-30", turns: 3, totalTokens: 30 },
+	]);
+});
+
+it("dailyActivity rejects a range beyond the max (180 days)", async () => {
+	const { client } = buildClient([]);
+	await expect(client.usage.dailyActivity({ days: 181 })).rejects.toThrow();
+});
+
+it("dailyActivity rejects non-positive day counts", async () => {
+	const { client } = buildClient([]);
+	await expect(client.usage.dailyActivity({ days: 0 })).rejects.toThrow();
 });
 
 it("aggregate scopes to the authed user and sums totals across groups", async () => {
@@ -128,4 +173,40 @@ it("aggregate scopes to the authed user and sums totals across groups", async ()
 		unpricedCount: 1,
 		count: 3,
 	});
+});
+
+it("aggregate rejects a range longer than the max (366 days) without hitting the store", async () => {
+	const { client, aggregate } = buildAggregateClient([]);
+
+	await expect(
+		client.usage.aggregate({
+			range: { from: new Date("2025-01-01"), to: new Date("2026-06-01") },
+			groupBy: "day",
+		})
+	).rejects.toThrow();
+	expect(aggregate).not.toHaveBeenCalled();
+});
+
+it("aggregate rejects range.from after range.to without hitting the store", async () => {
+	const { client, aggregate } = buildAggregateClient([]);
+
+	await expect(
+		client.usage.aggregate({
+			range: { from: new Date("2026-06-02"), to: new Date("2026-06-01") },
+			groupBy: "day",
+		})
+	).rejects.toThrow();
+	expect(aggregate).not.toHaveBeenCalled();
+});
+
+it("aggregate accepts a range at exactly the max (366 days)", async () => {
+	const { client, aggregate } = buildAggregateClient([]);
+
+	const res = await client.usage.aggregate({
+		range: { from: new Date("2025-06-01"), to: new Date("2026-06-02") },
+		groupBy: "day",
+	});
+
+	expect(aggregate).toHaveBeenCalledTimes(1);
+	expect(res.groups).toEqual([]);
 });
