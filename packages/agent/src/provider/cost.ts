@@ -10,8 +10,8 @@ interface Pricing {
 }
 
 /** Shared per-token dollar math. Returns null when pricing is unknown (either
- * price missing) so callers can derive both the USD and legacy-cents forms
- * from one implementation. */
+ * price missing). `priceUsage` wraps it with the `priced` flag; the legacy
+ * cents form is derived downstream from its USD result. */
 function computeDollars(usage: MessageUsage, pricing: Pricing): number | null {
 	if (pricing.inputPricePerM === null || pricing.outputPricePerM === null) {
 		return null;

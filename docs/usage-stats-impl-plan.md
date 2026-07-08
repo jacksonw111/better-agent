@@ -60,6 +60,10 @@
 
 ## 2. Phase U1 · 统一聚合读
 
+> **⛔ U1 前置（U0 最终评审发现的 Important bug，必须先修）：bridge `dedupKey` 不稳。**
+> `bridge:${sessionId}:${seq}` 的 `seq` 是**服务端每次 relay append 时分配**的。CLI push 队列在响应丢失后会重发同一批事件 → 同一个 `turn_usage` 被追加到**新的 seq** → `onConflictDoNothing` 挡不住 → **bridge token/cost 双重计数**。U0 写-only 时无害（没人读），但 **U1 一开聚合，dashboard 第一眼就是虚高的 bridge 总额**。修法：dedupKey 改用**跨重试稳定**的标识（claude 结果里的稳定 turn/session 身份，或客户端携带 idempotency id 让 `pushEvents` 去重），**不要**用服务端 relay seq。chat 侧无此问题（`chat:${assistantId}` 稳定）。
+> 次要（U1/U2 前顺手）：① chat 目前 errored 轮次也写一条（我在 T0.4 有意改为镜像 `messages.usage` 以便对账——如需按 plan 原意跳过 error，在此改）；② bridge 行 `provider_id`/`model_id` 为空（U2 "按模型" 拆分前，把 claude 的 model 从 `session_ready` 透传进 snapshot）；③ `reasoning` 语义 chat/bridge 不对称（claude 把 thinking 并进 output），聚合展示时注意。
+
 - `usage.aggregate({ range:{from,to}, groupBy })` 新接口读 `usage_records`；`groupBy: "day"|"model"|"agent"|"session"|"source"|"bucket"`（plan §2.4），走 query builder（GROUP BY 命中 `usage_records` 已建索引）。
 - dashboard hooks 切读它（**保留**老 `usage.summary` / `bridge.usageByAgentKind`）：
   - `use-usage-data.ts:57-83`、`use-local-agent-usage.ts:27-41`。
