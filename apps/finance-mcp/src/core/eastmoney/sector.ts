@@ -66,9 +66,9 @@ async function fetchClistRows(
 }
 
 function fsForType(type: string): string {
-	// Space-separated selector; encodeURIComponent at the call site handles the
-	// `:` and space exactly as EastMoney's own web client sends them.
-	return type === "concept" ? "m:90 t:3" : "m:90 t:2";
+	// EastMoney's selector uses `+` as the space separator (form-encoding); it is
+	// embedded literally in the query string (fetch keeps `+`/`:` verbatim).
+	return type === "concept" ? "m:90+t:3" : "m:90+t:2";
 }
 
 function toSectorRow(row: ClistRow): SectorRow {
@@ -99,7 +99,7 @@ export async function getSectorList(
 	const fs = fsForType(type);
 	const url =
 		`${CLIST_URL}?pn=1&pz=${SECTOR_LIST_PAGE_SIZE}&po=1&np=1&ut=${CLIST_UT}&fltt=2&invt=2` +
-		`&fid=f3&fs=${encodeURIComponent(fs)}&fields=${SECTOR_LIST_FIELDS}`;
+		`&fid=f3&fs=${fs}&fields=${SECTOR_LIST_FIELDS}`;
 	const rows = await fetchClistRows(url, opts);
 	return rows.map(toSectorRow);
 }
@@ -110,7 +110,7 @@ export async function getSectorConstituents(
 ): Promise<SectorConstituent[]> {
 	const url =
 		`${CLIST_URL}?pn=1&pz=${CONSTITUENT_PAGE_SIZE}&po=1&np=1&ut=${CLIST_UT}&fltt=2&invt=2` +
-		`&fid=f3&fs=${encodeURIComponent(`b:${board}`)}&fields=${CONSTITUENT_FIELDS}`;
+		`&fid=f3&fs=b:${board}&fields=${CONSTITUENT_FIELDS}`;
 	const rows = await fetchClistRows(url, opts);
 	return rows.map(toConstituent);
 }
