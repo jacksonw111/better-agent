@@ -56,14 +56,21 @@ function DashboardBody({
 	totals: ReturnType<typeof useUsageData>["totals"];
 	windowDays: WindowDays;
 }) {
-	if (isEmpty) {
-		return <EmptyState />;
-	}
+	// Only the chat stats/chart fall back to EmptyState when the (short) chat
+	// window has no data — the 180-day activity heatmap and the Local Agents
+	// breakdown have their own data sources and must always render, or a user
+	// with no recent chat would see nothing at all.
 	return (
 		<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 			<div className="flex flex-col gap-4 lg:col-span-2">
-				<StatsPanel isPending={isPending} totals={totals} />
-				<TokenChart daily={daily} isPending={isPending} />
+				{isEmpty ? (
+					<EmptyState />
+				) : (
+					<>
+						<StatsPanel isPending={isPending} totals={totals} />
+						<TokenChart daily={daily} isPending={isPending} />
+					</>
+				)}
 				<ActivityHeatmap />
 			</div>
 			<div className="lg:col-span-1">

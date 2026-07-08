@@ -66,7 +66,7 @@ it("renders the Local Agents breakdown and no Recent Activity timeline", async (
 	const view = await renderDashboard();
 
 	await waitFor(() => {
-		expect(view.getByText("Local Agents")).toBeDefined();
+		expect(view.getByText("Agent Breakdown")).toBeDefined();
 	});
 	// A row for the populated claude-code kind.
 	expect(view.getByText("Claude Code")).toBeDefined();
