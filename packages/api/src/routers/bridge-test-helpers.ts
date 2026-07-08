@@ -8,6 +8,7 @@ import type {
 	BridgeTokenRow,
 	BridgeTokenStore,
 } from "@better-agent/agent/ports";
+import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
 import type { AuthedBridgeToken } from "../context";
 import { appRouter } from "./index";
@@ -221,9 +222,10 @@ export function build() {
 			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
 	);
 	const relayStore = createInMemoryRelayStore();
+	const usageRecord = createFakeUsageRecordStore();
 	const services = {
 		relayStore,
-		stores: { bridgeToken, bridgeSession, bridgeMessage },
+		stores: { bridgeToken, bridgeSession, bridgeMessage, usageRecord },
 	};
 	const userClientFor = (user: typeof ALICE) =>
 		createRouterClient(appRouter, {
@@ -250,6 +252,7 @@ export function build() {
 		bridgeToken,
 		bridgeSession,
 		bridgeMessage,
+		usageRecord,
 		services,
 		userClientFor,
 		bridgeClientFor,

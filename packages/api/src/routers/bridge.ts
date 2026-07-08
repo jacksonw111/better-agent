@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
-import { maybePersistAgentSessionId } from "./bridge-agent-session-id";
+import { appendPushedEvents } from "./bridge-push-events";
 import {
 	assertEventsWithinSizeLimit,
 	assertInputWithinSizeLimit,
@@ -171,16 +171,12 @@ export const bridgeRouter = {
 			assertEventsWithinSizeLimit(input.events);
 			// Relay appends stay sequential (each assigns the next seq off the
 			// previous one); Postgres persistence doesn't, so it's batched below.
-			const persisted: { seq: number; event: unknown }[] = [];
-			for (const event of input.events) {
-				const seq = await context.services.relayStore.append(
-					input.sessionId,
-					"events",
-					event
-				);
-				persisted.push({ seq, event });
-				await maybePersistAgentSessionId(context, input.sessionId, event);
-			}
+			const persisted = await appendPushedEvents(
+				context,
+				input.sessionId,
+				context.authedBridgeToken.userId,
+				input.events
+			);
 			await persistEventsBestEffort(context, input.sessionId, persisted);
 			await context.services.stores.bridgeSession.touch(input.sessionId);
 			return { ok: true };

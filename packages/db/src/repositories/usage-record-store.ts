@@ -1,4 +1,3 @@
-import type { BridgeAgentKind } from "@better-agent/agent/ports";
 import type { UsageSnapshot } from "@better-agent/agent/usage/usage-record";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle needs the whole schema namespace
@@ -20,10 +19,7 @@ function toValues(snapshot: UsageSnapshot) {
 		userId: snapshot.userId,
 		source: snapshot.source,
 		sessionId: snapshot.sessionId,
-		// UsageSnapshot.agentKind is a loose `string` (chat callers omit it,
-		// bridge callers pass one of the port's literal kinds); the column is
-		// typed to the narrower BridgeAgentKind union.
-		agentKind: snapshot.agentKind as BridgeAgentKind | undefined,
+		agentKind: snapshot.agentKind,
 		providerId: snapshot.providerId,
 		modelId: snapshot.model,
 		inputTokens: snapshot.tokens.input,
