@@ -192,6 +192,56 @@ describe("opencodeAdapter - approvals", () => {
 	});
 });
 
+describe("opencodeAdapter - getStatus", () => {
+	it("caches a streamed usage_update and answers getStatus with one status_snapshot", async () => {
+		const { rpc, triggerNotification } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await opencodeAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		triggerNotification("session/update", {
+			sessionId: "session_1",
+			update: {
+				sessionUpdate: "usage_update",
+				used: 48_000,
+				size: 200_000,
+				cost: { amount: 0.045, currency: "USD" },
+			},
+		});
+		await iterator.next(); // the pass-through usage_update status event
+
+		handle.getStatus?.();
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "status_snapshot",
+			detail: {
+				model: undefined,
+				costUsd: 0.045,
+				contextUsage: { used: 48_000, size: 200_000, pct: 24 },
+			},
+		});
+	});
+
+	it("answers getStatus with an empty-fields snapshot when no usage_update has arrived yet", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await opencodeAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		expect(() => handle.getStatus?.()).not.toThrow();
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "status_snapshot",
+			detail: { model: undefined, costUsd: undefined, contextUsage: undefined },
+		});
+	});
+});
+
 describe("opencodeAdapter - model & permission controls", () => {
 	it("dispatches setModel to the ACP unstable_setSessionModel method", async () => {
 		const { rpc } = createFakeRpc();

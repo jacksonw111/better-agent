@@ -10,6 +10,11 @@ import {
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
+import {
+	createOpencodeStatusCache,
+	makeOpencodeGetStatus,
+	updateOpencodeStatusCache,
+} from "./opencode-status";
 import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
 
 /** Reply outcome sent back for a `session/request_permission` request. See
@@ -160,6 +165,10 @@ export const opencodeAdapter: Adapter = {
 		rpc.onNotification(
 			makeOpencodeNotificationHandler(dir, events, () => sessionId)
 		);
+		const statusCache = createOpencodeStatusCache();
+		rpc.onNotification((method, params) => {
+			updateOpencodeStatusCache(statusCache, method, params);
+		});
 		wireOpencodeApprovals(rpc, events, approvals);
 
 		await rpc.request("initialize", { protocolVersion: 1 });
@@ -177,6 +186,7 @@ export const opencodeAdapter: Adapter = {
 				approvals.answer(requestId, optionId);
 			},
 			events,
+			getStatus: makeOpencodeGetStatus(statusCache, events),
 			send: opencodeSend(rpc, events, () => sessionId),
 			...opencodeModeControls(rpc, () => sessionId),
 			stop(): void {

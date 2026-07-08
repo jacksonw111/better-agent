@@ -11,6 +11,7 @@ import {
 	createOpencodeServeNormalizer,
 	parseOpencodeServeModels,
 } from "../normalize/opencode-serve";
+import { parseOpencodeServeStatus } from "../normalize/opencode-serve-status";
 import {
 	isRecord,
 	type NormalizedEvent,
@@ -27,7 +28,12 @@ import {
 	waitForServeUrl,
 } from "./opencode-serve-http";
 import { spawnProcessIo } from "./process-io";
-import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
+import {
+	type Adapter,
+	AGENT_EXITED_STATUS,
+	type AgentHandle,
+	STATUS_SNAPSHOT_STATUS,
+} from "./types";
 
 // See the ASSUMPTION on `waitForServeUrl` (opencode-serve-http.ts) for why
 // port 0: the OS assigns a free port and the printed URL tells us which.
@@ -158,6 +164,35 @@ function makeServeControls(
 	};
 }
 
+/** Builds the `getStatus` control: GETs the serve session's message history
+ * and maps the latest assistant message's cost/tokens/model into ONE
+ * `status_snapshot` event — see the ASSUMPTION note on
+ * `parseOpencodeServeStatus` (normalize/opencode-serve-status.ts) for the
+ * endpoint/shape this assumes. A fetch failure pushes a snapshot with every
+ * field absent rather than throwing or surfacing a raw `error` event —
+ * matching every other adapter's "the web renders whatever arrived" posture
+ * for `getStatus` (see e.g. claude-code-status.ts's `buildSnapshotDetail`). */
+function makeServeGetStatus(ctx: ServeSessionContext): () => void {
+	return () => {
+		ctx.http
+			.getJson(`/session/${ctx.sessionId}/message`)
+			.then((raw) => {
+				ctx.events.push({
+					kind: "status",
+					status: STATUS_SNAPSHOT_STATUS,
+					detail: parseOpencodeServeStatus(raw),
+				});
+			})
+			.catch(() => {
+				ctx.events.push({
+					kind: "status",
+					status: STATUS_SNAPSHOT_STATUS,
+					detail: {},
+				});
+			});
+	};
+}
+
 /** `opencode serve` + HTTP/SSE — the serve-backed opencode transport. */
 export const opencodeServeAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
@@ -196,6 +231,7 @@ export const opencodeServeAdapter: Adapter = {
 				approvals.answer(requestId, optionId);
 			},
 			events,
+			getStatus: makeServeGetStatus(ctx),
 			...makeServeControls(ctx, {}),
 			stop(): void {
 				sseAbort.abort();

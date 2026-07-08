@@ -116,6 +116,14 @@ const PI_CAPABILITIES: AgentCapabilities = {
 // doesn't implement the `listSessions` control yet (no `session_list` reply is
 // pushed), so the "Past conversations" button stays hidden rather than
 // spinning forever. Flip to true once opencode.ts wires that control up.
+//
+// contextUsage was already true off the streamed `usage_update` events alone;
+// R1-b additionally wires a real `getStatus` for both opencode transports —
+// ACP caches the latest `usage_update` (see
+// apps/bridge-cli/src/adapters/opencode-status.ts) and serve fetches `GET
+// /session/:id/message` on demand (see
+// apps/bridge-cli/src/adapters/opencode-serve.ts) — so `control: getStatus`
+// now answers for opencode too, not just claude/pi/codex.
 const OPENCODE_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
 	sessionList: false,
