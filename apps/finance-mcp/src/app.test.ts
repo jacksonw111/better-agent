@@ -6,7 +6,14 @@ describe("finance-mcp app", () => {
 		const app = buildApp();
 		const res = await app.request("/");
 		expect(res.status).toBe(200);
-		expect(await res.text()).toBe("better-agent-finance-mcp OK");
+		const body = (await res.json()) as {
+			service: string;
+			status: string;
+			tools: number;
+		};
+		expect(body.service).toBe("better-agent-finance-mcp");
+		expect(body.status).toBe("ok");
+		expect(typeof body.tools).toBe("number");
 	});
 
 	it("GET /api/quote returns a parsed quote", async () => {
@@ -43,5 +50,35 @@ describe("finance-mcp app", () => {
 		} finally {
 			globalThis.fetch = orig;
 		}
+	});
+});
+
+describe("finance-mcp app CORS", () => {
+	it("GET /api/quote sends CORS headers for browser origins", async () => {
+		const app = buildApp();
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(new TextEncoder().encode(""))) as typeof fetch;
+		try {
+			const res = await app.request("/api/quote?symbol=600000.SH", {
+				headers: { Origin: "https://example.com" },
+			});
+			expect(res.headers.get("access-control-allow-origin")).toBeTruthy();
+		} finally {
+			globalThis.fetch = orig;
+		}
+	});
+
+	it("OPTIONS /api/quote preflight returns 204 with CORS headers", async () => {
+		const app = buildApp();
+		const res = await app.request("/api/quote", {
+			method: "OPTIONS",
+			headers: {
+				Origin: "https://example.com",
+				"Access-Control-Request-Method": "GET",
+			},
+		});
+		expect(res.status).toBe(204);
+		expect(res.headers.get("access-control-allow-origin")).toBeTruthy();
 	});
 });

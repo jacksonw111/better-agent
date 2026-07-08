@@ -131,6 +131,7 @@ export function parseMinuteKline(
 }
 
 const DEFAULT_LIMIT = 240;
+const MAX_LIMIT = 1000;
 
 interface KlineOpts {
 	fetchImpl?: typeof fetch;
@@ -178,10 +179,10 @@ export async function getKline(
 	opts: KlineOpts = {}
 ): Promise<Candle[]> {
 	const { tencent } = parseSymbol(symbol);
-	const effectiveLimit = limit > 0 ? limit : DEFAULT_LIMIT;
+	const effectiveLimit = limit > 0 ? Math.min(limit, MAX_LIMIT) : DEFAULT_LIMIT;
 	const fetchCount = Math.max(effectiveLimit, MIN_FETCH);
 	const candles = isMinutePeriod(period)
 		? await fetchMinuteKline(tencent, period, fetchCount, opts)
 		: await fetchDayKline(tencent, period, fetchCount, opts);
-	return limit > 0 ? candles.slice(-limit) : candles;
+	return limit > 0 ? candles.slice(-effectiveLimit) : candles;
 }

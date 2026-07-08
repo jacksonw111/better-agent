@@ -1,9 +1,11 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { NotConfiguredError } from "./core/fred/economic";
 import { BadSymbolError } from "./core/symbol";
 import { handleMessage } from "./mcp-server";
 import { createPdfProxyHandler } from "./pdf-proxy";
 import { registerRest } from "./rest";
+import { TOOLS } from "./tool-defs";
 import type { ToolEnv } from "./tools-impl";
 
 // Streamable HTTP endpoint in stateless JSON mode: every POST carries one
@@ -18,7 +20,18 @@ const PARSE_ERROR = -32_700;
 
 export function buildApp(): Hono {
 	const app = new Hono();
-	app.get("/", (c) => c.text("better-agent-finance-mcp OK"));
+	app.use("/api/*", cors());
+	app.use("/mcp", cors());
+	app.use("/pdf", cors());
+
+	app.get("/", (c) =>
+		c.json({
+			service: "better-agent-finance-mcp",
+			status: "ok",
+			tools: TOOLS.length,
+			endpoints: { mcp: "POST /mcp", rest: "GET /api/*", pdf: "GET /pdf" },
+		})
+	);
 
 	app.post("/mcp", async (c) => {
 		let message: Parameters<typeof handleMessage>[0];
