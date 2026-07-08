@@ -3,14 +3,18 @@ import {
 	type PermissionMode,
 	type PermissionResult,
 	query,
-	type SDKSessionInfo,
 	type SDKUserMessage,
-	listSessions as sdkListSessions,
 } from "@anthropic-ai/claude-agent-sdk";
 import { normalizeClaudeCode } from "../normalize/claude-code";
 import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
 import { isRecord, userMessageEvent } from "../normalize/types";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import {
+	type LastKnownSessionInfo,
+	makeClaudeGetStatus,
+	makeListSessions,
+	recordSessionInfo,
+} from "./claude-code-status";
 import { findOnPath } from "./process-io";
 import type { Adapter, AgentHandle, StartOptions } from "./types";
 
@@ -143,11 +147,15 @@ function makeCanUseTool(events: EventSink, approvals: ApprovalMap): CanUseTool {
 async function drainSession(
 	session: AsyncIterable<unknown>,
 	events: AsyncQueue<NormalizedEvent>,
-	models: Promise<string[] | undefined>
+	models: Promise<string[] | undefined>,
+	lastKnown: LastKnownSessionInfo
 ): Promise<void> {
 	try {
 		for await (const message of session) {
 			for (const event of normalizeClaudeCode(message)) {
+				// Seed the getStatus snapshot's model/permissionMode off the one-time
+				// init event as it flows by (see claude-code-status.ts).
+				recordSessionInfo(event, lastKnown);
 				events.push(await withReportedModels(event, models));
 			}
 		}
@@ -158,58 +166,6 @@ async function drainSession(
 		});
 	}
 	events.close();
-}
-
-/** One entry the "Past conversations" picker renders — see
- * `session_ready`'s sibling status event, `session_list`, pushed by
- * `makeListSessions` below. */
-interface SessionListItem {
-	cwd?: string;
-	gitBranch?: string;
-	id: string;
-	lastModified: number;
-	title: string;
-}
-
-/** `title` prefers the user's own `/rename`d title, falling back to the
- * SDK's already-curated `summary` (itself custom title, AI summary, or first
- * prompt — see `SDKSessionInfo.summary`'s doc). `cwd` lets the web build an
- * accurate `--dir` for the resume hint even if this conversation started in a
- * different directory than the one the CLI is running in right now. */
-function toSessionListItem(info: SDKSessionInfo): SessionListItem {
-	return {
-		id: info.sessionId,
-		title: info.customTitle ?? info.summary,
-		lastModified: info.lastModified,
-		gitBranch: info.gitBranch,
-		cwd: info.cwd,
-	};
-}
-
-/** Builds the `AgentHandle.listSessions` implementation: fetches this
- * project directory's past claude conversations and pushes them as a
- * `session_list` status event — fire-and-forget (the SDK call is async, but
- * the handle's method itself isn't), matching `setModel`/`setPermissionMode`'s
- * shape. A lookup failure becomes an error event rather than an unhandled
- * rejection. */
-function makeListSessions(dir: string, events: EventSink): () => void {
-	return () => {
-		sdkListSessions({ dir })
-			.then((sessions) => {
-				events.push({
-					kind: "status",
-					status: "session_list",
-					detail: { sessions: sessions.map(toSessionListItem) },
-				});
-			})
-			.catch((error: unknown) => {
-				events.push({
-					kind: "error",
-					message: "Failed to list past claude sessions",
-					detail: error instanceof Error ? error.message : String(error),
-				});
-			});
-	};
 }
 
 /** Builds the SDK `systemPrompt` option: preset+append keeps claude's default
@@ -226,6 +182,88 @@ function claudeSystemPromptOption(
 		: undefined;
 }
 
+/** Starts the SDK `query()` session: the claude subprocess + handshake, wired
+ * to this handle's input queue, tool-approval routing, and persisted startup
+ * config from the bridge token. */
+function startClaudeQuery(
+	dir: string,
+	opts: StartOptions | undefined,
+	input: AsyncQueue<SDKUserMessage>,
+	events: EventSink,
+	approvals: ApprovalMap
+): ClaudeQuery {
+	return query({
+		prompt: input,
+		options: {
+			cwd: dir,
+			pathToClaudeCodeExecutable: findOnPath("claude"), // user's PATH claude (standalone binary omits the SDK's bundled one)
+			// A prior `--resume` claude session id (undefined starts fresh).
+			resume: opts?.resume,
+			canUseTool: makeCanUseTool(events, approvals),
+			// Phase 4: apply persisted startup config from the bridge token.
+			systemPrompt: claudeSystemPromptOption(opts?.config),
+			maxTurns: opts?.config?.maxTurns,
+			maxBudgetUsd: opts?.config?.maxBudgetUsd,
+			effort: opts?.config?.effort,
+			// Extended thinking's reasoning text only streams as `thinking_delta`
+			// frames under includePartialMessages — which also streams the
+			// response text as `text_delta` frames, duplicating what later
+			// arrives (again) as a text block on the final assistant message.
+			// `normalizeClaudeCode` is the dedup point: it treats the streamed
+			// deltas as the source of truth and drops the final assistant
+			// message's text blocks (keeping its tool_use blocks).
+			includePartialMessages: true,
+			thinking: { type: "adaptive" },
+		},
+	});
+}
+
+/** Assembles the returned `AgentHandle` — the session's public surface —
+ * once `startClaudeQuery` + `drainSession` are wired up. */
+function buildClaudeHandle(
+	dir: string,
+	session: ClaudeQuery,
+	input: AsyncQueue<SDKUserMessage>,
+	events: AsyncQueue<NormalizedEvent>,
+	approvals: ApprovalMap,
+	lastKnown: LastKnownSessionInfo
+): AgentHandle {
+	return {
+		events,
+		getStatus: makeClaudeGetStatus(session, events, lastKnown),
+		answerApproval(requestId: string, optionId: string): void {
+			approvals.get(requestId)?.(optionId === "allow");
+		},
+		// Cancels the in-flight turn only — unlike `stop`, the input/events
+		// queues stay open so the user can keep chatting in the same session.
+		interrupt(): void {
+			session.interrupt().catch(() => undefined);
+		},
+		listSessions: makeListSessions(dir, events),
+		send(text: string): void {
+			// Persist the user's own turn (see userMessageEvent) so it survives
+			// a page reload, THEN forward it to the agent.
+			events.push(userMessageEvent(text));
+			input.push(userTurn(text));
+		},
+		setModel(model: string): void {
+			lastKnown.model = model;
+			session.setModel(model).catch(() => undefined);
+		},
+		setPermissionMode(mode: string): void {
+			if (isPermissionMode(mode)) {
+				lastKnown.permissionMode = mode;
+				session.setPermissionMode(mode).catch(() => undefined);
+			}
+		},
+		stop(): void {
+			input.close();
+			session.interrupt().catch(() => undefined);
+			events.close();
+		},
+	};
+}
+
 export const claudeCodeAdapter: Adapter = {
 	// biome-ignore lint/suspicious/useAwait: the Adapter interface returns a Promise; the SDK query starts lazily.
 	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
@@ -234,66 +272,17 @@ export const claudeCodeAdapter: Adapter = {
 		// requestId → resolver that completes the pending canUseTool promise.
 		const approvals: ApprovalMap = new Map();
 
-		const session = query({
-			prompt: input,
-			options: {
-				cwd: dir,
-				pathToClaudeCodeExecutable: findOnPath("claude"), // user's PATH claude (standalone binary omits the SDK's bundled one)
-				// A prior `--resume` claude session id (undefined starts fresh).
-				resume: opts?.resume,
-				canUseTool: makeCanUseTool(events, approvals),
-				// Phase 4: apply persisted startup config from the bridge token.
-				systemPrompt: claudeSystemPromptOption(opts?.config),
-				maxTurns: opts?.config?.maxTurns,
-				maxBudgetUsd: opts?.config?.maxBudgetUsd,
-				effort: opts?.config?.effort,
-				// Extended thinking's reasoning text only streams as `thinking_delta`
-				// frames under includePartialMessages — which also streams the
-				// response text as `text_delta` frames, duplicating what later
-				// arrives (again) as a text block on the final assistant message.
-				// `normalizeClaudeCode` is the dedup point: it treats the streamed
-				// deltas as the source of truth and drops the final assistant
-				// message's text blocks (keeping its tool_use blocks).
-				includePartialMessages: true,
-				thinking: { type: "adaptive" },
-			},
-		});
+		const session = startClaudeQuery(dir, opts, input, events, approvals);
 		// Kicked off immediately: `supportedModels()` resolves off the same init
 		// handshake that produces the `session_ready` line, so it's ready by the
 		// time `withReportedModels` merges it in (see fetchSupportedModels).
 		const models = fetchSupportedModels(session);
-		drainSession(session, events, models);
+		// getStatus's model/permissionMode source: the SDK has no on-demand read
+		// for the permission mode, so the adapter tracks the last-known values
+		// (init event + this handle's own setModel/setPermissionMode calls).
+		const lastKnown: LastKnownSessionInfo = {};
+		drainSession(session, events, models, lastKnown);
 
-		return {
-			events,
-			answerApproval(requestId: string, optionId: string): void {
-				approvals.get(requestId)?.(optionId === "allow");
-			},
-			// Cancels the in-flight turn only — unlike `stop`, the input/events
-			// queues stay open so the user can keep chatting in the same session.
-			interrupt(): void {
-				session.interrupt().catch(() => undefined);
-			},
-			listSessions: makeListSessions(dir, events),
-			send(text: string): void {
-				// Persist the user's own turn (see userMessageEvent) so it survives
-				// a page reload, THEN forward it to the agent.
-				events.push(userMessageEvent(text));
-				input.push(userTurn(text));
-			},
-			setModel(model: string): void {
-				session.setModel(model).catch(() => undefined);
-			},
-			setPermissionMode(mode: string): void {
-				if (isPermissionMode(mode)) {
-					session.setPermissionMode(mode).catch(() => undefined);
-				}
-			},
-			stop(): void {
-				input.close();
-				session.interrupt().catch(() => undefined);
-				events.close();
-			},
-		};
+		return buildClaudeHandle(dir, session, input, events, approvals, lastKnown);
 	},
 };

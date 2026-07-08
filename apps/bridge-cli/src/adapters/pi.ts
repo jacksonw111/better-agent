@@ -10,11 +10,22 @@ import {
 	normalizePiModelProviders,
 	normalizePiStateModel,
 } from "../normalize/pi-commands";
+import {
+	buildPiGetSessionStatsCommand,
+	normalizePiSessionStats,
+	normalizePiStateRunning,
+	type PiSessionStats,
+} from "../normalize/pi-status";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { spawnProcessIo } from "./process-io";
-import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
+import {
+	type Adapter,
+	AGENT_EXITED_STATUS,
+	type AgentHandle,
+	STATUS_SNAPSHOT_STATUS,
+} from "./types";
 
 /** ASSUMPTION (unverified, no `pi` binary available in this sandbox): `pi`'s
  * RPC mode is invoked as `pi --mode rpc`, with the working directory set via
@@ -110,6 +121,87 @@ function makePiSessionReadyTracker(events: {
 }
 
 /**
+ * Tracks one in-flight `getStatus` request the way `makePiSessionReadyTracker`
+ * tracks session_ready's pieces: `request()` fires the `get_session_stats` +
+ * `get_state` frames, `onLine` collects both replies, and ONE
+ * `status_snapshot` event is pushed the moment both have arrived (a new
+ * `request()` before then simply re-arms with fresh frames). pi has no
+ * request ids, so replies are matched by command name — see the ASSUMPTION
+ * notes in normalize/pi-status.ts for the response shapes.
+ */
+function makePiStatusTracker(
+	io: { writeLine(line: string): void },
+	events: { push(event: NormalizedEvent): void }
+): { onLine(raw: unknown): void; request(): void } {
+	let pending = false;
+	let stats: PiSessionStats | undefined;
+	let state: { model?: string; running?: boolean } | undefined;
+	return {
+		request(): void {
+			pending = true;
+			stats = undefined;
+			state = undefined;
+			io.writeLine(buildPiGetSessionStatsCommand());
+			io.writeLine(buildPiGetStateCommand());
+		},
+		onLine(raw: unknown): void {
+			if (!pending) {
+				return;
+			}
+			stats = normalizePiSessionStats(raw) ?? stats;
+			const running = normalizePiStateRunning(raw);
+			if (running !== undefined) {
+				state = { model: normalizePiStateModel(raw), running };
+			}
+			if (stats && state) {
+				pending = false;
+				events.push({
+					kind: "status",
+					status: STATUS_SNAPSHOT_STATUS,
+					detail: { model: state.model, running: state.running, ...stats },
+				});
+			}
+		},
+	};
+}
+
+/** Consumes pi's stdout: feeds every parsed line to the session-ready +
+ * status trackers, accumulates the modelId → provider map `setModel` needs,
+ * and forwards each normalized event. Detached (fire-and-forget) from
+ * `start` purely to keep it under the line gate. */
+async function drainPiStdout(
+	io: { lines: AsyncIterable<string> },
+	events: { push(event: NormalizedEvent): void },
+	sessionReady: { onLine(raw: unknown): void },
+	statusTracker: { onLine(raw: unknown): void },
+	modelProviders: Record<string, string>
+): Promise<void> {
+	for await (const line of io.lines) {
+		const raw = tryParseJson(line);
+		sessionReady.onLine(raw);
+		statusTracker.onLine(raw);
+		const nextProviders = normalizePiModelProviders(raw);
+		if (nextProviders) {
+			Object.assign(modelProviders, nextProviders);
+		}
+		for (const event of normalizePi(raw)) {
+			events.push(event);
+		}
+	}
+}
+
+/** Forwards pi's stderr lines as error events. Detached from `start` for the
+ * same reason as `drainPiStdout`. */
+async function drainPiStderr(
+	io: { stderrLines: AsyncIterable<string> },
+	events: { push(event: NormalizedEvent): void }
+): Promise<void> {
+	for await (const line of io.stderrLines) {
+		events.push({ kind: "error", message: line });
+	}
+}
+
+/**
  * `pi --mode rpc` — Mario Zechner's `pi` coding agent's headless JSON-over-
  * stdio mode. Unlike codex/opencode/claude-code, pi has no per-tool-call
  * approval protocol at all (see normalize/pi.ts), so `answerApproval` is
@@ -128,28 +220,12 @@ export const piAdapter: Adapter = {
 		});
 
 		const sessionReady = makePiSessionReadyTracker(events);
+		const statusTracker = makePiStatusTracker(io, events);
 		// modelId → provider, accumulated from get_available_models, so setModel
 		// can build set_model's required {provider, modelId} from a bare id.
 		const modelProviders: Record<string, string> = {};
-		(async () => {
-			for await (const line of io.lines) {
-				const raw = tryParseJson(line);
-				sessionReady.onLine(raw);
-				const nextProviders = normalizePiModelProviders(raw);
-				if (nextProviders) {
-					Object.assign(modelProviders, nextProviders);
-				}
-				for (const event of normalizePi(raw)) {
-					events.push(event);
-				}
-			}
-		})();
-
-		(async () => {
-			for await (const line of io.stderrLines) {
-				events.push({ kind: "error", message: line });
-			}
-		})();
+		drainPiStdout(io, events, sessionReady, statusTracker, modelProviders);
+		drainPiStderr(io, events);
 
 		// Fired off once, right at start — see the ASSUMPTION note on
 		// `normalizePiCommandsResponse`/`normalizePiStateModel` in normalize/pi.ts
@@ -164,6 +240,7 @@ export const piAdapter: Adapter = {
 				approvals.answer(requestId, optionId);
 			},
 			events,
+			getStatus: statusTracker.request,
 			send(text: string): void {
 				events.push(userMessageEvent(text));
 				io.writeLine(buildPiPromptCommand(text));

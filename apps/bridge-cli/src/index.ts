@@ -24,21 +24,16 @@ function requireAgentCli(agentKind: AgentKind): void {
 	}
 }
 
-async function main(): Promise<void> {
-	const args = parseArgs(process.argv.slice(CLI_ARGS_START_INDEX));
-	const adapter = selectAdapter(args.agentKind);
-	requireAgentCli(args.agentKind);
-
-	const transport = createRelayTransport({
-		serverUrl: args.serverUrl,
-		token: args.token,
-	});
-	process.stdout.write(
-		`Starting ${args.agentKind} in ${args.dir} → ${args.serverUrl}\n`
-	);
-	// Register the session BEFORE starting the adapter so the server can hand
-	// back the token's persisted startup config (Phase 4) in time for
-	// `adapter.start` to apply it (appendSystemPrompt, maxTurns, …).
+/** Registers the bridge session and starts the adapter — split out of `main`
+ * purely to keep it under the line gate. Session registration happens BEFORE
+ * starting the adapter so the server can hand back the token's persisted
+ * startup config (Phase 4) in time for `adapter.start` to apply it
+ * (appendSystemPrompt, maxTurns, …). */
+async function startAgentSession(
+	args: ReturnType<typeof parseArgs>,
+	adapter: ReturnType<typeof selectAdapter>,
+	transport: ReturnType<typeof createRelayTransport>
+) {
 	const { sessionId, config } = await transport.startSession({
 		agentKind: args.agentKind,
 		label: args.label,
@@ -47,6 +42,18 @@ async function main(): Promise<void> {
 		resume: args.resume,
 		config: config ?? undefined,
 	});
+	return { sessionId, handle };
+}
+
+/** Wires SIGINT/SIGTERM to a clean shutdown, drives the bridge session to
+ * completion, and reports the outcome — the rest of `main` after the agent
+ * has started. */
+async function runSession(
+	args: ReturnType<typeof parseArgs>,
+	transport: ReturnType<typeof createRelayTransport>,
+	handle: Awaited<ReturnType<typeof startAgentSession>>["handle"],
+	sessionId: string
+): Promise<void> {
 	const controller = new AbortController();
 
 	const stop = () => {
@@ -80,6 +87,28 @@ async function main(): Promise<void> {
 	});
 
 	process.stdout.write(`Bridge session ended: ${endedSessionId}\n`);
+}
+
+async function main(): Promise<void> {
+	const args = parseArgs(process.argv.slice(CLI_ARGS_START_INDEX));
+	const adapter = selectAdapter(args.agentKind, {
+		opencodeTransport: args.opencodeTransport,
+	});
+	requireAgentCli(args.agentKind);
+
+	const transport = createRelayTransport({
+		serverUrl: args.serverUrl,
+		token: args.token,
+	});
+	process.stdout.write(
+		`Starting ${args.agentKind} in ${args.dir} → ${args.serverUrl}\n`
+	);
+	const { sessionId, handle } = await startAgentSession(
+		args,
+		adapter,
+		transport
+	);
+	await runSession(args, transport, handle, sessionId);
 }
 
 main().catch((error: unknown) => {

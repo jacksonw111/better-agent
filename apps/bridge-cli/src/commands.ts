@@ -68,7 +68,18 @@ export interface ControlListSessionsCommand {
 	type: "control";
 }
 
+/** The Local Agent detail page's status refresh — asks the agent for a
+ * normalized status snapshot (context usage, cost/tokens, MCP servers,
+ * running/idle). Routed to `CommandSink.getStatus`; like `listSessions`,
+ * fire-and-forget — the adapter answers by PUSHING a `status_snapshot`
+ * status event, never a direct return value. */
+export interface ControlGetStatusCommand {
+	action: "getStatus";
+	type: "control";
+}
+
 export type ControlCommand =
+	| ControlGetStatusCommand
 	| ControlInterruptCommand
 	| ControlListSessionsCommand
 	| ControlSetModelCommand
@@ -108,6 +119,9 @@ function parseControlCommand(
 	if (data.action === "listSessions") {
 		return { action: "listSessions", type: "control" };
 	}
+	if (data.action === "getStatus") {
+		return { action: "getStatus", type: "control" };
+	}
 	return null;
 }
 
@@ -117,8 +131,8 @@ function parseControlCommand(
  * `{ text }` (a plain-text command), `{ type: "approval", requestId,
  * optionId }` (the web UI's reply to an `ApprovalEvent`), and `{ type:
  * "control", action: "stop" | "interrupt" | "setModel" |
- * "setPermissionMode" | "listSessions", ... }` (the web UI's session
- * controls); anything else is `null` and left undispatched.
+ * "setPermissionMode" | "listSessions" | "getStatus", ... }` (the web UI's
+ * session controls); anything else is `null` and left undispatched.
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
@@ -151,6 +165,11 @@ export interface AfterIdRef {
  * a crash. */
 export interface CommandSink {
 	answerApproval(requestId: string, optionId: string): void;
+	/** Asks the agent for a normalized status snapshot; the adapter answers by
+	 * pushing a `status_snapshot` status event (see
+	 * `apps/bridge-cli/src/adapters/types.ts`'s `StatusSnapshotDetail`). Called
+	 * for a `control: getStatus` command — the detail page's status line. */
+	getStatus?(): void;
 	/** Cancels the in-flight turn but leaves the session alive. Called for a
 	 * `control: interrupt` command — the detail page's Stop/Interrupt
 	 * button. */
@@ -202,6 +221,9 @@ function callSetPermissionMode(sink: CommandSink, mode: string): void {
 function callListSessions(sink: CommandSink): void {
 	sink.listSessions?.();
 }
+function callGetStatus(sink: CommandSink): void {
+	sink.getStatus?.();
+}
 
 /** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`
  * method. Split out of `dispatchCommands` purely to keep that loop's body
@@ -220,6 +242,8 @@ function dispatchControlCommand(
 		callSetPermissionMode(sink, command.mode);
 	} else if (command.action === "listSessions") {
 		callListSessions(sink);
+	} else if (command.action === "getStatus") {
+		callGetStatus(sink);
 	}
 }
 

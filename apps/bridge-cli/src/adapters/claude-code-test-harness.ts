@@ -15,7 +15,11 @@ import { createAsyncQueue } from "./async-queue";
 export interface QueryHarness {
 	canUseTool: CanUseTool;
 	endOutput(): void;
+	/** Rejects by default (like the other control methods, a test that cares
+	 * overrides it) — getStatus must ship a snapshot even when this fails. */
+	getContextUsage: ReturnType<typeof vi.fn>;
 	interrupt: ReturnType<typeof vi.fn>;
+	mcpServerStatus: ReturnType<typeof vi.fn>;
 	/** The full `options` object passed to `query()` — lets a test assert on
 	 * startup config (systemPrompt preset+append, maxTurns, …). */
 	options: Record<string, unknown> | undefined;
@@ -38,6 +42,12 @@ export function mockQuery(models: Array<{ value: string }> = []): {
 	const setModel = vi.fn(() => Promise.resolve());
 	const setPermissionMode = vi.fn(() => Promise.resolve());
 	const supportedModels = vi.fn(() => Promise.resolve(models));
+	const getContextUsage = vi.fn(() =>
+		Promise.reject(new Error("getContextUsage not mocked"))
+	);
+	const mcpServerStatus = vi.fn(() =>
+		Promise.reject(new Error("mcpServerStatus not mocked"))
+	);
 	const harness = {} as QueryHarness;
 	vi.mocked(query).mockImplementation((params) => {
 		harness.prompt = params.prompt as AsyncIterable<SDKUserMessage>;
@@ -49,12 +59,16 @@ export function mockQuery(models: Array<{ value: string }> = []): {
 		harness.setModel = setModel;
 		harness.setPermissionMode = setPermissionMode;
 		harness.supportedModels = supportedModels;
+		harness.getContextUsage = getContextUsage;
+		harness.mcpServerStatus = mcpServerStatus;
 		const iterable = {
 			[Symbol.asyncIterator]: () => output[Symbol.asyncIterator](),
 			interrupt,
 			setModel,
 			setPermissionMode,
 			supportedModels,
+			getContextUsage,
+			mcpServerStatus,
 		};
 		// The adapter only touches the async-iterable + interrupt/setModel/
 		// setPermissionMode/supportedModels; the rest of the real Query surface is

@@ -94,6 +94,10 @@ function normalizeCodexAgentMessageDelta(
 	return text === undefined ? NO_EVENTS : [{ kind: "output", text }];
 }
 
+// Researched as a suspected dead path (plan §2: docs don't list a
+// `turn/failed` notification), but codex.test.ts pins its mapping and the
+// cost of keeping it is one tolerant handler — kept until a real codex
+// binary confirms the protocol either way.
 function normalizeCodexTurnFailed(
 	params: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -118,6 +122,19 @@ const CODEX_NOTIFICATION_HANDLERS: Record<string, CodexNotificationHandler> = {
 	"turn/failed": normalizeCodexTurnFailed,
 };
 
+// --- Status snapshot sources -------------------------------------------------
+//
+// Two previously-ignored notifications now feed the `getStatus` snapshot
+// (they don't map to feed events of their own — the adapter caches the
+// latest values and answers a `control: getStatus` with ONE `status_snapshot`
+// event; see adapters/codex.ts):
+//   - `thread/tokenUsage/updated` → session token totals + context window
+//   - `thread/status/changed`     → running / idle
+
+/** The name codex's tokenUsage notification arrives under.
+ * ASSUMPTION (unverified, no `codex` binary — method name per the plan §1/§2
+ * research against https://developers.openai.com/codex/app-server): the
+ * params carry a `tokenUsage` object. */
 /** Maps one parsed line of `codex app-server`'s stdout (JSON-RPC notifications). */
 export function normalizeCodex(raw: unknown): NormalizedEvent[] {
 	if (!isRecord(raw) || typeof raw.method !== "string") {

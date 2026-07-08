@@ -4,6 +4,18 @@ import type { NormalizedEvent } from "../normalize/types";
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */
 export type AgentKind = "claude-code" | "opencode" | "codex" | "pi";
 
+/** Which wire protocol drives the opencode agent: `acp` (the default —
+ * `opencode acp` over stdio JSON-RPC, the battle-tested path) or `serve`
+ * (`opencode serve` over HTTP + SSE, opt-in via `--opencode-transport serve`;
+ * its wire shapes are still unverified against a real binary — see
+ * opencode-serve.ts). Ignored by every other agent kind. */
+export type OpencodeTransport = "acp" | "serve";
+
+export const OPENCODE_TRANSPORTS: readonly OpencodeTransport[] = [
+	"acp",
+	"serve",
+];
+
 /** How a session's cost/token usage becomes available: pushed on the event
  * stream as it happens ("stream"), only obtainable by asking the agent on
  * demand ("poll"), or not available at all ("none"). Mirrored field-for-field
@@ -57,6 +69,48 @@ export interface AgentCapabilities {
  * all three adapters' `onExit`/`rpc.onExit` wiring. */
 export const AGENT_EXITED_STATUS = "agent_exited";
 
+/** `status` value each adapter pushes in reply to a `control: getStatus`
+ * command (Phase R1's normalized on-demand status surface) — the web renders
+ * its `detail` (a `StatusSnapshotDetail`) as one uniform status line, no
+ * agent-specific casing. */
+export const STATUS_SNAPSHOT_STATUS = "status_snapshot";
+
+/** Context-window occupancy: `used`/`size` are token counts, `pct` is the
+ * agent-reported (or adapter-derived) used/size percentage, 0–100. */
+export interface StatusSnapshotContextUsage {
+	pct?: number;
+	size?: number;
+	used?: number;
+}
+
+/** Session-total token buckets — each optional since not every agent reports
+ * every bucket (e.g. codex has no cacheWrite figure). */
+export interface StatusSnapshotTokens {
+	cacheRead?: number;
+	cacheWrite?: number;
+	input?: number;
+	output?: number;
+}
+
+/**
+ * The normalized on-demand status model (plan §3.3): every field optional —
+ * each adapter fills exactly what its agent can answer (claude:
+ * `getContextUsage`/`mcpServerStatus`; pi: `get_session_stats`/`get_state`;
+ * codex: cached `thread/tokenUsage/updated` + `thread/status/changed`), and
+ * the web renders whatever arrived rather than gating on completeness.
+ */
+export interface StatusSnapshotDetail {
+	contextUsage?: StatusSnapshotContextUsage;
+	costUsd?: number;
+	mcpServers?: { name: string; status: string }[];
+	model?: string;
+	permissionMode?: string;
+	/** True while the agent is actively generating (pi's `isStreaming`, codex's
+	 * thread status); absent when the agent doesn't report it. */
+	running?: boolean;
+	tokens?: StatusSnapshotTokens;
+}
+
 /** A running agent process, already normalizing its own output. */
 export interface AgentHandle {
 	/**
@@ -70,6 +124,15 @@ export interface AgentHandle {
 	answerApproval(requestId: string, optionId: string): void;
 	/** Normalized events, in emission order. Completes when the agent exits. */
 	events: AsyncIterable<NormalizedEvent>;
+	/**
+	 * Asks the agent for its current status (context usage, cost/tokens, MCP
+	 * servers, running/idle — whatever it can answer) and pushes ONE
+	 * `STATUS_SNAPSHOT_STATUS` status event carrying a `StatusSnapshotDetail`.
+	 * Fire-and-forget like `listSessions`: the web's `control: getStatus`
+	 * command gets its answer on the event stream, never as a return value.
+	 * Optional — see `interrupt`; claude-code/pi/codex implement it.
+	 */
+	getStatus?(): void;
 	/**
 	 * Cancels the in-flight turn but keeps the session alive — distinct from
 	 * `stop`, which ends the session outright. Optional: only adapters backed

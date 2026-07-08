@@ -1,6 +1,10 @@
 import { existsSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import type { AgentKind } from "./adapters/types";
+import {
+	type AgentKind,
+	OPENCODE_TRANSPORTS,
+	type OpencodeTransport,
+} from "./adapters/types";
 
 const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
@@ -9,6 +13,11 @@ export interface BridgeCliArgs {
 	debug: boolean;
 	dir: string;
 	label: string | undefined;
+	/** Which protocol drives opencode (`--opencode-transport acp|serve`).
+	 * Defaults to `acp` so nothing changes for existing users; `serve` opts
+	 * into the HTTP+SSE adapter (see adapters/opencode-serve.ts). Ignored for
+	 * every other --agent. */
+	opencodeTransport: OpencodeTransport;
 	/** A prior claude session id to resume (`--resume <id>`) — threaded to
 	 * `adapter.start(dir, { resume })`. Only claude-code's adapter honors it;
 	 * every other adapter ignores the option entirely. */
@@ -21,6 +30,7 @@ const FLAG_TO_FIELD = {
 	"--agent": "agentKind",
 	"--dir": "dir",
 	"--label": "label",
+	"--opencode-transport": "opencodeTransport",
 	"--resume": "resume",
 	"--server": "serverUrl",
 	"--token": "token",
@@ -53,9 +63,28 @@ function isAgentKind(value: string): value is AgentKind {
 	return (AGENT_KINDS as string[]).includes(value);
 }
 
+function isOpencodeTransport(value: string): value is OpencodeTransport {
+	return (OPENCODE_TRANSPORTS as readonly string[]).includes(value);
+}
+
+function validateOpencodeTransport(
+	value: string | undefined
+): OpencodeTransport {
+	if (value === undefined) {
+		return "acp";
+	}
+	if (!isOpencodeTransport(value)) {
+		throw new Error(
+			`Unknown --opencode-transport "${value}" (expected acp | serve)`
+		);
+	}
+	return value;
+}
+
 /**
  * Parses `better-agent-bridge`'s CLI arguments: `--agent`, `--dir`,
- * `--token`, `--server`, and the optional `--label`/`--resume`. Falls back to
+ * `--token`, `--server`, and the optional
+ * `--label`/`--resume`/`--opencode-transport`. Falls back to
  * env vars (`BETTER_AGENT_BRIDGE_TOKEN`, `BETTER_AGENT_BRIDGE_SERVER`) and the
  * current working directory so the token/server don't have to be typed on
  * every run.
@@ -94,6 +123,7 @@ export function parseArgs(
 		serverUrl,
 		dir: validateDir(flags.dir ?? process.cwd()),
 		label: flags.label,
+		opencodeTransport: validateOpencodeTransport(flags.opencodeTransport),
 		resume: flags.resume,
 		debug: argv.includes("--debug"),
 	};

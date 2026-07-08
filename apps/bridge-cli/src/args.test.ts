@@ -6,6 +6,7 @@ const UNKNOWN_AGENT = /Unknown --agent/;
 const MISSING_TOKEN = /--token is required/;
 const MISSING_SERVER = /--server is required/;
 const MISSING_VALUE = /Missing value for --agent/;
+const UNKNOWN_OPENCODE_TRANSPORT = /Unknown --opencode-transport/;
 
 const BASE = [
 	"--agent",
@@ -36,6 +37,7 @@ describe("parseArgs - accepted input", () => {
 			serverUrl: "https://bridge.example.com",
 			dir: "/tmp",
 			label: "my repo",
+			opencodeTransport: "acp",
 			resume: "claude-session-abc",
 			debug: false,
 		});
@@ -63,6 +65,23 @@ describe("parseArgs - accepted input", () => {
 			{}
 		);
 		expect(args.agentKind).toBe("pi");
+	});
+});
+
+describe("parseArgs - opencode transport", () => {
+	it("defaults --opencode-transport to acp", () => {
+		expect(parseArgs(BASE, {}).opencodeTransport).toBe("acp");
+	});
+
+	it("accepts --opencode-transport serve", () => {
+		const args = parseArgs([...BASE, "--opencode-transport", "serve"], {});
+		expect(args.opencodeTransport).toBe("serve");
+	});
+
+	it("rejects an unknown --opencode-transport value", () => {
+		expect(() =>
+			parseArgs([...BASE, "--opencode-transport", "http"], {})
+		).toThrow(UNKNOWN_OPENCODE_TRANSPORT);
 	});
 });
 
