@@ -24,8 +24,10 @@ import {
 import {
 	handleHsgtFlow,
 	handleMoneyFlow,
+	handleNews,
 	handleSectorConstituents,
 	handleSectorList,
+	handleStockNews,
 } from "./tools-impl-market";
 
 export interface ToolEnv {
@@ -266,6 +268,8 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_macro_us: (args, env) => handleMacroUs(args, env),
 	finance_macro_cn: (args) => handleMacroCn(args),
 	finance_yield_curve: (_args, env) => handleYieldCurve(env),
+	finance_news: (args) => handleNews(args),
+	finance_stock_news: (args) => handleStockNews(args),
 };
 
 export function runTool(

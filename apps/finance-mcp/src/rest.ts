@@ -7,6 +7,7 @@ import { getHsgtFlow } from "./core/eastmoney/hsgt";
 import { getFinancialIndicators } from "./core/eastmoney/indicators";
 import { getMacroCn } from "./core/eastmoney/macro";
 import { getMoneyFlow } from "./core/eastmoney/money-flow";
+import { getMarketNews, getStockNews } from "./core/eastmoney/news";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getCompanyProfile } from "./core/eastmoney/profile";
 import { getStockResearch } from "./core/eastmoney/research";
@@ -206,6 +207,26 @@ async function sectorConstituentsHandler(c: Context) {
 	);
 }
 
+const DEFAULT_NEWS_LIMIT = 20;
+const DEFAULT_STOCK_NEWS_LIMIT = 10;
+
+async function newsHandler(c: Context) {
+	const limit = Number(c.req.query("limit") ?? "") || DEFAULT_NEWS_LIMIT;
+	return c.json(
+		await withCache(`news:${limit}`, 60, () => getMarketNews(limit))
+	);
+}
+
+async function stockNewsHandler(c: Context) {
+	const query = c.req.query("query") ?? "";
+	const limit = Number(c.req.query("limit") ?? "") || DEFAULT_STOCK_NEWS_LIMIT;
+	return c.json(
+		await withCache(`stocknews:${query}:${limit}`, 300, () =>
+			getStockNews(query, limit)
+		)
+	);
+}
+
 const DEFAULT_MACRO_LIMIT = 12;
 
 function fredKey(c: Context): string {
@@ -261,4 +282,6 @@ export function registerRest(app: Hono): void {
 	app.get("/api/macro/us", macroUsHandler);
 	app.get("/api/macro/cn", macroCnHandler);
 	app.get("/api/yield-curve", yieldCurveHandler);
+	app.get("/api/news", newsHandler);
+	app.get("/api/stock-news", stockNewsHandler);
 }

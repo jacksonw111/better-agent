@@ -224,3 +224,46 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_yield_curve");
+
+// B11's news / stock-news tool defs.
+TOOLS.push({
+	name: "finance_news",
+	description:
+		"Latest market flash news (7x24) from EastMoney: headline, summary, " +
+		"time, related tickers.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			limit: {
+				type: "number",
+				description: "Number of items (default 20, max 100).",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_news");
+
+TOOLS.push({
+	name: "finance_stock_news",
+	description:
+		"Recent news articles about a company/keyword (Chinese name works " +
+		"best), from EastMoney search: title, snippet, source, date, url.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			query: {
+				type: "string",
+				description: "Company name or keyword, e.g. 浦发银行.",
+			},
+			limit: {
+				type: "number",
+				description: "Number of articles (default 10, max 50).",
+			},
+		},
+		required: ["query"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_stock_news");

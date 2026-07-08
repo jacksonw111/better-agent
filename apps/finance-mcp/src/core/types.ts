@@ -243,6 +243,22 @@ export interface YieldPoint {
 	yield: number;
 }
 
+export interface NewsItem {
+	id: string;
+	related: string[];
+	summary: string;
+	time: string;
+	title: string;
+}
+
+export interface StockNewsItem {
+	date: string;
+	snippet: string;
+	source: string;
+	title: string;
+	url: string;
+}
+
 export interface TechnicalSnapshot {
 	asOf: string;
 	boll: { lower: number; mid: number; upper: number } | null;

@@ -4,12 +4,15 @@
 import { withCache } from "./core/cache";
 import { getHsgtFlow } from "./core/eastmoney/hsgt";
 import { getMoneyFlow } from "./core/eastmoney/money-flow";
+import { getMarketNews, getStockNews } from "./core/eastmoney/news";
 import { getSectorConstituents, getSectorList } from "./core/eastmoney/sector";
 import type { ToolResult } from "./tools-impl";
 import { argNumber, argString, toolJson } from "./tools-impl";
 
 const DEFAULT_MONEY_FLOW_DAYS = 5;
 const DEFAULT_HSGT_DAYS = 10;
+const DEFAULT_NEWS_LIMIT = 20;
+const DEFAULT_STOCK_NEWS_LIMIT = 10;
 
 export async function handleMoneyFlow(
 	args: Record<string, unknown>
@@ -48,6 +51,28 @@ export async function handleSectorConstituents(
 	return toolJson(
 		await withCache(`sectorstocks:${board}`, 120, () =>
 			getSectorConstituents(board)
+		)
+	);
+}
+
+// B11's market/per-stock news handlers.
+export async function handleNews(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const limit = argNumber(args, "limit", DEFAULT_NEWS_LIMIT);
+	return toolJson(
+		await withCache(`news:${limit}`, 60, () => getMarketNews(limit))
+	);
+}
+
+export async function handleStockNews(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const query = argString(args, "query");
+	const limit = argNumber(args, "limit", DEFAULT_STOCK_NEWS_LIMIT);
+	return toolJson(
+		await withCache(`stocknews:${query}:${limit}`, 300, () =>
+			getStockNews(query, limit)
 		)
 	);
 }
