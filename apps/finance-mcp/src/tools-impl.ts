@@ -1,3 +1,4 @@
+import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { economicCalendar } from "./core/finnhub/economic";
@@ -89,6 +90,13 @@ async function handleEconomicCalendar(
 	);
 }
 
+async function handleCentralBank(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const market = args.market === "us" ? "us" : "a"; // "cn" maps to the non-us branch
+	return toolJson(await centralBank(market as "us" | "a"));
+}
+
 // Feature tasks add `if (name === "finance_x") { ... }` branches above the fallback.
 export async function runTool(
 	name: string,
@@ -109,6 +117,9 @@ export async function runTool(
 	}
 	if (name === "finance_economic_calendar") {
 		return await handleEconomicCalendar(_args, env);
+	}
+	if (name === "finance_central_bank") {
+		return await handleCentralBank(_args);
 	}
 	return toolText(`Unknown tool: ${name}`, true);
 }

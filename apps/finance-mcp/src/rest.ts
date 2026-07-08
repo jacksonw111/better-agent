@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { economicCalendar } from "./core/finnhub/economic";
@@ -36,7 +37,14 @@ export function registerRest(app: Hono): void {
 		const from = c.req.query("from") ?? "";
 		const to = c.req.query("to") ?? "";
 		const country = c.req.query("country") ?? undefined;
-		const key = (c.env as { FINNHUB_API_KEY?: string }).FINNHUB_API_KEY ?? "";
+		const key =
+			(c.env as { FINNHUB_API_KEY?: string } | undefined)?.FINNHUB_API_KEY ??
+			"";
 		return c.json(await economicCalendar(from, to, key, country));
+	});
+
+	app.get("/api/calendar/central-bank", async (c) => {
+		const market = c.req.query("market") === "us" ? "us" : "a";
+		return c.json(await centralBank(market));
 	});
 }

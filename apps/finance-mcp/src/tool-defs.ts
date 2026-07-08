@@ -129,3 +129,23 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_economic_calendar");
+
+TOOLS.push({
+	name: "finance_central_bank",
+	description:
+		"Recent central-bank money-market operations. market='cn' → PBOC reverse-repo / MLF " +
+		"(amount 亿元, rate, tenor). market='us' → NY Fed repo/reverse-repo operations.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			market: {
+				type: "string",
+				enum: ["cn", "us"],
+				description: "cn (PBOC) or us (Fed).",
+			},
+		},
+		required: ["market"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_central_bank");
