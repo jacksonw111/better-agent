@@ -1,11 +1,10 @@
-// apps/web/src/components/dashboard/token-chart.tsx
-
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import {
+	Area,
+	AreaChart,
 	CartesianGrid,
 	Legend,
 	Line,
-	LineChart,
 	ResponsiveContainer,
 	Tooltip,
 	XAxis,
@@ -19,18 +18,23 @@ import {
 } from "./dashboard-constants";
 import type { DayPoint } from "./use-usage-data";
 
-const CHART_HEIGHT = 256;
-const TICK_FONT_SIZE = 12;
+const skelKey = (i: number) => `sk${i}`;
+
+const CHART_HEIGHT = 280;
+const TICK_FONT_SIZE = 11;
 const LINE_STROKE_WIDTH = 2;
+const AREA_FILL_OPACITY = 0.15;
 
 const TOOLTIP_STYLE = {
 	background: "var(--popover)",
 	border: "1px solid var(--border)",
-	borderRadius: "6px",
+	borderRadius: "8px",
 	fontSize: "12px",
 } as const;
 
 const formatCostTick = (value: number) => `$${value.toFixed(0)}`;
+const formatTokenTick = (value: number) =>
+	value >= 1000 ? `${(value / 1000).toFixed(0)}k` : String(value);
 
 interface TokenChartProps {
 	daily: DayPoint[];
@@ -45,64 +49,44 @@ interface ChartRow {
 }
 
 function formatDay(day: string): string {
-	// "2024-07-01" → "Jul 1"
 	const d = new Date(`${day}T00:00:00`);
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const SKELETON_BARS = [
-	{ key: "b1", height: "40%" },
-	{ key: "b2", height: "65%" },
-	{ key: "b3", height: "35%" },
-	{ key: "b4", height: "80%" },
-	{ key: "b5", height: "55%" },
-	{ key: "b6", height: "70%" },
-	{ key: "b7", height: "45%" },
-] as const;
-
-// Mirrors the chart shape: legend dots, plot area with rising bars, x-axis line.
 function ChartSkeleton() {
 	return (
-		<div className="flex h-64 w-full flex-col gap-2">
-			<div className="flex items-center gap-4">
-				<Skeleton className="h-3 w-16" />
-				<Skeleton className="h-3 w-16" />
-			</div>
-			<div className="flex flex-1 items-end gap-3 px-2">
-				{SKELETON_BARS.map((bar) => (
-					<Skeleton
-						className="w-full rounded-t"
-						key={bar.key}
-						style={{ height: bar.height }}
-					/>
-				))}
-			</div>
-			<Skeleton className="h-px w-full" />
-			<div className="flex justify-between px-2">
-				<Skeleton className="h-3 w-10" />
-				<Skeleton className="h-3 w-10" />
-				<Skeleton className="h-3 w-10" />
-			</div>
+		<div className="flex h-72 w-full items-end gap-2 px-2">
+			{Array.from({ length: 12 }, (_, i) => (
+				<Skeleton
+					className="flex-1 rounded-t"
+					key={skelKey(i)}
+					style={{ height: `${30 + ((i * 37) % 60)}%` }}
+				/>
+			))}
 		</div>
 	);
 }
 
-function ChartLines() {
+function ChartSeries() {
 	return (
 		<>
-			<Line
+			<Area
 				dataKey="Input"
-				dot={false}
+				fill={COLOR_INPUT}
+				fillOpacity={AREA_FILL_OPACITY}
 				name="Input"
+				stackId="tokens"
 				stroke={COLOR_INPUT}
 				strokeWidth={LINE_STROKE_WIDTH}
 				type="monotone"
 				yAxisId="tokens"
 			/>
-			<Line
+			<Area
 				dataKey="Output"
-				dot={false}
+				fill={COLOR_OUTPUT}
+				fillOpacity={AREA_FILL_OPACITY}
 				name="Output"
+				stackId="tokens"
 				stroke={COLOR_OUTPUT}
 				strokeWidth={LINE_STROKE_WIDTH}
 				type="monotone"
@@ -124,7 +108,17 @@ function ChartLines() {
 function ChartBody({ data }: { data: ChartRow[] }) {
 	return (
 		<ResponsiveContainer height={CHART_HEIGHT} width="100%">
-			<LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+			<AreaChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+				<defs>
+					<linearGradient id="gInput" x1="0" x2="0" y1="0" y2="1">
+						<stop offset="5%" stopColor={COLOR_INPUT} stopOpacity={0.3} />
+						<stop offset="95%" stopColor={COLOR_INPUT} stopOpacity={0} />
+					</linearGradient>
+					<linearGradient id="gOutput" x1="0" x2="0" y1="0" y2="1">
+						<stop offset="5%" stopColor={COLOR_OUTPUT} stopOpacity={0.3} />
+						<stop offset="95%" stopColor={COLOR_OUTPUT} stopOpacity={0} />
+					</linearGradient>
+				</defs>
 				<CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
 				<XAxis
 					dataKey="day"
@@ -134,6 +128,7 @@ function ChartBody({ data }: { data: ChartRow[] }) {
 				<YAxis
 					stroke="var(--muted-foreground)"
 					tick={{ fontSize: TICK_FONT_SIZE }}
+					tickFormatter={formatTokenTick}
 					yAxisId="tokens"
 				/>
 				<YAxis
@@ -144,9 +139,9 @@ function ChartBody({ data }: { data: ChartRow[] }) {
 					yAxisId="cost"
 				/>
 				<Tooltip contentStyle={TOOLTIP_STYLE} />
-				<Legend wrapperStyle={{ fontSize: "12px" }} />
-				<ChartLines />
-			</LineChart>
+				<Legend wrapperStyle={{ fontSize: "11px" }} />
+				<ChartSeries />
+			</AreaChart>
 		</ResponsiveContainer>
 	);
 }
@@ -162,8 +157,8 @@ export function TokenChart({ daily, isPending }: TokenChartProps) {
 		day: formatDay(d.day),
 	}));
 	return (
-		<div className="rounded-lg border bg-card p-4 shadow-sm">
-			<p className="mb-4 font-medium text-sm">Token Usage</p>
+		<div className="rounded-xl border bg-card p-4 shadow-sm">
+			<p className="mb-3 font-medium text-sm">Usage Trends</p>
 			<ChartBody data={data} />
 		</div>
 	);

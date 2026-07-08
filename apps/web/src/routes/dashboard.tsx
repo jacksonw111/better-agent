@@ -1,15 +1,15 @@
-// apps/web/src/routes/dashboard.tsx
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import {
 	DEFAULT_WINDOW,
 	type WindowDays,
 } from "@/components/dashboard/dashboard-constants";
 import { EmptyState } from "@/components/dashboard/empty-state";
-import { LocalAgentUsage } from "@/components/dashboard/local-agent-usage";
-import { SummaryCards } from "@/components/dashboard/summary-cards";
+import { StatsPanel } from "@/components/dashboard/stats-panel";
 import { TokenChart } from "@/components/dashboard/token-chart";
+import { UsageOverview } from "@/components/dashboard/usage-overview";
 import { useUsageData } from "@/components/dashboard/use-usage-data";
 import { WindowToggle } from "@/components/dashboard/window-toggle";
 
@@ -35,7 +35,7 @@ function DashboardHeader({
 	return (
 		<div className="flex items-center justify-between">
 			<div className="flex flex-col">
-				<h1 className="font-semibold text-lg">Usage</h1>
+				<h1 className="font-semibold text-lg">Token Tracking</h1>
 				<p className="text-muted-foreground text-sm">{todayLabel()}</p>
 			</div>
 			<WindowToggle onChange={onWindowChange} value={windowDays} />
@@ -48,20 +48,28 @@ function DashboardBody({
 	isEmpty,
 	isPending,
 	totals,
+	windowDays,
 }: {
 	daily: ReturnType<typeof useUsageData>["daily"];
 	isEmpty: boolean;
 	isPending: boolean;
 	totals: ReturnType<typeof useUsageData>["totals"];
+	windowDays: WindowDays;
 }) {
 	if (isEmpty) {
 		return <EmptyState />;
 	}
 	return (
-		<>
-			<SummaryCards isPending={isPending} totals={totals} />
-			<TokenChart daily={daily} isPending={isPending} />
-		</>
+		<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+			<div className="flex flex-col gap-4 lg:col-span-2">
+				<StatsPanel isPending={isPending} totals={totals} />
+				<TokenChart daily={daily} isPending={isPending} />
+				<ActivityHeatmap daily={daily} />
+			</div>
+			<div className="lg:col-span-1">
+				<UsageOverview windowDays={windowDays} />
+			</div>
+		</div>
 	);
 }
 
@@ -86,8 +94,8 @@ export function DashboardPage() {
 				isEmpty={isEmpty}
 				isPending={isPending}
 				totals={totals}
+				windowDays={windowDays}
 			/>
-			<LocalAgentUsage windowDays={windowDays} />
 		</div>
 	);
 }
