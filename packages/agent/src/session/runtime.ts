@@ -5,6 +5,9 @@ import type { AgentConfig, AgentParams } from "../agent/types";
 import type {
 	AgentStore,
 	AttachmentStore,
+	EmbeddingClient,
+	MemoryItemStore,
+	MemoryStore,
 	MessageStore,
 	ModelCacheStore,
 	ProviderCatalogStore,
@@ -52,6 +55,12 @@ export interface SessionRuntimeDeps {
 	attachmentStore?: AttachmentStore;
 	cancellation?: CancellationRegistry;
 	clock?: () => Date;
+	/** B1 memory-retrieval injection (see turn-messages.ts / memory-retrieval.ts).
+	 * All three optional — omitted in most existing runtime tests, which don't
+	 * exercise memory; retrieval is a no-op without them. */
+	embeddingClient?: EmbeddingClient | null;
+	memoryItemStore?: MemoryItemStore;
+	memoryStore?: MemoryStore;
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
 	modelFactory: ModelFactory;

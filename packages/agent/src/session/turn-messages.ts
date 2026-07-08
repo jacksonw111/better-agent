@@ -3,12 +3,16 @@ import type { AgentConfig } from "../agent/types";
 import type {
 	AgentStore,
 	AttachmentStore,
+	EmbeddingClient,
+	MemoryItemStore,
+	MemoryStore,
 	MessageStore,
 	ModelCacheStore,
 	SessionStore,
 } from "../ports";
 import { compactSession, type Summarizer } from "./compaction";
 import { buildDynamicContext } from "./dynamic-context";
+import { buildMemoryContext, latestUserText } from "./memory-retrieval";
 import { type ResolvedImages, toModelMessages } from "./to-model-messages";
 import { estimateTokens, exceedsContext } from "./token-estimate";
 import type { MessageWithParts, Session } from "./types";
@@ -16,6 +20,12 @@ import type { MessageWithParts, Session } from "./types";
 interface BuildTurnMessagesDeps {
 	attachmentStore?: AttachmentStore;
 	clock?: () => Date;
+	/** B1 retrieval injection (see memory-retrieval.ts). All three are optional
+	 * so existing callers/tests that don't wire memory keep working — retrieval
+	 * is simply skipped when memoryStore/memoryItemStore are absent. */
+	embeddingClient?: EmbeddingClient | null;
+	memoryItemStore?: MemoryItemStore;
+	memoryStore?: MemoryStore;
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
 	sessionStore: SessionStore;
@@ -118,6 +128,33 @@ export async function persistUserTurn(input: {
 	}
 }
 
+// B1 retrieval injection: appends a compact block of the agent's assigned
+// memories most relevant to the current turn, right after the dynamic
+// context. A no-op (returns the base prompt unchanged) whenever memory isn't
+// wired for this deps object, the agent has no assigned memories, or
+// retrieval fails — see buildMemoryContext's own guards/try-catch.
+async function resolveSystemPrompt(
+	deps: BuildTurnMessagesDeps,
+	agent: AgentConfig,
+	history: MessageWithParts[],
+	now: Date
+): Promise<string> {
+	const base = `${agent.systemPrompt}\n\n${buildDynamicContext(now)}`;
+	if (!(deps.memoryStore && deps.memoryItemStore)) {
+		return base;
+	}
+	const memoryBlock = await buildMemoryContext(
+		{
+			memoryStore: deps.memoryStore,
+			memoryItemStore: deps.memoryItemStore,
+			embeddingClient: deps.embeddingClient,
+		},
+		agent.id,
+		latestUserText(history)
+	);
+	return memoryBlock ? `${base}\n\n${memoryBlock}` : base;
+}
+
 export async function buildTurnMessages(
 	deps: BuildTurnMessagesDeps,
 	agent: AgentConfig,
@@ -126,7 +163,7 @@ export async function buildTurnMessages(
 ): Promise<ModelMessage[]> {
 	const history = await deps.messageStore.listWithParts(sessionId);
 	const now = (deps.clock ?? (() => new Date()))();
-	const systemPrompt = `${agent.systemPrompt}\n\n${buildDynamicContext(now)}`;
+	const systemPrompt = await resolveSystemPrompt(deps, agent, history, now);
 	const images = await resolveImages(deps.attachmentStore, history);
 	const base = {
 		systemPrompt,
