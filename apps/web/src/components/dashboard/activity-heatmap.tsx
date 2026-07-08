@@ -1,88 +1,24 @@
+// apps/web/src/components/dashboard/activity-heatmap.tsx
+
 import { useMemo, useState } from "react";
-import type { DayPoint } from "./use-usage-data";
+import {
+	buildWeeks,
+	CELL_GAP,
+	CELL_SIZE,
+	DAY_LABEL_ROWS,
+	type HeatmapCell,
+	type HeatmapWeek,
+	LEVELS_DARK,
+	LEVELS_LIGHT,
+	parseUtcDay,
+} from "./heatmap-utils";
+import { useHeatmapData } from "./use-heatmap-data";
 
-// GitHub-style 5-level intensity palette — mirrors TokenTracker's
-// ActivityHeatmap (ebedf0 → 10b981 in light, 30363d → 34d399 in dark).
-const LEVELS_LIGHT = ["#ebedf0", "#a7f3d0", "#6ee7b7", "#34d399", "#10b981"];
-const LEVELS_DARK = ["#30363d", "#065f46", "#059669", "#10b981", "#34d399"];
-const CELL_SIZE = 13;
-const CELL_GAP = 3;
-const DAY_LABELS = ["Mon", "Wed", "Fri"];
-const MONTH_LABELS = [
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec",
-];
+const LEGEND_SWATCH_SIZE = 11;
+const SKELETON_WEEK_COUNT = 26;
+const DAYS_PER_WEEK = 7;
 
-interface HeatmapCell {
-	day: string;
-	level: number;
-	turns: number;
-}
-
-interface HeatmapWeek {
-	cells: (HeatmapCell | null)[];
-	monthLabel: string | null;
-}
-
-function intensityLevel(turns: number, max: number): number {
-	if (turns === 0 || max === 0) {
-		return 0;
-	}
-	const ratio = turns / max;
-	if (ratio < 0.25) {
-		return 1;
-	}
-	if (ratio < 0.5) {
-		return 2;
-	}
-	if (ratio < 0.75) {
-		return 3;
-	}
-	return 4;
-}
-
-function buildWeeks(daily: DayPoint[]): HeatmapWeek[] {
-	const max = Math.max(1, ...daily.map((d) => d.turns));
-	const weeks: HeatmapWeek[] = [];
-	let currentWeek: HeatmapWeek = { cells: [], monthLabel: null };
-	for (const point of daily) {
-		const date = new Date(`${point.day}T00:00:00`);
-		const dow = (date.getDay() + 6) % 7; // 0=Mon
-		if (dow === 0 && currentWeek.cells.length > 0) {
-			while (currentWeek.cells.length < 7) {
-				currentWeek.cells.push(null);
-			}
-			weeks.push(currentWeek);
-			currentWeek = { cells: [], monthLabel: null };
-		}
-		const monthIdx = date.getMonth();
-		if (currentWeek.cells.length === 0) {
-			currentWeek.monthLabel = MONTH_LABELS[monthIdx];
-		}
-		while (currentWeek.cells.length < dow) {
-			currentWeek.cells.push(null);
-		}
-		currentWeek.cells.push({
-			day: point.day,
-			level: intensityLevel(point.turns, max),
-			turns: point.turns,
-		});
-	}
-	if (currentWeek.cells.length > 0) {
-		weeks.push(currentWeek);
-	}
-	return weeks;
-}
+type Tooltip = { cell: HeatmapCell; x: number; y: number } | null;
 
 function HeatmapTooltip({
 	cell,
@@ -93,11 +29,11 @@ function HeatmapTooltip({
 	x: number;
 	y: number;
 }) {
-	const date = new Date(`${cell.day}T00:00:00`);
-	const label = date.toLocaleDateString("en-US", {
-		weekday: "short",
-		month: "short",
+	const label = parseUtcDay(cell.day).toLocaleDateString("en-US", {
 		day: "numeric",
+		month: "short",
+		timeZone: "UTC",
+		weekday: "short",
 	});
 	return (
 		<div
@@ -113,12 +49,13 @@ function HeatmapTooltip({
 const weekKey = (i: number) => `wk${i}`;
 const cellKey = (wi: number, di: number) => `c${wi}-${di}`;
 const legendKey = (i: number) => `lv${i}`;
+const dayLabelKey = (i: number) => `dl${i}`;
 
 interface WeekCellProps {
 	cell: HeatmapCell | null;
 	di: number;
 	palette: string[];
-	setTooltip: (t: { cell: HeatmapCell; x: number; y: number } | null) => void;
+	setTooltip: (t: Tooltip) => void;
 	wi: number;
 }
 
@@ -149,27 +86,44 @@ function WeekCell({ cell, di, palette, setTooltip, wi }: WeekCellProps) {
 	);
 }
 
+/**
+ * One month-label row. Rendered with identical markup whether or not it has
+ * a label (an invisible `&nbsp;` row otherwise) — that's what the day-label
+ * column's top spacer reuses verbatim, so the two columns' heights can never
+ * drift apart the way a guessed pixel constant did before.
+ */
+function MonthLabelRow({ label }: { label: string | null }) {
+	if (label) {
+		return (
+			<span className="mb-0.5 text-muted-foreground text-xs">{label}</span>
+		);
+	}
+	return (
+		<span aria-hidden className="mb-0.5 text-xs">
+			&nbsp;
+		</span>
+	);
+}
+
 function HeatmapGrid({
 	palette,
 	setTooltip,
 	weeks,
 }: {
 	palette: string[];
-	setTooltip: (t: { cell: HeatmapCell; x: number; y: number } | null) => void;
+	setTooltip: (t: Tooltip) => void;
 	weeks: HeatmapWeek[];
 }) {
 	return (
 		<>
 			{weeks.map((week, wi) => (
-				<div className="flex flex-col gap-0.5" key={weekKey(wi)}>
-					{week.monthLabel ? (
-						<span className="mb-0.5 text-muted-foreground text-xs">
-							{week.monthLabel}
-						</span>
-					) : (
-						<span className="mb-0.5 text-xs">&nbsp;</span>
-					)}
-					{Array.from({ length: 7 }, (_, di) => (
+				<div
+					className="flex flex-col"
+					key={weekKey(wi)}
+					style={{ gap: CELL_GAP }}
+				>
+					<MonthLabelRow label={week.monthLabel} />
+					{Array.from({ length: DAYS_PER_WEEK }, (_, di) => (
 						<WeekCell
 							cell={week.cells[di] ?? null}
 							di={di}
@@ -185,6 +139,33 @@ function HeatmapGrid({
 	);
 }
 
+/**
+ * Mon/Wed/Fri labels, one per grid row. Uses the SAME pitch (`CELL_SIZE` +
+ * `CELL_GAP`, via inline `style`) and the SAME top spacer markup as the
+ * grid's week columns, so row N here always lines up with row N of cells —
+ * previously this stretched 3 labels across the column with `justify-around`
+ * and a separately-guessed row height, which drifted from the grid's real
+ * pitch.
+ */
+function DayLabelColumn() {
+	return (
+		<div className="flex flex-col pr-1 text-muted-foreground text-xs">
+			<MonthLabelRow label={null} />
+			<div className="flex flex-col" style={{ gap: CELL_GAP }}>
+				{DAY_LABEL_ROWS.map((label, i) => (
+					<span
+						className="flex items-center leading-none"
+						key={dayLabelKey(i)}
+						style={{ height: CELL_SIZE }}
+					>
+						{label ?? " "}
+					</span>
+				))}
+			</div>
+		</div>
+	);
+}
+
 function HeatmapLegend({ palette }: { palette: string[] }) {
 	return (
 		<div className="mt-3 flex items-center gap-2 text-muted-foreground text-xs">
@@ -193,7 +174,11 @@ function HeatmapLegend({ palette }: { palette: string[] }) {
 				<div
 					className="rounded-sm"
 					key={legendKey(i)}
-					style={{ backgroundColor: color, height: 11, width: 11 }}
+					style={{
+						backgroundColor: color,
+						height: LEGEND_SWATCH_SIZE,
+						width: LEGEND_SWATCH_SIZE,
+					}}
 				/>
 			))}
 			<span>More</span>
@@ -201,33 +186,60 @@ function HeatmapLegend({ palette }: { palette: string[] }) {
 	);
 }
 
-export function ActivityHeatmap({ daily }: { daily: DayPoint[] }) {
-	const weeks = useMemo(() => buildWeeks(daily), [daily]);
-	const [tooltip, setTooltip] = useState<{
-		cell: HeatmapCell;
-		x: number;
-		y: number;
-	} | null>(null);
-	const isDark =
+function HeatmapSkeleton() {
+	return (
+		<div aria-hidden className="flex animate-pulse gap-1 overflow-x-auto">
+			{Array.from({ length: SKELETON_WEEK_COUNT }, (_, wi) => (
+				<div
+					className="flex flex-col"
+					key={weekKey(wi)}
+					style={{ gap: CELL_GAP }}
+				>
+					{Array.from({ length: DAYS_PER_WEEK }, (_, di) => (
+						<div
+							className="rounded-sm bg-muted"
+							key={cellKey(wi, di)}
+							style={{ height: CELL_SIZE, width: CELL_SIZE }}
+						/>
+					))}
+				</div>
+			))}
+		</div>
+	);
+}
+
+function useIsDarkMode(): boolean {
+	return (
 		typeof document !== "undefined" &&
-		document.documentElement.classList.contains("dark");
+		document.documentElement.classList.contains("dark")
+	);
+}
+
+/** GitHub-style 180-day activity heatmap. Fetches its own wide-window data
+ * (`useHeatmapData`) — deliberately independent of the dashboard's 3/7/12
+ * `window-toggle`, which only drives the token chart above it. */
+export function ActivityHeatmap() {
+	const { daily, isPending } = useHeatmapData();
+	const weeks = useMemo(() => buildWeeks(daily), [daily]);
+	const [tooltip, setTooltip] = useState<Tooltip>(null);
+	const isDark = useIsDarkMode();
 	const palette = isDark ? LEVELS_DARK : LEVELS_LIGHT;
-	if (daily.length === 0) {
-		return null;
-	}
+
 	return (
 		<div className="rounded-xl border bg-card p-4 shadow-sm">
 			<p className="mb-3 font-medium text-sm">Activity</p>
-			<div className="flex gap-1 overflow-x-auto">
-				<div className="flex flex-col justify-around pr-1 text-muted-foreground text-xs">
-					{DAY_LABELS.map((label) => (
-						<span key={label} style={{ height: CELL_SIZE + CELL_GAP }}>
-							{label}
-						</span>
-					))}
+			{isPending ? (
+				<HeatmapSkeleton />
+			) : (
+				<div className="flex gap-1 overflow-x-auto">
+					<DayLabelColumn />
+					<HeatmapGrid
+						palette={palette}
+						setTooltip={setTooltip}
+						weeks={weeks}
+					/>
 				</div>
-				<HeatmapGrid palette={palette} setTooltip={setTooltip} weeks={weeks} />
-			</div>
+			)}
 			<HeatmapLegend palette={palette} />
 			{tooltip ? <HeatmapTooltip {...tooltip} /> : null}
 		</div>

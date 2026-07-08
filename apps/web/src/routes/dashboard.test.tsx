@@ -33,6 +33,12 @@ vi.mock("@/utils/orpc", () => ({
 					queryFn: () => Promise.resolve(usageSummary),
 				}),
 			},
+			dailyActivity: {
+				queryOptions: () => ({
+					queryKey: ["usage", "dailyActivity"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
 		},
 		bridge: {
 			usageByAgentKind: {

@@ -64,7 +64,7 @@ function DashboardBody({
 			<div className="flex flex-col gap-4 lg:col-span-2">
 				<StatsPanel isPending={isPending} totals={totals} />
 				<TokenChart daily={daily} isPending={isPending} />
-				<ActivityHeatmap daily={daily} />
+				<ActivityHeatmap />
 			</div>
 			<div className="lg:col-span-1">
 				<UsageOverview windowDays={windowDays} />
