@@ -5,6 +5,7 @@ import { earningsCalendar } from "./core/eastmoney/earnings";
 import { getEarningsForecast } from "./core/eastmoney/forecast";
 import { getHsgtFlow } from "./core/eastmoney/hsgt";
 import { getFinancialIndicators } from "./core/eastmoney/indicators";
+import { getMacroCn } from "./core/eastmoney/macro";
 import { getMoneyFlow } from "./core/eastmoney/money-flow";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getCompanyProfile } from "./core/eastmoney/profile";
@@ -14,6 +15,8 @@ import { getSectorConstituents, getSectorList } from "./core/eastmoney/sector";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
+import { getMacroUs } from "./core/fred/macro";
+import { getYieldCurve } from "./core/fred/yield-curve";
 import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
@@ -69,8 +72,7 @@ async function economicHandler(c: Context) {
 	const country = c.req.query("country") ?? undefined;
 	const all = c.req.query("all") === "true";
 	const event = c.req.query("event") || undefined;
-	const key =
-		(c.env as { FRED_API_KEY?: string } | undefined)?.FRED_API_KEY ?? "";
+	const key = fredKey(c);
 	const cacheKey = `econ:${from}:${to}:${country ?? "all"}:${all ? "all" : "key"}:${event ?? ""}`;
 	return c.json(
 		await withCache(cacheKey, 1800, () =>
@@ -204,6 +206,37 @@ async function sectorConstituentsHandler(c: Context) {
 	);
 }
 
+const DEFAULT_MACRO_LIMIT = 12;
+
+function fredKey(c: Context): string {
+	return (c.env as { FRED_API_KEY?: string } | undefined)?.FRED_API_KEY ?? "";
+}
+
+async function macroUsHandler(c: Context) {
+	const indicator = c.req.query("indicator") || undefined;
+	const limit = Number(c.req.query("limit") ?? "") || DEFAULT_MACRO_LIMIT;
+	const key = fredKey(c);
+	return c.json(
+		await withCache(`macrous:${indicator ?? "dash"}:${limit}`, 3600, () =>
+			getMacroUs(indicator, limit, key)
+		)
+	);
+}
+
+async function macroCnHandler(c: Context) {
+	const indicator = c.req.query("indicator") || undefined;
+	return c.json(
+		await withCache(`macrocn:${indicator ?? "dash"}`, 3600, () =>
+			getMacroCn(indicator)
+		)
+	);
+}
+
+async function yieldCurveHandler(c: Context) {
+	const key = fredKey(c);
+	return c.json(await withCache("yieldcurve", 3600, () => getYieldCurve(key)));
+}
+
 export function registerRest(app: Hono): void {
 	app.get("/api/quote", quoteHandler);
 	app.get("/api/kline", klineHandler);
@@ -225,4 +258,7 @@ export function registerRest(app: Hono): void {
 	app.get("/api/hsgt", hsgtFlowHandler);
 	app.get("/api/sectors", sectorListHandler);
 	app.get("/api/sector-stocks", sectorConstituentsHandler);
+	app.get("/api/macro/us", macroUsHandler);
+	app.get("/api/macro/cn", macroCnHandler);
+	app.get("/api/yield-curve", yieldCurveHandler);
 }

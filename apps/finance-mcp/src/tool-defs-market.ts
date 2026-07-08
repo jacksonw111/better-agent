@@ -145,3 +145,82 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_sector_constituents");
+
+// B9's macro-indicator-value / yield-curve tool defs.
+TOOLS.push({
+	name: "finance_macro_us",
+	description:
+		"Latest values of key US macro indicators from FRED (CPI, core CPI, PCE, " +
+		"unemployment, nonfarm payrolls, GDP, fed funds, 10Y/2Y treasury, M2, PPI, " +
+		"industrial production, retail sales). Omit `indicator` for a dashboard of " +
+		"all; give one for its recent time series.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			indicator: {
+				type: "string",
+				enum: [
+					"cpi",
+					"core_cpi",
+					"pce",
+					"unemployment",
+					"nonfarm",
+					"gdp",
+					"real_gdp",
+					"fed_funds",
+					"cpi_yoy",
+					"retail_sales",
+					"ppi",
+					"industrial",
+					"m2",
+					"treasury_10y",
+					"treasury_2y",
+				],
+				description: "Macro indicator key. Omit for a dashboard of all.",
+			},
+			limit: {
+				type: "number",
+				description:
+					"Number of most-recent observations (default 12, max 120).",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_macro_us");
+
+TOOLS.push({
+	name: "finance_macro_cn",
+	description:
+		"Latest values of key China macro indicators from EastMoney (CPI, PPI, " +
+		"PMI, GDP, money supply M0/M1/M2) with YoY/MoM. Omit `indicator` for a " +
+		"dashboard.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			indicator: {
+				type: "string",
+				enum: ["cpi", "ppi", "pmi", "gdp", "m2"],
+				description: "Macro indicator key. Omit for a dashboard of all.",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_macro_cn");
+
+TOOLS.push({
+	name: "finance_yield_curve",
+	description:
+		"US Treasury yield curve: latest constant-maturity yields from 1-month " +
+		"to 30-year (FRED).",
+	inputSchema: {
+		type: "object",
+		properties: {},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_yield_curve");

@@ -9,13 +9,18 @@ import { getStockResearch } from "./core/eastmoney/research";
 import { searchAStocks } from "./core/eastmoney/search";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
-import { economicCalendar } from "./core/fred/economic";
 import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
+import {
+	handleEconomicCalendar,
+	handleMacroCn,
+	handleMacroUs,
+	handleYieldCurve,
+} from "./tools-impl-macro";
 import {
 	handleHsgtFlow,
 	handleMoneyFlow,
@@ -57,11 +62,7 @@ export function argNumber(
 	return typeof value === "number" ? value : fallback;
 }
 
-function argBoolean(args: Record<string, unknown>, key: string): boolean {
-	return args[key] === true;
-}
-
-function argOptionalString(
+export function argOptionalString(
 	args: Record<string, unknown>,
 	key: string
 ): string | undefined {
@@ -118,26 +119,6 @@ async function handleEarningsCalendar(
 	return toolJson(
 		await withCache(`earn:${market}:${date}`, 1800, () =>
 			earningsCalendar(market, date)
-		)
-	);
-}
-
-async function handleEconomicCalendar(
-	args: Record<string, unknown>,
-	env: ToolEnv
-): Promise<ToolResult> {
-	const from = argString(args, "from");
-	const to = argString(args, "to");
-	const country = typeof args.country === "string" ? args.country : undefined;
-	const all = argBoolean(args, "all");
-	const event = argOptionalString(args, "event");
-	const cacheKey = `econ:${from}:${to}:${country ?? "all"}:${all ? "all" : "key"}:${event ?? ""}`;
-	return toolJson(
-		await withCache(cacheKey, 1800, () =>
-			economicCalendar(from, to, env.FRED_API_KEY ?? "", country, {
-				all,
-				event,
-			})
 		)
 	);
 }
@@ -282,6 +263,9 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_hsgt_flow: (args) => handleHsgtFlow(args),
 	finance_sector_list: (args) => handleSectorList(args),
 	finance_sector_constituents: (args) => handleSectorConstituents(args),
+	finance_macro_us: (args, env) => handleMacroUs(args, env),
+	finance_macro_cn: (args) => handleMacroCn(args),
+	finance_yield_curve: (_args, env) => handleYieldCurve(env),
 };
 
 export function runTool(

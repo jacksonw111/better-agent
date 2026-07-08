@@ -214,6 +214,35 @@ export interface SectorConstituent {
 	price: number;
 }
 
+export interface MacroObservation {
+	date: string;
+	value: number;
+}
+
+export interface MacroSeries {
+	indicator: string;
+	observations: MacroObservation[];
+	seriesId: string | null;
+}
+
+export interface MacroDashboardRow {
+	date: string | null;
+	indicator: string;
+	seriesId: string;
+	value: number | null;
+}
+
+export interface MacroDashboard {
+	dashboard: MacroDashboardRow[];
+}
+
+export interface YieldPoint {
+	date: string;
+	seriesId: string;
+	tenor: string;
+	yield: number;
+}
+
 export interface TechnicalSnapshot {
 	asOf: string;
 	boll: { lower: number; mid: number; upper: number } | null;
