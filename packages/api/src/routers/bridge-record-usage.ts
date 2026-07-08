@@ -20,9 +20,29 @@ function asFiniteNumber(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function asFiniteNumberOrUndefined(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+	return typeof value === "string" && value !== "" ? value : undefined;
+}
+
 interface TurnUsageDetail {
+	/** Claude's own session UUID, forwarded by
+	 * `apps/bridge-cli/src/normalize/claude-code.ts`'s `normalizeClaudeResult`
+	 * — stable across the CLI push-queue's retries of a batch, unlike the
+	 * server-assigned relay `seq`. `undefined` for non-claude bridges or older
+	 * CLI builds that don't forward it yet. */
+	claudeSessionId: string | undefined;
 	costUsd: number | null;
 	durationMs: number | undefined;
+	/** Finite `num_turns` off the claude result line, if present — combined
+	 * with `claudeSessionId` this is the stable identity of the turn (see
+	 * `dedupKey` below). `undefined` when missing/non-finite. */
+	numTurns: number | undefined;
 	tokens: UsageTokens;
 }
 
@@ -56,15 +76,13 @@ function parseTurnUsage(event: unknown): TurnUsageDetail | null {
 	if (!isRecord(detail)) {
 		return null;
 	}
-	const costUsd =
-		typeof detail.costUsd === "number" && Number.isFinite(detail.costUsd)
-			? detail.costUsd
-			: null;
-	const durationMs =
-		typeof detail.durationMs === "number" && Number.isFinite(detail.durationMs)
-			? detail.durationMs
-			: undefined;
-	return { costUsd, durationMs, tokens: parseTokens(detail.usage) };
+	return {
+		costUsd: asFiniteNumberOrUndefined(detail.costUsd) ?? null,
+		durationMs: asFiniteNumberOrUndefined(detail.durationMs),
+		numTurns: asFiniteNumberOrUndefined(detail.numTurns),
+		claudeSessionId: asNonEmptyString(detail.sessionId),
+		tokens: parseTokens(detail.usage),
+	};
 }
 
 interface SnapshotArgs {
@@ -73,6 +91,38 @@ interface SnapshotArgs {
 	seq: number;
 	sessionId: string;
 	userId: string;
+}
+
+/** The seq-based key from before U1-T0 — NOT retry-idempotent (the CLI's
+ * push-queue re-appends a retried batch at a new relay seq), so this is only
+ * a fallback for the (shouldn't-happen-for-claude) case where the turn's own
+ * stable identity is missing. */
+function fallbackDedupKey(sessionId: string, seq: number): string {
+	log.warn({
+		action: "bridge pushEvents recordUsage",
+		message:
+			"turn_usage missing claude sessionId/numTurns — falling back to seq-based dedupKey, not retry-idempotent",
+		sessionId,
+		seq,
+	});
+	return `bridge:${sessionId}:${seq}`;
+}
+
+/** Stable across the CLI push-queue's retries of a batch: claude's own
+ * `(session_id, num_turns)` uniquely identifies a turn, unlike the
+ * server-assigned relay `seq` (which changes on retry — see U1-T0/the
+ * double-counting bug this fixes). Falls back to the old seq-based key when
+ * either piece is missing. */
+function buildDedupKey(
+	sessionId: string,
+	seq: number,
+	detail: TurnUsageDetail
+): string {
+	const { claudeSessionId, numTurns } = detail;
+	if (claudeSessionId === undefined || numTurns === undefined) {
+		return fallbackDedupKey(sessionId, seq);
+	}
+	return `bridge:${claudeSessionId}:${numTurns}`;
 }
 
 function buildSnapshot(args: SnapshotArgs): UsageSnapshot {
@@ -89,7 +139,7 @@ function buildSnapshot(args: SnapshotArgs): UsageSnapshot {
 		// tracks catalog lookup success).
 		priced: detail.costUsd !== null,
 		durationMs: detail.durationMs,
-		dedupKey: `bridge:${sessionId}:${seq}`,
+		dedupKey: buildDedupKey(sessionId, seq, detail),
 	};
 }
 

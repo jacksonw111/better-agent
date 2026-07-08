@@ -58,6 +58,7 @@ describe("normalizeClaudeCode - result envelope", () => {
 					durationMs: undefined,
 					usage: undefined,
 					isError: false,
+					sessionId: "sess_1",
 				},
 			},
 		]);

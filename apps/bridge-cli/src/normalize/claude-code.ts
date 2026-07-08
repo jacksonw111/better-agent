@@ -148,6 +148,11 @@ function normalizeClaudeResult(
 				durationMs: raw.duration_ms,
 				usage: raw.usage,
 				isError: raw.is_error === true,
+				// claude's own session UUID — stable across the CLI's push-queue
+				// retries (unlike the server-assigned relay seq), so the server
+				// keys its usage dedup off this + numTurns instead. See
+				// packages/api/src/routers/bridge-record-usage.ts.
+				sessionId: asString(raw.session_id),
 			},
 		},
 	];
