@@ -56,3 +56,27 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_kline");
+
+TOOLS.push({
+	name: "finance_list_reports",
+	description:
+		"List an A-share company's periodic financial reports (annual / H1 / Q1 / Q3) from " +
+		"EastMoney, newest first. Each item includes artCode, title, reportType, noticeDate, " +
+		"and pdfUrl (a proxied link to the full PDF).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "A-share ticker, e.g. 600000.SH.",
+			},
+			years: {
+				type: "number",
+				description: "Look-back window in years (default 2).",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_list_reports");

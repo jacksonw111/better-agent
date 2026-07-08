@@ -1,4 +1,5 @@
-import { getKline } from "./core/tencent/kline";
+import { listReports } from "./core/eastmoney/periodic-reports";
+import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 
 export interface ToolResult {
@@ -14,23 +15,62 @@ export function toolJson(value: unknown): ToolResult {
 	return toolText(JSON.stringify(value));
 }
 
+const DEFAULT_KLINE_LIMIT = 240;
+const DEFAULT_REPORT_YEARS = 2;
+
+function argString(args: Record<string, unknown>, key: string): string {
+	const value = args[key];
+	return typeof value === "string" ? value : "";
+}
+
+function argNumber(
+	args: Record<string, unknown>,
+	key: string,
+	fallback: number
+): number {
+	const value = args[key];
+	return typeof value === "number" ? value : fallback;
+}
+
+function argKlinePeriod(args: Record<string, unknown>): KlinePeriod {
+	if (args.period === "week" || args.period === "month") {
+		return args.period;
+	}
+	return "day";
+}
+
+async function handleQuote(args: Record<string, unknown>): Promise<ToolResult> {
+	return toolJson(await getQuote(argString(args, "symbol")));
+}
+
+async function handleKline(args: Record<string, unknown>): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	const period = argKlinePeriod(args);
+	const limit = argNumber(args, "limit", DEFAULT_KLINE_LIMIT);
+	return toolJson(await getKline(symbol, period, limit));
+}
+
+async function handleListReports(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	const years = argNumber(args, "years", DEFAULT_REPORT_YEARS);
+	return toolJson(await listReports(symbol, years));
+}
+
 // Feature tasks add `if (name === "finance_x") { ... }` branches above the fallback.
 export async function runTool(
 	name: string,
 	_args: Record<string, unknown>
 ): Promise<ToolResult> {
 	if (name === "finance_quote") {
-		const symbol = typeof _args.symbol === "string" ? _args.symbol : "";
-		return toolJson(await getQuote(symbol));
+		return await handleQuote(_args);
 	}
 	if (name === "finance_kline") {
-		const symbol = typeof _args.symbol === "string" ? _args.symbol : "";
-		const period =
-			_args.period === "week" || _args.period === "month"
-				? _args.period
-				: "day";
-		const limit = typeof _args.limit === "number" ? _args.limit : 240;
-		return toolJson(await getKline(symbol, period, limit));
+		return await handleKline(_args);
+	}
+	if (name === "finance_list_reports") {
+		return await handleListReports(_args);
 	}
 	return toolText(`Unknown tool: ${name}`, true);
 }
