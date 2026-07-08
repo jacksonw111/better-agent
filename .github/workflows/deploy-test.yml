@@ -33,6 +33,30 @@ jobs:
           workingDirectory: apps/mcp
           command: deploy
 
+  finance-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test finance-mcp
+        run: pnpm -F finance-mcp test
+      - name: Deploy finance-mcp
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/finance-mcp
+          command: deploy
+          secrets: |
+            FINNHUB_API_KEY
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+
   authz:
     runs-on: ubuntu-latest
     steps:

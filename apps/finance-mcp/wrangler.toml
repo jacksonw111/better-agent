@@ -5,3 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 NODE_ENV = "production"
+
+# v1 caching uses the implicit `caches.default` Cache API — no KV binding
+# needed. If a future version switches to KV, add a [[kv_namespaces]] block
+# here and create the namespace with:
+#   wrangler kv namespace create finance_cache
