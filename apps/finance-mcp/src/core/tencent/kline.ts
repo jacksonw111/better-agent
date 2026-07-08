@@ -4,6 +4,11 @@ import type { Candle } from "../types";
 export type KlinePeriod = "day" | "week" | "month";
 
 const KLINE_HOST = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
+// Tencent's fqkline endpoint returns a null `qfq<period>` (adjusted) series at
+// tiny counts, forcing a fallback to the sparse/unadjusted plain `<period>`
+// key. Always request a healthy candle count so the adjusted series is
+// populated, then slice down to the caller's limit client-side.
+const MIN_FETCH = 80;
 
 function num(v: unknown): number {
 	const n = typeof v === "number" ? v : Number(v);
@@ -51,6 +56,8 @@ export function parseKline(
 	return candles;
 }
 
+const DEFAULT_LIMIT = 240;
+
 export async function getKline(
 	symbol: string,
 	period: KlinePeriod,
@@ -59,10 +66,13 @@ export async function getKline(
 ): Promise<Candle[]> {
 	const doFetch = opts.fetchImpl ?? fetch;
 	const { tencent } = parseSymbol(symbol);
-	const url = `${KLINE_HOST}?param=${tencent},${period},,,${limit},qfq`;
+	const effectiveLimit = limit > 0 ? limit : DEFAULT_LIMIT;
+	const fetchCount = Math.max(effectiveLimit, MIN_FETCH);
+	const url = `${KLINE_HOST}?param=${tencent},${period},,,${fetchCount},qfq`;
 	const res = await doFetch(url, { signal: opts.signal });
 	if (!res.ok) {
 		throw new Error(`tencent kline HTTP ${res.status}`);
 	}
-	return parseKline(await res.json(), tencent, period);
+	const candles = parseKline(await res.json(), tencent, period);
+	return limit > 0 ? candles.slice(-limit) : candles;
 }

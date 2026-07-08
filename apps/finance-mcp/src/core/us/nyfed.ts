@@ -1,12 +1,13 @@
 import type { CbOp } from "../types";
 
 // NY Fed temporary open-market operations (repo / reverse repo).
-// NOTE: the historical `/api/rp/all/latest.json` path now returns HTTP 400 from
-// the NY Fed Markets API (the `rp` resource appears to have moved; `rates`/`soma`
-// still respond). Reconfirming the correct repo-operations endpoint is a v2 task.
-// Until then this connector degrades gracefully to [] on any failure rather than
-// surfacing an upstream error to the tool/REST caller.
-const NYFED_URL = "https://markets.newyorkfed.org/api/rp/all/latest.json";
+// NOTE: the historical `/api/rp/all/latest.json` path returned HTTP 400 from the
+// NY Fed Markets API (the `rp` resource had moved). This endpoint is confirmed
+// working (last ~2 weeks of repo/reverse-repo operations). This connector still
+// degrades gracefully to [] on any failure rather than surfacing an upstream
+// error to the tool/REST caller.
+const NYFED_URL =
+	"https://markets.newyorkfed.org/api/rp/all/all/results/lastTwoWeeks.json";
 
 interface RpOp {
 	operationDate?: string;
