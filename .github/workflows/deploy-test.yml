@@ -53,9 +53,9 @@ jobs:
           workingDirectory: apps/finance-mcp
           command: deploy
           secrets: |
-            FINNHUB_API_KEY
+            FRED_API_KEY
         env:
-          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
   authz:
     runs-on: ubuntu-latest

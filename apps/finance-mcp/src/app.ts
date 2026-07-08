@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { NotConfiguredError } from "./core/finnhub/economic";
+import { NotConfiguredError } from "./core/fred/economic";
 import { BadSymbolError } from "./core/symbol";
 import { handleMessage } from "./mcp-server";
 import { createPdfProxyHandler } from "./pdf-proxy";

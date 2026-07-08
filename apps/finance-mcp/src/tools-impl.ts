@@ -2,13 +2,13 @@ import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
-import { economicCalendar } from "./core/finnhub/economic";
+import { economicCalendar } from "./core/fred/economic";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
 
 export interface ToolEnv {
-	FINNHUB_API_KEY?: string;
+	FRED_API_KEY?: string;
 }
 
 export interface ToolResult {
@@ -103,7 +103,7 @@ async function handleEconomicCalendar(
 	const country = typeof args.country === "string" ? args.country : undefined;
 	return toolJson(
 		await withCache(`econ:${from}:${to}:${country ?? "all"}`, 1800, () =>
-			economicCalendar(from, to, env.FINNHUB_API_KEY ?? "", country)
+			economicCalendar(from, to, env.FRED_API_KEY ?? "", country)
 		)
 	);
 }

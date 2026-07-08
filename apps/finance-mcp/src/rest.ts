@@ -3,7 +3,7 @@ import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
-import { economicCalendar } from "./core/finnhub/economic";
+import { economicCalendar } from "./core/fred/economic";
 import { getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 
@@ -53,7 +53,7 @@ async function economicHandler(c: Context) {
 	const to = c.req.query("to") ?? "";
 	const country = c.req.query("country") ?? undefined;
 	const key =
-		(c.env as { FINNHUB_API_KEY?: string } | undefined)?.FINNHUB_API_KEY ?? "";
+		(c.env as { FRED_API_KEY?: string } | undefined)?.FRED_API_KEY ?? "";
 	return c.json(
 		await withCache(`econ:${from}:${to}:${country ?? "all"}`, 1800, () =>
 			economicCalendar(from, to, key, country)

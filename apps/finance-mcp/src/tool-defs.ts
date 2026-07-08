@@ -111,9 +111,10 @@ TOOL_NAMES.add("finance_earnings_calendar");
 TOOLS.push({
 	name: "finance_economic_calendar",
 	description:
-		"Macro economic data-release schedule (CPI, PPI, non-farm payrolls, GDP, FOMC, PMI) " +
-		"with actual/estimate/prior. Covers US and China. from/to are YYYY-MM-DD; country is an " +
-		"optional ISO-2 filter (US, CN).",
+		"US economic data-RELEASE SCHEDULE (CPI, PPI, non-farm payrolls, GDP, FOMC, PMI, etc.) " +
+		"from the free FRED (St. Louis Fed) release-dates API: release name + date only " +
+		"(no actual/estimate/prior values). US only. from/to are YYYY-MM-DD; country is an " +
+		"optional ISO-2 filter, but only US is covered — any other value returns no results.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -121,7 +122,8 @@ TOOLS.push({
 			to: { type: "string", description: "End date YYYY-MM-DD." },
 			country: {
 				type: "string",
-				description: "Optional ISO-2 filter, e.g. US or CN.",
+				description:
+					"Optional ISO-2 filter. Only US is supported; other values return [].",
 			},
 		},
 		required: ["from", "to"],
