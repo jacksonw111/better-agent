@@ -28,7 +28,16 @@ export interface MemoryRetrievalDeps {
  * the time buildTurnMessages runs) — used as the retrieval query. Empty string
  * if there's no user message or it carries no text parts. */
 export function latestUserText(history: MessageWithParts[]): string {
-	const entry = history.findLast((item) => item.message.role === "user");
+	// Reverse loop rather than Array.findLast — the agent package is compiled
+	// by consumers (e.g. web) whose tsconfig lib target predates ES2023.
+	let entry: MessageWithParts | undefined;
+	for (let i = history.length - 1; i >= 0; i--) {
+		const item = history[i];
+		if (item?.message.role === "user") {
+			entry = item;
+			break;
+		}
+	}
 	if (!entry) {
 		return "";
 	}
