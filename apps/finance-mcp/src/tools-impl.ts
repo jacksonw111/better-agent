@@ -1,9 +1,12 @@
 import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
+import { getEarningsForecast } from "./core/eastmoney/forecast";
 import { getFinancialIndicators } from "./core/eastmoney/indicators";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getCompanyProfile } from "./core/eastmoney/profile";
+import { getStockResearch } from "./core/eastmoney/research";
+import { searchAStocks } from "./core/eastmoney/search";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
@@ -189,6 +192,35 @@ async function handleFinancialIndicators(
 	);
 }
 
+async function handleSearch(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const query = argString(args, "query");
+	return toolJson(
+		await withCache(`search:${query}`, 3600, () => searchAStocks(query))
+	);
+}
+
+async function handleResearch(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	return toolJson(
+		await withCache(`research:${symbol}`, 3600, () => getStockResearch(symbol))
+	);
+}
+
+async function handleEarningsForecast(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const symbol = argString(args, "symbol");
+	return toolJson(
+		await withCache(`forecast:${symbol}`, 3600, () =>
+			getEarningsForecast(symbol)
+		)
+	);
+}
+
 type ToolHandler = (
 	args: Record<string, unknown>,
 	env: ToolEnv
@@ -206,6 +238,9 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_company_profile: (args) => handleCompanyProfile(args),
 	finance_financial_statements: (args) => handleFinancialStatements(args),
 	finance_financial_indicators: (args) => handleFinancialIndicators(args),
+	finance_search: (args) => handleSearch(args),
+	finance_research: (args) => handleResearch(args),
+	finance_earnings_forecast: (args) => handleEarningsForecast(args),
 };
 
 export function runTool(

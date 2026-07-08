@@ -125,3 +125,30 @@ export interface IndicatorRow {
 	roe: number | null;
 	roeDeducted: number | null;
 }
+
+export interface StockHit {
+	code: string;
+	exchange: "SH" | "SZ" | "BJ";
+	market: "a_share";
+	name: string;
+}
+
+export interface ResearchReport {
+	date: string;
+	epsY0: number | null;
+	epsY1: number | null;
+	epsY2: number | null;
+	org: string;
+	pdfUrl: string;
+	peY0: number | null;
+	peY1: number | null;
+	peY2: number | null;
+	title: string;
+}
+
+export interface ForecastRow {
+	eps: number | null;
+	pe: number | null;
+	revenue?: number | null;
+	year: string;
+}

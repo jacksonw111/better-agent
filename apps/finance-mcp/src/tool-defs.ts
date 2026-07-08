@@ -265,3 +265,7 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_financial_indicators");
+
+// B8's finance_search / finance_research / finance_earnings_forecast defs
+// live in tool-defs-research.ts (side-effect import in mcp-server.ts) — this
+// file is at the project's 300-line-per-file cap.

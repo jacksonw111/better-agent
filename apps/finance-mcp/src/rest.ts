@@ -2,9 +2,12 @@ import type { Context, Hono } from "hono";
 import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
+import { getEarningsForecast } from "./core/eastmoney/forecast";
 import { getFinancialIndicators } from "./core/eastmoney/indicators";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getCompanyProfile } from "./core/eastmoney/profile";
+import { getStockResearch } from "./core/eastmoney/research";
+import { searchAStocks } from "./core/eastmoney/search";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
@@ -116,6 +119,29 @@ async function financialIndicatorsHandler(c: Context) {
 	);
 }
 
+async function searchHandler(c: Context) {
+	const query = c.req.query("query") ?? "";
+	return c.json(
+		await withCache(`search:${query}`, 3600, () => searchAStocks(query))
+	);
+}
+
+async function researchHandler(c: Context) {
+	const symbol = c.req.query("symbol") ?? "";
+	return c.json(
+		await withCache(`research:${symbol}`, 3600, () => getStockResearch(symbol))
+	);
+}
+
+async function forecastHandler(c: Context) {
+	const symbol = c.req.query("symbol") ?? "";
+	return c.json(
+		await withCache(`forecast:${symbol}`, 3600, () =>
+			getEarningsForecast(symbol)
+		)
+	);
+}
+
 export function registerRest(app: Hono): void {
 	app.get("/api/quote", quoteHandler);
 	app.get("/api/kline", klineHandler);
@@ -127,4 +153,7 @@ export function registerRest(app: Hono): void {
 	app.get("/api/profile", companyProfileHandler);
 	app.get("/api/financials", financialStatementsHandler);
 	app.get("/api/indicators", financialIndicatorsHandler);
+	app.get("/api/search", searchHandler);
+	app.get("/api/research", researchHandler);
+	app.get("/api/forecast", forecastHandler);
 }

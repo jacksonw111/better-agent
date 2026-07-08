@@ -1,5 +1,8 @@
 import { log } from "evlog";
 import { TOOLS } from "./tool-defs";
+// Side-effect import: registers finance_search / finance_research /
+// finance_earnings_forecast onto the shared TOOLS/TOOL_NAMES arrays.
+import "./tool-defs-research";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool
