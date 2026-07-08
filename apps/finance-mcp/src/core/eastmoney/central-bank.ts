@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import type { CbOp, Market } from "../types";
 import { fedOps } from "../us/nyfed";
 
@@ -19,15 +20,15 @@ interface OmoRow {
 export async function pbocOps(
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<CbOp[]> {
-	const doFetch = opts.fetchImpl ?? fetch;
 	const url =
 		`${EM_URL}?reportName=${REPORT_NAME}&columns=ALL&pageSize=50&pageNumber=1` +
 		"&sortColumns=TRADE_DATE&sortTypes=-1";
 	try {
-		const res = await doFetch(url, {
-			headers: { Referer: "https://data.eastmoney.com/" },
-			signal: opts.signal,
-		});
+		const res = await fetchWithRetry(
+			url,
+			{ headers: { Referer: "https://data.eastmoney.com/" } },
+			{ fetchImpl: opts.fetchImpl, signal: opts.signal }
+		);
 		if (!res.ok) {
 			return [];
 		}

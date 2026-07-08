@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import type { EarningsEvent, Market } from "../types";
 import { usEarnings } from "../us/nasdaq-earnings";
 
@@ -17,14 +18,14 @@ export async function aShareEarnings(
 	reportDate: string,
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<EarningsEvent[]> {
-	const doFetch = opts.fetchImpl ?? fetch;
 	const url =
 		`${EM_URL}?reportName=RPT_PUBLIC_BS_APPOIN&columns=ALL&pageSize=50&pageNumber=1` +
 		`&sortColumns=FIRST_APPOINT_DATE&sortTypes=1&filter=(REPORT_DATE='${reportDate}')`;
-	const res = await doFetch(url, {
-		headers: { Referer: "https://data.eastmoney.com/" },
-		signal: opts.signal,
-	});
+	const res = await fetchWithRetry(
+		url,
+		{ headers: { Referer: "https://data.eastmoney.com/" } },
+		{ fetchImpl: opts.fetchImpl, signal: opts.signal }
+	);
 	if (!res.ok) {
 		throw new Error(`eastmoney HTTP ${res.status}`);
 	}

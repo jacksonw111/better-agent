@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import type { EarningsEvent } from "../types";
 
 const NASDAQ_URL = "https://api.nasdaq.com/api/calendar/earnings";
@@ -22,11 +23,11 @@ export async function usEarnings(
 	date: string,
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<EarningsEvent[]> {
-	const doFetch = opts.fetchImpl ?? fetch;
-	const res = await doFetch(`${NASDAQ_URL}?date=${date}`, {
-		headers: { "User-Agent": UA, Accept: "application/json" },
-		signal: opts.signal,
-	});
+	const res = await fetchWithRetry(
+		`${NASDAQ_URL}?date=${date}`,
+		{ headers: { "User-Agent": UA, Accept: "application/json" } },
+		{ fetchImpl: opts.fetchImpl, signal: opts.signal }
+	);
 	if (!res.ok) {
 		throw new Error(`nasdaq HTTP ${res.status}`);
 	}

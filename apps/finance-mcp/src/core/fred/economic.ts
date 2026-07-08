@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import type { EconomicEvent } from "../types";
 
 export class NotConfiguredError extends Error {}
@@ -82,9 +83,11 @@ export async function economicCalendar(
 	if (country && country.toUpperCase() !== US_COUNTRY) {
 		return [];
 	}
-	const doFetch = opts.fetchImpl ?? fetch;
 	const url = buildUrl(from, to, apiKey);
-	const res = await doFetch(url, { signal: opts.signal });
+	const res = await fetchWithRetry(url, undefined, {
+		fetchImpl: opts.fetchImpl,
+		signal: opts.signal,
+	});
 	if (!res.ok) {
 		throw new Error(`fred HTTP ${res.status}`);
 	}

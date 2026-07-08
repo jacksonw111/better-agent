@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import { parseSymbol } from "../symbol";
 import type { Candle } from "../types";
 
@@ -64,12 +65,14 @@ export async function getKline(
 	limit: number,
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<Candle[]> {
-	const doFetch = opts.fetchImpl ?? fetch;
 	const { tencent } = parseSymbol(symbol);
 	const effectiveLimit = limit > 0 ? limit : DEFAULT_LIMIT;
 	const fetchCount = Math.max(effectiveLimit, MIN_FETCH);
 	const url = `${KLINE_HOST}?param=${tencent},${period},,,${fetchCount},qfq`;
-	const res = await doFetch(url, { signal: opts.signal });
+	const res = await fetchWithRetry(url, undefined, {
+		fetchImpl: opts.fetchImpl,
+		signal: opts.signal,
+	});
 	if (!res.ok) {
 		throw new Error(`tencent kline HTTP ${res.status}`);
 	}

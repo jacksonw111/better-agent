@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import { parseSymbol } from "../symbol";
 import type { Report, ReportType } from "../types";
 import { parseJsonp } from "./jsonp";
@@ -58,10 +59,11 @@ async function fetchAnnPage(
 		"https://np-anotice-stock.eastmoney.com/api/security/ann" +
 		`?cb=jsonp&sr=-1&page_size=${PAGE_SIZE}&page_index=${pageIndex}` +
 		`&ann_type=A&client_source=web&stock_list=${code}`;
-	const res = await doFetch(url, {
-		headers: { Referer: "https://data.eastmoney.com/" },
-		signal,
-	});
+	const res = await fetchWithRetry(
+		url,
+		{ headers: { Referer: "https://data.eastmoney.com/" } },
+		{ fetchImpl: doFetch, signal }
+	);
 	const data = parseJsonp<{ data?: { list?: RawAnn[] } }>(await res.text());
 	return data.data?.list ?? [];
 }

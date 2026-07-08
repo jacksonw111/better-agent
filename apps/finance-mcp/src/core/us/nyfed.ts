@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import type { CbOp } from "../types";
 
 // NY Fed temporary open-market operations (repo / reverse repo).
@@ -18,9 +19,11 @@ interface RpOp {
 export async function fedOps(
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<CbOp[]> {
-	const doFetch = opts.fetchImpl ?? fetch;
 	try {
-		const res = await doFetch(NYFED_URL, { signal: opts.signal });
+		const res = await fetchWithRetry(NYFED_URL, undefined, {
+			fetchImpl: opts.fetchImpl,
+			signal: opts.signal,
+		});
 		if (!res.ok) {
 			return [];
 		}

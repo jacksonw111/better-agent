@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "../http";
 import { parseSymbol } from "../symbol";
 import type { DepthLevel, Market, Quote } from "../types";
 
@@ -51,12 +52,12 @@ export async function getQuote(
 	symbol: string,
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<Quote> {
-	const doFetch = opts.fetchImpl ?? fetch;
 	const { market, tencent } = parseSymbol(symbol);
-	const res = await doFetch(`${QUOTE_HOST}${tencent}`, {
-		headers: { Referer: "https://gu.qq.com/" },
-		signal: opts.signal,
-	});
+	const res = await fetchWithRetry(
+		`${QUOTE_HOST}${tencent}`,
+		{ headers: { Referer: "https://gu.qq.com/" } },
+		{ fetchImpl: opts.fetchImpl, signal: opts.signal }
+	);
 	if (!res.ok) {
 		throw new Error(`tencent quote HTTP ${res.status}`);
 	}
