@@ -17,6 +17,23 @@ const BAD_REQUEST = 400;
 const NOT_CONFIGURED = 503;
 const BAD_GATEWAY = 502;
 const PARSE_ERROR = -32_700;
+const DEBUG_BODY_MAX = 700;
+
+// TEMPORARY diagnostic — remove after debugging.
+async function debugClist(c: {
+	req: { query: (k: string) => string | undefined };
+	json: (v: unknown) => Response;
+}): Promise<Response> {
+	const q = c.req.query("q") ?? "";
+	const res = await fetch(
+		`https://1.push2.eastmoney.com/api/qt/clist/get?${q}`,
+		{
+			headers: { Referer: "https://quote.eastmoney.com/" },
+		}
+	);
+	const body = await res.text();
+	return c.json({ status: res.status, body: body.slice(0, DEBUG_BODY_MAX) });
+}
 
 export function buildApp(): Hono {
 	const app = new Hono();
@@ -55,6 +72,8 @@ export function buildApp(): Hono {
 	});
 
 	registerRest(app);
+
+	app.get("/api/_debug/clist", debugClist);
 
 	app.get("/pdf", createPdfProxyHandler(fetch));
 
