@@ -1,7 +1,10 @@
 import { Hono } from "hono";
+import { NotConfiguredError } from "./core/finnhub/economic";
+import { BadSymbolError } from "./core/symbol";
 import { handleMessage } from "./mcp-server";
 import { createPdfProxyHandler } from "./pdf-proxy";
 import { registerRest } from "./rest";
+import type { ToolEnv } from "./tools-impl";
 
 // Streamable HTTP endpoint in stateless JSON mode: every POST carries one
 // JSON-RPC message; responses come back as application/json (the spec allows
@@ -9,6 +12,7 @@ import { registerRest } from "./rest";
 
 const ACCEPTED = 202;
 const BAD_REQUEST = 400;
+const NOT_CONFIGURED = 503;
 const PARSE_ERROR = -32_700;
 
 export function buildApp(): Hono {
@@ -29,7 +33,7 @@ export function buildApp(): Hono {
 				BAD_REQUEST
 			);
 		}
-		const response = await handleMessage(message);
+		const response = await handleMessage(message, c.env as ToolEnv);
 		if (response === null) {
 			return c.body(null, ACCEPTED);
 		}
@@ -39,6 +43,16 @@ export function buildApp(): Hono {
 	registerRest(app);
 
 	app.get("/pdf", createPdfProxyHandler(fetch));
+
+	app.onError((err, c) => {
+		if (err instanceof NotConfiguredError) {
+			return c.json({ error: err.message }, NOT_CONFIGURED);
+		}
+		if (err instanceof BadSymbolError) {
+			return c.json({ error: err.message }, BAD_REQUEST);
+		}
+		throw err;
+	});
 
 	return app;
 }

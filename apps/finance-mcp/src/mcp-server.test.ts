@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { handleMessage } from "./mcp-server";
 
+const call = (message: Parameters<typeof handleMessage>[0]) =>
+	handleMessage(message, {});
+
 describe("mcp handshake", () => {
 	it("initialize returns protocol + serverInfo", async () => {
-		const res = await handleMessage({
-			jsonrpc: "2.0",
-			id: 1,
-			method: "initialize",
-		});
+		const res = await call({ jsonrpc: "2.0", id: 1, method: "initialize" });
 		expect(res).not.toBeNull();
 		const result = (
 			res as {
@@ -19,17 +18,13 @@ describe("mcp handshake", () => {
 	});
 
 	it("tools/list returns an array", async () => {
-		const res = await handleMessage({
-			jsonrpc: "2.0",
-			id: 2,
-			method: "tools/list",
-		});
+		const res = await call({ jsonrpc: "2.0", id: 2, method: "tools/list" });
 		const tools = (res as { result: { tools: unknown[] } }).result.tools;
 		expect(Array.isArray(tools)).toBe(true);
 	});
 
 	it("notifications return null (no body)", async () => {
-		const res = await handleMessage({
+		const res = await call({
 			jsonrpc: "2.0",
 			method: "notifications/initialized",
 		});
@@ -37,7 +32,7 @@ describe("mcp handshake", () => {
 	});
 
 	it("unknown tool returns isError", async () => {
-		const res = await handleMessage({
+		const res = await call({
 			jsonrpc: "2.0",
 			id: 3,
 			method: "tools/call",

@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
+import { economicCalendar } from "./core/finnhub/economic";
 import { getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 
@@ -29,5 +30,13 @@ export function registerRest(app: Hono): void {
 		const market = m === "us" || m === "hk" ? m : "a";
 		const date = c.req.query("date") ?? "";
 		return c.json(await earningsCalendar(market, date));
+	});
+
+	app.get("/api/calendar/economic", async (c) => {
+		const from = c.req.query("from") ?? "";
+		const to = c.req.query("to") ?? "";
+		const country = c.req.query("country") ?? undefined;
+		const key = (c.env as { FINNHUB_API_KEY?: string }).FINNHUB_API_KEY ?? "";
+		return c.json(await economicCalendar(from, to, key, country));
 	});
 }

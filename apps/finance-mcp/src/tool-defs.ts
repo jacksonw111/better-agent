@@ -107,3 +107,25 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_earnings_calendar");
+
+TOOLS.push({
+	name: "finance_economic_calendar",
+	description:
+		"Macro economic data-release schedule (CPI, PPI, non-farm payrolls, GDP, FOMC, PMI) " +
+		"with actual/estimate/prior. Covers US and China. from/to are YYYY-MM-DD; country is an " +
+		"optional ISO-2 filter (US, CN).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			from: { type: "string", description: "Start date YYYY-MM-DD." },
+			to: { type: "string", description: "End date YYYY-MM-DD." },
+			country: {
+				type: "string",
+				description: "Optional ISO-2 filter, e.g. US or CN.",
+			},
+		},
+		required: ["from", "to"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_economic_calendar");

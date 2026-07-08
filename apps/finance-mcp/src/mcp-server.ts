@@ -1,6 +1,6 @@
 import { log } from "evlog";
 import { TOOLS } from "./tool-defs";
-import { runTool, toolText } from "./tools-impl";
+import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool
 // dispatch. Feature tasks register tools in tool-defs.ts / tools-impl.ts; this
@@ -42,11 +42,12 @@ function toArgs(
 
 async function callTool(
 	id: JsonRpcResponse["id"],
-	params: Record<string, unknown> | undefined
+	params: Record<string, unknown> | undefined,
+	env: ToolEnv
 ): Promise<JsonRpcResponse> {
 	const name = typeof params?.name === "string" ? params.name : "";
 	try {
-		return ok(id, await runTool(name, toArgs(params)));
+		return ok(id, await runTool(name, toArgs(params), env));
 	} catch (err) {
 		log.error(
 			"finance-mcp",
@@ -59,7 +60,8 @@ async function callTool(
 
 /** Handle one JSON-RPC message; null = notification (no response body). */
 export function handleMessage(
-	message: JsonRpcRequest
+	message: JsonRpcRequest,
+	env: ToolEnv = {}
 ): Promise<JsonRpcResponse | null> {
 	const id = message.id ?? null;
 	if (message.method.startsWith("notifications/")) {
@@ -79,7 +81,7 @@ export function handleMessage(
 		case "tools/list":
 			return Promise.resolve(ok(id, { tools: TOOLS }));
 		case "tools/call":
-			return callTool(id, message.params);
+			return callTool(id, message.params, env);
 		default:
 			return Promise.resolve({
 				jsonrpc: "2.0",

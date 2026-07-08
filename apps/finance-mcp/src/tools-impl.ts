@@ -1,8 +1,13 @@
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
+import { economicCalendar } from "./core/finnhub/economic";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
+
+export interface ToolEnv {
+	FINNHUB_API_KEY?: string;
+}
 
 export interface ToolResult {
 	content: { type: "text"; text: string }[];
@@ -72,10 +77,23 @@ async function handleEarningsCalendar(
 	return toolJson(await earningsCalendar(market, date));
 }
 
+async function handleEconomicCalendar(
+	args: Record<string, unknown>,
+	env: ToolEnv
+): Promise<ToolResult> {
+	const from = argString(args, "from");
+	const to = argString(args, "to");
+	const country = typeof args.country === "string" ? args.country : undefined;
+	return toolJson(
+		await economicCalendar(from, to, env.FINNHUB_API_KEY ?? "", country)
+	);
+}
+
 // Feature tasks add `if (name === "finance_x") { ... }` branches above the fallback.
 export async function runTool(
 	name: string,
-	_args: Record<string, unknown>
+	_args: Record<string, unknown>,
+	env: ToolEnv = {}
 ): Promise<ToolResult> {
 	if (name === "finance_quote") {
 		return await handleQuote(_args);
@@ -88,6 +106,9 @@ export async function runTool(
 	}
 	if (name === "finance_earnings_calendar") {
 		return await handleEarningsCalendar(_args);
+	}
+	if (name === "finance_economic_calendar") {
+		return await handleEconomicCalendar(_args, env);
 	}
 	return toolText(`Unknown tool: ${name}`, true);
 }
