@@ -89,6 +89,11 @@ services:
       # Optional OAuth.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Memory embeddings (SiliconFlow). Without the key, memory add/search and
+      # the memory MCP tools return a clear "provider unavailable" error.
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      SILICONFLOW_BASE_URL: ${SILICONFLOW_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

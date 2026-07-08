@@ -7,6 +7,7 @@ import type {
 	MemoryRow,
 } from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
+import { log } from "evlog";
 import { z } from "zod";
 import type { Context } from "../context";
 
@@ -17,6 +18,10 @@ export const DEFAULT_SEARCH_K = 5;
 const MAX_SEARCH_K = 50;
 const MIN_IMPORTANCE = 0;
 const MAX_IMPORTANCE = 1;
+// Upper bound on text handed to the (paid, third-party) embedding API. Caps
+// cost/DoS from an oversized item or query — enforced at the shared embed
+// chokepoint so both the web router and the MCP tools are covered.
+const MAX_EMBED_CHARS = 8000;
 
 export const idInput = z.object({ id: z.uuid() });
 export const memoryIdInput = z.object({ memoryId: z.uuid() });
@@ -38,7 +43,7 @@ export const createMemoryInput = z.object({
 
 export const addItemInput = z.object({
 	memoryId: z.uuid(),
-	content: z.string().min(1),
+	content: z.string().min(1).max(MAX_EMBED_CHARS),
 	importance: z.number().min(MIN_IMPORTANCE).max(MAX_IMPORTANCE).optional(),
 });
 
@@ -48,9 +53,20 @@ export const assignInput = targetInput.extend({
 });
 
 export const searchInput = targetInput.extend({
-	query: z.string().min(1),
+	query: z.string().min(1).max(MAX_EMBED_CHARS),
 	k: z.number().int().min(1).max(MAX_SEARCH_K).default(DEFAULT_SEARCH_K),
 });
+
+// Guards the shared embed paths (below) — the web router already validates via
+// the zod schemas above, but the MCP tools call embedAndAddItem/SearchItems
+// directly with raw agent input, so the cap must live here too.
+function assertEmbedTextWithinLimit(text: string): void {
+	if (text.length > MAX_EMBED_CHARS) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: `Text exceeds the ${MAX_EMBED_CHARS}-character embedding limit`,
+		});
+	}
+}
 
 // Loads a memory and asserts the caller owns it. NOT_FOUND for both missing and
 // other-owner memories, so ownership never leaks.
@@ -79,6 +95,33 @@ export function requireEmbedding(context: Context): EmbeddingClient {
 	return client;
 }
 
+// Runs the (paid, third-party) embedding call at the shared chokepoint both the
+// web router and the MCP tools flow through. embed() rejects with a PLAIN Error
+// on misconfiguration (missing API key) or upstream failure (4xx/5xx/network);
+// that raw text can carry provider internals, so we log it server-side for
+// operators and re-throw a SANITIZED SERVICE_UNAVAILABLE — never echoing the
+// upstream message to the caller. An ORPCError (e.g. the char-limit guard) is
+// already sanitized, so it passes through untouched.
+async function embedText(
+	client: EmbeddingClient,
+	text: string
+): Promise<number[]> {
+	try {
+		return await client.embed(text);
+	} catch (error) {
+		if (error instanceof ORPCError) {
+			throw error;
+		}
+		log.error(
+			"memory",
+			`embedding provider failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`
+		);
+		throw new ORPCError("SERVICE_UNAVAILABLE", {
+			message: "Embedding provider is unavailable",
+		});
+	}
+}
+
 // Embed-then-persist: the single write path shared by the web router (which
 // leaves `source` at its 'user' default) and the memory MCP server (which
 // stamps 'extracted' for agent-authored items), so the model recorded beside
@@ -93,7 +136,8 @@ export async function embedAndAddItem(
 		source?: MemoryItemSource;
 	}
 ): Promise<MemoryItemRow> {
-	const embedding = await client.embed(input.content);
+	assertEmbedTextWithinLimit(input.content);
+	const embedding = await embedText(client, input.content);
 	return store.add({
 		memoryId: input.memoryId,
 		content: input.content,
@@ -115,7 +159,8 @@ export async function embedAndSearchItems(
 	if (input.memoryIds.length === 0) {
 		return [];
 	}
-	const embedding = await client.embed(input.query);
+	assertEmbedTextWithinLimit(input.query);
+	const embedding = await embedText(client, input.query);
 	return store.search({
 		embedding,
 		memoryIds: input.memoryIds,
