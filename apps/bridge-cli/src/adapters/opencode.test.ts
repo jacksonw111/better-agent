@@ -1,58 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { JsonRpcIo } from "./jsonrpc-io";
 import { connectJsonRpc } from "./jsonrpc-io";
 import { opencodeAdapter } from "./opencode";
-import type { ProcessExitInfo } from "./process-io";
+import { createFakeRpc } from "./opencode-test-harness";
 
 vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
-
-type RequestHandler = (id: number, method: string, params: unknown) => void;
-type NotificationHandler = (method: string, params: unknown) => void;
-
-/** A fake `JsonRpcIo` whose exit, server-initiated requests, and notifications
- * can be triggered on demand by the test, standing in for the real `opencode
- * acp` process opencode.ts spawns. */
-function createFakeRpc(): {
-	rpc: JsonRpcIo;
-	triggerExit(info: ProcessExitInfo): void;
-	triggerNotification(method: string, params: unknown): void;
-	triggerRequest(id: number, method: string, params: unknown): void;
-} {
-	const exitHandlers: Array<(info: ProcessExitInfo) => void> = [];
-	const requestHandlers: RequestHandler[] = [];
-	const notificationHandlers: NotificationHandler[] = [];
-	return {
-		rpc: {
-			notify: vi.fn(),
-			onExit: (handler) => exitHandlers.push(handler),
-			onNotification: (handler) => notificationHandlers.push(handler),
-			onRequest: (handler) => requestHandlers.push(handler),
-			respond: vi.fn(),
-			request: vi.fn((method: string) => {
-				if (method === "session/new") {
-					return Promise.resolve({ sessionId: "session_1" });
-				}
-				return Promise.resolve({});
-			}),
-			stop: vi.fn(),
-		},
-		triggerExit(info: ProcessExitInfo): void {
-			for (const handler of exitHandlers) {
-				handler(info);
-			}
-		},
-		triggerNotification(method: string, params: unknown): void {
-			for (const handler of notificationHandlers) {
-				handler(method, params);
-			}
-		},
-		triggerRequest(id: number, method: string, params: unknown): void {
-			for (const handler of requestHandlers) {
-				handler(id, method, params);
-			}
-		},
-	};
-}
 
 describe("opencodeAdapter", () => {
 	it("pushes an agent_exited status, then closes `events`, once the process exits on its own", async () => {

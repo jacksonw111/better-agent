@@ -186,6 +186,14 @@ export interface AgentStartConfig {
 	effort?: "low" | "medium" | "high" | "xhigh" | "max";
 	maxBudgetUsd?: number;
 	maxTurns?: number;
+	/** The model id to start the session with. Only claude-code applies this
+	 * (SDK `Options.model`) as of R2-b; see per-adapter notes for the rest. */
+	model?: string;
+	/** The permission mode to start the session with (agent-specific values,
+	 * e.g. claude's "default"/"plan"/"acceptEdits"/…). Only claude-code applies
+	 * this as of R2-b — ignored (not just unsupported) by pi, which has no
+	 * permission-mode concept at all. */
+	permissionMode?: string;
 }
 
 /** Spawns and wires up one local coding agent in `dir`. */

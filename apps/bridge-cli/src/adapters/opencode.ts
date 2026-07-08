@@ -15,7 +15,12 @@ import {
 	makeOpencodeGetStatus,
 	updateOpencodeStatusCache,
 } from "./opencode-status";
-import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
+import {
+	type Adapter,
+	AGENT_EXITED_STATUS,
+	type AgentHandle,
+	type StartOptions,
+} from "./types";
 
 /** Reply outcome sent back for a `session/request_permission` request. See
  * the ASSUMPTION note in normalize/opencode.ts about this shape. */
@@ -125,6 +130,23 @@ function opencodeModeControls(
 	};
 }
 
+/** R2-b: applies the persisted startup config's `model`/`permissionMode` (if
+ * any) right after `session/new` resolves, via the exact same ACP calls
+ * `opencodeModeControls` wires up for the LIVE picker/menu — so this carries
+ * the same unstable_setSessionModel/session/set_mode ASSUMPTION already noted
+ * there, not a new one. Fire-and-forget, same as the live controls. */
+function applyOpencodeStartupConfig(
+	controls: Pick<AgentHandle, "setModel" | "setPermissionMode">,
+	config: { model?: string; permissionMode?: string } | undefined
+): void {
+	if (config?.model) {
+		controls.setModel?.(config.model);
+	}
+	if (config?.permissionMode) {
+		controls.setPermissionMode?.(config.permissionMode);
+	}
+}
+
 /** The `send` control — echoes the user's line and issues `session/prompt`.
  * Extracted so `start` stays under the max-lines-per-function gate. */
 function opencodeSend(
@@ -151,7 +173,7 @@ function opencodeSend(
 
 /** `opencode acp` — the Agent Client Protocol server built into opencode. */
 export const opencodeAdapter: Adapter = {
-	async start(dir: string): Promise<AgentHandle> {
+	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const rpc = await connectJsonRpc("opencode", ["acp"], dir);
 		const events = createAsyncQueue<NormalizedEvent>();
 		const approvals = createApprovalRegistry(events);
@@ -181,6 +203,9 @@ export const opencodeAdapter: Adapter = {
 				? session.sessionId
 				: undefined;
 
+		const modeControls = opencodeModeControls(rpc, () => sessionId);
+		applyOpencodeStartupConfig(modeControls, opts?.config);
+
 		return {
 			answerApproval(requestId: string, optionId: string): void {
 				approvals.answer(requestId, optionId);
@@ -188,7 +213,7 @@ export const opencodeAdapter: Adapter = {
 			events,
 			getStatus: makeOpencodeGetStatus(statusCache, events),
 			send: opencodeSend(rpc, events, () => sessionId),
-			...opencodeModeControls(rpc, () => sessionId),
+			...modeControls,
 			stop(): void {
 				rpc.stop();
 				events.close();

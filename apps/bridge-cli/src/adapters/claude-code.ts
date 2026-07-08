@@ -1,6 +1,5 @@
 import {
 	type CanUseTool,
-	type PermissionMode,
 	type PermissionResult,
 	query,
 	type SDKUserMessage,
@@ -9,6 +8,10 @@ import { normalizeClaudeCode } from "../normalize/claude-code";
 import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
 import { isRecord, userMessageEvent } from "../normalize/types";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import {
+	configQueryOptions,
+	isPermissionMode,
+} from "./claude-code-startup-config";
 import {
 	type LastKnownSessionInfo,
 	makeClaudeGetStatus,
@@ -31,22 +34,6 @@ const APPROVAL_OPTIONS: ApprovalOption[] = [
 	{ id: "allow", label: "Allow" },
 	{ id: "deny", label: "Deny" },
 ];
-
-/** The SDK's full `PermissionMode` enum — narrows a wire string (from the
- * web's `control: setPermissionMode` command) before handing it to
- * `session.setPermissionMode`, instead of an unchecked type assertion. */
-const PERMISSION_MODES = new Set<string>([
-	"default",
-	"acceptEdits",
-	"bypassPermissions",
-	"plan",
-	"dontAsk",
-	"auto",
-]);
-
-function isPermissionMode(value: string): value is PermissionMode {
-	return PERMISSION_MODES.has(value);
-}
 
 /** How long to wait for the SDK's `supportedModels()` — resolved off the same
  * init handshake that yields the `session_ready` line — before emitting
@@ -168,20 +155,6 @@ async function drainSession(
 	events.close();
 }
 
-/** Builds the SDK `systemPrompt` option: preset+append keeps claude's default
- * prompt and appends the user's instructions (a bare string would REPLACE it). */
-function claudeSystemPromptOption(
-	config: { appendSystemPrompt?: string } | undefined
-) {
-	return config?.appendSystemPrompt
-		? {
-				append: config.appendSystemPrompt,
-				preset: "claude_code" as const,
-				type: "preset" as const,
-			}
-		: undefined;
-}
-
 /** Starts the SDK `query()` session: the claude subprocess + handshake, wired
  * to this handle's input queue, tool-approval routing, and persisted startup
  * config from the bridge token. */
@@ -200,11 +173,9 @@ function startClaudeQuery(
 			// A prior `--resume` claude session id (undefined starts fresh).
 			resume: opts?.resume,
 			canUseTool: makeCanUseTool(events, approvals),
-			// Phase 4: apply persisted startup config from the bridge token.
-			systemPrompt: claudeSystemPromptOption(opts?.config),
-			maxTurns: opts?.config?.maxTurns,
-			maxBudgetUsd: opts?.config?.maxBudgetUsd,
-			effort: opts?.config?.effort,
+			// Phase 4 + R2-b: apply persisted startup config from the bridge token
+			// (systemPrompt/maxTurns/maxBudgetUsd/effort/model/permissionMode).
+			...configQueryOptions(opts?.config),
 			// Extended thinking's reasoning text only streams as `thinking_delta`
 			// frames under includePartialMessages — which also streams the
 			// response text as `text_delta` frames, duplicating what later

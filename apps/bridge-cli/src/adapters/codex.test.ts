@@ -190,6 +190,33 @@ describe("codexAdapter - approvals - repeated or post-exit answers", () => {
 	});
 });
 
+describe("codexAdapter - startup config (R2-b)", () => {
+	it("passes the persisted model on thread/start", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		await codexAdapter.start("/tmp/project", {
+			config: { model: "gpt-5-codex" },
+		});
+
+		expect(rpc.request).toHaveBeenCalledWith("thread/start", {
+			cwd: "/tmp/project",
+			model: "gpt-5-codex",
+		});
+	});
+
+	it("omits model from thread/start when no startup config is given", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		await codexAdapter.start("/tmp/project");
+
+		expect(rpc.request).toHaveBeenCalledWith("thread/start", {
+			cwd: "/tmp/project",
+		});
+	});
+});
+
 describe("codexAdapter - getStatus", () => {
 	it("caches thread/tokenUsage/updated + thread/status/changed notifications and answers getStatus with exactly one status_snapshot", async () => {
 		const { rpc, triggerNotification } = createFakeRpc();

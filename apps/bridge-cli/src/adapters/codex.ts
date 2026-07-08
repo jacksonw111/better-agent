@@ -12,7 +12,12 @@ import {
 	updateCodexStatusCache,
 } from "./codex-status";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
-import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
+import {
+	type Adapter,
+	AGENT_EXITED_STATUS,
+	type AgentHandle,
+	type StartOptions,
+} from "./types";
 
 function threadIdFrom(result: unknown): unknown {
 	if (result === null || typeof result !== "object" || !("thread" in result)) {
@@ -64,6 +69,23 @@ function wireCodexApprovals(
  */
 const CODEX_ARGS = ["app-server"];
 
+/** Builds `thread/start`'s params: `cwd` plus, when persisted, `model` —
+ * verified against `codex-rs/protocol/src/protocol.rs` (`pub model: String`
+ * on the thread/turn start request), not guessed; see
+ * docs/research/agent-config-codex.md. `permissionMode` isn't threaded here:
+ * codex's nearest concept is `approval_policy`
+ * (untrusted/on-request/never), a different value space than the
+ * generic `permissionMode` string, and the web's capability matrix
+ * (`CODEX_CAPABILITIES.permissionModes`) is still empty — no UI ever
+ * populates it yet, so there's nothing to wire up without guessing a
+ * mapping. */
+function threadStartParams(
+	dir: string,
+	config: { model?: string } | undefined
+): { cwd: string; model?: string } {
+	return config?.model ? { cwd: dir, model: config.model } : { cwd: dir };
+}
+
 /** The shared plumbing every `AgentHandle` method closes over — bundled into
  * one object so `makeCodexHandle` stays under the repo's max-params gate. */
 interface CodexHandleDeps {
@@ -114,7 +136,7 @@ function makeCodexHandle(
 }
 
 export const codexAdapter: Adapter = {
-	async start(dir: string): Promise<AgentHandle> {
+	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const rpc = await connectJsonRpc("codex", CODEX_ARGS, dir);
 		const events = createAsyncQueue<NormalizedEvent>();
 		const approvals = createApprovalRegistry(events);
@@ -137,7 +159,10 @@ export const codexAdapter: Adapter = {
 			clientInfo: { name: "better-agent-bridge", version: "0.0.0" },
 		});
 		rpc.notify("initialized", {});
-		const started = await rpc.request("thread/start", { cwd: dir });
+		const started = await rpc.request(
+			"thread/start",
+			threadStartParams(dir, opts?.config)
+		);
 		return makeCodexHandle(
 			{ approvals, events, rpc, statusCache },
 			threadIdFrom(started)

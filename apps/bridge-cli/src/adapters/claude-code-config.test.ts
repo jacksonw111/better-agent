@@ -43,3 +43,24 @@ it("omits systemPrompt when no appendSystemPrompt is configured", async () => {
 	expect(harness.options?.systemPrompt).toBeUndefined();
 	expect(harness.options).toMatchObject({ maxTurns: 5 });
 });
+
+it("applies model + permissionMode from the persisted config", async () => {
+	const { harness } = mockQuery();
+	await claudeCodeAdapter.start("/tmp/project", {
+		config: { model: "claude-opus-4-8", permissionMode: "plan" },
+	});
+
+	expect(harness.options).toMatchObject({
+		model: "claude-opus-4-8",
+		permissionMode: "plan",
+	});
+});
+
+it("omits permissionMode when the configured value isn't a recognized SDK mode", async () => {
+	const { harness } = mockQuery();
+	await claudeCodeAdapter.start("/tmp/project", {
+		config: { permissionMode: "not-a-real-mode" },
+	});
+
+	expect(harness.options?.permissionMode).toBeUndefined();
+});
