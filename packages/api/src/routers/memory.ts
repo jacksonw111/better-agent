@@ -4,6 +4,8 @@ import {
 	addItemInput,
 	assignInput,
 	createMemoryInput,
+	embedAndAddItem,
+	embedAndSearchItems,
 	idInput,
 	itemIdInput,
 	memoryIdInput,
@@ -55,15 +57,15 @@ export const memoryRouter = {
 		.input(addItemInput)
 		.handler(async ({ input, context }) => {
 			await requireOwnedMemory(context, context.authedUser.id, input.memoryId);
-			const client = requireEmbedding(context);
-			const embedding = await client.embed(input.content);
-			return context.services.stores.memoryItem.add({
-				memoryId: input.memoryId,
-				content: input.content,
-				embedding,
-				model: client.model,
-				importance: input.importance,
-			});
+			return embedAndAddItem(
+				requireEmbedding(context),
+				context.services.stores.memoryItem,
+				{
+					memoryId: input.memoryId,
+					content: input.content,
+					importance: input.importance,
+				}
+			);
 		}),
 
 	listItems: userProcedure
@@ -134,13 +136,10 @@ export const memoryRouter = {
 			if (memoryIds.length === 0) {
 				return [];
 			}
-			const client = requireEmbedding(context);
-			const embedding = await client.embed(input.query);
-			return context.services.stores.memoryItem.search({
-				embedding,
-				memoryIds,
-				k: input.k,
-				bumpAccessedAt: true,
-			});
+			return embedAndSearchItems(
+				requireEmbedding(context),
+				context.services.stores.memoryItem,
+				{ query: input.query, memoryIds, k: input.k }
+			);
 		}),
 };

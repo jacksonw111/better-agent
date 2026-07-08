@@ -16,6 +16,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { assignMemoriesSafely } from "@/components/memory/assign-memories";
+import { MemoryPicker } from "@/components/memory/memory-picker";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import {
@@ -26,15 +28,15 @@ import {
 
 type AgentKind = BridgeTokenRow["agentKind"];
 
-function useCreateBridgeToken(onCreated: (tokenId: string) => void) {
+function useCreateBridgeToken(onCreated: (tokenId: string) => Promise<void>) {
 	const queryClient = useQueryClient();
 	return useMutation(
 		orpc.bridge.createToken.mutationOptions({
-			onSuccess: (result) => {
+			onSuccess: async (result) => {
 				queryClient.invalidateQueries({
 					queryKey: orpc.bridge.listTokens.key(),
 				});
-				onCreated(result.id);
+				await onCreated(result.id);
 			},
 			onError: (error) => toast.error(error.message),
 		})
@@ -77,11 +79,43 @@ function AgentKindPicker({
 	);
 }
 
+function LocalAgentDetailsFields({
+	name,
+	onName,
+	memoryIds,
+	onMemoryIds,
+}: {
+	name: string;
+	onName: (value: string) => void;
+	memoryIds: string[];
+	onMemoryIds: (ids: string[]) => void;
+}) {
+	return (
+		<>
+			<div className="flex flex-col gap-2">
+				<Label htmlFor="local-agent-name">Name</Label>
+				<Input
+					id="local-agent-name"
+					onChange={(event) => onName(event.target.value)}
+					placeholder="e.g. laptop"
+					value={name}
+				/>
+			</div>
+			<div className="flex flex-col gap-2">
+				<Label>Memories (optional)</Label>
+				<MemoryPicker onChange={onMemoryIds} selected={memoryIds} />
+			</div>
+		</>
+	);
+}
+
 function AddLocalAgentForm({
 	name,
 	onName,
 	kind,
 	onKind,
+	memoryIds,
+	onMemoryIds,
 	onSubmit,
 	onCancel,
 	pending,
@@ -90,6 +124,8 @@ function AddLocalAgentForm({
 	onName: (value: string) => void;
 	kind: AgentKind | null;
 	onKind: (value: AgentKind) => void;
+	memoryIds: string[];
+	onMemoryIds: (ids: string[]) => void;
 	onSubmit: () => void;
 	onCancel: () => void;
 	pending: boolean;
@@ -103,15 +139,12 @@ function AddLocalAgentForm({
 			}}
 		>
 			<AgentKindPicker onChange={onKind} value={kind} />
-			<div className="flex flex-col gap-2">
-				<Label htmlFor="local-agent-name">Name</Label>
-				<Input
-					id="local-agent-name"
-					onChange={(event) => onName(event.target.value)}
-					placeholder="e.g. laptop"
-					value={name}
-				/>
-			</div>
+			<LocalAgentDetailsFields
+				memoryIds={memoryIds}
+				name={name}
+				onMemoryIds={onMemoryIds}
+				onName={onName}
+			/>
 			<DialogFooter className="gap-2">
 				<Button onClick={onCancel} type="button" variant="outline">
 					Cancel
@@ -124,19 +157,15 @@ function AddLocalAgentForm({
 	);
 }
 
-/**
- * "Add a local agent": pick which agent this token is for (bound to it for
- * life) and optionally name it, then create. The raw token lives on the new
- * agent's own page — we navigate there on success rather than revealing it
- * once here.
- */
-export function AddLocalAgentDialog() {
+function useAddLocalAgentDialog() {
 	const navigate = useNavigate();
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
 	const [kind, setKind] = useState<AgentKind | null>(null);
+	const [memoryIds, setMemoryIds] = useState<string[]>([]);
 
-	const create = useCreateBridgeToken((tokenId) => {
+	const create = useCreateBridgeToken(async (tokenId) => {
+		await assignMemoriesSafely({ tokenId }, memoryIds);
 		setOpen(false);
 		navigate({ params: { tokenId }, to: "/local-agents/$tokenId" });
 	});
@@ -146,9 +175,49 @@ export function AddLocalAgentDialog() {
 		if (!next) {
 			setName("");
 			setKind(null);
+			setMemoryIds([]);
 		}
 	};
 
+	const submit = () => {
+		if (kind) {
+			create.mutate({ agentKind: kind, name: name.trim() || undefined });
+		}
+	};
+
+	return {
+		isPending: create.isPending,
+		kind,
+		memoryIds,
+		name,
+		onOpenChange,
+		setKind,
+		setMemoryIds,
+		setName,
+		submit,
+		open,
+	};
+}
+
+/**
+ * "Add a local agent": pick which agent this token is for (bound to it for
+ * life) and optionally name it, then create. The raw token lives on the new
+ * agent's own page — we navigate there on success rather than revealing it
+ * once here.
+ */
+export function AddLocalAgentDialog() {
+	const {
+		isPending,
+		kind,
+		memoryIds,
+		name,
+		onOpenChange,
+		setKind,
+		setMemoryIds,
+		setName,
+		submit,
+		open,
+	} = useAddLocalAgentDialog();
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogTrigger render={<Button size="sm" />}>
@@ -165,15 +234,14 @@ export function AddLocalAgentDialog() {
 				</DialogHeader>
 				<AddLocalAgentForm
 					kind={kind}
+					memoryIds={memoryIds}
 					name={name}
 					onCancel={() => onOpenChange(false)}
 					onKind={setKind}
+					onMemoryIds={setMemoryIds}
 					onName={setName}
-					onSubmit={() =>
-						kind &&
-						create.mutate({ agentKind: kind, name: name.trim() || undefined })
-					}
-					pending={create.isPending}
+					onSubmit={submit}
+					pending={isPending}
 				/>
 			</DialogContent>
 		</Dialog>

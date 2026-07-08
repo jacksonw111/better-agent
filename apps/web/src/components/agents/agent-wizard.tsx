@@ -7,6 +7,8 @@ import {
 } from "@better-agent/ui/components/dialog";
 import { useState } from "react";
 
+import { MemoriesStep } from "@/components/memory/memories-step";
+
 import {
 	type AgentForm,
 	EMPTY_AGENT_FORM,
@@ -25,6 +27,7 @@ const IDENTITY_STEP = 0;
 const MODEL_STEP = 1;
 const PARAMS_STEP = 2;
 const TOOLS_STEP = 3;
+const MEMORIES_STEP = 4;
 
 function WizardFooter({
 	step,
@@ -66,16 +69,48 @@ function WizardFooter({
 	);
 }
 
+function WizardStepBody({
+	step,
+	form,
+	set,
+	agentId,
+}: {
+	step: number;
+	form: AgentForm;
+	set: (patch: Partial<AgentForm>) => void;
+	agentId: string | null;
+}) {
+	return (
+		<div className="flex min-h-64 flex-col sm:min-h-80">
+			{step === IDENTITY_STEP ? <IdentityStep form={form} set={set} /> : null}
+			{step === MODEL_STEP ? <ModelStep form={form} set={set} /> : null}
+			{step === PARAMS_STEP ? <ParamsStep form={form} set={set} /> : null}
+			{step === TOOLS_STEP ? <ToolsStep form={form} set={set} /> : null}
+			{step === MEMORIES_STEP ? (
+				<MemoriesStep
+					agentId={agentId}
+					onChange={(ids) => set({ memoryIds: ids })}
+					selected={form.memoryIds}
+				/>
+			) : null}
+		</div>
+	);
+}
+
 export function AgentWizard({
 	open,
 	onOpenChange,
 	initial,
+	agentId,
 	onSubmit,
 	pending,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	initial: AgentForm | null;
+	/** The agent being edited, or null when creating. The Memories step manages
+	 * assignments live for an existing agent, deferred for a new one. */
+	agentId: string | null;
 	onSubmit: (form: AgentForm) => void;
 	pending: boolean;
 }) {
@@ -96,14 +131,7 @@ export function AgentWizard({
 					step={step}
 				/>
 				{/* Fixed height so the modal stays the same size across every step. */}
-				<div className="flex min-h-64 flex-col sm:min-h-80">
-					{step === IDENTITY_STEP ? (
-						<IdentityStep form={form} set={set} />
-					) : null}
-					{step === MODEL_STEP ? <ModelStep form={form} set={set} /> : null}
-					{step === PARAMS_STEP ? <ParamsStep form={form} set={set} /> : null}
-					{step === TOOLS_STEP ? <ToolsStep form={form} set={set} /> : null}
-				</div>
+				<WizardStepBody agentId={agentId} form={form} set={set} step={step} />
 				<WizardFooter
 					canNext={isStepValid(step, form)}
 					onBack={() => setStep((current) => current - 1)}

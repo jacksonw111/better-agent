@@ -1,6 +1,9 @@
 import type {
 	AgentMemoryRow,
 	EmbeddingClient,
+	MemoryItemRow,
+	MemoryItemSource,
+	MemoryItemStore,
 	MemoryRow,
 } from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
@@ -74,6 +77,51 @@ export function requireEmbedding(context: Context): EmbeddingClient {
 		});
 	}
 	return client;
+}
+
+// Embed-then-persist: the single write path shared by the web router (which
+// leaves `source` at its 'user' default) and the memory MCP server (which
+// stamps 'extracted' for agent-authored items), so the model recorded beside
+// the vector never diverges between the two entry points.
+export async function embedAndAddItem(
+	client: EmbeddingClient,
+	store: Pick<MemoryItemStore, "add">,
+	input: {
+		memoryId: string;
+		content: string;
+		importance?: number;
+		source?: MemoryItemSource;
+	}
+): Promise<MemoryItemRow> {
+	const embedding = await client.embed(input.content);
+	return store.add({
+		memoryId: input.memoryId,
+		content: input.content,
+		embedding,
+		model: client.model,
+		importance: input.importance,
+		source: input.source,
+	});
+}
+
+// Embed-then-kNN: the single read path shared by the web router's search and
+// the memory MCP server's memory_search. Skips the (paid) embedding call when
+// the caller has no memories at all; hits bump last_accessed_at.
+export async function embedAndSearchItems(
+	client: EmbeddingClient,
+	store: Pick<MemoryItemStore, "search">,
+	input: { query: string; memoryIds: string[]; k: number }
+): Promise<MemoryItemRow[]> {
+	if (input.memoryIds.length === 0) {
+		return [];
+	}
+	const embedding = await client.embed(input.query);
+	return store.search({
+		embedding,
+		memoryIds: input.memoryIds,
+		k: input.k,
+		bumpAccessedAt: true,
+	});
 }
 
 function assertOneTarget(input: Target): void {

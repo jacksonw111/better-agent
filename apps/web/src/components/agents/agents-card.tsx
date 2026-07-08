@@ -14,11 +14,12 @@ import {
 	TableRow,
 } from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
+import { assignMemoriesSafely } from "@/components/memory/assign-memories";
 import type { AgentRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { celebrateSuccess } from "@/utils/celebrate";
@@ -156,16 +157,25 @@ function useAgentWizard() {
 	return { state, openAdd, openEdit, close };
 }
 
-function useAgentMutations(
-	onSaved: () => void,
-	onTokenMinted: (token: string) => void
-) {
-	const queryClient = useQueryClient();
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.agents.list.key() });
-	const create = useMutation(
+function useCreateAgent({
+	pendingMemoryIds,
+	onTokenMinted,
+	onSaved,
+	invalidate,
+}: {
+	pendingMemoryIds: { current: string[] };
+	onTokenMinted: (token: string) => void;
+	onSaved: () => void;
+	invalidate: () => void;
+}) {
+	return useMutation(
 		orpc.agents.create.mutationOptions({
-			onSuccess: (result) => {
+			onSuccess: async (result) => {
+				await assignMemoriesSafely(
+					{ agentId: result.agent.id },
+					pendingMemoryIds.current
+				);
+				pendingMemoryIds.current = [];
 				celebrateSuccess("Agent created");
 				onTokenMinted(result.token);
 				onSaved();
@@ -174,6 +184,25 @@ function useAgentMutations(
 			onError: (error) => toast.error(error.message),
 		})
 	);
+}
+
+function useAgentMutations(
+	onSaved: () => void,
+	onTokenMinted: (token: string) => void
+) {
+	const queryClient = useQueryClient();
+	const invalidate = () =>
+		queryClient.invalidateQueries({ queryKey: orpc.agents.list.key() });
+	// The Memories step's selection, captured at submit time so the create
+	// mutation's onSuccess can turn it into real assignments (the agent id only
+	// exists after the create round-trip).
+	const pendingMemoryIds = useRef<string[]>([]);
+	const create = useCreateAgent({
+		invalidate,
+		onSaved,
+		onTokenMinted,
+		pendingMemoryIds,
+	});
 	const update = useMutation(
 		orpc.agents.update.mutationOptions({
 			onSuccess: () => {
@@ -196,6 +225,7 @@ function useAgentMutations(
 	const submit = (editingId: string | null, form: AgentForm) => {
 		const input = toAgentInput(form);
 		if (editingId === null) {
+			pendingMemoryIds.current = form.memoryIds;
 			create.mutate(input);
 		} else {
 			update.mutate({ id: editingId, ...input });
@@ -246,6 +276,7 @@ export function AgentsCard() {
 			/>
 			{state.open ? (
 				<AgentWizard
+					agentId={state.id}
 					initial={state.initial}
 					key={state.id ?? "new"}
 					onOpenChange={close}

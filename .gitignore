@@ -62,3 +62,6 @@ deploy/secrets/*.plaintext.yaml
 
 # docker-compose secrets (only .env.example is committed)
 deploy/compose/.env
+.pi-*
+.superpowers
+ 

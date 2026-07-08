@@ -6,6 +6,9 @@ export interface AgentForm {
 	description: string;
 	maxOutputTokens: string;
 	mcpServerIds: string[];
+	/** Deferred memory assignments: only used when CREATING (assigned with role
+	 * read after the agent exists). Editing manages assignments live instead. */
+	memoryIds: string[];
 	modelId: string;
 	name: string;
 	providerId: string;
@@ -19,6 +22,7 @@ export const EMPTY_AGENT_FORM: AgentForm = {
 	composioAccountIds: [],
 	builtinTools: [],
 	mcpServerIds: [],
+	memoryIds: [],
 	name: "",
 	description: "",
 	systemPrompt: "",
@@ -30,7 +34,13 @@ export const EMPTY_AGENT_FORM: AgentForm = {
 	toolAllowlist: null,
 };
 
-export const WIZARD_STEPS = ["Identity", "Model", "Params", "Tools"] as const;
+export const WIZARD_STEPS = [
+	"Identity",
+	"Model",
+	"Params",
+	"Tools",
+	"Memories",
+] as const;
 
 const IDENTITY_STEP = 0;
 const MODEL_STEP = 1;
@@ -97,6 +107,7 @@ export function agentRowToForm(row: AgentRow): AgentForm {
 		composioAccountIds: row.composioAccountIds ?? [],
 		builtinTools: row.builtinTools ?? [],
 		mcpServerIds: row.mcpServerIds ?? [],
+		memoryIds: [],
 		name: row.name,
 		description: row.description,
 		systemPrompt: row.systemPrompt,

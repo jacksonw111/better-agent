@@ -15,6 +15,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
+import { buildMemoryMcpApp } from "./memory-mcp";
 
 // Streaming (event-iterator) endpoints must skip the logging middleware: it
 // buffers the response, which locks the body stream and makes the streamed
@@ -213,6 +214,9 @@ export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	applyMiddleware(app);
 	applyBridgeStreamRoute(app, services);
 	applyInternalRoutes(app, services);
+	// Registered BEFORE the catch-all oRPC middleware so /mcp/memory requests
+	// terminate here (bridge-token auth) instead of paying an oRPC dispatch.
+	app.route("/mcp/memory", buildMemoryMcpApp(services));
 	applyRpcHandler(app, services);
 	app.get("/", (c) => c.text("OK"));
 	return app;
