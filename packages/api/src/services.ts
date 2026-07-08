@@ -38,6 +38,7 @@ import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { McpService } from "@better-agent/agent/tool/mcp-tools";
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
+import type { UsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
 
 export interface AgentServices {
@@ -81,6 +82,7 @@ export interface AgentServices {
 		composioAccount: ComposioAccountStore;
 		mcpServer: McpServerStore;
 		usage: UsageStore;
+		usageRecord: UsageRecordStore;
 		activity: ActivityStore;
 		webAuthzCache: WebAuthzCacheStore;
 		bridgeToken: BridgeTokenStore;

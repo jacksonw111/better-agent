@@ -34,6 +34,7 @@ import {
 } from "@better-agent/db/repositories/provider-stores";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
+import { createUsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
@@ -160,24 +161,32 @@ function buildRuntime(parts: {
 	});
 }
 
-function buildStores(parts: {
+// Shared by buildStores + assembleServices (both take "everything needed to
+// construct a store"); factored out so neither signature repeats the list.
+interface StoreParts {
+	activityStore: ReturnType<typeof createActivityStore>;
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
-	authStores: ReturnType<typeof buildAuthServices>["authStores"];
 	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
 	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
-	mcpServerStore: ReturnType<typeof createMcpServerStore>;
+	db: Db;
 	deps: ReturnType<typeof buildProviderDeps>;
+	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
+	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
-	activityStore: ReturnType<typeof createActivityStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
-	db: Db;
-}) {
+}
+
+function buildStores(
+	parts: StoreParts & {
+		authStores: ReturnType<typeof buildAuthServices>["authStores"];
+	}
+) {
 	const { deps, authStores } = parts;
 	return {
 		providerCatalog: deps.providerCatalog,
@@ -191,6 +200,7 @@ function buildStores(parts: {
 		composioAccount: parts.composioAccount,
 		mcpServer: parts.mcpServerStore,
 		usage: parts.usageStore,
+		usageRecord: parts.usageRecordStore,
 		activity: parts.activityStore,
 		webAuthzCache: parts.webAuthzCache,
 		bridgeToken: parts.bridgeTokenStore,
@@ -202,28 +212,15 @@ function buildStores(parts: {
 		...authStores,
 	};
 }
-function assembleServices(parts: {
-	attachmentStore: ReturnType<typeof createAttachmentStore>;
-	auth: ReturnType<typeof buildAuthServices>;
-	authzBinding?: ServiceBinding;
-	mcpBinding?: ServiceBinding;
-	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
-	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
-	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
-	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
-	cancellation: CancellationRegistry;
-	composioAccount: ReturnType<typeof createComposioAccountStore>;
-	mcpServerStore: ReturnType<typeof createMcpServerStore>;
-	deps: ReturnType<typeof buildProviderDeps>;
-	messageStore: ReturnType<typeof createMessageStore>;
-	runtime: ReturnType<typeof buildRuntime>;
-	sessionStore: ReturnType<typeof createSessionStore>;
-	settings: ReturnType<typeof createSettingsStore>;
-	usageStore: ReturnType<typeof createUsageStore>;
-	activityStore: ReturnType<typeof createActivityStore>;
-	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
-	db: Db;
-}) {
+function assembleServices(
+	parts: StoreParts & {
+		auth: ReturnType<typeof buildAuthServices>;
+		authzBinding?: ServiceBinding;
+		mcpBinding?: ServiceBinding;
+		cancellation: CancellationRegistry;
+		runtime: ReturnType<typeof buildRuntime>;
+	}
+) {
 	const { deps, auth } = parts;
 	return {
 		catalog: createModelCatalog({
@@ -282,6 +279,7 @@ export function buildServices(
 		sessionStore,
 		messageStore,
 		usageStore: createUsageStore(db),
+		usageRecordStore: createUsageRecordStore(db),
 		activityStore: createActivityStore(db),
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),
