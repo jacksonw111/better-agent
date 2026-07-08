@@ -175,8 +175,9 @@ export interface TerminalHeaderProps extends TerminalHeaderActionsProps {
 /** The single header for a Local Agent session: the prominent session id, the
  * ONE connection-status indicator, the capability summary, and the session
  * actions — each gated on `caps` (see agent-capabilities.ts) so a session only
- * shows what its running agent supports. Borderless; the whole detail view is
- * one cohesive surface, not a header stacked on a bordered terminal. */
+ * shows what its running agent supports. No background — a bottom border like
+ * the chat agent's header (chat-view.tsx), so the whole detail view is one
+ * cohesive surface. */
 export function TerminalHeader({
 	agentKind,
 	sessionId,
@@ -185,11 +186,10 @@ export function TerminalHeader({
 	...actions
 }: TerminalHeaderProps) {
 	return (
-		<div className="shrink-0 bg-muted/40">
+		<div className="shrink-0 border-b">
 			{/* Inner column matches the chat feed's `max-w-3xl mx-auto` so the
 			 * session id, status strip, and actions sit on the SAME grid lines
-			 * as the messages below — the muted background spans the terminal's
-			 * full width while the content stays aligned with the conversation. */}
+			 * as the messages below. */}
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-2.5 sm:px-4">
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<div className="flex min-w-0 items-center gap-2.5">

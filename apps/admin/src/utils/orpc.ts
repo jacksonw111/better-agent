@@ -60,6 +60,19 @@ function isUnauthorized(error: unknown): boolean {
 	return error instanceof ORPCError && error.code === "UNAUTHORIZED";
 }
 
+// Session is gone (refresh failed) — send the user back to login. A hard
+// navigation is fine here: it tears down all stale in-memory state. Mirrors
+// apps/web's orpc.ts so admin also auto-redirects on token expiry.
+function redirectToLogin(): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	if (window.location.pathname.startsWith("/login")) {
+		return;
+	}
+	window.location.href = "/login";
+}
+
 const link = new RPCLink({
 	url: `${env.VITE_SERVER_URL}/rpc`,
 	headers: () => {
@@ -81,6 +94,7 @@ const link = new RPCLink({
 					if (ok) {
 						return await next();
 					}
+					redirectToLogin();
 				}
 				throw error;
 			}

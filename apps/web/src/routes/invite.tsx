@@ -4,8 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { TicketIcon } from "lucide-react";
 import { useState } from "react";
-
-import { orpc } from "@/utils/orpc";
+import { clearTokens, loadRefreshToken } from "@/utils/auth";
+import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/invite")({ component: InvitePage });
 
@@ -27,10 +27,24 @@ function useRedeem() {
 					required: true,
 					authorized: true,
 				});
-				navigate({ to: "/" });
+				navigate({ to: "/dashboard" });
 			},
 		})
 	);
+}
+
+// "Cancel" = sign out, so the user can go back and re-register / re-login as
+// someone else. Mirrors the logout flow in user-menu.tsx.
+function useCancel() {
+	const navigate = useNavigate();
+	return async () => {
+		const refreshToken = loadRefreshToken();
+		if (refreshToken) {
+			await client.auth.logout({ refreshToken });
+		}
+		clearTokens();
+		navigate({ to: "/login" });
+	};
 }
 
 // The tear-off edge: a dashed perforation with a notch bitten out of the top and
@@ -62,6 +76,7 @@ function Stub() {
 function TicketForm() {
 	const [code, setCode] = useState("");
 	const redeem = useRedeem();
+	const cancel = useCancel();
 	return (
 		<form
 			className="flex flex-1 flex-col gap-4 p-5 sm:p-7"
@@ -91,9 +106,19 @@ function TicketForm() {
 			{redeem.error ? (
 				<p className="text-destructive text-sm">{redeem.error.message}</p>
 			) : null}
-			<Button disabled={redeem.isPending} type="submit">
-				Continue
-			</Button>
+			<div className="flex gap-2">
+				<Button disabled={redeem.isPending} type="submit">
+					Continue
+				</Button>
+				<Button
+					disabled={redeem.isPending}
+					onClick={cancel}
+					type="button"
+					variant="outline"
+				>
+					Cancel
+				</Button>
+			</div>
 		</form>
 	);
 }
