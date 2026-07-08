@@ -109,19 +109,19 @@ export const memoryRouter = {
 				context.authedUser.id,
 				input
 			);
-			return Promise.all(
-				links.map(async (link) => {
-					const memory = await context.services.stores.memory.get(
-						link.memoryId
-					);
-					return {
-						memoryId: link.memoryId,
-						role: link.role,
-						name: memory?.name ?? null,
-						description: memory?.description ?? null,
-					};
-				})
+			const memories = await context.services.stores.memory.getMany(
+				links.map((link) => link.memoryId)
 			);
+			const byId = new Map(memories.map((memory) => [memory.id, memory]));
+			return links.map((link) => {
+				const memory = byId.get(link.memoryId);
+				return {
+					memoryId: link.memoryId,
+					role: link.role,
+					name: memory?.name ?? null,
+					description: memory?.description ?? null,
+				};
+			});
 		}),
 
 	search: userProcedure

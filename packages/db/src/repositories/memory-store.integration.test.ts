@@ -79,6 +79,23 @@ it("get returns the created memory and null for a missing id", async () => {
 	expect(await store.get("00000000-0000-0000-0000-000000000000")).toBeNull();
 });
 
+it("getMany batch-fetches, skips missing ids and returns [] for no ids", async () => {
+	const store = createMemoryStore(db);
+	const userId = await seedUser("alice@x.com");
+	const a = await store.create({ userId, name: "A" });
+	const b = await store.create({ userId, name: "B" });
+
+	const rows = await store.getMany([
+		a.id,
+		"00000000-0000-0000-0000-000000000000",
+		b.id,
+	]);
+	expect(rows).toHaveLength(2);
+	expect(new Set(rows.map((row) => row.name))).toEqual(new Set(["A", "B"]));
+
+	expect(await store.getMany([])).toEqual([]);
+});
+
 it("listByUser scopes memories per owner", async () => {
 	const store = createMemoryStore(db);
 	const alice = await seedUser("alice@x.com");

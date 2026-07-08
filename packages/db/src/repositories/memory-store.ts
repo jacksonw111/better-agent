@@ -134,6 +134,17 @@ async function deleteMemoryWithChildren(
 	});
 }
 
+function selectMemoriesByIds(db: Db, ids: string[]): Promise<MemoryRow[]> {
+	if (ids.length === 0) {
+		return Promise.resolve([]);
+	}
+	return db
+		.select()
+		.from(schema.memories)
+		.where(inArray(schema.memories.id, ids))
+		.then((rows) => rows.map(toRow));
+}
+
 export function createMemoryStore(db: Db): MemoryStore {
 	return {
 		...makeAgentLinkOps(db),
@@ -160,6 +171,7 @@ export function createMemoryStore(db: Db): MemoryStore {
 			const row = rows[0];
 			return row ? toRow(row) : null;
 		},
+		getMany: (ids) => selectMemoriesByIds(db, ids),
 		async listByUser(userId) {
 			const rows = await db
 				.select()

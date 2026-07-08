@@ -31,9 +31,11 @@ export interface AgentMemoryRow {
 	role: MemoryRole;
 }
 
-/** Produces a fixed-width embedding vector for a text (decision D1: Cloudflare
- * Workers AI `bge-base`, 768 dims). `model` names the producing model so it can
- * be persisted alongside the vector for later re-embedding / A-B tests. */
+/** Produces a fixed-width embedding vector for a text. Current provider is
+ * SiliconFlow's `BAAI/bge-m3` (1024 dims) via an external API — NOT the on-edge
+ * Workers AI path decision D1 originally envisioned. `model` names the producing
+ * model so it can be persisted alongside the vector for later re-embedding /
+ * A-B tests. */
 export interface EmbeddingClient {
 	embed(text: string): Promise<number[]>;
 	readonly model: string;
@@ -78,6 +80,9 @@ export interface MemoryStore {
 	 * embeddings and agent/token links in one transaction. No-op if not owned. */
 	deleteWithChildren(id: string, userId: string): Promise<void>;
 	get(id: string): Promise<MemoryRow | null>;
+	/** Batch fetch: the memories for the given ids in one query (order and
+	 * completeness not guaranteed — missing ids are simply absent). */
+	getMany(ids: string[]): Promise<MemoryRow[]>;
 	/** The memory ids (+role) assigned to an agent. */
 	listAgentMemories(agentId: string): Promise<AgentMemoryRow[]>;
 	listByUser(userId: string): Promise<MemoryRow[]>;
