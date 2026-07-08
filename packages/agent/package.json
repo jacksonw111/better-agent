@@ -13,6 +13,7 @@
     "./bridge/*": "./src/bridge/*.ts",
     "./tool/*": "./src/tool/*.ts",
     "./task/*": "./src/task/*.ts",
+    "./usage/*": "./src/usage/*.ts",
     "./testing/*": "./src/testing/*.ts"
   },
   "scripts": {

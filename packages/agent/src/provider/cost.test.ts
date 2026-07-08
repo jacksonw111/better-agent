@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { MessageUsage } from "../session/types";
-import { computeCost } from "./cost";
+import { priceUsage } from "./cost";
 
 const baseUsage: MessageUsage = {
 	inputTokens: 1_000_000,
@@ -12,11 +12,11 @@ const baseUsage: MessageUsage = {
 	costCents: null,
 };
 
-it("computes input + output cost in cents", () => {
-	// $3/M in, $15/M out → 300c + 1500c = 1800c
+it("prices input + output cost in USD", () => {
+	// $3/M in, $15/M out → $3 + $15 = $18 (was 1800c)
 	expect(
-		computeCost(baseUsage, { inputPricePerM: 3, outputPricePerM: 15 })
-	).toBe(1800);
+		priceUsage(baseUsage, { inputPricePerM: 3, outputPricePerM: 15 })
+	).toEqual({ costUsd: 18, priced: true });
 });
 
 it("bills cache-read at 0.1x input and cache-write at 1.25x input", () => {
@@ -27,9 +27,9 @@ it("bills cache-read at 0.1x input and cache-write at 1.25x input", () => {
 		cacheReadTokens: 1_000_000,
 		cacheWriteTokens: 1_000_000,
 	};
-	// 1M*3*0.1 = 30c (read) + 1M*3*1.25 = 375c (write) = 405c
-	expect(computeCost(usage, { inputPricePerM: 3, outputPricePerM: 15 })).toBe(
-		405
+	// 1M*3*0.1 = $0.30 (read) + 1M*3*1.25 = $3.75 (write) = $4.05 (was 405c)
+	expect(priceUsage(usage, { inputPricePerM: 3, outputPricePerM: 15 })).toEqual(
+		{ costUsd: 4.05, priced: true }
 	);
 });
 
@@ -40,22 +40,23 @@ it("bills reasoning tokens at the output rate", () => {
 		outputTokens: 0,
 		reasoningTokens: 1_000_000,
 	};
-	expect(computeCost(usage, { inputPricePerM: 3, outputPricePerM: 15 })).toBe(
-		1500
+	// 1M*15 = $15 (was 1500c)
+	expect(priceUsage(usage, { inputPricePerM: 3, outputPricePerM: 15 })).toEqual(
+		{ costUsd: 15, priced: true }
 	);
 });
 
-it("returns null when pricing is missing", () => {
+it("returns unpriced when pricing is missing", () => {
 	expect(
-		computeCost(baseUsage, { inputPricePerM: null, outputPricePerM: null })
-	).toBeNull();
+		priceUsage(baseUsage, { inputPricePerM: null, outputPricePerM: null })
+	).toEqual({ costUsd: null, priced: false });
 });
 
-it("returns null when only one price is null", () => {
+it("returns unpriced when only one price is null", () => {
 	expect(
-		computeCost(baseUsage, { inputPricePerM: null, outputPricePerM: 15 })
-	).toBeNull();
+		priceUsage(baseUsage, { inputPricePerM: null, outputPricePerM: 15 })
+	).toEqual({ costUsd: null, priced: false });
 	expect(
-		computeCost(baseUsage, { inputPricePerM: 3, outputPricePerM: null })
-	).toBeNull();
+		priceUsage(baseUsage, { inputPricePerM: 3, outputPricePerM: null })
+	).toEqual({ costUsd: null, priced: false });
 });
