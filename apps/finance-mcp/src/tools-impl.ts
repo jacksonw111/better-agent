@@ -1,6 +1,8 @@
+import { earningsCalendar } from "./core/eastmoney/earnings";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getKline, type KlinePeriod } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
+import type { Market } from "./core/types";
 
 export interface ToolResult {
 	content: { type: "text"; text: string }[];
@@ -58,6 +60,18 @@ async function handleListReports(
 	return toolJson(await listReports(symbol, years));
 }
 
+function argMarket(args: Record<string, unknown>): Market {
+	return args.market === "us" || args.market === "hk" ? args.market : "a";
+}
+
+async function handleEarningsCalendar(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const market = argMarket(args);
+	const date = argString(args, "date");
+	return toolJson(await earningsCalendar(market, date));
+}
+
 // Feature tasks add `if (name === "finance_x") { ... }` branches above the fallback.
 export async function runTool(
 	name: string,
@@ -71,6 +85,9 @@ export async function runTool(
 	}
 	if (name === "finance_list_reports") {
 		return await handleListReports(_args);
+	}
+	if (name === "finance_earnings_calendar") {
+		return await handleEarningsCalendar(_args);
 	}
 	return toolText(`Unknown tool: ${name}`, true);
 }

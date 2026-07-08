@@ -80,3 +80,30 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_list_reports");
+
+TOOLS.push({
+	name: "finance_earnings_calendar",
+	description:
+		"Earnings / report-release dates. market='us' → Nasdaq calendar for a given day " +
+		"(date=YYYY-MM-DD). market='a' → A-share appointed-disclosure schedule for a fiscal " +
+		"period-end (date=YYYY-MM-DD, e.g. 2026-06-30 for H1). market='hk' is best-effort and " +
+		"currently returns no data.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			market: {
+				type: "string",
+				enum: ["us", "a", "hk"],
+				description: "Market.",
+			},
+			date: {
+				type: "string",
+				description:
+					"US: calendar day. A-share: fiscal period-end (YYYY-MM-DD).",
+			},
+		},
+		required: ["market", "date"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_earnings_calendar");
