@@ -28,3 +28,31 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_quote");
+
+TOOLS.push({
+	name: "finance_kline",
+	description:
+		"Historical OHLCV candles for a US/HK/A-share symbol. period is day, week, or " +
+		"month; limit caps the number of most-recent candles (default 240).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			symbol: {
+				type: "string",
+				description: "Ticker, e.g. 600000.SH / 00700.HK / AAPL.",
+			},
+			period: {
+				type: "string",
+				enum: ["day", "week", "month"],
+				description: "Candle period. Default day.",
+			},
+			limit: {
+				type: "number",
+				description: "Max candles (default 240).",
+			},
+		},
+		required: ["symbol"],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_kline");

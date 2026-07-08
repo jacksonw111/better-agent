@@ -1,3 +1,4 @@
+import { getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 
 export interface ToolResult {
@@ -21,6 +22,15 @@ export async function runTool(
 	if (name === "finance_quote") {
 		const symbol = typeof _args.symbol === "string" ? _args.symbol : "";
 		return toolJson(await getQuote(symbol));
+	}
+	if (name === "finance_kline") {
+		const symbol = typeof _args.symbol === "string" ? _args.symbol : "";
+		const period =
+			_args.period === "week" || _args.period === "month"
+				? _args.period
+				: "day";
+		const limit = typeof _args.limit === "number" ? _args.limit : 240;
+		return toolJson(await getKline(symbol, period, limit));
 	}
 	return toolText(`Unknown tool: ${name}`, true);
 }
