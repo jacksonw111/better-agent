@@ -13,23 +13,35 @@ it("updateTokenConfig persists config the owner can read back, and rejects a non
 	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
 
 	const result = await alice.bridge.updateTokenConfig({
-		config: { appendSystemPrompt: "Be terse.", maxTurns: 3 },
+		config: {
+			appendSystemPrompt: "Be terse.",
+			maxTurns: 3,
+			model: "claude-opus-4",
+			permissionMode: "plan",
+		},
 		id: created.id,
 	});
 	expect(result).toEqual({ ok: true });
 
 	const own = await alice.bridge.getToken({ id: created.id });
-	expect(own?.config).toEqual({ appendSystemPrompt: "Be terse.", maxTurns: 3 });
+	expect(own?.config).toEqual({
+		appendSystemPrompt: "Be terse.",
+		maxTurns: 3,
+		model: "claude-opus-4",
+		permissionMode: "plan",
+	});
 
 	// A non-owner's update is a no-op (ok: false) and leaves the row untouched.
 	const denied = await bob.bridge.updateTokenConfig({
-		config: { maxTurns: 99 },
+		config: { maxTurns: 99, model: "gpt-5" },
 		id: created.id,
 	});
 	expect(denied).toEqual({ ok: false });
 	expect((await alice.bridge.getToken({ id: created.id }))?.config).toEqual({
 		appendSystemPrompt: "Be terse.",
 		maxTurns: 3,
+		model: "claude-opus-4",
+		permissionMode: "plan",
 	});
 });
 

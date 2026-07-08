@@ -12,7 +12,13 @@ import {
 import { TabsContent } from "@better-agent/ui/components/tabs";
 import { Textarea } from "@better-agent/ui/components/textarea";
 import type { BridgeTokenRow } from "@/utils/api-types";
+import type { AgentCapabilities } from "./agent-capabilities";
+import { capabilities } from "./agent-capabilities";
 import { AGENT_KIND_LABEL } from "./local-agent-kind-icon";
+import {
+	ModelField,
+	PermissionModeField,
+} from "./local-agent-model-permission-fields";
 
 // The Settings "Config" tab + its field components + the draft/payload
 // helpers, split out of local-agent-settings-dialog.tsx so neither file
@@ -27,15 +33,30 @@ export interface ConfigDraft {
 	effort: string;
 	maxBudgetUsd: string;
 	maxTurns: string;
+	model: string;
+	permissionMode: string;
+}
+
+/** A number-or-absent config field, held as a string while editing so the
+ * input can be cleared (see `ConfigDraft`). */
+function numberToDraftString(value: number | undefined): string {
+	return value === undefined ? "" : String(value);
+}
+
+/** A string-or-absent config field, held as `""` rather than `undefined`
+ * while editing (see `ConfigDraft`). */
+function stringToDraftString(value: string | undefined): string {
+	return value ?? "";
 }
 
 export function toDraft(config: BridgeTokenRow["config"]): ConfigDraft {
 	return {
-		appendSystemPrompt: config?.appendSystemPrompt ?? "",
-		effort: config?.effort ?? "",
-		maxBudgetUsd:
-			config?.maxBudgetUsd === undefined ? "" : String(config.maxBudgetUsd),
-		maxTurns: config?.maxTurns === undefined ? "" : String(config.maxTurns),
+		appendSystemPrompt: stringToDraftString(config?.appendSystemPrompt),
+		effort: stringToDraftString(config?.effort),
+		maxBudgetUsd: numberToDraftString(config?.maxBudgetUsd),
+		maxTurns: numberToDraftString(config?.maxTurns),
+		model: stringToDraftString(config?.model),
+		permissionMode: stringToDraftString(config?.permissionMode),
 	};
 }
 
@@ -59,16 +80,25 @@ function isValidMaxTurns(value: number): boolean {
 
 type EffortLevel = NonNullable<BridgeTokenRow["config"]>["effort"];
 
-/** Builds the persisted-config payload from the edit draft: drops blanks so an
- * empty field clears the value, and parses the numeric fields back. */
-export function configFromDraft(draft: ConfigDraft) {
+/** The draft's non-numeric fields: dropped when blank so an empty field
+ * clears the persisted value. */
+function identityConfigFields(draft: ConfigDraft) {
+	return {
+		appendSystemPrompt: draft.appendSystemPrompt.trim() || undefined,
+		...(draft.effort ? { effort: draft.effort as EffortLevel } : {}),
+		...(draft.model.trim() ? { model: draft.model.trim() } : {}),
+		...(draft.permissionMode ? { permissionMode: draft.permissionMode } : {}),
+	};
+}
+
+/** The draft's numeric fields, parsed back from their held-as-string form and
+ * dropped when blank or invalid. */
+function numericConfigFields(draft: ConfigDraft) {
 	const maxTurnsRaw = draft.maxTurns.trim();
 	const maxTurns = maxTurnsRaw === "" ? undefined : Number(maxTurnsRaw);
 	const budgetRaw = draft.maxBudgetUsd.trim();
 	const maxBudgetUsd = budgetRaw === "" ? undefined : Number(budgetRaw);
 	return {
-		appendSystemPrompt: draft.appendSystemPrompt.trim() || undefined,
-		...(draft.effort ? { effort: draft.effort as EffortLevel } : {}),
 		...(maxBudgetUsd !== undefined &&
 		Number.isFinite(maxBudgetUsd) &&
 		maxBudgetUsd > 0
@@ -78,6 +108,11 @@ export function configFromDraft(draft: ConfigDraft) {
 			? { maxTurns }
 			: {}),
 	};
+}
+
+/** Builds the persisted-config payload from the edit draft. */
+export function configFromDraft(draft: ConfigDraft) {
+	return { ...identityConfigFields(draft), ...numericConfigFields(draft) };
 }
 
 interface DraftFieldProps {
@@ -175,14 +210,27 @@ export interface AgentConfigFormProps extends DraftFieldProps {
 	pending: boolean;
 }
 
-/** The per-agent startup config form (claude-code fields for now; other agents
- * extend this same pattern — see docs/research/agent-config-*.md). */
+/** Internal-only props for the form body: the public `AgentConfigFormProps`
+ * plus what `ConfigTab` derives from the token's capabilities, deciding which
+ * field groups to render (see `ConfigTab` below). */
+interface FullFormProps extends AgentConfigFormProps {
+	caps: AgentCapabilities;
+	showLimits: boolean;
+}
+
+/** The per-agent startup config form: the claude-only "applies today" fields
+ * (appendSystemPrompt/effort/turns/budget) gated on `showLimits`, plus
+ * model/permission-mode gated on the agent's own capabilities (R2-a — these
+ * two persist regardless of adapter support; see docs/local-agent-plan.md for
+ * the startup-application follow-up). */
 function AgentConfigForm({
+	caps,
 	draft,
 	onDraft,
 	onSubmit,
 	pending,
-}: AgentConfigFormProps) {
+	showLimits,
+}: FullFormProps) {
 	return (
 		<form
 			className="flex flex-col gap-4"
@@ -191,8 +239,20 @@ function AgentConfigForm({
 				onSubmit();
 			}}
 		>
-			<AppendSystemPromptField draft={draft} onDraft={onDraft} />
-			<LimitsFields draft={draft} onDraft={onDraft} />
+			{showLimits && (
+				<>
+					<AppendSystemPromptField draft={draft} onDraft={onDraft} />
+					<LimitsFields draft={draft} onDraft={onDraft} />
+				</>
+			)}
+			{caps.modelSwitch && <ModelField draft={draft} onDraft={onDraft} />}
+			{caps.permissionModes.length > 0 && (
+				<PermissionModeField
+					draft={draft}
+					onDraft={onDraft}
+					permissionModes={caps.permissionModes}
+				/>
+			)}
 			<DialogFooter className="gap-2">
 				<Button disabled={pending} type="submit">
 					{pending ? "Saving…" : "Save"}
@@ -202,21 +262,25 @@ function AgentConfigForm({
 	);
 }
 
-/** The "Config" tab: the startup-config form for agents whose adapter actually
- * applies it, or an honest note for those it doesn't. */
+/** The "Config" tab: the startup-config form for agents with at least one
+ * configurable field (SDK options, model, or permission mode), or an honest
+ * note for those with none. */
 export function ConfigTab({
 	token,
 	...form
 }: AgentConfigFormProps & { token: BridgeTokenRow }) {
+	const caps = capabilities(token.agentKind);
+	const showLimits = agentAppliesConfig(token.agentKind);
+	const hasFields =
+		showLimits || caps.modelSwitch || caps.permissionModes.length > 0;
 	return (
 		<TabsContent value="config">
-			{agentAppliesConfig(token.agentKind) ? (
-				<AgentConfigForm {...form} />
+			{hasFields ? (
+				<AgentConfigForm {...form} caps={caps} showLimits={showLimits} />
 			) : (
 				<p className="text-muted-foreground text-sm">
 					{AGENT_KIND_LABEL[token.agentKind]} has no page-configurable startup
-					settings yet — its options aren't wired through the bridge. Only
-					claude-code is configurable for now.
+					settings yet — its options aren't wired through the bridge.
 				</p>
 			)}
 		</TabsContent>

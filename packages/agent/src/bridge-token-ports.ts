@@ -7,15 +7,21 @@ export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
 
 /** Persisted startup config for a local-agent bridge token (Phase 4):
  * `appendSystemPrompt` (claude SDK; other adapters best-effort), `maxTurns`,
- * `effort` (claude reasoning depth), and `maxBudgetUsd` (claude spend cap).
- * Richer per-agent options (tools, mcp, per-agent modes — see
- * docs/research/agent-config-*.md) extend this same shape. Live controls
- * (model, permission/mode) stay in the composer, not here. */
+ * `effort` (claude reasoning depth), `maxBudgetUsd` (claude spend cap), and
+ * (R2-a) `model`/`permissionMode` — the model id and permission mode the
+ * NEXT session starts with. Richer per-agent options (tools, mcp — see
+ * docs/research/agent-config-*.md) extend this same shape. LIVE control of a
+ * running session (switching model/mode mid-session) stays in the composer,
+ * not here — as of R2-a no adapter yet applies `model`/`permissionMode` at
+ * startup either (see `apps/bridge-cli/src/adapters/types.ts`'s
+ * `AgentStartConfig`); that wiring is a follow-up (R2-b). */
 export interface BridgeTokenConfig {
 	appendSystemPrompt?: string;
 	effort?: "low" | "medium" | "high" | "xhigh" | "max";
 	maxBudgetUsd?: number;
 	maxTurns?: number;
+	model?: string;
+	permissionMode?: string;
 }
 
 /** Owner-facing bridge token: raw `token` + bound `agentKind`, never the hash. */

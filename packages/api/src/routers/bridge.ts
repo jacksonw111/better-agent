@@ -118,6 +118,8 @@ export const bridgeRouter = {
 					effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
 					maxBudgetUsd: z.number().positive().optional(),
 					maxTurns: z.number().int().positive().optional(),
+					model: z.string().optional(),
+					permissionMode: z.string().optional(),
 				}),
 			})
 		)
