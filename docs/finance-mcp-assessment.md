@@ -33,6 +33,7 @@
 
 ### Sector & news (4)
 `finance_sector_list` (industry/concept boards) · `finance_sector_constituents` · `finance_news` (7×24 flash) · `finance_stock_news` (per-company search).
+> ⚠️ The two **sector** tools currently return `[]` from the deployed Worker: the base push2 host 502s on `clist` from Cloudflare egress (routed to a mirror), and the board `fs` selector still isn't parsed correctly through the Worker's fetch encoding (needs more live debugging). The connectors degrade gracefully to `[]`. **23 of 25 tools return live data**; these two are the known exception. All the underlying board data is free — this is an encoding/host quirk, not a source gap.
 
 ---
 
@@ -92,6 +93,7 @@ Rated by lens. **[FREE]** = obtainable free (recommended next builds); **[PAID]*
 ---
 
 ## 4. Known limitations (honest)
+- **Sector tools return `[]`** — the EastMoney `clist` board selector (`fs=m:90 t:2`) isn't parsed correctly through the Worker's fetch (base host 502s → routed to mirror; several encodings tried). Data is free & the connector is sound; needs a live debug session on the exact wire encoding. 23/25 tools work live.
 - **5档 not 10档** — free-market ceiling (verified across Sina/Tencent/EastMoney).
 - **北向资金 net flow is null since 2024-08-19** — mainland exchanges stopped disclosing it (not an API bug); 南向 still live.
 - **PBOC 逆回购** — `finance_central_bank("cn")` returns `[]`; no compliant free source.
