@@ -7,22 +7,25 @@ import type { ProcessExitInfo } from "./process-io";
 vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
 
 type RequestHandler = (id: number, method: string, params: unknown) => void;
+type NotificationHandler = (method: string, params: unknown) => void;
 
-/** A fake `JsonRpcIo` whose exit (and server-initiated requests) can be
- * triggered on demand by the test, standing in for the real `codex
+/** A fake `JsonRpcIo` whose exit (and server-initiated requests/notifications)
+ * can be triggered on demand by the test, standing in for the real `codex
  * app-server` process codex.ts spawns. */
 function createFakeRpc(): {
 	rpc: JsonRpcIo;
 	triggerExit(info: ProcessExitInfo): void;
+	triggerNotification(method: string, params: unknown): void;
 	triggerRequest(id: number, method: string, params: unknown): void;
 } {
 	const exitHandlers: Array<(info: ProcessExitInfo) => void> = [];
 	const requestHandlers: RequestHandler[] = [];
+	const notificationHandlers: NotificationHandler[] = [];
 	return {
 		rpc: {
 			notify: vi.fn(),
 			onExit: (handler) => exitHandlers.push(handler),
-			onNotification: vi.fn(),
+			onNotification: (handler) => notificationHandlers.push(handler),
 			onRequest: (handler) => requestHandlers.push(handler),
 			respond: vi.fn(),
 			request: vi.fn((method: string) => {
@@ -36,6 +39,11 @@ function createFakeRpc(): {
 		triggerExit(info: ProcessExitInfo): void {
 			for (const handler of exitHandlers) {
 				handler(info);
+			}
+		},
+		triggerNotification(method: string, params: unknown): void {
+			for (const handler of notificationHandlers) {
+				handler(method, params);
 			}
 		},
 		triggerRequest(id: number, method: string, params: unknown): void {
@@ -179,5 +187,64 @@ describe("codexAdapter - approvals - repeated or post-exit answers", () => {
 			handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept")
 		).not.toThrow();
 		expect(rpc.respond).not.toHaveBeenCalled();
+	});
+});
+
+describe("codexAdapter - getStatus", () => {
+	it("caches thread/tokenUsage/updated + thread/status/changed notifications and answers getStatus with exactly one status_snapshot", async () => {
+		const { rpc, triggerNotification } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		triggerNotification("thread/tokenUsage/updated", {
+			tokenUsage: {
+				totalTokenUsage: {
+					inputTokens: 100,
+					outputTokens: 20,
+					cachedInputTokens: 5,
+					totalTokens: 120,
+				},
+				modelContextWindow: 1000,
+			},
+		});
+		triggerNotification("thread/status/changed", { status: "active" });
+
+		handle.getStatus?.();
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "status_snapshot",
+			detail: {
+				model: undefined,
+				running: true,
+				tokens: { input: 100, output: 20, cacheRead: 5 },
+				contextUsage: { used: 120, size: 1000, pct: 12 },
+			},
+		});
+	});
+
+	it("answers getStatus with an empty-fields snapshot when no notifications have arrived yet", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		expect(() => handle.getStatus?.()).not.toThrow();
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "status_snapshot",
+			detail: {
+				model: undefined,
+				running: undefined,
+				tokens: undefined,
+				contextUsage: undefined,
+			},
+		});
 	});
 });

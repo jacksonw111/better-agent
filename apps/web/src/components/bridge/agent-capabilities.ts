@@ -132,19 +132,24 @@ const OPENCODE_CAPABILITIES: AgentCapabilities = {
 
 /** codex isn't installed/verified yet — conservative until confirmed:
  * everything off except reasoning (the normalize layer already treats
- * thinking-shaped output generically) and interrupt (cancelling a subprocess
- * turn is assumed universal). §2 documents three `approval_policy` values
- * (untrusted / on-request / never), but codex applies them at LAUNCH via
- * `-a`/`-s` flags — there's no verified real-time control — so the menu stays
- * hidden rather than offering a mode it can't actually switch. TODO: surface
- * them once codex's control surface is verified against the running CLI. */
+ * thinking-shaped output generically), interrupt (cancelling a subprocess
+ * turn is assumed universal), and now contextUsage (R1-a: the CLI adapter
+ * caches `thread/tokenUsage/updated` and answers a `control: getStatus` with
+ * a `status_snapshot` carrying it — see `apps/bridge-cli/src/adapters/
+ * codex-status.ts` — even though, unlike claude's on-demand
+ * `getContextUsage()`, it's a cached last-seen value rather than a fresh
+ * read). §2 documents three `approval_policy` values (untrusted / on-request
+ * / never), but codex applies them at LAUNCH via `-a`/`-s` flags — there's no
+ * verified real-time control — so the menu stays hidden rather than offering
+ * a mode it can't actually switch. TODO: surface them once codex's control
+ * surface is verified against the running CLI. */
 const CODEX_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
 	sessionList: false,
 	sessionResume: false,
 	slashCommands: false,
 	skills: false,
-	contextUsage: false,
+	contextUsage: true,
 	toolApproval: false,
 	modelSwitch: false,
 	interrupt: true,

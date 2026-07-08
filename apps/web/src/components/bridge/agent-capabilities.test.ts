@@ -54,7 +54,7 @@ it("gives opencode tool-approval and a stream usage mode, with build/plan permis
 	expect(opencode.permissionModes).toEqual(["build", "plan"]);
 });
 
-it("keeps codex conservative — everything off except reasoning and interrupt; permission menu hidden (§2 approval_policy is launch-only)", () => {
+it("keeps codex conservative — everything off except reasoning, interrupt, and (R1-a) contextUsage; permission menu hidden (§2 approval_policy is launch-only)", () => {
 	const codex = capabilities("codex");
 	expect(codex.reasoning).toBe(true);
 	expect(codex.interrupt).toBe(true);
@@ -62,7 +62,9 @@ it("keeps codex conservative — everything off except reasoning and interrupt; 
 	expect(codex.sessionResume).toBe(false);
 	expect(codex.slashCommands).toBe(false);
 	expect(codex.skills).toBe(false);
-	expect(codex.contextUsage).toBe(false);
+	// R1-a: the CLI adapter now caches token usage from `thread/tokenUsage/
+	// updated` and answers `getStatus` with it — see codex-status.ts.
+	expect(codex.contextUsage).toBe(true);
 	expect(codex.toolApproval).toBe(false);
 	expect(codex.modelSwitch).toBe(false);
 	expect(codex.usageMode).toBe("none");

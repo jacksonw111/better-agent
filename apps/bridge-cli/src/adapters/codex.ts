@@ -5,6 +5,12 @@ import {
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
+import {
+	type CodexStatusCache,
+	createCodexStatusCache,
+	makeCodexGetStatus,
+	updateCodexStatusCache,
+} from "./codex-status";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
 import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
 
@@ -58,12 +64,19 @@ function wireCodexApprovals(
  */
 const CODEX_ARGS = ["app-server"];
 
+/** The shared plumbing every `AgentHandle` method closes over — bundled into
+ * one object so `makeCodexHandle` stays under the repo's max-params gate. */
+interface CodexHandleDeps {
+	approvals: ReturnType<typeof createApprovalRegistry>;
+	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>;
+	rpc: JsonRpcIo;
+	statusCache: CodexStatusCache;
+}
+
 /** Builds the codex `AgentHandle` — the send/interrupt/stop/approval controls
  * over the app-server thread. Extracted so `start` stays under the line gate. */
 function makeCodexHandle(
-	rpc: JsonRpcIo,
-	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>,
-	approvals: ReturnType<typeof createApprovalRegistry>,
+	{ approvals, events, rpc, statusCache }: CodexHandleDeps,
 	threadId: unknown
 ): AgentHandle {
 	return {
@@ -71,6 +84,7 @@ function makeCodexHandle(
 			approvals.answer(requestId, optionId);
 		},
 		events,
+		getStatus: makeCodexGetStatus(statusCache, events),
 		send(text: string): void {
 			events.push(userMessageEvent(text));
 			rpc
@@ -110,7 +124,9 @@ export const codexAdapter: Adapter = {
 			approvals.clear();
 		});
 
+		const statusCache = createCodexStatusCache();
 		rpc.onNotification((method, params) => {
+			updateCodexStatusCache(statusCache, method, params);
 			for (const event of normalizeCodex({ method, params })) {
 				events.push(event);
 			}
@@ -122,6 +138,9 @@ export const codexAdapter: Adapter = {
 		});
 		rpc.notify("initialized", {});
 		const started = await rpc.request("thread/start", { cwd: dir });
-		return makeCodexHandle(rpc, events, approvals, threadIdFrom(started));
+		return makeCodexHandle(
+			{ approvals, events, rpc, statusCache },
+			threadIdFrom(started)
+		);
 	},
 };
