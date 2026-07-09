@@ -16,6 +16,10 @@ import "./tool-defs-sentiment";
 // Side-effect import: registers finance_margin / finance_divergence onto the
 // shared TOOLS/TOOL_NAMES arrays.
 import "./tool-defs-signals";
+// Side-effect import: registers finance_earnings_preannounce /
+// finance_lockup / finance_convertible_bonds / finance_ipo onto the shared
+// TOOLS/TOOL_NAMES arrays.
+import "./tool-defs-data";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool

@@ -6,6 +6,7 @@ import { BadSymbolError } from "./core/symbol";
 import { handleMessage } from "./mcp-server";
 import { createPdfProxyHandler } from "./pdf-proxy";
 import { registerRest } from "./rest";
+import { registerRestData } from "./rest-data";
 import { registerRestExtra } from "./rest-extra";
 import { registerRestSentiment } from "./rest-sentiment";
 import { registerRestSignals } from "./rest-signals";
@@ -82,6 +83,7 @@ export function buildApp(): Hono {
 
 	registerRest(app);
 	registerRestExtra(app);
+	registerRestData(app);
 	registerRestSentiment(app);
 	registerRestSignals(app);
 

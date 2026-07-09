@@ -15,6 +15,7 @@ import { getIndices } from "./core/tencent/indices";
 import { coerceKlinePeriod, getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
+import { DATA_HANDLERS } from "./tools-impl-data";
 import {
 	handleDividends,
 	handleDragonTiger,
@@ -84,7 +85,6 @@ export function argOptionalString(
 	const value = args[key];
 	return typeof value === "string" && value.length > 0 ? value : undefined;
 }
-
 async function handleQuote(args: Record<string, unknown>): Promise<ToolResult> {
 	const symbol = argString(args, "symbol");
 	return toolJson(
@@ -141,7 +141,6 @@ async function handleCentralBank(
 		)
 	);
 }
-
 const DEFAULT_STATEMENT_PERIODS = 4;
 const DEFAULT_INDICATOR_PERIODS = 8;
 
@@ -283,6 +282,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_sentiment_trending: (args, env) => handleSentimentTrending(args, env),
 	finance_sentiment_ticker: (args, env) => handleSentimentTicker(args, env),
 	finance_sentiment_market: (args, env) => handleSentimentMarket(args, env),
+	...DATA_HANDLERS,
 	...SIGNALS_HANDLERS,
 };
 
