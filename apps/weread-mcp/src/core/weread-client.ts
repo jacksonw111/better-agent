@@ -5,9 +5,7 @@ export class WereadApiError extends Error {}
 
 export class NotConfiguredError extends WereadApiError {
 	constructor() {
-		super(
-			"WeRead API key required: pass it via the x-weread-key header (or set WEREAD_API_KEY)"
-		);
+		super("WeRead API key required: send Authorization: Bearer wrk-xxxxxxxx");
 	}
 }
 
