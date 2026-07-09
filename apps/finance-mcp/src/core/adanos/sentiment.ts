@@ -56,7 +56,8 @@ export function coerceSentimentAsset(
 		: DEFAULT_ASSET;
 }
 
-function num(value: unknown): number {
+// Exported for ./compare.ts (sentimentCompare).
+export function num(value: unknown): number {
 	const n = typeof value === "number" ? value : Number(value);
 	return Number.isFinite(n) ? n : 0;
 }
@@ -68,7 +69,9 @@ function clampTrendingLimit(limit: number): number {
 	return Math.min(Math.floor(limit), MAX_TRENDING_LIMIT);
 }
 
-function sentimentUrl(
+// Exported for ./compare.ts (sentimentCompare), split out because this file
+// is at the project's 300-line-per-file cap.
+export function sentimentUrl(
 	source: SentimentSource,
 	asset: SentimentAsset,
 	path: string
@@ -76,7 +79,7 @@ function sentimentUrl(
 	return `${BASE_URL}/${source}/${asset}/v1/${path}`;
 }
 
-async function fetchSentimentJson(
+export async function fetchSentimentJson(
 	url: string,
 	apiKey: string,
 	opts: SentimentFetchOpts
@@ -96,7 +99,8 @@ async function fetchSentimentJson(
 	}
 }
 
-interface RawTrendingRow {
+// Exported for ./compare.ts (sentimentCompare).
+export interface RawTrendingRow {
 	bearish_pct?: number;
 	bullish_pct?: number;
 	buzz_score?: number;
@@ -108,7 +112,7 @@ interface RawTrendingRow {
 	unique_posts?: number;
 }
 
-function normalizeTrending(row: RawTrendingRow): TrendingSentiment {
+export function normalizeTrending(row: RawTrendingRow): TrendingSentiment {
 	return {
 		ticker: row.ticker ?? "",
 		name: row.company_name ?? "",

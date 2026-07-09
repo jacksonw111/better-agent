@@ -149,3 +149,23 @@ export interface Divergence {
 	signal: DivergenceSignal;
 	ticker: string;
 }
+
+// V5: A-share 股东户数 (shareholder count) time series via EastMoney datacenter.
+export interface HolderCountRow {
+	avgFreeShares: number | null;
+	avgFreeSharesRatio: number | null;
+	changeRatio: number | null;
+	endDate: string;
+	totalHolders: number | null;
+}
+
+// V5: A股股吧人气榜 (EastMoney retail-attention rank), enriched with a live
+// Tencent quote (name/last/changePct).
+export interface CnHotRow {
+	changePct: number;
+	code: string;
+	last: number;
+	name: string;
+	rank: number;
+	rankChange: number;
+}
