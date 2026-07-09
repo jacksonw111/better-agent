@@ -6,6 +6,7 @@ import { createOpencodeServeNormalizer } from "../normalize/opencode-serve";
 import { presentApproval } from "./approvals";
 import type { ServeSessionContext } from "./opencode-serve";
 import { firePost, pumpServeEvents } from "./opencode-serve-http";
+import { AGENT_EXITED_STATUS } from "./types";
 
 /** `SERVE_PERMISSION_OPTIONS`'s "Deny" id (normalize/opencode-serve.ts) — what
  * RC-T4's shared timeout posts when nobody answers a permission in time. */
@@ -58,10 +59,18 @@ export function wireServeEventStream(
 		if (signal.aborted) {
 			return;
 		}
+		// RC-T5: a dead SSE reader (server crashed, connection dropped) must not
+		// leave the session's event queue silent forever — surface it the same
+		// way every stdio adapter's onExit does (AGENT_EXITED_STATUS, then
+		// close()), so forwardEvents completes and runBridgeSession's own
+		// teardown (which kills the still-running `opencode serve` subprocess
+		// via `io.stop()`) runs promptly instead of the loop hanging.
 		ctx.events.push({
 			kind: "error",
 			message: "opencode serve /event stream failed",
 			detail: error instanceof Error ? error.message : error,
 		});
+		ctx.events.push({ kind: "status", status: AGENT_EXITED_STATUS });
+		ctx.events.close();
 	});
 }

@@ -110,7 +110,17 @@ function makeServeControls(
 			if (modelRef.current !== undefined) {
 				body.model = modelRef.current;
 			}
-			firePost(ctx.http, `/session/${ctx.sessionId}/message`, body, ctx.events);
+			// RC-T5: no request timeout on the turn POST — it blocks until the
+			// turn actually finishes (routinely >15s with tool calls/thinking),
+			// while progress streams in over SSE; a genuinely wedged turn is the
+			// activity watchdog's job (session-watchdog.ts), not this call's.
+			firePost(
+				ctx.http,
+				`/session/${ctx.sessionId}/message`,
+				body,
+				ctx.events,
+				null
+			);
 		},
 		setModel(model: string): void {
 			const parsed = parseServeModelRef(model);

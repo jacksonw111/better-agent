@@ -3,11 +3,7 @@ import {
 	normalizeOpencode,
 	normalizeOpencodeApprovalRequest,
 } from "../normalize/opencode";
-import {
-	isRecord,
-	type NormalizedEvent,
-	userMessageEvent,
-} from "../normalize/types";
+import { isRecord, type NormalizedEvent } from "../normalize/types";
 import {
 	type ApprovalRegistry,
 	createApprovalRegistry,
@@ -16,6 +12,7 @@ import {
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
+import { opencodeSend } from "./opencode-send";
 import {
 	createOpencodeStatusCache,
 	makeOpencodeGetStatus,
@@ -180,34 +177,6 @@ function applyOpencodeStartupConfig(
 	if (config?.permissionMode) {
 		controls.setPermissionMode?.(config.permissionMode);
 	}
-}
-
-/** The `send` control — echoes the user's line and issues `session/prompt`.
- * Extracted so `start` stays under the max-lines-per-function gate. */
-function opencodeSend(
-	rpc: JsonRpcIo,
-	events: { push(event: NormalizedEvent): void },
-	getSessionId: () => string | undefined,
-	epoch: TurnEpochRef
-): (text: string) => void {
-	return (text: string) => {
-		// A new turn begins — bump the epoch BEFORE pushing the user's own
-		// turn-start event (see the RC-T3 note on `opencodeAdapter.start`).
-		bumpTurnEpoch(epoch);
-		events.push(userMessageEvent(text));
-		rpc
-			.request("session/prompt", {
-				sessionId: getSessionId(),
-				prompt: [{ type: "text", text }],
-			})
-			.catch((error: unknown) => {
-				events.push({
-					kind: "error",
-					message: "opencode session/prompt failed",
-					detail: error,
-				});
-			});
-	};
 }
 
 /** Wires the turn-epoch-stamped event queue, approval registry, and the

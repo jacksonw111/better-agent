@@ -11,11 +11,20 @@ import type { ProcessIo } from "./process-io";
 /** How long to wait for the spawned server to print its listen URL. */
 const SERVE_URL_TIMEOUT_MS = 15_000;
 
-/** How long any single HTTP request to the serve process may take before it's
- * aborted — a hung `opencode serve` (TCP connection open, no response) must
- * never leave `getStatus`/`send`/`setModel`/`interrupt`/an approval reply
- * waiting forever on a `fetch` that never settles. Same order of magnitude as
- * `SERVE_URL_TIMEOUT_MS` above. */
+/** How long any single SHORT control-call request to the serve process may
+ * take before it's aborted — a hung `opencode serve` (TCP connection open, no
+ * response) must never leave `getStatus`/`setModel`/`interrupt`/an approval
+ * reply waiting forever on a `fetch` that never settles. Same order of
+ * magnitude as `SERVE_URL_TIMEOUT_MS` above.
+ *
+ * RC-T5: deliberately NOT applied to the long-running turn POST
+ * (`POST /session/:id/message`, made via `firePost` with `timeoutMs: null` in
+ * opencode-serve.ts's `makeServeControls.send`) — that call blocks until the
+ * turn actually finishes (which routinely exceeds 15s once tool calls or
+ * thinking are involved), while progress is already streaming in over
+ * `pumpServeEvents`'s SSE connection below. A genuinely wedged turn is
+ * covered by the RC-T5 activity watchdog (session-watchdog.ts), not this
+ * timeout. */
 const REQUEST_TIMEOUT_MS = 15_000;
 
 /** ASSUMPTION (unverified): `opencode serve --port 0 --hostname 127.0.0.1`
@@ -66,11 +75,82 @@ export async function waitForServeUrl(io: ProcessIo): Promise<string> {
 
 // --- HTTP --------------------------------------------------------------------
 
+/** `undefined` means "take this `ServeHttp`'s default (`REQUEST_TIMEOUT_MS`)
+ * for a short control call"; `null` means "no deadline at all" — for the
+ * long-running turn POST, where progress comes via SSE and a genuinely
+ * wedged turn is the RC-T5 activity watchdog's job, not this timeout's. */
+export type RequestTimeoutOverride = number | null | undefined;
+
 export interface ServeHttp {
 	baseUrl: string;
-	getJson(path: string): Promise<unknown>;
+	getJson(path: string, timeoutMs?: RequestTimeoutOverride): Promise<unknown>;
 	headers: Record<string, string>;
-	postJson(path: string, body?: unknown): Promise<unknown>;
+	postJson(
+		path: string,
+		body?: unknown,
+		timeoutMs?: RequestTimeoutOverride
+	): Promise<unknown>;
+}
+
+/** Resolves `timeoutMs === undefined` (no per-call override — take the
+ * `ServeHttp`'s own default) to `requestTimeoutMs`, leaving `null` (no
+ * deadline at all) and an explicit override untouched. Split out purely to
+ * keep `createServeHttp`'s inner `requestJson` under the line gate. */
+function resolveRequestTimeout(
+	timeoutMs: RequestTimeoutOverride,
+	requestTimeoutMs: number
+): number | null {
+	return timeoutMs === undefined ? requestTimeoutMs : timeoutMs;
+}
+
+/** Issues one request and parses its JSON body — split out of
+ * `createServeHttp` purely to keep that function under the line gate. */
+async function fetchJson(
+	url: string,
+	init: { body?: string; method: string },
+	headers: Record<string, string>,
+	effectiveTimeoutMs: number | null
+): Promise<unknown> {
+	const response = await fetch(url, {
+		...init,
+		headers,
+		// `null` → no AbortSignal at all: this fetch waits as long as the
+		// server takes, same as `pumpServeEvents`'s SSE connection.
+		signal:
+			effectiveTimeoutMs === null
+				? undefined
+				: AbortSignal.timeout(effectiveTimeoutMs),
+	});
+	if (!response.ok) {
+		throw new Error(
+			`opencode serve ${init.method} ${url} → HTTP ${response.status}`
+		);
+	}
+	// Biome's formatter strips an explicit `return undefined;` back to a bare
+	// `return;`, which then trips ESLint's `consistent-return` (this function's
+	// happy path returns a value) — assigning through a local sidesteps the
+	// fight between the two linters.
+	let body: unknown;
+	try {
+		body = await response.json();
+	} catch {
+		body = undefined; // empty/non-JSON body — callers only care for a few routes
+	}
+	return body;
+}
+
+function buildServeHeaders(
+	password: string | undefined
+): Record<string, string> {
+	const headers: Record<string, string> = {
+		"content-type": "application/json",
+	};
+	if (password !== undefined && password !== "") {
+		// ASSUMPTION (unverified): a server started with OPENCODE_SERVER_PASSWORD
+		// set (the spawned child inherits our env) expects it as a bearer token.
+		headers.authorization = `Bearer ${password}`;
+	}
+	return headers;
 }
 
 export function createServeHttp(
@@ -80,61 +160,51 @@ export function createServeHttp(
 	// multi-second wait — production callers always take the default.
 	requestTimeoutMs: number = REQUEST_TIMEOUT_MS
 ): ServeHttp {
-	const headers: Record<string, string> = {
-		"content-type": "application/json",
-	};
-	if (password !== undefined && password !== "") {
-		// ASSUMPTION (unverified): a server started with OPENCODE_SERVER_PASSWORD
-		// set (the spawned child inherits our env) expects it as a bearer token.
-		headers.authorization = `Bearer ${password}`;
-	}
-	const requestJson = async (
+	const headers = buildServeHeaders(password);
+	const requestJson = (
 		path: string,
-		init: { body?: string; method: string }
-	): Promise<unknown> => {
-		const response = await fetch(`${baseUrl}${path}`, {
-			...init,
+		init: { body?: string; method: string },
+		timeoutMs: RequestTimeoutOverride
+	): Promise<unknown> =>
+		fetchJson(
+			`${baseUrl}${path}`,
+			init,
 			headers,
-			signal: AbortSignal.timeout(requestTimeoutMs),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`opencode serve ${init.method} ${path} → HTTP ${response.status}`
-			);
-		}
-		let body: unknown;
-		try {
-			body = await response.json();
-		} catch {
-			// empty/non-JSON body — callers only care for a few routes
-		}
-		return body;
-	};
+			resolveRequestTimeout(timeoutMs, requestTimeoutMs)
+		);
 	return {
 		baseUrl,
 		headers,
-		getJson: (path) => requestJson(path, { method: "GET" }),
-		postJson: (path, body) =>
-			requestJson(path, {
-				method: "POST",
-				body: body === undefined ? undefined : JSON.stringify(body),
-			}),
+		getJson: (path, timeoutMs) =>
+			requestJson(path, { method: "GET" }, timeoutMs),
+		postJson: (path, body, timeoutMs) =>
+			requestJson(
+				path,
+				{
+					method: "POST",
+					body: body === undefined ? undefined : JSON.stringify(body),
+				},
+				timeoutMs
+			),
 	};
 }
 
 export interface EventSink {
+	close(): void;
 	push(event: NormalizedEvent): void;
 }
 
 /** Fire-and-forget POST whose failure surfaces as an `error` event instead of
- * an unhandled rejection. */
+ * an unhandled rejection. `timeoutMs` is forwarded to `postJson` verbatim —
+ * pass `null` for the long-running turn POST (see `RequestTimeoutOverride`). */
 export function firePost(
 	http: ServeHttp,
 	path: string,
 	body: unknown,
-	events: EventSink
+	events: EventSink,
+	timeoutMs?: RequestTimeoutOverride
 ): void {
-	http.postJson(path, body).catch((error: unknown) => {
+	http.postJson(path, body, timeoutMs).catch((error: unknown) => {
 		events.push({
 			kind: "error",
 			message: `opencode serve POST ${path} failed`,

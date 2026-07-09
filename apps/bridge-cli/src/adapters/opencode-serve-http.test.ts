@@ -32,6 +32,29 @@ function createHangingFetch(): typeof fetch {
 	) as unknown as typeof fetch;
 }
 
+/** Races `promise` against a short real-time delay to prove it did NOT
+ * settle within that window — used below to prove a `timeoutMs: null` call
+ * has no deadline at all (as opposed to merely a longer one), without
+ * actually waiting out a real multi-second timeout in a unit test. */
+async function stillPendingAfter(
+	promise: Promise<unknown>,
+	delayMs: number
+): Promise<boolean> {
+	const sentinel = Symbol("still-pending");
+	const settled = await Promise.race([
+		promise.then(
+			() => "resolved",
+			() => "rejected"
+		),
+		new Promise((resolve) => setTimeout(() => resolve(sentinel), delayMs)),
+	]);
+	return settled === sentinel;
+}
+
+// Split across several `describe` blocks purely to keep each under the
+// repo's max-lines-per-function gate (ESLint counts a `describe` callback's
+// own body, including every nested `it`, toward that limit).
+
 describe("createServeHttp - request timeout", () => {
 	it("rejects getJson once the request timeout elapses without a reply", async () => {
 		vi.stubGlobal("fetch", createHangingFetch());
@@ -55,5 +78,60 @@ describe("createServeHttp - request timeout", () => {
 		);
 
 		await expect(http.postJson("/session/ses_1/abort")).rejects.toThrow();
+	});
+});
+
+describe("createServeHttp - RC-T5 per-call timeout override", () => {
+	// RC-T5: the long-running turn POST (`POST /session/:id/message`, called
+	// via `firePost(..., null)` in opencode-serve.ts) must NOT inherit the
+	// short control-call deadline — a turn with tool calls/thinking routinely
+	// takes well over `REQUEST_TIMEOUT_MS`, and progress already streams in
+	// over SSE separately.
+	it("postJson with timeoutMs: null never aborts, even well past the default request timeout", async () => {
+		vi.stubGlobal("fetch", createHangingFetch());
+
+		const http = createServeHttp(
+			"http://127.0.0.1:4242",
+			undefined,
+			TEST_TIMEOUT_MS
+		);
+
+		const stillPending = await stillPendingAfter(
+			http.postJson("/session/ses_1/message", { parts: [] }, null),
+			TEST_TIMEOUT_MS * 5
+		);
+
+		expect(stillPending).toBe(true);
+	});
+
+	it("getJson with timeoutMs: null never aborts either", async () => {
+		vi.stubGlobal("fetch", createHangingFetch());
+
+		const http = createServeHttp(
+			"http://127.0.0.1:4242",
+			undefined,
+			TEST_TIMEOUT_MS
+		);
+
+		const stillPending = await stillPendingAfter(
+			http.getJson("/session/ses_1/message", null),
+			TEST_TIMEOUT_MS * 5
+		);
+
+		expect(stillPending).toBe(true);
+	});
+
+	it("a short control call (no override) still times out at the configured deadline", async () => {
+		vi.stubGlobal("fetch", createHangingFetch());
+
+		const http = createServeHttp(
+			"http://127.0.0.1:4242",
+			undefined,
+			TEST_TIMEOUT_MS
+		);
+
+		await expect(
+			http.postJson("/session/ses_1/abort", undefined, undefined)
+		).rejects.toThrow();
 	});
 });

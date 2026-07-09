@@ -240,4 +240,57 @@ describe("opencodeServeAdapter - lifecycle", () => {
 		const { done } = await iterator.next();
 		expect(done).toBe(true);
 	});
+
+	// RC-T5: a dead SSE reader (server crash, dropped connection) must not
+	// leave the session hanging forever — it surfaces the same way a real
+	// process exit does (an error event, then agent_exited, then the events
+	// stream closes), so runBridgeSession's loop ends cleanly instead of
+	// waiting on a stream that will never produce anything again.
+	it("surfaces an error and agent_exited, then closes events, when the SSE stream dies", async () => {
+		const { handle, server } = await startServe();
+		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // session_ready
+
+		server.errorSse(new Error("stream reset"));
+
+		const { value: errorEvent } = await iterator.next();
+		expect(errorEvent).toMatchObject({
+			kind: "error",
+			message: "opencode serve /event stream failed",
+		});
+		const { value: exitedEvent } = await iterator.next();
+		expect(exitedEvent).toEqual({
+			kind: "status",
+			status: "agent_exited",
+			turnEpoch: 0,
+		});
+		const { done } = await iterator.next();
+		expect(done).toBe(true);
+	});
+});
+
+describe("opencodeServeAdapter - the turn POST has no request timeout (RC-T5)", () => {
+	it("issues the turn POST with no abort signal, unlike a short control call", async () => {
+		const { handle, server } = await startServe();
+
+		handle.send("do it");
+		handle.interrupt?.();
+
+		// The turn POST (`POST /session/:id/message`) must carry NO abort signal
+		// at all (opencode-serve-http.ts's `requestJson`: `timeoutMs: null` maps
+		// to `signal: undefined`) — a slow-but-alive turn (tool calls, thinking)
+		// routinely exceeds the short-control-call deadline, and progress
+		// already streams in over SSE separately.
+		const messageCall = server.fetchImpl.mock.calls.find(([input]) =>
+			String(input).endsWith("/session/ses_1/message")
+		);
+		expect(messageCall?.[1]?.signal).toBeUndefined();
+
+		// A short control call (interrupt's /abort POST), by contrast, still
+		// gets a real deadline.
+		const abortCall = server.fetchImpl.mock.calls.find(([input]) =>
+			String(input).endsWith("/session/ses_1/abort")
+		);
+		expect(abortCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
+	});
 });

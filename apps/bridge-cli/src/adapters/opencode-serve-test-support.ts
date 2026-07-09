@@ -84,6 +84,12 @@ export function createFakeServer() {
 		emitSse(data: unknown): void {
 			sse?.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 		},
+		// RC-T5: simulates a dead SSE reader — the server crashing or the
+		// connection dropping mid-stream — so `pumpServeEvents`'s `reader.read()`
+		// rejects, exercising `wireServeEventStream`'s dead-stream handling.
+		errorSse(error: unknown): void {
+			sse?.error(error);
+		},
 		fetchImpl,
 		messages,
 	};
