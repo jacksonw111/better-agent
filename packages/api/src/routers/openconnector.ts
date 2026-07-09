@@ -17,7 +17,7 @@ function toOpenConnectorError(error: unknown): ORPCError<string, undefined> {
 	if (UNAUTHORIZED_RE.test(message)) {
 		return new ORPCError("BAD_REQUEST", {
 			message:
-				"OpenConnector rejected the tokens — they're invalid or expired. Update the tokens on this account.",
+				"OpenConnector rejected the tokens — they're invalid or expired. Delete and re-create this account with valid tokens.",
 		});
 	}
 	return new ORPCError("BAD_REQUEST", {
@@ -79,12 +79,15 @@ async function createOwnedAccount(
 		...input,
 		userId,
 	});
-	// Validate the tokens against the open-connector instance (cheap call); roll
-	// back a bad account so the owner gets immediate, clear feedback.
+	// Validate BOTH planes against the instance; roll back a bad account so the
+	// owner gets immediate feedback. listConnections exercises the admin token
+	// (/api/*), listProviders the runtime token (/v1/*) — the latter gates every
+	// tool call, so a mistyped runtime token must fail here, not silently later.
 	try {
 		const service = await context.services.openConnector(account.id);
 		if (service) {
 			await service.listConnections();
+			await service.listProviders();
 		}
 	} catch (error) {
 		await context.services.stores.openConnectorAccount.delete(account.id);

@@ -133,7 +133,7 @@ async function rawFetch(
 	cfg: ServiceConfig,
 	token: string,
 	opts: ReqOpts
-): Promise<{ json: unknown; ok: boolean }> {
+): Promise<{ json: unknown; ok: boolean; status: number }> {
 	const hasBody = opts.body !== undefined;
 	const res = await cfg.fetchImpl(`${cfg.baseUrl}${opts.path}`, {
 		method: opts.method,
@@ -145,7 +145,7 @@ async function rawFetch(
 		signal: AbortSignal.timeout(opts.timeoutMs ?? REQUEST_TIMEOUT_MS),
 	});
 	const json = await res.json().catch(() => null);
-	return { json, ok: res.ok };
+	return { json, ok: res.ok, status: res.status };
 }
 
 // `/api/*` returns raw JSON; a non-2xx or `.error` body is a failure.
@@ -168,10 +168,12 @@ async function runtimeEnvelope(
 	cfg: ServiceConfig,
 	opts: ReqOpts
 ): Promise<RuntimeEnvelope<unknown>> {
-	const { json } = await rawFetch(cfg, cfg.runtimeToken, opts);
+	const { json, status } = await rawFetch(cfg, cfg.runtimeToken, opts);
+	// A non-envelope body (empty 401, HTML 502) loses its status otherwise —
+	// keep it so callers can detect auth failures (401/unauthorized).
 	return (json ?? {
 		success: false,
-		message: "empty response",
+		message: `empty response (HTTP ${status})`,
 	}) as RuntimeEnvelope<unknown>;
 }
 
@@ -235,7 +237,9 @@ function buildActionMethods(
 			if (services.length === 0) {
 				return [];
 			}
-			const perService = await Promise.all(
+			// allSettled, not all: one unreachable provider must not zero out the
+			// actions of every other connected provider (runtimeRequest logs each).
+			const perService = await Promise.allSettled(
 				services.map(async (service) => {
 					const data = (await runtimeRequest(cfg, {
 						method: "GET",
@@ -245,7 +249,9 @@ function buildActionMethods(
 					return (data ?? []).slice(0, ACTIONS_PER_SERVICE).map(mapAction);
 				})
 			);
-			return perService.flat();
+			return perService.flatMap((r) =>
+				r.status === "fulfilled" ? r.value : []
+			);
 		},
 		async execute({ actionId, args }) {
 			try {
