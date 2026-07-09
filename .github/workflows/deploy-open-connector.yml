@@ -1,0 +1,67 @@
+name: Deploy open-connector (Workers)
+
+# Deploys oomol-lab/open-connector to Cloudflare Workers (D1 + R2 + Static
+# Assets). open-connector is an external repo with its own npm/oxlint toolchain,
+# so we do NOT vendor it into this pnpm monorepo — this job checks it out at a
+# pinned SHA and runs its own `deploy:cloudflare` script. Manual trigger only;
+# run the one-time bootstrap in docs/open-connector-deploy.md first.
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-open-connector
+  cancel-in-progress: true
+
+# Pinned open-connector commit. Bump deliberately after reviewing upstream.
+env:
+  OPEN_CONNECTOR_REF: d375308e28742cadef40b09b2a202aafb7778d46
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout open-connector
+        uses: actions/checkout@v4
+        with:
+          repository: oomol-lab/open-connector
+          ref: ${{ env.OPEN_CONNECTOR_REF }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Materialize wrangler config
+        run: |
+          cp wrangler.example.jsonc wrangler.local.jsonc
+          node -e "const fs=require('fs');const f='wrangler.local.jsonc';const id=process.env.OC_D1_DATABASE_ID;if(!id){console.error('OC_D1_DATABASE_ID secret is not set — run the one-time bootstrap first');process.exit(1);}let s=fs.readFileSync(f,'utf8');s=s.replace('<your-d1-database-id>',id);fs.writeFileSync(f,s);"
+        env:
+          OC_D1_DATABASE_ID: ${{ secrets.OC_D1_DATABASE_ID }}
+
+      - name: Apply D1 migrations
+        run: npx wrangler d1 migrations apply open-connector --remote --config wrangler.local.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Set Worker secrets
+        run: |
+          printf '%s' "$OC_ADMIN_TOKEN"    | npx wrangler secret put OOMOL_CONNECT_ADMIN_TOKEN    --config wrangler.local.jsonc
+          printf '%s' "$OC_RUNTIME_TOKEN"  | npx wrangler secret put OOMOL_CONNECT_RUNTIME_TOKEN  --config wrangler.local.jsonc
+          printf '%s' "$OC_ENCRYPTION_KEY" | npx wrangler secret put OOMOL_CONNECT_ENCRYPTION_KEY --config wrangler.local.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          OC_ADMIN_TOKEN: ${{ secrets.OC_ADMIN_TOKEN }}
+          OC_RUNTIME_TOKEN: ${{ secrets.OC_RUNTIME_TOKEN }}
+          OC_ENCRYPTION_KEY: ${{ secrets.OC_ENCRYPTION_KEY }}
+
+      - name: Deploy
+        run: npm run deploy:cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
