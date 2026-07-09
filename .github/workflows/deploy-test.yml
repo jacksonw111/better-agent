@@ -54,8 +54,10 @@ jobs:
           command: deploy
           secrets: |
             FRED_API_KEY
+            API_TOKEN
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
 
   authz:
     runs-on: ubuntu-latest

@@ -10,3 +10,6 @@ NODE_ENV = "production"
 # needed. If a future version switches to KV, add a [[kv_namespaces]] block
 # here and create the namespace with:
 #   wrangler kv namespace create finance_cache
+
+# API_TOKEN is a secret (fixed shared-token auth gate on /mcp, /api/*, /pdf).
+# Set it with `wrangler secret put API_TOKEN`. Unset/empty means open access.

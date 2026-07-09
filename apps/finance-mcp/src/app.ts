@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { requireToken } from "./auth";
 import { NotConfiguredError } from "./core/fred/economic";
 import { BadSymbolError } from "./core/symbol";
 import { handleMessage } from "./mcp-server";
@@ -19,11 +20,33 @@ const NOT_CONFIGURED = 503;
 const BAD_GATEWAY = 502;
 const PARSE_ERROR = -32_700;
 
-export function buildApp(): Hono {
-	const app = new Hono();
+function registerGuards(app: Hono): void {
 	app.use("/api/*", cors());
 	app.use("/mcp", cors());
 	app.use("/pdf", cors());
+	app.use("/mcp", requireToken);
+	app.use("/api/*", requireToken);
+	app.use("/pdf", requireToken);
+}
+
+function registerErrorHandler(app: Hono): void {
+	app.onError((err, c) => {
+		if (err instanceof NotConfiguredError) {
+			return c.json({ error: err.message }, NOT_CONFIGURED);
+		}
+		if (err instanceof BadSymbolError) {
+			return c.json({ error: err.message }, BAD_REQUEST);
+		}
+		if (err instanceof Error) {
+			return c.json({ error: err.message }, BAD_GATEWAY);
+		}
+		throw err;
+	});
+}
+
+export function buildApp(): Hono {
+	const app = new Hono();
+	registerGuards(app);
 
 	app.get("/", (c) =>
 		c.json({
@@ -60,18 +83,7 @@ export function buildApp(): Hono {
 
 	app.get("/pdf", createPdfProxyHandler(fetch));
 
-	app.onError((err, c) => {
-		if (err instanceof NotConfiguredError) {
-			return c.json({ error: err.message }, NOT_CONFIGURED);
-		}
-		if (err instanceof BadSymbolError) {
-			return c.json({ error: err.message }, BAD_REQUEST);
-		}
-		if (err instanceof Error) {
-			return c.json({ error: err.message }, BAD_GATEWAY);
-		}
-		throw err;
-	});
+	registerErrorHandler(app);
 
 	return app;
 }
