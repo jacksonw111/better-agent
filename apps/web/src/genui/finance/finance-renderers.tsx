@@ -27,13 +27,26 @@ import {
 	YieldPointSchema,
 } from "./finance-schemas-fe6";
 import { CalendarEventSchema, MacroResultSchema } from "./finance-schemas-fe7";
+import {
+	ForecastRowSchema,
+	NewsItemSchema,
+	ReportSchema,
+	ResearchReportSchema,
+	StockHitSchema,
+	StockNewsItemSchema,
+} from "./finance-schemas-fe8";
+import { ForecastTable } from "./forecast-table";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
 import { KeyMetricsCard } from "./key-metrics-card";
 import { MacroPanel } from "./macro-panel";
 import { MoneyFlowChart } from "./money-flow-chart";
+import { NewsList } from "./news-list";
 import { QuoteCard } from "./quote-card";
+import { ReportsList } from "./reports-list";
+import { ResearchList } from "./research-list";
+import { SearchList } from "./search-list";
 import { SectorHeatmap } from "./sector-heatmap";
 import { SectorStocksList } from "./sector-stocks-list";
 import { StatementsTable } from "./statements-table";
@@ -57,7 +70,10 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // finance_money_flow / finance_sector_list / finance_sector_constituents /
 // finance_yield_curve. FE-7 adds finance_macro_us / finance_macro_cn
 // (macro-panel.tsx) and finance_earnings_calendar / finance_economic_calendar
-// / finance_central_bank (calendar-list.tsx).
+// / finance_central_bank (calendar-list.tsx). FE-8 (final) adds finance_news /
+// finance_stock_news (news-list.tsx), finance_research (research-list.tsx),
+// finance_earnings_forecast (forecast-table.tsx), finance_list_reports
+// (reports-list.tsx), and finance_search (search-list.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -76,6 +92,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_earnings_calendar: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
+	)),
+	finance_earnings_forecast: listEntry(ForecastRowSchema, (rows) => (
+		<ForecastTable data={rows} />
 	)),
 	finance_economic_calendar: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -98,6 +117,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_kline: listEntry(CandleSchema, (candles) => (
 		<CandlestickChart candles={candles} />
 	)),
+	finance_list_reports: listEntry(ReportSchema, (rows) => (
+		<ReportsList data={rows} />
+	)),
 	finance_macro_cn: entry(MacroResultSchema, (data) => (
 		<MacroPanel data={data} />
 	)),
@@ -107,12 +129,22 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_money_flow: listEntry(MoneyFlowRowSchema, (rows) => (
 		<MoneyFlowChart data={rows} />
 	)),
+	finance_news: listEntry(NewsItemSchema, (rows) => <NewsList data={rows} />),
 	finance_quote: entry(QuoteSchema, (data) => <QuoteCard data={data} />),
+	finance_research: listEntry(ResearchReportSchema, (rows) => (
+		<ResearchList data={rows} />
+	)),
+	finance_search: listEntry(StockHitSchema, (rows) => (
+		<SearchList data={rows} />
+	)),
 	finance_sector_constituents: listEntry(SectorConstituentSchema, (rows) => (
 		<SectorStocksList data={rows} />
 	)),
 	finance_sector_list: listEntry(SectorRowSchema, (items) => (
 		<SectorHeatmap items={items} />
+	)),
+	finance_stock_news: listEntry(StockNewsItemSchema, (rows) => (
+		<NewsList data={rows} />
 	)),
 	finance_technical: entry(TechnicalSchema, (data) => (
 		<TechnicalPanel data={data} />
