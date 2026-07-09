@@ -7,6 +7,7 @@ export * from "./bridge";
 export * from "./composio";
 export * from "./mcp";
 export * from "./memory";
+export * from "./openconnector";
 export * from "./providers";
 export * from "./sessions";
 export * from "./settings";
