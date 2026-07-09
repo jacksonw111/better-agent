@@ -62,6 +62,25 @@ const TECHNICAL_FIXTURE = {
 	symbol: "600519",
 };
 
+const CANDLE_FIXTURE = [
+	{
+		close: 3205.4,
+		high: 3212.1,
+		low: 3190.0,
+		open: 3195.2,
+		time: "2026-07-06",
+		volume: 128_400_000,
+	},
+	{
+		close: 3198.7,
+		high: 3208.9,
+		low: 3192.3,
+		open: 3205.4,
+		time: "2026-07-07",
+		volume: 141_200_000,
+	},
+];
+
 function financeTool(name: string) {
 	const tool = TOOL_RESULT_RENDERERS[name];
 	if (!tool) {
@@ -111,5 +130,15 @@ it("parses a representative finance_technical fixture", () => {
 it("returns null for finance_technical given a wrong shape", () => {
 	expect(
 		financeTool("finance_technical").parse({ unrelated: "shape" })
+	).toBeNull();
+});
+
+it("parses a representative finance_kline fixture", () => {
+	expect(financeTool("finance_kline").parse(CANDLE_FIXTURE)).not.toBeNull();
+});
+
+it("returns null for finance_kline given a wrong shape", () => {
+	expect(
+		financeTool("finance_kline").parse([{ unrelated: "shape" }])
 	).toBeNull();
 });

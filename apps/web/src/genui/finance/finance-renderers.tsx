@@ -1,6 +1,8 @@
 import { entry, listEntry, type ToolResultRenderer } from "../tool-renderers";
+import { CandlestickChart } from "./candlestick-chart";
 import { CommodityGrid } from "./commodity-grid";
 import {
+	CandleSchema,
 	CommodityQuoteSchema,
 	IndexQuoteSchema,
 	QuoteSchema,
@@ -18,13 +20,16 @@ import { TechnicalPanel } from "./technical-panel";
 // bindings that are ready before either module's top-level code executes.
 //
 // FE-1: finance_index_quote + finance_commodity. FE-2 adds finance_quote +
-// finance_technical here. Later batches add finance_kline.
+// finance_technical here. FE-3 adds finance_kline (candlestick + volume).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_commodity: listEntry(CommodityQuoteSchema, (items) => (
 		<CommodityGrid items={items} />
 	)),
 	finance_index_quote: listEntry(IndexQuoteSchema, (items) => (
 		<IndexGrid items={items} />
+	)),
+	finance_kline: listEntry(CandleSchema, (candles) => (
+		<CandlestickChart candles={candles} />
 	)),
 	finance_quote: entry(QuoteSchema, (data) => <QuoteCard data={data} />),
 	finance_technical: entry(TechnicalSchema, (data) => (

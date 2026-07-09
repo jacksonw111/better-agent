@@ -112,3 +112,20 @@ export const TechnicalSchema = z.object({
 });
 
 export type TechnicalData = z.infer<typeof TechnicalSchema>;
+
+// finance_kline slice: one candle per row, result is an array (see listEntry
+// in finance-renderers.tsx). `time` is the required discriminator; every
+// numeric field falls back to 0 so a stray malformed field degrades that one
+// candle to a flat/zero-volume bar instead of dropping the whole series.
+
+export const CandleSchema = z.object({
+	// Required discriminator: identifies this as a single kline candle.
+	time: z.string(),
+	open: z.number().catch(0),
+	high: z.number().catch(0),
+	low: z.number().catch(0),
+	close: z.number().catch(0),
+	volume: z.number().catch(0),
+});
+
+export type CandleData = z.infer<typeof CandleSchema>;
