@@ -8,6 +8,7 @@ import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
 import { appendPushedEvents } from "./bridge-push-events";
+import { fetchConfig, restartSession } from "./bridge-restart";
 import {
 	assertEventsWithinSizeLimit,
 	assertInputWithinSizeLimit,
@@ -184,6 +185,7 @@ export const bridgeRouter = {
 			return { ok: true };
 		}),
 
+	fetchConfig,
 	pollCommands: bridgeProcedure
 		.input(pollInput)
 		.handler(async ({ input, context }) => {
@@ -259,9 +261,7 @@ export const bridgeRouter = {
 	listSessions: userProcedure.handler(({ context }) =>
 		context.services.stores.bridgeSession.listByUser(context.authedUser.id)
 	),
-
-	// Local Agent usage broken down by agent kind, over the same rolling window
-	// as the chat usage summary (owner-scoped). See ./bridge-usage.ts.
+	// Local Agent usage by agent kind, same rolling window as chat usage (owner-scoped).
 	usageByAgentKind,
 
 	endSession: userProcedure
@@ -294,4 +294,5 @@ export const bridgeRouter = {
 			}
 			return { ok: true };
 		}),
+	restartSession,
 };

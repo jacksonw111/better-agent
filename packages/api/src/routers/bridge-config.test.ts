@@ -58,3 +58,82 @@ it("startSession returns the token's persisted startup config", async () => {
 	const started = await cli.bridge.startSession({ agentKind: AGENT_KIND });
 	expect(started.config).toEqual({ appendSystemPrompt: "Be terse." });
 });
+
+// R3 restart orchestration: restartSession (web) appends a control:restart
+// command without ending the session, and fetchConfig (bridge token) lets
+// the restarting CLI re-fetch the token's current config without minting a
+// new session (which would break the seamless-reconnect: a fresh startSession
+// call mints a new sessionId).
+
+it("restartSession appends a control:restart command and does not end the session", async () => {
+	const { userClientFor, bridgeClientFor, bridgeSession } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+
+	const alice = userClientFor(ALICE);
+	await expect(alice.bridge.restartSession({ sessionId })).resolves.toEqual({
+		ok: true,
+	});
+
+	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	expect(commands).toHaveLength(1);
+	expect(commands[0]?.data).toEqual({ type: "control", action: "restart" });
+
+	const row = await bridgeSession.get(sessionId);
+	expect(row?.status).toBe("active");
+});
+
+it("restartSession rejects a non-owner with NOT_FOUND", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+	});
+
+	const bob = userClientFor(BOB);
+	await expect(bob.bridge.restartSession({ sessionId })).rejects.toMatchObject({
+		code: "NOT_FOUND",
+	});
+});
+
+it("fetchConfig returns the calling token's current config after an update", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const alice = userClientFor(ALICE);
+	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	await alice.bridge.updateTokenConfig({
+		config: { appendSystemPrompt: "Be terse.", maxTurns: 5 },
+		id: created.id,
+	});
+
+	const cli = bridgeClientFor({ tokenId: created.id, userId: ALICE.id });
+	const result = await cli.bridge.fetchConfig();
+	expect(result).toEqual({
+		config: { appendSystemPrompt: "Be terse.", maxTurns: 5 },
+	});
+});
+
+it("fetchConfig scopes to the caller's own token, not another token's config", async () => {
+	const { userClientFor, bridgeClientFor } = build();
+	const alice = userClientFor(ALICE);
+	const tokenA = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	const tokenB = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	await alice.bridge.updateTokenConfig({
+		config: { model: "claude-opus-4" },
+		id: tokenA.id,
+	});
+	await alice.bridge.updateTokenConfig({
+		config: { model: "gpt-5" },
+		id: tokenB.id,
+	});
+
+	const cliA = bridgeClientFor({ tokenId: tokenA.id, userId: ALICE.id });
+	const cliB = bridgeClientFor({ tokenId: tokenB.id, userId: ALICE.id });
+	expect(await cliA.bridge.fetchConfig()).toEqual({
+		config: { model: "claude-opus-4" },
+	});
+	expect(await cliB.bridge.fetchConfig()).toEqual({
+		config: { model: "gpt-5" },
+	});
+});
