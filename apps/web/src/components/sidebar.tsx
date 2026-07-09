@@ -1,6 +1,13 @@
 import type { NavSection } from "@better-agent/ui/components/app-shell-sidebar";
 import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
-import { BookMarked, Bot, Gauge, Plug, TerminalSquare } from "lucide-react";
+import {
+	BookMarked,
+	Bot,
+	Gauge,
+	Plug,
+	TerminalSquare,
+	Wand2,
+} from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
@@ -19,6 +26,10 @@ const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
 		item: { to: "/memories", label: "Memories", icon: BookMarked },
+	},
+	{
+		kind: "item",
+		item: { to: "/skills", label: "Skills", icon: Wand2 },
 	},
 	{
 		kind: "item",

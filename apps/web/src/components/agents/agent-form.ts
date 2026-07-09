@@ -12,6 +12,10 @@ export interface AgentForm {
 	modelId: string;
 	name: string;
 	providerId: string;
+	/** Deferred skill assignments: only used when CREATING (assigned after the
+	 * agent exists). Editing manages assignments live instead — same pattern
+	 * as memoryIds. */
+	skillIds: string[];
 	systemPrompt: string;
 	temperature: string;
 	toolAllowlist: string[] | null;
@@ -23,6 +27,7 @@ export const EMPTY_AGENT_FORM: AgentForm = {
 	builtinTools: [],
 	mcpServerIds: [],
 	memoryIds: [],
+	skillIds: [],
 	name: "",
 	description: "",
 	systemPrompt: "",
@@ -40,6 +45,7 @@ export const WIZARD_STEPS = [
 	"Params",
 	"Tools",
 	"Memories",
+	"Skills",
 ] as const;
 
 const IDENTITY_STEP = 0;
@@ -108,6 +114,7 @@ export function agentRowToForm(row: AgentRow): AgentForm {
 		builtinTools: row.builtinTools ?? [],
 		mcpServerIds: row.mcpServerIds ?? [],
 		memoryIds: [],
+		skillIds: [],
 		name: row.name,
 		description: row.description,
 		systemPrompt: row.systemPrompt,

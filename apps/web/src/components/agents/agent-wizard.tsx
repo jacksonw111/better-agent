@@ -8,6 +8,7 @@ import {
 import { useState } from "react";
 
 import { MemoriesStep } from "@/components/memory/memories-step";
+import { SkillsStep } from "@/components/skills/skills-step";
 
 import {
 	type AgentForm,
@@ -28,6 +29,7 @@ const MODEL_STEP = 1;
 const PARAMS_STEP = 2;
 const TOOLS_STEP = 3;
 const MEMORIES_STEP = 4;
+const SKILLS_STEP = 5;
 
 function WizardFooter({
 	step,
@@ -91,6 +93,13 @@ function WizardStepBody({
 					agentId={agentId}
 					onChange={(ids) => set({ memoryIds: ids })}
 					selected={form.memoryIds}
+				/>
+			) : null}
+			{step === SKILLS_STEP ? (
+				<SkillsStep
+					agentId={agentId}
+					onChange={(ids) => set({ skillIds: ids })}
+					selected={form.skillIds}
 				/>
 			) : null}
 		</div>

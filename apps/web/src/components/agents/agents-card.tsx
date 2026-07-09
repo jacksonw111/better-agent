@@ -13,22 +13,22 @@ import {
 	TableHeader,
 	TableRow,
 } from "@better-agent/ui/components/table";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
-import { assignMemoriesSafely } from "@/components/memory/assign-memories";
 import type { AgentRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
-import { celebrateSuccess } from "@/utils/celebrate";
 import { orpc } from "@/utils/orpc";
-import { type AgentForm, agentRowToForm, toAgentInput } from "./agent-form";
 import { AgentRowActions } from "./agent-row-actions";
 import { AgentWizard } from "./agent-wizard";
 import { AgentsSkeleton } from "./agents-skeleton";
 import { TokenRevealDialog } from "./token-reveal-dialog";
+import {
+	useAgentMutations,
+	useAgentWizard,
+	useRevealToken,
+} from "./use-agent-mutations";
 
 const TOKEN_PREVIEW_LEN = 14;
 const AVATAR_INITIALS_LENGTH = 2;
@@ -142,106 +142,6 @@ function AgentsTable({
 			/>
 		</>
 	);
-}
-
-function useAgentWizard() {
-	const [state, setState] = useState<{
-		open: boolean;
-		id: string | null;
-		initial: AgentForm | null;
-	}>({ open: false, id: null, initial: null });
-	const openAdd = () => setState({ open: true, id: null, initial: null });
-	const openEdit = (row: AgentRow) =>
-		setState({ open: true, id: row.id, initial: agentRowToForm(row) });
-	const close = (open: boolean) => setState((s) => ({ ...s, open }));
-	return { state, openAdd, openEdit, close };
-}
-
-function useCreateAgent({
-	pendingMemoryIds,
-	onTokenMinted,
-	onSaved,
-	invalidate,
-}: {
-	pendingMemoryIds: { current: string[] };
-	onTokenMinted: (token: string) => void;
-	onSaved: () => void;
-	invalidate: () => void;
-}) {
-	return useMutation(
-		orpc.agents.create.mutationOptions({
-			onSuccess: async (result) => {
-				await assignMemoriesSafely(
-					{ agentId: result.agent.id },
-					pendingMemoryIds.current
-				);
-				pendingMemoryIds.current = [];
-				celebrateSuccess("Agent created");
-				onTokenMinted(result.token);
-				onSaved();
-				invalidate();
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-}
-
-function useAgentMutations(
-	onSaved: () => void,
-	onTokenMinted: (token: string) => void
-) {
-	const queryClient = useQueryClient();
-	const invalidate = () =>
-		queryClient.invalidateQueries({ queryKey: orpc.agents.list.key() });
-	// The Memories step's selection, captured at submit time so the create
-	// mutation's onSuccess can turn it into real assignments (the agent id only
-	// exists after the create round-trip).
-	const pendingMemoryIds = useRef<string[]>([]);
-	const create = useCreateAgent({
-		invalidate,
-		onSaved,
-		onTokenMinted,
-		pendingMemoryIds,
-	});
-	const update = useMutation(
-		orpc.agents.update.mutationOptions({
-			onSuccess: () => {
-				celebrateSuccess("Agent updated");
-				onSaved();
-				invalidate();
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-	const remove = useMutation(
-		orpc.agents.delete.mutationOptions({
-			onSuccess: () => {
-				toast.success("Agent deleted");
-				invalidate();
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-	const submit = (editingId: string | null, form: AgentForm) => {
-		const input = toAgentInput(form);
-		if (editingId === null) {
-			pendingMemoryIds.current = form.memoryIds;
-			create.mutate(input);
-		} else {
-			update.mutate({ id: editingId, ...input });
-		}
-	};
-	return { create, update, remove, submit };
-}
-
-function useRevealToken() {
-	const queryClient = useQueryClient();
-	const [revealToken, setRevealToken] = useState<string | null>(null);
-	const handleTokenRotated = (token: string) => {
-		setRevealToken(token);
-		queryClient.invalidateQueries({ queryKey: orpc.agents.getToken.key() });
-	};
-	return { revealToken, setRevealToken, handleTokenRotated };
 }
 
 export function AgentsCard() {
