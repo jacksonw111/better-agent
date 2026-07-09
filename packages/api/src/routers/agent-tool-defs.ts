@@ -8,6 +8,10 @@ import {
 	buildMcpToolDefs,
 	type McpService,
 } from "@better-agent/agent/tool/mcp-tools";
+import {
+	buildOpenConnectorToolDefs,
+	type OpenConnectorService,
+} from "@better-agent/agent/tool/openconnector-tools";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { log } from "evlog";
 import type { Context } from "../context";
@@ -34,6 +38,37 @@ export async function safeComposioDefs(
 		log.error(
 			"tools",
 			`composio defs failed (${scope}): ${error instanceof Error ? error.message : String(error)}`
+		);
+		return [];
+	}
+}
+
+// Every configured, non-virtual provider connection of one open-connector
+// account, turned into runtime tool defs. Failures are logged and yield no
+// tools, so a broken instance never breaks the whole turn.
+export async function safeOpenConnectorDefs(
+	service: OpenConnectorService | null
+): Promise<ToolDef[]> {
+	if (!service) {
+		return [];
+	}
+	try {
+		const connections = await service.listConnections();
+		const services = [
+			...new Set(
+				connections
+					.filter((c) => c.configured && !c.virtual)
+					.map((c) => c.service)
+			),
+		];
+		if (services.length === 0) {
+			return [];
+		}
+		return await buildOpenConnectorToolDefs(service, services);
+	} catch (error) {
+		log.error(
+			"tools",
+			`open-connector defs failed: ${error instanceof Error ? error.message : String(error)}`
 		);
 		return [];
 	}
@@ -108,6 +143,7 @@ export async function assembleAgentToolDefs(
 	agent: {
 		builtinTools: string[];
 		composioAccountIds: string[];
+		openConnectorAccountIds?: string[];
 		mcpServerIds: string[];
 		toolAllowlist?: string[] | null;
 	},
@@ -124,9 +160,17 @@ export async function assembleAgentToolDefs(
 			safeMcpDefs(await context.services.mcp(serverId))
 		)
 	);
+	const perOc = await Promise.all(
+		(agent.openConnectorAccountIds ?? []).map(async (id) =>
+			safeOpenConnectorDefs(await context.services.openConnector(id))
+		)
+	);
 	const allowlist = agent.toolAllowlist ?? null;
 	const baseDefs = [
-		...shapeSourceDefs([...perAccount.flat(), ...perServer.flat()], allowlist),
+		...shapeSourceDefs(
+			[...perAccount.flat(), ...perServer.flat(), ...perOc.flat()],
+			allowlist
+		),
 		...buildBuiltinToolDefs(agent.builtinTools ?? []),
 	];
 	if (!activeSkill) {

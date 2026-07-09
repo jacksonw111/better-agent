@@ -21,6 +21,7 @@ const agentInput = z.object({
 	modelId: z.string().min(1),
 	params: paramsInput.nullable().default(null),
 	composioAccountIds: z.array(z.uuid()).default([]),
+	openConnectorAccountIds: z.array(z.uuid()).default([]),
 	mcpServerIds: z.array(z.uuid()).default([]),
 	toolAllowlist: z.array(z.string()).nullable().default(null),
 	builtinTools: z.array(z.string()).default([]),
@@ -59,22 +60,37 @@ async function filterOwnedIds(
 async function filterOwnedLinks(
 	context: Context,
 	userId: string,
-	input: { composioAccountIds: string[]; mcpServerIds: string[] }
-): Promise<{ composioAccountIds: string[]; mcpServerIds: string[] }> {
-	const { composioAccount, mcpServer } = context.services.stores;
-	const [composioAccountIds, mcpServerIds] = await Promise.all([
-		filterOwnedIds(
-			(id) => composioAccount.listByUser(id),
-			userId,
-			input.composioAccountIds
-		),
-		filterOwnedIds(
-			(id) => mcpServer.listByUser(id),
-			userId,
-			input.mcpServerIds
-		),
-	]);
-	return { composioAccountIds, mcpServerIds };
+	input: {
+		composioAccountIds: string[];
+		openConnectorAccountIds: string[];
+		mcpServerIds: string[];
+	}
+): Promise<{
+	composioAccountIds: string[];
+	openConnectorAccountIds: string[];
+	mcpServerIds: string[];
+}> {
+	const { composioAccount, openConnectorAccount, mcpServer } =
+		context.services.stores;
+	const [composioAccountIds, openConnectorAccountIds, mcpServerIds] =
+		await Promise.all([
+			filterOwnedIds(
+				(id) => composioAccount.listByUser(id),
+				userId,
+				input.composioAccountIds
+			),
+			filterOwnedIds(
+				(id) => openConnectorAccount.listByUser(id),
+				userId,
+				input.openConnectorAccountIds
+			),
+			filterOwnedIds(
+				(id) => mcpServer.listByUser(id),
+				userId,
+				input.mcpServerIds
+			),
+		]);
+	return { composioAccountIds, openConnectorAccountIds, mcpServerIds };
 }
 
 // Loads an agent and asserts the caller owns it. NOT_FOUND for both missing and

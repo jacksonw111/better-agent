@@ -11,6 +11,7 @@ import { composioRouter } from "./composio";
 import { inviteRouter } from "./invite";
 import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
+import { openConnectorRouter } from "./openconnector";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
 import { skillsRouter } from "./skills";
@@ -28,6 +29,7 @@ export const appRouter = {
 	invite: inviteRouter,
 	mcp: mcpRouter,
 	memory: memoryRouter,
+	openConnector: openConnectorRouter,
 	providers: providersRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,

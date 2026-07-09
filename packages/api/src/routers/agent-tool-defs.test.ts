@@ -1,5 +1,6 @@
 import type { SkillRow } from "@better-agent/agent/ports";
 import type { McpService } from "@better-agent/agent/tool/mcp-tools";
+import type { OpenConnectorService } from "@better-agent/agent/tool/openconnector-tools";
 import { describe, expect, it } from "vitest";
 import type { Context } from "../context";
 import { assembleAgentToolDefs } from "./agent-tool-defs";
@@ -39,6 +40,7 @@ function contextWithMcp(mcp: (serverId: string) => Promise<McpService | null>) {
 	return {
 		services: {
 			composio: () => Promise.resolve(null),
+			openConnector: () => Promise.resolve(null),
 			mcp,
 		},
 	} as unknown as Context;
@@ -88,5 +90,63 @@ describe("assembleAgentToolDefs — Skills T3 tool-folding", () => {
 		const agent = { ...BASE_AGENT, builtinTools: ["get_current_time"] };
 		const defs = await assembleAgentToolDefs(context, agent);
 		expect(defs.map((d) => d.name)).toEqual(["get_current_time"]);
+	});
+});
+
+function fakeOpenConnector(): OpenConnectorService {
+	return {
+		connectWithKey: () => Promise.resolve({ configured: true }),
+		disconnect: () => Promise.resolve(),
+		execute: () => Promise.resolve({ output: "ok", isError: false }),
+		listProviders: () => Promise.resolve([]),
+		listConnections: () =>
+			Promise.resolve([
+				{
+					id: "c1",
+					service: "github",
+					connectionName: "gh",
+					authType: "api_key",
+					configured: true,
+					virtual: false,
+				},
+				{
+					id: "c2",
+					service: "x",
+					connectionName: "x",
+					authType: "api_key",
+					configured: true,
+					virtual: true,
+				},
+			]),
+		listActions: (services) =>
+			Promise.resolve(
+				services.includes("github")
+					? [
+							{
+								id: "github.get_repo",
+								service: "github",
+								name: "get_repo",
+								description: "Get a repo",
+								inputSchema: {},
+							},
+						]
+					: []
+			),
+	};
+}
+
+describe("assembleAgentToolDefs — OpenConnector", () => {
+	it("builds tools for configured, non-virtual connections only", async () => {
+		const service = fakeOpenConnector();
+		const context = {
+			services: {
+				composio: () => Promise.resolve(null),
+				openConnector: () => Promise.resolve(service),
+				mcp: () => Promise.resolve(null),
+			},
+		} as unknown as Context;
+		const agent = { ...BASE_AGENT, openConnectorAccountIds: ["oc-1"] };
+		const defs = await assembleAgentToolDefs(context, agent, null);
+		expect(defs.map((d) => d.name)).toEqual(["github.get_repo"]);
 	});
 });
