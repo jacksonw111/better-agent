@@ -16,6 +16,7 @@ import { coerceKlinePeriod, getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
 import { DATA_HANDLERS } from "./tools-impl-data";
+import { EVENTS_HANDLERS } from "./tools-impl-events";
 import {
 	handleDividends,
 	handleDragonTiger,
@@ -130,7 +131,6 @@ async function handleEarningsCalendar(
 		)
 	);
 }
-
 async function handleCentralBank(
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
@@ -152,7 +152,6 @@ async function handleKeyMetrics(
 		await withCache(`metrics:${symbol}`, 300, () => getKeyMetrics(symbol))
 	);
 }
-
 async function handleCompanyProfile(
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
@@ -283,6 +282,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_sentiment_ticker: (args, env) => handleSentimentTicker(args, env),
 	finance_sentiment_market: (args, env) => handleSentimentMarket(args, env),
 	...DATA_HANDLERS,
+	...EVENTS_HANDLERS,
 	...SIGNALS_HANDLERS,
 };
 

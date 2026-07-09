@@ -20,6 +20,10 @@ import "./tool-defs-signals";
 // finance_lockup / finance_convertible_bonds / finance_ipo onto the shared
 // TOOLS/TOOL_NAMES arrays.
 import "./tool-defs-data";
+// Side-effect import: registers finance_block_trades /
+// finance_insider_trades / finance_suspension onto the shared
+// TOOLS/TOOL_NAMES arrays.
+import "./tool-defs-events";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool
