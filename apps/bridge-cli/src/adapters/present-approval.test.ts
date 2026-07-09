@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApprovalEvent } from "../normalize/types";
 import {
 	APPROVAL_TIMEOUT_MS,
+	type ApprovalRegistry,
 	createApprovalRegistry,
 	presentApproval,
 	retractPendingApprovals,
@@ -19,6 +20,28 @@ const PRESENT_APPROVAL_EVENT: ApprovalEvent = {
 	requestId: "req_1",
 	title: "Approve action?",
 };
+
+/** fix3's timer-count assertion after arming two approvals — named so
+ * eslint's no-magic-numbers doesn't flag the bare literal. */
+const TWO_ARMED_TIMERS = 2;
+
+/** Presents an approval with throwaway `vi.fn()` answer/timeout callbacks —
+ * fix3's tests below only care about the timer `presentApproval` arms for
+ * it, not how it resolves. Pulled out to keep each `it()` (and the
+ * containing `describe`'s callback) under this file's max-lines gate. */
+function presentTestApproval(
+	registry: ApprovalRegistry,
+	events: ReturnType<typeof createFakeEvents>["events"],
+	requestId: string = PRESENT_APPROVAL_EVENT.requestId
+): void {
+	presentApproval({
+		approvals: registry,
+		event: { ...PRESENT_APPROVAL_EVENT, requestId },
+		events,
+		onAnswer: vi.fn(),
+		onTimeout: vi.fn(),
+	});
+}
 
 describe("presentApproval (RC-T4 fail-closed + timeout contract) - on-time answer", () => {
 	beforeEach(() => {
@@ -134,5 +157,55 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - interrupt", (
 				title: "Cancelled",
 			},
 		]);
+	});
+});
+
+describe("presentApproval (RC-T4 fail-closed + timeout contract) - fix3: retract clears the armed timer", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it("registry.retract() clears the timer instead of leaving it armed", () => {
+		const { events } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+
+		presentTestApproval(registry, events);
+		expect(vi.getTimerCount()).toBe(1);
+
+		expect(registry.retract(PRESENT_APPROVAL_EVENT.requestId)).toBe(true);
+
+		// The bug: retract() dropped the pending entry but never cleared the
+		// setTimeout it was armed with, so it stayed scheduled for up to
+		// APPROVAL_TIMEOUT_MS after the approval was already gone.
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("retractPendingApprovals (retractAll) clears every armed timer, not just the first", () => {
+		const { events } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+
+		presentTestApproval(registry, events);
+		presentTestApproval(registry, events, "req_2");
+		expect(vi.getTimerCount()).toBe(TWO_ARMED_TIMERS);
+
+		retractPendingApprovals(registry, events);
+
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("an on-time answer still clears the timer (unchanged behavior)", () => {
+		const { events } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+
+		presentTestApproval(registry, events);
+		expect(vi.getTimerCount()).toBe(1);
+
+		registry.answer(PRESENT_APPROVAL_EVENT.requestId, "allow");
+
+		expect(vi.getTimerCount()).toBe(0);
 	});
 });

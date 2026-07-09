@@ -24,6 +24,21 @@ function defaultSleep(ms: number): Promise<void> {
 
 export interface ForwardEventsOptions {
 	flushIntervalMs?: number;
+	/** RC-fix1: a per-launch generation id, threaded from the caller (see
+	 * `restart-loop.ts`'s `generation` counter) and salted into every
+	 * idempotency key this call mints. Without it, an in-place restart under
+	 * the SAME bridge sessionId (`restart-loop.ts` relaunches the agent but
+	 * keeps driving the same session) starts a fresh `forwardEvents` call
+	 * whose local `nextEventId` counter resets to 1 — colliding with the
+	 * PRIOR generation's still-live keys inside the relay's dedup window
+	 * (`redis-relay-store.ts`'s `WINDOW_TTL_SEC`) and silently dropping every
+	 * event of the new generation. Left undefined, the key is just the bare
+	 * counter (pre-fix1 behavior) — callers that don't care about
+	 * cross-restart uniqueness (mostly this file's own tests) don't need to
+	 * pass one. Retries of the SAME batch within one call still reuse the
+	 * same key: `nextEventId` only advances when a NEW event is buffered, not
+	 * on a push-queue resend. */
+	generationId?: number;
 	maxBatchSize?: number;
 	maxBufferedEvents?: number;
 	/** Debug hook: called for every event drained from the agent, before it's
@@ -107,10 +122,15 @@ function resolveForwardEventsConfig<T>(
  *
  * T1 (docs/remote-control-redesign-plan.md): each drained event is stamped
  * with an idempotency key exactly once, right here, before it ever reaches
- * `push` — see `QueuedEvent`. A monotonic per-call counter is enough (no
- * sessionId prefix needed): the relay dedups within a (sessionId, dir)
- * channel, so uniqueness only has to hold across the events one
- * `forwardEvents` call ever produces.
+ * `push` — see `QueuedEvent`. A monotonic per-call counter was originally
+ * assumed enough (no sessionId prefix needed) on the theory that uniqueness
+ * only has to hold across the events one `forwardEvents` call ever produces —
+ * but `restart-loop.ts` can call `forwardEvents` MULTIPLE times under the
+ * SAME bridge sessionId (an in-place restart relaunches the agent without
+ * exiting the process), and each call's counter restarts at 1. RC-fix1:
+ * `options.generationId`, when supplied, salts the counter so keys stay
+ * unique across those calls while remaining stable across a push-queue retry
+ * WITHIN one call (see `QueuedEvent`'s own doc comment).
  */
 export async function forwardEvents<T>(
 	events: AsyncIterable<T>,
@@ -154,7 +174,11 @@ export async function forwardEvents<T>(
 			continue;
 		}
 		options.onEvent?.(result.value);
-		buffer.push({ event: result.value, idempotencyKey: String(nextEventId++) });
+		const idempotencyKey =
+			options.generationId === undefined
+				? String(nextEventId++)
+				: `${options.generationId}:${nextEventId++}`;
+		buffer.push({ event: result.value, idempotencyKey });
 		if (buffer.length >= maxBatchSize) {
 			buffer = flushToQueue(buffer, queue);
 		}

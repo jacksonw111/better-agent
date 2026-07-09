@@ -34,11 +34,14 @@ const MS_PER_MINUTE = 60_000;
 export const APPROVAL_TIMEOUT_MS = APPROVAL_TIMEOUT_MINUTES * MS_PER_MINUTE;
 
 /** A still-open approval: the options the user was offered (to validate
- * `answer()`'s `optionId` against) and the reply to invoke once one is
- * picked. */
+ * `answer()`'s `optionId` against), the reply to invoke once one is picked,
+ * and — RC-fix3 — the fail-closed timer `presentApproval` armed for it, if
+ * any, so `retract`/`retractAll`/`answer` can clear it instead of leaking a
+ * dangling `setTimeout` past the point this entry stops being pending. */
 interface PendingApproval {
 	options: ApprovalOption[];
 	reply(optionId: string): void;
+	timer?: ReturnType<typeof setTimeout>;
 }
 
 export interface ApprovalRegistry {
@@ -58,11 +61,15 @@ export interface ApprovalRegistry {
 	 * closed pipe. */
 	clear(): void;
 	/** Registers `reply` to be invoked (at most once) by a matching `answer()`
-	 * whose `optionId` is one of `options`. */
+	 * whose `optionId` is one of `options`. `timer` — RC-fix3 — is the
+	 * fail-closed timer `presentApproval` armed for this approval, if any;
+	 * stashing it here lets `retract`/`retractAll`/`answer` clear it so it
+	 * never fires (and leaks) after this entry stops being pending. */
 	register(
 		requestId: string,
 		options: ApprovalOption[],
-		reply: (optionId: string) => void
+		reply: (optionId: string) => void,
+		timer?: ReturnType<typeof setTimeout>
 	): void;
 	/**
 	 * RC-T4: drops `requestId`'s pending reply WITHOUT invoking it, same
@@ -71,7 +78,9 @@ export interface ApprovalRegistry {
 	 * after it was ALREADY answered (or already retracted by an interrupt) is a
 	 * harmless no-op instead of double-resolving it. Returns whether an entry
 	 * was actually removed, so the caller can tell "I won the race, resolve
-	 * declined" apart from "someone else already resolved this."
+	 * declined" apart from "someone else already resolved this." RC-fix3: also
+	 * clears the entry's armed timer (if any), so retracting an approval
+	 * before its timeout fires doesn't leave a dangling `setTimeout` behind.
 	 */
 	retract(requestId: string): boolean;
 	/**
@@ -83,9 +92,43 @@ export interface ApprovalRegistry {
 	 * live, and the user's later answer resolved it into the NEXT turn).
 	 * Returns the requestIds that were pending, so the caller can push a
 	 * retract/cancelled `ApprovalEvent` for each so the web removes the
-	 * still-open card.
+	 * still-open card. RC-fix3: also clears each dropped entry's armed timer
+	 * (if any) — same leaked-timer fix as `retract`, for the bulk path.
 	 */
 	retractAll(): string[];
+}
+
+/** `answer()`'s implementation, pulled out of `createApprovalRegistry`'s
+ * returned object literal so that function stays under this file's
+ * max-lines-per-function lint gate — behavior is unchanged. */
+function answerPending(
+	pending: Map<string, PendingApproval>,
+	events: { push(event: NormalizedEvent): void },
+	requestId: string,
+	optionId: string
+): void {
+	const entry = pending.get(requestId);
+	if (!entry) {
+		events.push({
+			kind: "status",
+			status: APPROVAL_UNKNOWN_STATUS,
+			detail: { requestId },
+		});
+		return;
+	}
+	if (!entry.options.some((option) => option.id === optionId)) {
+		events.push({
+			kind: "status",
+			status: APPROVAL_INVALID_OPTION_STATUS,
+			detail: { requestId, optionId },
+		});
+		return;
+	}
+	pending.delete(requestId);
+	// RC-fix3: belt-and-braces alongside presentApproval's own
+	// clearTimeout in its reply wrapper — harmless if already cleared.
+	clearTimeout(entry.timer);
+	entry.reply(optionId);
 }
 
 /** Builds an `ApprovalRegistry` that reports unknown-id and invalid-option
@@ -95,38 +138,29 @@ export function createApprovalRegistry(events: {
 }): ApprovalRegistry {
 	const pending = new Map<string, PendingApproval>();
 	return {
-		register(requestId, options, reply) {
-			pending.set(requestId, { options, reply });
+		register(requestId, options, reply, timer) {
+			pending.set(requestId, { options, reply, timer });
 		},
 		answer(requestId, optionId) {
-			const entry = pending.get(requestId);
-			if (!entry) {
-				events.push({
-					kind: "status",
-					status: APPROVAL_UNKNOWN_STATUS,
-					detail: { requestId },
-				});
-				return;
-			}
-			if (!entry.options.some((option) => option.id === optionId)) {
-				events.push({
-					kind: "status",
-					status: APPROVAL_INVALID_OPTION_STATUS,
-					detail: { requestId, optionId },
-				});
-				return;
-			}
-			pending.delete(requestId);
-			entry.reply(optionId);
+			answerPending(pending, events, requestId, optionId);
 		},
 		clear() {
 			pending.clear();
 		},
 		retract(requestId) {
-			return pending.delete(requestId);
+			const entry = pending.get(requestId);
+			if (!entry) {
+				return false;
+			}
+			pending.delete(requestId);
+			clearTimeout(entry.timer);
+			return true;
 		},
 		retractAll() {
 			const requestIds = [...pending.keys()];
+			for (const entry of pending.values()) {
+				clearTimeout(entry.timer);
+			}
 			pending.clear();
 			return requestIds;
 		},
@@ -205,9 +239,14 @@ export function presentApproval(options: PresentApprovalOptions): void {
 		onTimeout();
 	}, APPROVAL_TIMEOUT_MS);
 
-	approvals.register(event.requestId, event.options, (optionId) => {
-		clearTimeout(timer);
-		onAnswer(optionId);
-	});
+	approvals.register(
+		event.requestId,
+		event.options,
+		(optionId) => {
+			clearTimeout(timer);
+			onAnswer(optionId);
+		},
+		timer
+	);
 	events.push(event);
 }

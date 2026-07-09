@@ -10,6 +10,7 @@ import { userMessageEvent } from "../normalize/types";
 import {
 	type ApprovalRegistry,
 	createApprovalRegistry,
+	presentApproval,
 	retractPendingApprovals,
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
@@ -51,6 +52,13 @@ const APPROVAL_OPTIONS: ApprovalOption[] = [
 	{ id: "deny", label: "Deny" },
 ];
 
+/** FIX2 (rc-final-review): the SDK's `PermissionResult` requires a `message`
+ * on every `deny` — this is what an unanswered approval resolves to once the
+ * shared RC-T4 timeout (`presentApproval`) gives up, same fail-closed
+ * contract every other adapter's approvals already get. */
+const APPROVAL_TIMEOUT_DENY_MESSAGE =
+	"Timed out waiting for approval — denied.";
+
 function safeJson(value: unknown): string {
 	try {
 		return JSON.stringify(value);
@@ -77,26 +85,44 @@ interface EventSink {
 // `interrupt()`/`stop()` can retract every still-pending request through the
 // same `retractPendingApprovals` helper the other adapters use — see the
 // RC-T3 module doc on `handle.interrupt` below for why that matters.
+//
+// FIX2 (rc-final-review): routed through the shared RC-T4 fail-closed
+// contract (`presentApproval`) exactly like codex/opencode/pi's approvals —
+// this used to call `approvals.register` directly, with no timeout of its
+// own. Combined with the RC-T5 watchdog pausing while an approval card is
+// open (`session-watchdog.ts`'s `observeApprovalEvent`), an unanswered claude
+// approval could hang the session indefinitely; now it resolves a visible
+// DENY after `APPROVAL_TIMEOUT_MS`, same as every other adapter.
 function makeCanUseTool(
 	events: EventSink,
 	approvals: ApprovalRegistry
 ): CanUseTool {
 	return (toolName, toolInput, options) => {
 		const requestId = options.toolUseID;
-		events.push({
-			kind: "approval",
-			requestId,
-			title: `Use ${toolName}?`,
-			detail: safeJson(toolInput),
-			options: APPROVAL_OPTIONS,
-		});
 		return new Promise<PermissionResult>((resolve) => {
-			approvals.register(requestId, APPROVAL_OPTIONS, (optionId) => {
-				resolve(
-					optionId === "allow"
-						? { behavior: "allow", updatedInput: toolInput }
-						: { behavior: "deny", message: "Denied from the bridge." }
-				);
+			presentApproval({
+				approvals,
+				event: {
+					kind: "approval",
+					requestId,
+					title: `Use ${toolName}?`,
+					detail: safeJson(toolInput),
+					options: APPROVAL_OPTIONS,
+				},
+				events,
+				onAnswer: (optionId) => {
+					resolve(
+						optionId === "allow"
+							? { behavior: "allow", updatedInput: toolInput }
+							: { behavior: "deny", message: "Denied from the bridge." }
+					);
+				},
+				onTimeout: () => {
+					resolve({
+						behavior: "deny",
+						message: APPROVAL_TIMEOUT_DENY_MESSAGE,
+					});
+				},
 			});
 		});
 	};
@@ -126,16 +152,22 @@ async function drainSession(
 	events.close();
 }
 
+/** The plumbing `startClaudeQuery` closes over — bundled into one object
+ * (mirroring `ClaudeHandleDeps` below) so the function stays under this
+ * file's max-params lint gate. */
+interface StartClaudeQueryDeps {
+	approvals: ApprovalRegistry;
+	dir: string;
+	events: EventSink;
+	input: AsyncQueue<SDKUserMessage>;
+	opts: StartOptions | undefined;
+}
+
 /** Starts the SDK `query()` session: the claude subprocess + handshake, wired
  * to this handle's input queue, tool-approval routing, and persisted startup
  * config from the bridge token. */
-function startClaudeQuery(
-	dir: string,
-	opts: StartOptions | undefined,
-	input: AsyncQueue<SDKUserMessage>,
-	events: EventSink,
-	approvals: ApprovalRegistry
-): ClaudeQuery {
+function startClaudeQuery(deps: StartClaudeQueryDeps): ClaudeQuery {
+	const { approvals, dir, events, input, opts } = deps;
 	return query({
 		prompt: input,
 		options: {
@@ -243,7 +275,7 @@ export const claudeCodeAdapter: Adapter = {
 		const input = createAsyncQueue<SDKUserMessage>();
 		const approvals = createApprovalRegistry(events);
 
-		const session = startClaudeQuery(dir, opts, input, events, approvals);
+		const session = startClaudeQuery({ approvals, dir, events, input, opts });
 		// Kicked off immediately: `supportedModels()` resolves off the same init
 		// handshake that produces the `session_ready` line, so it's ready by the
 		// time `withReportedModels` merges it in (see fetchSupportedModels).

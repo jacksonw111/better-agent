@@ -58,8 +58,13 @@ function buildPollOptions(args: BridgeCliArgs) {
 		: undefined;
 }
 
-function buildForwardOptions(args: BridgeCliArgs) {
+/** `generationId` is RC-fix1's per-launch idempotency-key salt (see
+ * `forward-events.ts`'s doc comment on `ForwardEventsOptions.generationId`):
+ * 0 for the initial process start, bumped by 1 for every in-place restart the
+ * loop below drives under this SAME bridge sessionId. */
+function buildForwardOptions(args: BridgeCliArgs, generationId: number) {
 	return {
+		generationId,
 		onWarning: (message: string) => process.stderr.write(`${message}\n`),
 		onEvent: args.debug
 			? (event: unknown) =>
@@ -104,6 +109,9 @@ export async function runRestartLoop(
 
 	let outcome: PollOutcome;
 	let onStart = printConnected;
+	// RC-fix1: bumped once per launch and threaded into forwardEvents as its
+	// idempotency-key salt — see `buildForwardOptions`.
+	let generation = 0;
 	do {
 		// Each iteration must finish (and, on "restart", relaunch) before the
 		// next one can begin — sequential by design, not an oversight.
@@ -115,8 +123,9 @@ export async function runRestartLoop(
 			agentSessionIdRef,
 			onStart,
 			pollOptions: buildPollOptions(args),
-			forwardOptions: buildForwardOptions(args),
+			forwardOptions: buildForwardOptions(args, generation),
 		});
+		generation += 1;
 		outcome = result.outcome;
 		if (outcome === "restart") {
 			handleRef.current = await relaunch(

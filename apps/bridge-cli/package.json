@@ -30,6 +30,7 @@
     "@orpc/client": "catalog:"
   },
   "devDependencies": {
+    "@better-agent/agent": "workspace:*",
     "@better-agent/api": "workspace:*",
     "@better-agent/config": "workspace:*",
     "@orpc/server": "catalog:",
