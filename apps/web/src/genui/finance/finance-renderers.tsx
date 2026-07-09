@@ -19,14 +19,24 @@ import {
 	StatementRowSchema,
 	TechnicalSchema,
 } from "./finance-schemas";
+import {
+	MoneyFlowRowSchema,
+	SectorConstituentSchema,
+	SectorRowSchema,
+	YieldPointSchema,
+} from "./finance-schemas-fe6";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
 import { KeyMetricsCard } from "./key-metrics-card";
+import { MoneyFlowChart } from "./money-flow-chart";
 import { QuoteCard } from "./quote-card";
+import { SectorHeatmap } from "./sector-heatmap";
+import { SectorStocksList } from "./sector-stocks-list";
 import { StatementsTable } from "./statements-table";
 import { TechnicalPanel } from "./technical-panel";
 import { TopHoldersTable } from "./top-holders-table";
+import { YieldCurveChart } from "./yield-curve-chart";
 
 // Tool name → { parse, render } for the finance tool results. Spread into
 // TOOL_RESULT_RENDERERS by ../tool-renderers.tsx. `listEntry` and `entry` are
@@ -40,7 +50,9 @@ import { TopHoldersTable } from "./top-holders-table";
 // FE-4 adds the fundamentals slice: finance_key_metrics /
 // finance_company_profile / finance_financial_indicators /
 // finance_financial_statements. FE-5 adds finance_top_holders /
-// finance_dividends / finance_dragon_tiger / finance_hsgt_flow.
+// finance_dividends / finance_dragon_tiger / finance_hsgt_flow. FE-6 adds
+// finance_money_flow / finance_sector_list / finance_sector_constituents /
+// finance_yield_curve.
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_commodity: listEntry(CommodityQuoteSchema, (items) => (
 		<CommodityGrid items={items} />
@@ -72,11 +84,23 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_kline: listEntry(CandleSchema, (candles) => (
 		<CandlestickChart candles={candles} />
 	)),
+	finance_money_flow: listEntry(MoneyFlowRowSchema, (rows) => (
+		<MoneyFlowChart data={rows} />
+	)),
 	finance_quote: entry(QuoteSchema, (data) => <QuoteCard data={data} />),
+	finance_sector_constituents: listEntry(SectorConstituentSchema, (rows) => (
+		<SectorStocksList data={rows} />
+	)),
+	finance_sector_list: listEntry(SectorRowSchema, (items) => (
+		<SectorHeatmap items={items} />
+	)),
 	finance_technical: entry(TechnicalSchema, (data) => (
 		<TechnicalPanel data={data} />
 	)),
 	finance_top_holders: listEntry(HolderRowSchema, (rows) => (
 		<TopHoldersTable data={rows} />
+	)),
+	finance_yield_curve: listEntry(YieldPointSchema, (data) => (
+		<YieldCurveChart data={data} />
 	)),
 };
