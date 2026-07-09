@@ -36,3 +36,18 @@ export interface HolderRow {
 	rank: number | null;
 	shares: number | null;
 }
+
+export interface PredictionOutcome {
+	name: string;
+	probability: number;
+}
+
+export interface PredictionMarket {
+	endDate: string;
+	id: string;
+	liquidityUsd: number;
+	outcomes: PredictionOutcome[];
+	question: string;
+	slug: string;
+	volumeUsd: number;
+}

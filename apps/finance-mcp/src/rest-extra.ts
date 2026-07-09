@@ -3,6 +3,7 @@ import { withCache } from "./core/cache";
 import { getDividends } from "./core/eastmoney/dividends";
 import { getDragonTiger } from "./core/eastmoney/dragon-tiger";
 import { getTopHolders } from "./core/eastmoney/top-holders";
+import { getPredictionMarkets } from "./core/polymarket/markets";
 
 // V3 batch: free A-share REST routes (dividends, dragon-tiger, top holders),
 // split out of rest.ts (which is at the project's 300-line-per-file cap) —
@@ -11,6 +12,7 @@ import { getTopHolders } from "./core/eastmoney/top-holders";
 
 const DEFAULT_DIVIDENDS_LIMIT = 10;
 const DEFAULT_DRAGON_TIGER_LIMIT = 30;
+const DEFAULT_PREDICTION_MARKETS_LIMIT = 12;
 
 async function dividendsHandler(c: Context) {
 	const symbol = c.req.query("symbol") ?? "";
@@ -40,8 +42,20 @@ async function topHoldersHandler(c: Context) {
 	);
 }
 
+async function polymarketHandler(c: Context) {
+	const query = c.req.query("query") || undefined;
+	const limit =
+		Number(c.req.query("limit") ?? "") || DEFAULT_PREDICTION_MARKETS_LIMIT;
+	return c.json(
+		await withCache(`poly:${query ?? "top"}:${limit}`, 300, () =>
+			getPredictionMarkets(query, limit)
+		)
+	);
+}
+
 export function registerRestExtra(app: Hono): void {
 	app.get("/api/dividends", dividendsHandler);
 	app.get("/api/dragon-tiger", dragonTigerHandler);
 	app.get("/api/top-holders", topHoldersHandler);
+	app.get("/api/polymarket", polymarketHandler);
 }

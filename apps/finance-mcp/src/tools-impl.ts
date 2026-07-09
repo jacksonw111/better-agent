@@ -18,6 +18,7 @@ import type { Market } from "./core/types";
 import {
 	handleDividends,
 	handleDragonTiger,
+	handlePredictionMarkets,
 	handleTopHolders,
 } from "./tools-impl-extra";
 import {
@@ -271,6 +272,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_dividends: (args) => handleDividends(args),
 	finance_dragon_tiger: (args) => handleDragonTiger(args),
 	finance_top_holders: (args) => handleTopHolders(args),
+	finance_prediction_markets: (args) => handlePredictionMarkets(args),
 };
 
 export function runTool(

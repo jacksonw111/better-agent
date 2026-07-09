@@ -5,6 +5,7 @@ import { withCache } from "./core/cache";
 import { getDividends } from "./core/eastmoney/dividends";
 import { getDragonTiger } from "./core/eastmoney/dragon-tiger";
 import { getTopHolders } from "./core/eastmoney/top-holders";
+import { getPredictionMarkets } from "./core/polymarket/markets";
 import type { ToolResult } from "./tools-impl";
 import {
 	argNumber,
@@ -15,6 +16,7 @@ import {
 
 const DEFAULT_DIVIDENDS_LIMIT = 10;
 const DEFAULT_DRAGON_TIGER_LIMIT = 30;
+const DEFAULT_PREDICTION_MARKETS_LIMIT = 12;
 
 export async function handleDividends(
 	args: Record<string, unknown>
@@ -46,5 +48,17 @@ export async function handleTopHolders(
 	const symbol = argString(args, "symbol");
 	return toolJson(
 		await withCache(`holders:${symbol}`, 3600, () => getTopHolders(symbol))
+	);
+}
+
+export async function handlePredictionMarkets(
+	args: Record<string, unknown>
+): Promise<ToolResult> {
+	const query = argOptionalString(args, "query");
+	const limit = argNumber(args, "limit", DEFAULT_PREDICTION_MARKETS_LIMIT);
+	return toolJson(
+		await withCache(`poly:${query ?? "top"}:${limit}`, 300, () =>
+			getPredictionMarkets(query, limit)
+		)
 	);
 }

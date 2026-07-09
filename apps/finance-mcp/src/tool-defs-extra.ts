@@ -70,3 +70,28 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_top_holders");
+
+TOOLS.push({
+	name: "finance_prediction_markets",
+	description:
+		"Polymarket prediction markets — real-money odds on real-world events " +
+		"(politics, macro, crypto, sports). Returns top markets by volume (or " +
+		"filtered by `query` keyword): question, outcome probabilities, volume, " +
+		"end date. Great for event-probability / sentiment signals.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			query: {
+				type: "string",
+				description: "Optional keyword filter matched against the question.",
+			},
+			limit: {
+				type: "number",
+				description: "Number of markets (default 12, max 50).",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_prediction_markets");
