@@ -1,33 +1,37 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { requireToken } from "./auth";
 import { NotConfiguredError } from "./core/weread-client";
 import { handleMessage } from "./mcp-server";
 import { registerRest } from "./rest";
 import { TOOLS } from "./tool-defs";
 import type { ToolEnv } from "./tools-impl";
 
+// Streamable HTTP endpoint in stateless JSON mode: every POST carries one
+// JSON-RPC message. The caller's WeRead API key (wrk-xxxxxxxx) rides on each
+// request as the bearer token — the platform's MCP client stores it as the
+// server's authHeader and sends `Authorization: Bearer wrk-…` on every call.
+
 const ACCEPTED = 202;
 const BAD_REQUEST = 400;
 const NOT_CONFIGURED = 503;
 const BAD_GATEWAY = 502;
 const PARSE_ERROR = -32_700;
+const BEARER_RE = /^Bearer\s+(.+)$/i;
+
+function bearerToken(header: string | undefined): string {
+	if (!header) {
+		return "";
+	}
+	const match = header.match(BEARER_RE);
+	return match?.[1]?.trim() ?? "";
+}
 
 function resolveWereadEnv(
 	env: ToolEnv | undefined,
-	headerValue: string | undefined
+	authorization: string | undefined
 ): ToolEnv {
-	const fallback = env?.WEREAD_API_KEY;
-	const key =
-		(headerValue && headerValue.length > 0 ? headerValue : fallback) ?? "";
+	const key = bearerToken(authorization) || env?.WEREAD_API_KEY || "";
 	return { ...(env ?? {}), WEREAD_API_KEY: key };
-}
-
-function registerGuards(app: Hono): void {
-	app.use("/api/*", cors());
-	app.use("/mcp", cors());
-	app.use("/mcp", requireToken);
-	app.use("/api/*", requireToken);
 }
 
 function registerErrorHandler(app: Hono): void {
@@ -44,7 +48,8 @@ function registerErrorHandler(app: Hono): void {
 
 export function buildApp(): Hono {
 	const app = new Hono();
-	registerGuards(app);
+	app.use("/api/*", cors());
+	app.use("/mcp", cors());
 
 	app.get("/", (c) =>
 		c.json({
@@ -71,7 +76,7 @@ export function buildApp(): Hono {
 		}
 		const env = resolveWereadEnv(
 			c.env as ToolEnv,
-			c.req.header("x-weread-key")
+			c.req.header("authorization")
 		);
 		const response = await handleMessage(message, env);
 		if (response === null) {

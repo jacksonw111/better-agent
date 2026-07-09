@@ -6,9 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 NODE_ENV = "production"
 
-# The WeRead API key (wrk-xxxxxxxx) is per-user and passed by callers via the
-# x-weread-key header on each request — NOT a worker secret. A worker-level
-# WEREAD_API_KEY secret may optionally be set (wrangler secret put WEREAD_API_KEY)
-# as a single-user fallback; the per-request header always takes precedence.
-# API_TOKEN is an optional shared-token auth gate on /mcp and /api/*.
-# Set it with `wrangler secret put API_TOKEN`. Unset/empty means open access.
+# The WeRead API key (wrk-xxxxxxxx) is per-user (bound to a WeChat identity).
+# Callers send it as `Authorization: Bearer wrk-…` on every request — the
+# platform's MCP client stores it encrypted as the server's authHeader.
+# A worker-level WEREAD_API_KEY secret may optionally be set as a single-user
+# fallback; the per-request bearer token always takes precedence.

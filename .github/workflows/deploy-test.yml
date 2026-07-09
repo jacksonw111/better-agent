@@ -80,10 +80,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/weread-mcp
           command: deploy
-          secrets: |
-            API_TOKEN
-        env:
-          API_TOKEN: ${{ secrets.API_TOKEN }}
 
   authz:
     runs-on: ubuntu-latest

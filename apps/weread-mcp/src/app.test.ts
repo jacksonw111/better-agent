@@ -56,7 +56,7 @@ describe("weread-mcp app", () => {
 		expect(body.result.tools.length).toBe(15);
 	});
 
-	it("MCP tools/call returns tool error when WEREAD_API_KEY unset", async () => {
+	it("MCP tools/call without bearer token returns tool error", async () => {
 		const app = buildApp();
 		const res = await app.request("/mcp", {
 			method: "POST",
@@ -74,13 +74,51 @@ describe("weread-mcp app", () => {
 		};
 		expect(body.result.isError).toBe(true);
 		const text = body.result.content[0]?.text ?? "";
-		expect(text).toContain("x-weread-key");
+		expect(text).toContain("WeRead API key");
 	});
 
-	it("REST /api/shelf returns 503 when WEREAD_API_KEY unset", async () => {
+	it("MCP initialize works without auth (handshake needs no key)", async () => {
+		const app = buildApp();
+		const res = await app.request("/mcp", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: 9,
+				method: "ping",
+			}),
+		});
+		expect(res.status).toBe(200);
+	});
+
+	it("REST /api/shelf without bearer returns 503", async () => {
 		const app = buildApp();
 		const res = await app.request("/api/shelf");
 		expect(res.status).toBe(503);
+	});
+
+	it("REST /api/shelf forwards bearer token to upstream", async () => {
+		const app = buildApp();
+		let sentAuth = "";
+		const orig = globalThis.fetch;
+		globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+			const h = init?.headers as Record<string, string> | undefined;
+			sentAuth = h?.authorization ?? "";
+			return Promise.resolve(
+				new Response(JSON.stringify({ errcode: 0, books: [] }), {
+					headers: { "content-type": "application/json" },
+				})
+			);
+		}) as typeof fetch;
+		try {
+			const res = await app.request("/api/shelf", {
+				headers: { authorization: "Bearer wrk-test-123" },
+			});
+			expect(res.status).toBe(200);
+			expect(sentAuth).toBe("Bearer wrk-test-123");
+		} finally {
+			globalThis.fetch = orig;
+		}
 	});
 
 	it("returns 400 on malformed JSON body", async () => {
