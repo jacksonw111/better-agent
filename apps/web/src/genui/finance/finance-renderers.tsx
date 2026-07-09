@@ -1,4 +1,5 @@
 import { entry, listEntry, type ToolResultRenderer } from "../tool-renderers";
+import { CalendarList } from "./calendar-list";
 import { CandlestickChart } from "./candlestick-chart";
 import { CommodityGrid } from "./commodity-grid";
 import { CompanyProfileCard } from "./company-profile-card";
@@ -25,10 +26,12 @@ import {
 	SectorRowSchema,
 	YieldPointSchema,
 } from "./finance-schemas-fe6";
+import { CalendarEventSchema, MacroResultSchema } from "./finance-schemas-fe7";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
 import { KeyMetricsCard } from "./key-metrics-card";
+import { MacroPanel } from "./macro-panel";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { QuoteCard } from "./quote-card";
 import { SectorHeatmap } from "./sector-heatmap";
@@ -52,8 +55,13 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // finance_financial_statements. FE-5 adds finance_top_holders /
 // finance_dividends / finance_dragon_tiger / finance_hsgt_flow. FE-6 adds
 // finance_money_flow / finance_sector_list / finance_sector_constituents /
-// finance_yield_curve.
+// finance_yield_curve. FE-7 adds finance_macro_us / finance_macro_cn
+// (macro-panel.tsx) and finance_earnings_calendar / finance_economic_calendar
+// / finance_central_bank (calendar-list.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
+	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
+		<CalendarList data={rows} />
+	)),
 	finance_commodity: listEntry(CommodityQuoteSchema, (items) => (
 		<CommodityGrid items={items} />
 	)),
@@ -65,6 +73,12 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_dragon_tiger: listEntry(DragonTigerRowSchema, (rows) => (
 		<DragonTigerTable data={rows} />
+	)),
+	finance_earnings_calendar: listEntry(CalendarEventSchema, (rows) => (
+		<CalendarList data={rows} />
+	)),
+	finance_economic_calendar: listEntry(CalendarEventSchema, (rows) => (
+		<CalendarList data={rows} />
 	)),
 	finance_financial_indicators: listEntry(IndicatorRowSchema, (rows) => (
 		<IndicatorsTable data={rows} />
@@ -83,6 +97,12 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_kline: listEntry(CandleSchema, (candles) => (
 		<CandlestickChart candles={candles} />
+	)),
+	finance_macro_cn: entry(MacroResultSchema, (data) => (
+		<MacroPanel data={data} />
+	)),
+	finance_macro_us: entry(MacroResultSchema, (data) => (
+		<MacroPanel data={data} />
 	)),
 	finance_money_flow: listEntry(MoneyFlowRowSchema, (rows) => (
 		<MoneyFlowChart data={rows} />
