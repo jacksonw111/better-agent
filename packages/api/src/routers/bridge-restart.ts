@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import { bridgeProcedure, userProcedure } from "../index";
+import { resolveMcpServers } from "./bridge-mcp-resolve";
 
 // R3 "restart orchestration": the web can ask a live local agent to restart
 // in place (same sessionId, fresh process) instead of ending the session and
@@ -45,14 +46,20 @@ export const restartSession = userProcedure
 	});
 
 /** Bridge-token-authed: returns the calling token's current persisted
- * startup config, the same shape `startSession` returns for `config`. Lets a
- * restarting CLI re-fetch fresh settings without minting a new session (which
- * calling `startSession` again would do, breaking seamless reconnect). */
+ * startup config, the same shape `startSession` returns for `config` (plus
+ * the same resolved `mcpServers`, R5-a). Lets a restarting CLI re-fetch fresh
+ * settings without minting a new session (which calling `startSession` again
+ * would do, breaking seamless reconnect). */
 export const fetchConfig = bridgeProcedure.handler(async ({ context }) => {
 	const { userId, tokenId } = context.authedBridgeToken;
 	const token = await context.services.stores.bridgeToken.getById(
 		tokenId,
 		userId
 	);
-	return { config: token?.config ?? null };
+	const mcpServers = await resolveMcpServers(
+		context,
+		userId,
+		token?.config?.mcpServerIds
+	);
+	return { config: token?.config ?? null, mcpServers };
 });

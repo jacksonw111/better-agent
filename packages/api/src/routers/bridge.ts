@@ -1,22 +1,24 @@
-import {
-	generateToken,
-	hashToken,
-} from "@better-agent/agent/crypto/auth-tokens";
 import { log } from "evlog";
 import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
+import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { appendPushedEvents } from "./bridge-push-events";
 import { fetchConfig, restartSession } from "./bridge-restart";
 import {
 	assertEventsWithinSizeLimit,
 	assertInputWithinSizeLimit,
 } from "./bridge-size-limits";
+import {
+	createToken,
+	deleteToken,
+	getToken,
+	listTokens,
+	updateTokenConfig,
+} from "./bridge-token-mgmt";
 import { usageByAgentKind } from "./bridge-usage";
 
-const TOKEN_PREFIX = "bt_";
-const LAST4 = 4;
 const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
 /** Max events accepted in a single pushEvents call (spec §3.1: bounded window). */
 const MAX_PUSH_BATCH = 50;
@@ -30,7 +32,6 @@ const DEFAULT_HISTORY_LIMIT = 500;
 /** Hard cap on `history`'s `limit` input, to bound one query's result size. */
 const MAX_HISTORY_LIMIT = 500;
 
-const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
 const pollInput = z.object({
 	sessionId: z.uuid(),
@@ -62,76 +63,12 @@ async function persistEventsBestEffort(
 }
 
 export const bridgeRouter = {
-	// --- user-facing bridge-token management (owner-scoped) ---
-	// Token is bound to a chosen agentKind at creation, stored so the owner can re-view it.
-	createToken: userProcedure
-		.input(
-			z.object({
-				agentKind: z.enum(AGENT_KINDS),
-				name: z.string().min(1).optional(),
-			})
-		)
-		.handler(async ({ input, context }) => {
-			const token = generateToken(TOKEN_PREFIX);
-			const created = await context.services.stores.bridgeToken.create({
-				userId: context.authedUser.id,
-				name: input.name,
-				agentKind: input.agentKind,
-				token,
-				tokenHash: hashToken(token),
-				last4: token.slice(-LAST4),
-			});
-			return { id: created.id, token, last4: token.slice(-LAST4) };
-		}),
-
-	listTokens: userProcedure.handler(({ context }) =>
-		context.services.stores.bridgeToken.listByUser(context.authedUser.id)
-	),
-
-	getToken: userProcedure
-		.input(idInput)
-		.handler(({ input, context }) =>
-			context.services.stores.bridgeToken.getById(
-				input.id,
-				context.authedUser.id
-			)
-		),
-
-	// The only delete: removing a local agent removes its token + sessions + messages.
-	deleteToken: userProcedure
-		.input(idInput)
-		.handler(async ({ input, context }) => {
-			await context.services.stores.bridgeToken.deleteAgent(
-				input.id,
-				context.authedUser.id
-			);
-			return { ok: true };
-		}),
-
-	// Phase 4: persist a local agent's startup config (appendSystemPrompt,
-	// maxTurns, …). The CLI fetches it via startSession and applies it at launch.
-	updateTokenConfig: userProcedure
-		.input(
-			z.object({
-				id: z.uuid(),
-				config: z.object({
-					appendSystemPrompt: z.string().optional(),
-					effort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
-					maxBudgetUsd: z.number().positive().optional(),
-					maxTurns: z.number().int().positive().optional(),
-					model: z.string().optional(),
-					permissionMode: z.string().optional(),
-				}),
-			})
-		)
-		.handler(async ({ input, context }) => {
-			const updated = await context.services.stores.bridgeToken.updateConfig(
-				input.id,
-				context.authedUser.id,
-				input.config
-			);
-			return updated ? { ok: true } : { ok: false };
-		}),
+	// --- user-facing bridge-token management (owner-scoped, bridge-token-mgmt.ts) ---
+	createToken,
+	listTokens,
+	getToken,
+	deleteToken,
+	updateTokenConfig,
 
 	// --- bridge-token (local CLI) endpoints ---
 	startSession: bridgeProcedure
@@ -155,7 +92,19 @@ export const bridgeRouter = {
 				tokenId,
 				userId
 			);
-			return { sessionId: session.id, config: token?.config ?? null };
+			// R5-a: resolve any assigned MCP server ids into connection-ready
+			// servers (name/url/auth headers) alongside the raw config — see
+			// bridge-mcp-resolve.ts's doc comment for the shape/rationale.
+			const mcpServers = await resolveMcpServers(
+				context,
+				userId,
+				token?.config?.mcpServerIds
+			);
+			return {
+				sessionId: session.id,
+				config: token?.config ?? null,
+				mcpServers,
+			};
 		}),
 
 	pushEvents: bridgeProcedure

@@ -14,12 +14,18 @@ export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
  * running session (switching model/mode mid-session) stays in the composer,
  * not here — as of R2-a no adapter yet applies `model`/`permissionMode` at
  * startup either (see `apps/bridge-cli/src/adapters/types.ts`'s
- * `AgentStartConfig`); that wiring is a follow-up (R2-b). */
+ * `AgentStartConfig`); that wiring is a follow-up (R2-b). (R5-a)
+ * `mcpServerIds` references the user's registered MCP servers (see
+ * `packages/api/src/routers/mcp.ts`); the server resolves these into
+ * connection-ready `mcpServers` alongside `config` on `startSession` /
+ * `fetchConfig` (see `packages/api/src/routers/bridge-mcp-resolve.ts`) — the
+ * CLI actually applying them to the agent process is R5-b, not yet wired. */
 export interface BridgeTokenConfig {
 	appendSystemPrompt?: string;
 	effort?: "low" | "medium" | "high" | "xhigh" | "max";
 	maxBudgetUsd?: number;
 	maxTurns?: number;
+	mcpServerIds?: string[];
 	model?: string;
 	permissionMode?: string;
 }

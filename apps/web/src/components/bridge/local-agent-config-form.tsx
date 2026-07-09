@@ -14,7 +14,7 @@ import { Textarea } from "@better-agent/ui/components/textarea";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import type { AgentCapabilities } from "./agent-capabilities";
 import { capabilities } from "./agent-capabilities";
-import { AGENT_KIND_LABEL } from "./local-agent-kind-icon";
+import { McpServersConfigField } from "./local-agent-mcp-field";
 import {
 	ModelField,
 	PermissionModeField,
@@ -33,6 +33,11 @@ export interface ConfigDraft {
 	effort: string;
 	maxBudgetUsd: string;
 	maxTurns: string;
+	/** Registered MCP server ids assigned to this token (R5-a) — unlike the
+	 * other fields, an empty array is itself a meaningful saved value ("no
+	 * servers assigned"), not "leave unset", so `configFromDraft` always
+	 * includes it rather than dropping it when blank. */
+	mcpServerIds: string[];
 	model: string;
 	permissionMode: string;
 }
@@ -55,6 +60,7 @@ export function toDraft(config: BridgeTokenRow["config"]): ConfigDraft {
 		effort: stringToDraftString(config?.effort),
 		maxBudgetUsd: numberToDraftString(config?.maxBudgetUsd),
 		maxTurns: numberToDraftString(config?.maxTurns),
+		mcpServerIds: config?.mcpServerIds ?? [],
 		model: stringToDraftString(config?.model),
 		permissionMode: stringToDraftString(config?.permissionMode),
 	};
@@ -110,9 +116,16 @@ function numericConfigFields(draft: ConfigDraft) {
 	};
 }
 
-/** Builds the persisted-config payload from the edit draft. */
+/** Builds the persisted-config payload from the edit draft. `mcpServerIds` is
+ * always included (even `[]`) — see `ConfigDraft`'s doc comment for why it
+ * doesn't follow the "blank clears the field" convention the other fields
+ * use. */
 export function configFromDraft(draft: ConfigDraft) {
-	return { ...identityConfigFields(draft), ...numericConfigFields(draft) };
+	return {
+		...identityConfigFields(draft),
+		...numericConfigFields(draft),
+		mcpServerIds: draft.mcpServerIds,
+	};
 }
 
 interface DraftFieldProps {
@@ -222,7 +235,9 @@ interface FullFormProps extends AgentConfigFormProps {
  * (appendSystemPrompt/effort/turns/budget) gated on `showLimits`, plus
  * model/permission-mode gated on the agent's own capabilities (R2-a — these
  * two persist regardless of adapter support; see docs/local-agent-plan.md for
- * the startup-application follow-up). */
+ * the startup-application follow-up), plus the MCP-servers picker (R5-a),
+ * shown unconditionally — every local agent can have servers assigned, even
+ * though only the server side resolves them so far (R5-b wires the CLI). */
 function AgentConfigForm({
 	caps,
 	draft,
@@ -253,6 +268,7 @@ function AgentConfigForm({
 					permissionModes={caps.permissionModes}
 				/>
 			)}
+			<McpServersConfigField draft={draft} onDraft={onDraft} />
 			<DialogFooter className="gap-2">
 				<Button disabled={pending} type="submit">
 					{pending ? "Saving…" : "Save"}
@@ -262,27 +278,18 @@ function AgentConfigForm({
 	);
 }
 
-/** The "Config" tab: the startup-config form for agents with at least one
- * configurable field (SDK options, model, or permission mode), or an honest
- * note for those with none. */
+/** The "Config" tab: the startup-config form. Every agent kind gets at least
+ * the MCP-servers picker (R5-a), so unlike before R5-a there's no longer a
+ * kind with zero configurable fields here. */
 export function ConfigTab({
 	token,
 	...form
 }: AgentConfigFormProps & { token: BridgeTokenRow }) {
 	const caps = capabilities(token.agentKind);
 	const showLimits = agentAppliesConfig(token.agentKind);
-	const hasFields =
-		showLimits || caps.modelSwitch || caps.permissionModes.length > 0;
 	return (
 		<TabsContent value="config">
-			{hasFields ? (
-				<AgentConfigForm {...form} caps={caps} showLimits={showLimits} />
-			) : (
-				<p className="text-muted-foreground text-sm">
-					{AGENT_KIND_LABEL[token.agentKind]} has no page-configurable startup
-					settings yet — its options aren't wired through the bridge.
-				</p>
-			)}
+			<AgentConfigForm {...form} caps={caps} showLimits={showLimits} />
 		</TabsContent>
 	);
 }

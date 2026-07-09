@@ -111,6 +111,7 @@ it("fetchConfig returns the calling token's current config after an update", asy
 	const result = await cli.bridge.fetchConfig();
 	expect(result).toEqual({
 		config: { appendSystemPrompt: "Be terse.", maxTurns: 5 },
+		mcpServers: [],
 	});
 });
 
@@ -132,8 +133,95 @@ it("fetchConfig scopes to the caller's own token, not another token's config", a
 	const cliB = bridgeClientFor({ tokenId: tokenB.id, userId: ALICE.id });
 	expect(await cliA.bridge.fetchConfig()).toEqual({
 		config: { model: "claude-opus-4" },
+		mcpServers: [],
 	});
 	expect(await cliB.bridge.fetchConfig()).toEqual({
 		config: { model: "gpt-5" },
+		mcpServers: [],
 	});
+});
+
+// R5-a: assigning registered MCP servers to a local-agent token — persisted
+// as `config.mcpServerIds`, resolved server-side (with the decrypted auth
+// header) into connection-ready `mcpServers` by both startSession and
+// fetchConfig. Applying `mcpServers` to the launched agent is R5-b.
+
+it("updateTokenConfig persists mcpServerIds the owner can read back", async () => {
+	const { userClientFor, mcpServer } = build();
+	const alice = userClientFor(ALICE);
+	const server = await mcpServer.create({
+		name: "Alice's server",
+		url: "https://mcp.example.com/alice",
+		authHeader: "Bearer alice-secret",
+		userId: ALICE.id,
+	});
+	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+
+	await alice.bridge.updateTokenConfig({
+		config: { mcpServerIds: [server.id] },
+		id: created.id,
+	});
+
+	const own = await alice.bridge.getToken({ id: created.id });
+	expect(own?.config).toEqual({ mcpServerIds: [server.id] });
+});
+
+it("startSession resolves assigned mcpServerIds into mcpServers with name/url/headers, excluding another user's server", async () => {
+	const { userClientFor, bridgeClientFor, mcpServer } = build();
+	const alice = userClientFor(ALICE);
+	const aliceServer = await mcpServer.create({
+		name: "Alice's server",
+		url: "https://mcp.example.com/alice",
+		authHeader: "Bearer alice-secret",
+		userId: ALICE.id,
+	});
+	const bobServer = await mcpServer.create({
+		name: "Bob's server",
+		url: "https://mcp.example.com/bob",
+		userId: BOB.id,
+	});
+	const unknownId = crypto.randomUUID();
+
+	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	await alice.bridge.updateTokenConfig({
+		config: { mcpServerIds: [aliceServer.id, bobServer.id, unknownId] },
+		id: created.id,
+	});
+
+	const cli = bridgeClientFor({ tokenId: created.id, userId: ALICE.id });
+	const started = await cli.bridge.startSession({ agentKind: AGENT_KIND });
+
+	expect(started.mcpServers).toEqual([
+		{
+			name: "Alice's server",
+			url: "https://mcp.example.com/alice",
+			headers: { Authorization: "Bearer alice-secret" },
+		},
+	]);
+});
+
+it("fetchConfig resolves assigned mcpServerIds into mcpServers, with an empty headers object when the server has no auth header", async () => {
+	const { userClientFor, bridgeClientFor, mcpServer } = build();
+	const alice = userClientFor(ALICE);
+	const server = await mcpServer.create({
+		name: "No-auth server",
+		url: "https://mcp.example.com/open",
+		userId: ALICE.id,
+	});
+	const created = await alice.bridge.createToken({ agentKind: AGENT_KIND });
+	await alice.bridge.updateTokenConfig({
+		config: { mcpServerIds: [server.id] },
+		id: created.id,
+	});
+
+	const cli = bridgeClientFor({ tokenId: created.id, userId: ALICE.id });
+	const result = await cli.bridge.fetchConfig();
+
+	expect(result.mcpServers).toEqual([
+		{
+			name: "No-auth server",
+			url: "https://mcp.example.com/open",
+			headers: {},
+		},
+	]);
 });

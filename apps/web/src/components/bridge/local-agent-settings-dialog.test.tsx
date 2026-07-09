@@ -7,6 +7,7 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { act } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { BridgeTokenRow } from "@/utils/api-types";
@@ -41,8 +42,33 @@ vi.mock("sonner", () => ({
 	toast: { error: vi.fn(), success: vi.fn() },
 }));
 
+// McpServersField (rendered by the Config tab's MCP-servers picker, R5-a)
+// renders a <Link> to /integrations in its empty state — outside a
+// RouterProvider that throws, so it's swapped for a plain anchor here.
+vi.mock("@tanstack/react-router", () => ({
+	Link: ({
+		children,
+		to,
+		...props
+	}: AnchorHTMLAttributes<HTMLAnchorElement> & {
+		children: ReactNode;
+		to: string;
+	}) => (
+		<a href={to} {...props}>
+			{children}
+		</a>
+	),
+}));
+
+const NOTION_CHECKBOX_RE = /Notion/;
+const LINEAR_CHECKBOX_RE = /Linear/;
+
 const store = vi.hoisted(() => ({
 	saveArgs: [] as Record<string, unknown>[],
+	mcpServers: [
+		{ id: "mcp-1", name: "Notion", url: "https://mcp.example.com/notion" },
+		{ id: "mcp-2", name: "Linear", url: "https://mcp.example.com/linear" },
+	] as { id: string; name: string; url: string }[],
 }));
 
 vi.mock("@/utils/orpc", () => ({
@@ -60,6 +86,14 @@ vi.mock("@/utils/orpc", () => ({
 				}),
 			},
 		},
+		mcp: {
+			listServers: {
+				queryOptions: () => ({
+					queryKey: ["mcp", "listServers"],
+					queryFn: () => Promise.resolve(store.mcpServers),
+				}),
+			},
+		},
 	},
 }));
 
@@ -67,8 +101,6 @@ afterEach(cleanup);
 beforeEach(() => {
 	store.saveArgs.length = 0;
 });
-
-const NOT_CONFIGURABLE_RE = /no page-configurable startup settings yet/i;
 
 function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 	return {
@@ -110,16 +142,18 @@ it("shows the startup-config fields for claude-code (its adapter applies them)",
 	expect(view.getByLabelText("Max turns")).toBeDefined();
 });
 
-it("shows a 'not configurable yet' note for an agent whose adapter ignores config and has no model/permission capabilities", () => {
+it("shows no startup-only or model/permission fields for an agent whose adapter ignores config and has no such capabilities, but still shows the MCP servers picker (R5-a)", async () => {
 	// codex: agentAppliesConfig=false, modelSwitch=false, permissionModes=[] —
-	// the only kind with zero fields to show.
+	// but the MCP-servers picker (R5-a) shows for every agent kind, so this is
+	// no longer the "zero fields" case the old 'not configurable' note covered.
 	const view = renderDialog(makeToken({ agentKind: "codex" }));
 	fireEvent.click(view.getByRole("tab", { name: "Config" }));
-	// No fields that would persist but never apply…
 	expect(view.queryByLabelText("Append system prompt")).toBeNull();
 	expect(view.queryByLabelText("Model")).toBeNull();
-	// …just an honest note.
-	expect(view.getByText(NOT_CONFIGURABLE_RE)).toBeDefined();
+	expect(view.getByText("MCP servers")).toBeDefined();
+	await waitFor(() => {
+		expect(view.getByText("Notion")).toBeDefined();
+	});
 });
 
 it("shows the model field for a model-switch agent", () => {
@@ -163,6 +197,34 @@ it("flows model + permission-mode edits into the saved payload", async () => {
 		model: "claude-opus-4",
 		permissionMode: "plan",
 	});
+});
+
+it("shows the assigned-MCP-servers picker and flows a pick into the saved payload (R5-a)", async () => {
+	const view = renderDialog(makeToken());
+	fireEvent.click(view.getByRole("tab", { name: "Config" }));
+
+	const notion = await waitFor(() =>
+		view.getByRole("checkbox", { name: NOTION_CHECKBOX_RE })
+	);
+	fireEvent.click(notion);
+	fireEvent.click(view.getByRole("button", { name: "Save" }));
+
+	await waitFor(() => {
+		expect(store.saveArgs).toHaveLength(1);
+	});
+	expect(store.saveArgs[0]?.config).toMatchObject({
+		mcpServerIds: ["mcp-1"],
+	});
+});
+
+it("seeds the MCP-servers picker from the token's already-assigned ids", async () => {
+	const view = renderDialog(makeToken({ config: { mcpServerIds: ["mcp-2"] } }));
+	fireEvent.click(view.getByRole("tab", { name: "Config" }));
+
+	const linear = await waitFor(() =>
+		view.getByRole("checkbox", { name: LINEAR_CHECKBOX_RE })
+	);
+	expect(linear.getAttribute("aria-checked")).toBe("true");
 });
 
 it("shows a plain 'Settings saved' toast when only LIVE fields (model/permission mode) changed", async () => {

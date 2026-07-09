@@ -7,10 +7,13 @@ import type {
 	BridgeSessionStore,
 	BridgeTokenRow,
 	BridgeTokenStore,
+	McpServerRow,
+	McpServerStore,
 } from "@better-agent/agent/ports";
 import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
 import type { AuthedBridgeToken } from "../context";
+import { memoryMcpServerStore } from "./bridge-test-helpers-mcp";
 import { appRouter } from "./index";
 
 // Shared fixtures for the bridge router tests (bridge.test.ts and
@@ -208,25 +211,20 @@ function memoryBridgeMessageStore(
 	};
 }
 
-export function build() {
-	const tokenRows = new Map<string, BridgeTokenRow>();
-	const tokenHashes = new Map<string, string>();
-	const sessionRows = new Map<string, BridgeSessionRow>();
-	const messageRowsBySession = new Map<string, BridgeMessageRow[]>();
-	const bridgeSession = memoryBridgeSessionStore(sessionRows);
-	const bridgeMessage = memoryBridgeMessageStore(messageRowsBySession);
-	const bridgeToken = memoryBridgeTokenStore(
-		tokenRows,
-		tokenHashes,
-		(tokenId) =>
-			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
-	);
-	const relayStore = createInMemoryRelayStore();
-	const usageRecord = createFakeUsageRecordStore();
-	const services = {
-		relayStore,
-		stores: { bridgeToken, bridgeSession, bridgeMessage, usageRecord },
+interface TestServices {
+	relayStore: ReturnType<typeof createInMemoryRelayStore>;
+	stores: {
+		bridgeToken: BridgeTokenStore;
+		bridgeSession: BridgeSessionStore;
+		bridgeMessage: BridgeMessageStore;
+		mcpServer: McpServerStore;
+		usageRecord: ReturnType<typeof createFakeUsageRecordStore>;
 	};
+}
+
+/** The two oRPC router-client factories `build()` returns, split out so
+ * `build()` itself stays under the 50-line function cap. */
+function createClientFactories(services: TestServices) {
 	const userClientFor = (user: typeof ALICE) =>
 		createRouterClient(appRouter, {
 			context: {
@@ -248,10 +246,43 @@ export function build() {
 				userAgent: null,
 			},
 		});
+	return { userClientFor, bridgeClientFor };
+}
+
+export function build() {
+	const tokenRows = new Map<string, BridgeTokenRow>();
+	const tokenHashes = new Map<string, string>();
+	const sessionRows = new Map<string, BridgeSessionRow>();
+	const messageRowsBySession = new Map<string, BridgeMessageRow[]>();
+	const mcpServerRows = new Map<string, McpServerRow>();
+	const mcpServerAuthHeaders = new Map<string, string>();
+	const bridgeSession = memoryBridgeSessionStore(sessionRows);
+	const bridgeMessage = memoryBridgeMessageStore(messageRowsBySession);
+	const bridgeToken = memoryBridgeTokenStore(
+		tokenRows,
+		tokenHashes,
+		(tokenId) =>
+			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
+	);
+	const mcpServer = memoryMcpServerStore(mcpServerRows, mcpServerAuthHeaders);
+	const relayStore = createInMemoryRelayStore();
+	const usageRecord = createFakeUsageRecordStore();
+	const services: TestServices = {
+		relayStore,
+		stores: {
+			bridgeToken,
+			bridgeSession,
+			bridgeMessage,
+			mcpServer,
+			usageRecord,
+		},
+	};
+	const { userClientFor, bridgeClientFor } = createClientFactories(services);
 	return {
 		bridgeToken,
 		bridgeSession,
 		bridgeMessage,
+		mcpServer,
 		usageRecord,
 		services,
 		userClientFor,
