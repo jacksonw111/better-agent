@@ -301,6 +301,24 @@ function handleReviewDetail(
 	return call(env, `review:${reviewId}`, 60, "/review/single", params);
 }
 
+function handleDiscoverFriends(
+	args: Record<string, unknown>,
+	env: ToolEnv
+): Promise<ToolResult> {
+	const params = dropUndefined({
+		count: argOptionalNumber(args, "count"),
+		maxIdx: argOptionalNumber(args, "maxIdx"),
+		synckey: argOptionalNumber(args, "synckey"),
+	});
+	return call(
+		env,
+		`discover:${params.maxIdx ?? 0}:${params.count ?? 20}`,
+		300,
+		"/discover/interact/type3",
+		params
+	);
+}
+
 type ToolHandler = (
 	args: Record<string, unknown>,
 	env: ToolEnv
@@ -322,6 +340,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	weread_similar: (args, env) => handleSimilar(args, env),
 	weread_readdata: (args, env) => handleReaddata(args, env),
 	weread_review_detail: (args, env) => handleReviewDetail(args, env),
+	weread_discover_friends: (args, env) => handleDiscoverFriends(args, env),
 };
 
 export function runTool(

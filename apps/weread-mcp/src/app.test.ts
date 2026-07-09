@@ -13,7 +13,7 @@ describe("weread-mcp app", () => {
 		};
 		expect(body.service).toBe("better-agent-weread-mcp");
 		expect(body.status).toBe("ok");
-		expect(body.tools).toBe(15);
+		expect(body.tools).toBe(16);
 	});
 
 	it("MCP initialize handshake", async () => {
@@ -53,7 +53,7 @@ describe("weread-mcp app", () => {
 		const body = (await res.json()) as {
 			result: { tools: { name: string }[] };
 		};
-		expect(body.result.tools.length).toBe(15);
+		expect(body.result.tools.length).toBe(16);
 	});
 
 	it("MCP tools/call without bearer token returns tool error", async () => {

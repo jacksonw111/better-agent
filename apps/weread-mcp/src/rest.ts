@@ -256,6 +256,23 @@ async function reviewDetailHandler(c: Context) {
 	);
 }
 
+async function discoverFriendsHandler(c: Context) {
+	const params = dropUndefined({
+		count: num(c, "count"),
+		maxIdx: num(c, "maxIdx"),
+		synckey: num(c, "synckey"),
+	});
+	return c.json(
+		await api(
+			c,
+			`discover:${params.maxIdx ?? 0}:${params.count ?? 20}`,
+			300,
+			"/discover/interact/type3",
+			params
+		)
+	);
+}
+
 export function registerRest(app: Hono): void {
 	app.get("/api/search", searchHandler);
 	app.get("/api/book/info", bookInfoHandler);
@@ -272,4 +289,5 @@ export function registerRest(app: Hono): void {
 	app.get("/api/similar", similarHandler);
 	app.get("/api/readdata", readdataHandler);
 	app.get("/api/review", reviewDetailHandler);
+	app.get("/api/discover/friends", discoverFriendsHandler);
 }

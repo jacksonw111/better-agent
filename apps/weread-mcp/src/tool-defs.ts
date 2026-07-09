@@ -299,3 +299,31 @@ add({
 		additionalProperties: false,
 	},
 });
+
+add({
+	name: "weread_discover_friends",
+	description:
+		"Discover feed — what your friends are reading (朋友在读动态). Returns " +
+		"type=3 book cards sorted by updateTime newest-first. Paginate with " +
+		"nextMaxIdx (from response) as the next page's maxIdx.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			count: {
+				type: "number",
+				description: "Number of items to return. Default 20.",
+			},
+			maxIdx: {
+				type: "number",
+				description:
+					"Pagination cursor = previous page's nextMaxIdx. Default 0 (first page).",
+			},
+			synckey: {
+				type: "number",
+				description:
+					"Sync cursor. Omit on first request; pass previous page's synckey to refresh.",
+			},
+		},
+		additionalProperties: false,
+	},
+});
