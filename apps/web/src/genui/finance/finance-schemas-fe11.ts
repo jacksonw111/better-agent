@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// FE-11 slice: finance_margin (margin-table.tsx) and finance_divergence
+// FE-11 slice: finance_margin (margin-chart.tsx) and finance_divergence
 // (divergence-card.tsx). Split out as its own file — same pattern as
 // finance-schemas-fe6/7/8/9/10.ts — since finance-schemas.ts is at the
 // project's 300-line-per-file cap.

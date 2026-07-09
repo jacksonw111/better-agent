@@ -49,7 +49,7 @@ import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
 import { KeyMetricsCard } from "./key-metrics-card";
 import { MacroPanel } from "./macro-panel";
-import { MarginTable } from "./margin-table";
+import { MarginChart } from "./margin-chart";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { NewsList } from "./news-list";
 import { PredictionMarkets } from "./prediction-markets";
@@ -91,7 +91,7 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // card. FE-10 (final) adds the Adanos market-sentiment slice:
 // finance_sentiment_trending (sentiment-trending.tsx),
 // finance_sentiment_ticker (sentiment-ticker.tsx), finance_sentiment_market
-// (sentiment-market.tsx). FE-11 adds finance_margin (margin-table.tsx) and
+// (sentiment-market.tsx). FE-11 adds finance_margin (margin-chart.tsx) and
 // finance_divergence (divergence-card.tsx), plus a `livePrice` flag on
 // finance_prediction_markets outcomes (prediction-markets.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
@@ -150,7 +150,7 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 		<MacroPanel data={data} />
 	)),
 	finance_margin: listEntry(MarginRowSchema, (rows) => (
-		<MarginTable data={rows} />
+		<MarginChart data={rows} />
 	)),
 	finance_money_flow: listEntry(MoneyFlowRowSchema, (rows) => (
 		<MoneyFlowChart data={rows} />
