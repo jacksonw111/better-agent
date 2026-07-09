@@ -1,0 +1,89 @@
+name: Deploy server (SSH)
+
+# Auto-deploys the Docker stack to the self-hosted server after images are built.
+#
+# Flow: push to `dev` → "Build images (ghcr)" builds + pushes server/web/admin
+# images → THIS workflow SSHes to the server, refreshes the compose file, and
+# runs `docker compose pull && up -d` (which also runs the one-shot `migrate`).
+#
+# ── One-time GitHub setup (Settings → Secrets and variables → Actions) ──
+#   Secret  (required):  SERVER_PASSWD      the server's SSH password
+#   Variable(required):  SERVER_HOST          server IP or hostname
+#   Variable(required):  SERVER_DEPLOY_DIR    abs path to the dir holding
+#                                             docker-compose.yml + .env on the
+#                                             server, e.g. /root/better-agent/deploy/compose
+#   Variable(optional):  SERVER_USER          SSH user      (default: root)
+#   Variable(optional):  SERVER_PORT          SSH port      (default: 22)
+#
+# Assumptions: Docker + compose plugin installed on the server, and it's already
+# logged in to ghcr.io (`docker login ghcr.io` once) so it can pull the private
+# images. `.env` on the server is NEVER touched by this workflow.
+
+on:
+  workflow_run:
+    workflows: ["Build images (ghcr)"]
+    types: [completed]
+    branches: [dev]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # On the automatic trigger, only deploy if the image build actually succeeded.
+    # Manual runs (workflow_dispatch) always proceed.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required config
+        env:
+          SERVER_PASSWD: ${{ secrets.SERVER_PASSWD }}
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_DEPLOY_DIR: ${{ vars.SERVER_DEPLOY_DIR }}
+        run: |
+          missing=""
+          [ -n "$SERVER_PASSWD" ]   || missing="$missing SERVER_PASSWD(secret)"
+          [ -n "$SERVER_HOST" ]       || missing="$missing SERVER_HOST(variable)"
+          [ -n "$SERVER_DEPLOY_DIR" ] || missing="$missing SERVER_DEPLOY_DIR(variable)"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing GitHub config:$missing — see the header of this workflow file."
+            exit 1
+          fi
+
+      # Ship the latest compose file + Caddyfile so compose changes deploy too.
+      # strip_components:2 drops the leading `deploy/compose/` so the files land
+      # directly in SERVER_DEPLOY_DIR. .env is never sent.
+      - name: Copy compose files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER || 'root' }}
+          password: ${{ secrets.SERVER_PASSWD }}
+          port: ${{ vars.SERVER_PORT || '22' }}
+          source: "deploy/compose/docker-compose.yml,deploy/compose/Caddyfile"
+          target: ${{ vars.SERVER_DEPLOY_DIR }}
+          strip_components: 2
+
+      - name: Pull images and restart the stack
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER || 'root' }}
+          password: ${{ secrets.SERVER_PASSWD }}
+          port: ${{ vars.SERVER_PORT || '22' }}
+          # Fail the job if any command fails, so a broken deploy is visible.
+          script_stop: true
+          script: |
+            set -eu
+            cd "${{ vars.SERVER_DEPLOY_DIR }}"
+            echo "── deploying in $(pwd) ──"
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            docker compose ps
