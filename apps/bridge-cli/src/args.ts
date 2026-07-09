@@ -8,6 +8,40 @@ import {
 
 const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
+export const USAGE = `Usage: better-agent-bridge --agent <kind> --server <url> --token <token> [options]
+
+Required:
+  --agent <kind>    Agent to run: claude-code | opencode | codex | pi
+  --server <url>    Better Agent server URL (or BETTER_AGENT_BRIDGE_SERVER)
+  --token <token>   Bridge auth token (or BETTER_AGENT_BRIDGE_TOKEN)
+
+Options:
+  --dir <path>                     Working directory for the agent (default: cwd)
+  --label <text>                   Session label shown in the web Local Agent view
+  --resume <id>                    Resume a prior claude-code session id
+  --opencode-transport <acp|serve> Protocol driving opencode (default: acp)
+  --debug                          Print verbose command/event logging
+  -v, --version                    Print the version and exit
+  -h, --help                       Print this help and exit
+`;
+
+/**
+ * Detects `-v`/`--version` or `-h`/`--help` anywhere in the raw argv, before
+ * `parseArgs` runs — `parseArgs` throws on a missing --token/--server, which
+ * would otherwise turn `better-agent-bridge -v` into an error instead of
+ * printing the version. Returns the text to print, or `undefined` if neither
+ * flag is present so the caller proceeds to `parseArgs` as usual.
+ */
+export function handleInfoFlags(
+	argv: string[],
+	version: string
+): string | undefined {
+	if (argv.includes("-v") || argv.includes("--version")) {
+		return version;
+	}
+	return argv.includes("-h") || argv.includes("--help") ? USAGE : undefined;
+}
+
 export interface BridgeCliArgs {
 	agentKind: AgentKind;
 	debug: boolean;

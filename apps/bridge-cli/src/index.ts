@@ -2,9 +2,10 @@
 import { AGENT_CLI, selectAdapter } from "./adapters";
 import { findOnPath } from "./adapters/process-io";
 import type { AgentKind } from "./adapters/types";
-import { parseArgs } from "./args";
+import { handleInfoFlags, parseArgs } from "./args";
 import { runBridgeSession } from "./relay-client";
 import { createRelayTransport } from "./relay-transport";
+import { BRIDGE_CLI_VERSION } from "./version";
 
 // `process.argv` is `[nodeExecutable, scriptPath, ...userArgs]`.
 const CLI_ARGS_START_INDEX = 2;
@@ -90,7 +91,14 @@ async function runSession(
 }
 
 async function main(): Promise<void> {
-	const args = parseArgs(process.argv.slice(CLI_ARGS_START_INDEX));
+	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
+	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
+	if (infoOutput !== undefined) {
+		process.stdout.write(`${infoOutput}\n`);
+		return;
+	}
+
+	const args = parseArgs(rawArgv);
 	const adapter = selectAdapter(args.agentKind, {
 		opencodeTransport: args.opencodeTransport,
 	});
