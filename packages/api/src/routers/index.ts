@@ -13,6 +13,7 @@ import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
 import { providersRouter } from "./providers";
 import { sessionsRouter } from "./sessions";
+import { skillsRouter } from "./skills";
 import { usageRouter } from "./usage";
 import { userSessionsRouter } from "./user-sessions";
 
@@ -30,6 +31,7 @@ export const appRouter = {
 	providers: providersRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,
+	skills: skillsRouter,
 	usage: usageRouter,
 	userSessions: userSessionsRouter,
 };
