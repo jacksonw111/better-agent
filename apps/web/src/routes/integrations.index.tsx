@@ -3,18 +3,20 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { AccountsList } from "@/components/integrations/accounts-list";
 import { McpServersSection } from "@/components/integrations/mcp-servers-section";
+import { OcAccountsList } from "@/components/integrations/oc-accounts-list";
 
-type SettingsTab = "composio" | "mcp";
+type SettingsTab = "composio" | "openconnector" | "mcp";
 
 const DEFAULT_TAB: SettingsTab = "composio";
 
 const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
 	{ id: "composio", label: "Composio" },
+	{ id: "openconnector", label: "OpenConnector" },
 	{ id: "mcp", label: "MCP Servers" },
 ];
 
 function isSettingsTab(value: unknown): value is SettingsTab {
-	return value === "composio" || value === "mcp";
+	return value === "composio" || value === "openconnector" || value === "mcp";
 }
 
 export const Route = createFileRoute("/integrations/")({
@@ -60,7 +62,9 @@ function IntegrationsPage() {
 				))}
 			</nav>
 			<div className="min-w-0 flex-1">
-				{tab === "composio" ? <AccountsList /> : <McpServersSection />}
+				{tab === "composio" && <AccountsList />}
+				{tab === "openconnector" && <OcAccountsList />}
+				{tab === "mcp" && <McpServersSection />}
 			</div>
 		</div>
 	);

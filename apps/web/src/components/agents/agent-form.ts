@@ -11,6 +11,7 @@ export interface AgentForm {
 	memoryIds: string[];
 	modelId: string;
 	name: string;
+	openConnectorAccountIds: string[];
 	providerId: string;
 	/** Deferred skill assignments: only used when CREATING (assigned after the
 	 * agent exists). Editing manages assignments live instead — same pattern
@@ -24,6 +25,7 @@ export interface AgentForm {
 
 export const EMPTY_AGENT_FORM: AgentForm = {
 	composioAccountIds: [],
+	openConnectorAccountIds: [],
 	builtinTools: [],
 	mcpServerIds: [],
 	memoryIds: [],
@@ -92,6 +94,7 @@ function toParams(form: AgentForm) {
 export function toAgentInput(form: AgentForm) {
 	return {
 		composioAccountIds: form.composioAccountIds,
+		openConnectorAccountIds: form.openConnectorAccountIds,
 		builtinTools: form.builtinTools,
 		mcpServerIds: form.mcpServerIds,
 		name: form.name,
@@ -111,6 +114,7 @@ function numToStr(value: number | null | undefined): string {
 export function agentRowToForm(row: AgentRow): AgentForm {
 	return {
 		composioAccountIds: row.composioAccountIds ?? [],
+		openConnectorAccountIds: row.openConnectorAccountIds ?? [],
 		builtinTools: row.builtinTools ?? [],
 		mcpServerIds: row.mcpServerIds ?? [],
 		memoryIds: [],

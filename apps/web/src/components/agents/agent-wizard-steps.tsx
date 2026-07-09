@@ -7,12 +7,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@better-agent/ui/components/select";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "@better-agent/ui/components/tabs";
 import { Textarea } from "@better-agent/ui/components/textarea";
 import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -22,9 +16,6 @@ import { orpc } from "@/utils/orpc";
 
 import type { AgentForm } from "./agent-form";
 import { WIZARD_STEPS } from "./agent-form";
-import { BuiltinToolsField } from "./builtin-tools-field";
-import { ComposioAccountsField } from "./composio-accounts-field";
-import { McpServersField } from "./mcp-servers-field";
 
 type SetForm = (patch: Partial<AgentForm>) => void;
 
@@ -263,37 +254,5 @@ export function ParamsStep({ form, set }: { form: AgentForm; set: SetForm }) {
 				/>
 			</Field>
 		</div>
-	);
-}
-
-// Per-tool enable/disable moved to the chat composer's wrench menu — the
-// wizard only picks the SOURCES, one tab per kind.
-export function ToolsStep({ form, set }: { form: AgentForm; set: SetForm }) {
-	return (
-		<Tabs defaultValue="builtin">
-			<TabsList className="w-full">
-				<TabsTrigger value="builtin">Built-in</TabsTrigger>
-				<TabsTrigger value="mcp">MCP</TabsTrigger>
-				<TabsTrigger value="composio">Composio</TabsTrigger>
-			</TabsList>
-			<TabsContent className="pt-2" value="builtin">
-				<BuiltinToolsField
-					onChange={(ids) => set({ builtinTools: ids })}
-					selected={form.builtinTools}
-				/>
-			</TabsContent>
-			<TabsContent className="pt-2" value="mcp">
-				<McpServersField
-					onChange={(ids) => set({ mcpServerIds: ids })}
-					selected={form.mcpServerIds}
-				/>
-			</TabsContent>
-			<TabsContent className="pt-2" value="composio">
-				<ComposioAccountsField
-					onChange={(ids) => set({ composioAccountIds: ids })}
-					selected={form.composioAccountIds}
-				/>
-			</TabsContent>
-		</Tabs>
 	);
 }

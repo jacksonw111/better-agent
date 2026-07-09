@@ -16,12 +16,12 @@ import {
 	isLastStep,
 	isStepValid,
 } from "./agent-form";
+import { ToolsStep } from "./agent-tools-step";
 import {
 	IdentityStep,
 	ModelStep,
 	ParamsStep,
 	Stepper,
-	ToolsStep,
 } from "./agent-wizard-steps";
 
 const IDENTITY_STEP = 0;

@@ -17,6 +17,14 @@ export type ComposioToolkitRow = Awaited<
 	ReturnType<Client["composio"]["toolkits"]>
 >[number];
 
+export type OpenConnectorAccountRow = Awaited<
+	ReturnType<Client["openConnector"]["listAccounts"]>
+>[number];
+
+export type OpenConnectorProviderRow = Awaited<
+	ReturnType<Client["openConnector"]["providers"]>
+>[number];
+
 export type McpServerRow = Awaited<
 	ReturnType<Client["mcp"]["listServers"]>
 >[number];

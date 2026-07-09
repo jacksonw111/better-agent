@@ -26,6 +26,7 @@ import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryI
 import { Route as LocalAgentsTokenIdRouteImport } from './routes/local-agents.$tokenId'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
+import { Route as IntegrationsOcAccountIdRouteImport } from './routes/integrations.oc.$accountId'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -113,6 +114,11 @@ const AuthVerifyRoute = AuthVerifyRouteImport.update({
   path: '/auth/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntegrationsOcAccountIdRoute = IntegrationsOcAccountIdRouteImport.update({
+  id: '/integrations/oc/$accountId',
+  path: '/integrations/oc/$accountId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
   id: '/auth/google/callback',
   path: '/auth/google/callback',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/memories/': typeof MemoriesIndexRoute
   '/skills/': typeof SkillsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
+  '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/memories': typeof MemoriesIndexRoute
   '/skills': typeof SkillsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
+  '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/memories/': typeof MemoriesIndexRoute
   '/skills/': typeof SkillsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
+  '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/memories/'
     | '/skills/'
     | '/auth/google/callback'
+    | '/integrations/oc/$accountId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/memories'
     | '/skills'
     | '/auth/google/callback'
+    | '/integrations/oc/$accountId'
   id:
     | '__root__'
     | '/'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/memories/'
     | '/skills/'
     | '/auth/google/callback'
+    | '/integrations/oc/$accountId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -262,6 +274,7 @@ export interface RootRouteChildren {
   MemoriesIndexRoute: typeof MemoriesIndexRoute
   SkillsIndexRoute: typeof SkillsIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
+  IntegrationsOcAccountIdRoute: typeof IntegrationsOcAccountIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -385,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/integrations/oc/$accountId': {
+      id: '/integrations/oc/$accountId'
+      path: '/integrations/oc/$accountId'
+      fullPath: '/integrations/oc/$accountId'
+      preLoaderRoute: typeof IntegrationsOcAccountIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/google/callback': {
       id: '/auth/google/callback'
       path: '/auth/google/callback'
@@ -414,6 +434,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoriesIndexRoute: MemoriesIndexRoute,
   SkillsIndexRoute: SkillsIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
+  IntegrationsOcAccountIdRoute: IntegrationsOcAccountIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
