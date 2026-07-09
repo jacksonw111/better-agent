@@ -1,0 +1,90 @@
+import { log } from "evlog";
+import { TOOLS } from "./tool-defs";
+import { runTool, type ToolEnv, toolText } from "./tools-impl";
+
+export const PROTOCOL_VERSION = "2025-06-18";
+export const SERVER_INFO = {
+	name: "better-agent-weread-mcp",
+	version: "0.1.0",
+};
+
+interface JsonRpcRequest {
+	id?: number | string | null;
+	jsonrpc: "2.0";
+	method: string;
+	params?: Record<string, unknown>;
+}
+
+interface JsonRpcResponse {
+	error?: { code: number; message: string };
+	id: number | string | null;
+	jsonrpc: "2.0";
+	result?: unknown;
+}
+
+const METHOD_NOT_FOUND = -32_601;
+
+function ok(id: JsonRpcResponse["id"], result: unknown): JsonRpcResponse {
+	return { jsonrpc: "2.0", id, result };
+}
+
+function toArgs(
+	params: Record<string, unknown> | undefined
+): Record<string, unknown> {
+	return typeof params?.arguments === "object" && params.arguments !== null
+		? (params.arguments as Record<string, unknown>)
+		: {};
+}
+
+async function callTool(
+	id: JsonRpcResponse["id"],
+	params: Record<string, unknown> | undefined,
+	env: ToolEnv
+): Promise<JsonRpcResponse> {
+	const name = typeof params?.name === "string" ? params.name : "";
+	try {
+		return ok(id, await runTool(name, toArgs(params), env));
+	} catch (err) {
+		log.error(
+			"weread-mcp",
+			`tool ${name} failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`
+		);
+		const detail = err instanceof Error ? err.message : String(err);
+		return ok(id, toolText(`Request failed: ${detail}`, true));
+	}
+}
+
+export function handleMessage(
+	message: JsonRpcRequest,
+	env: ToolEnv = {}
+): Promise<JsonRpcResponse | null> {
+	const id = message.id ?? null;
+	if (message.method.startsWith("notifications/")) {
+		return Promise.resolve(null);
+	}
+	switch (message.method) {
+		case "initialize":
+			return Promise.resolve(
+				ok(id, {
+					protocolVersion: PROTOCOL_VERSION,
+					capabilities: { tools: {} },
+					serverInfo: SERVER_INFO,
+				})
+			);
+		case "ping":
+			return Promise.resolve(ok(id, {}));
+		case "tools/list":
+			return Promise.resolve(ok(id, { tools: TOOLS }));
+		case "tools/call":
+			return callTool(id, message.params, env);
+		default:
+			return Promise.resolve({
+				jsonrpc: "2.0",
+				id,
+				error: {
+					code: METHOD_NOT_FOUND,
+					message: `Unknown method: ${message.method}`,
+				},
+			});
+	}
+}

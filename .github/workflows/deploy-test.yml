@@ -61,6 +61,32 @@ jobs:
           API_TOKEN: ${{ secrets.API_TOKEN }}
           ADANOS_API_KEY: ${{ secrets.ADANOS_API_KEY }}
 
+  weread-mcp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test weread-mcp
+        run: pnpm -F weread-mcp test
+      - name: Deploy weread-mcp
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/weread-mcp
+          command: deploy
+          secrets: |
+            WEREAD_API_KEY
+            API_TOKEN
+        env:
+          WEREAD_API_KEY: ${{ secrets.WEREAD_API_KEY }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+
   authz:
     runs-on: ubuntu-latest
     steps:

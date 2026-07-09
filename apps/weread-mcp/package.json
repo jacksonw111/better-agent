@@ -1,0 +1,21 @@
+{
+  "name": "weread-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "dev": "wrangler dev --port 3006",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "catalog:",
+    "evlog": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260625.1",
+    "typescript": "catalog:",
+    "vitest": "4.1.9",
+    "wrangler": "4.105.0"
+  }
+}

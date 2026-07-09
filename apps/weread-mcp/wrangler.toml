@@ -1,0 +1,12 @@
+name = "better-agent-weread-mcp"
+main = "src/worker.ts"
+compatibility_date = "2025-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NODE_ENV = "production"
+
+# WEREAD_API_KEY is a secret (the per-user WeRead API key, format wrk-xxxxxxxx).
+# Set it with `wrangler secret put WEREAD_API_KEY`.
+# API_TOKEN is an optional shared-token auth gate on /mcp and /api/*.
+# Set it with `wrangler secret put API_TOKEN`. Unset/empty means open access.
