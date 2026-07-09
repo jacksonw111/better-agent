@@ -1,4 +1,5 @@
 import { entry, listEntry, type ToolResultRenderer } from "../tool-renderers";
+import { BlockTradesTable } from "./block-trades-table";
 import { CalendarList } from "./calendar-list";
 import { CandlestickChart } from "./candlestick-chart";
 import { CnHotList } from "./cn-hot-list";
@@ -62,12 +63,18 @@ import {
 	IndexWeightRowSchema,
 	OptionRowSchema,
 } from "./finance-schemas-fe14";
+import {
+	BlockTradeRowSchema,
+	InsiderRowSchema,
+	SuspensionRowSchema,
+} from "./finance-schemas-fe15";
 import { ForecastTable } from "./forecast-table";
 import { HolderCountChart } from "./holder-count-chart";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndexWeights } from "./index-weights";
 import { IndicatorsTable } from "./indicators-table";
+import { InsiderTable } from "./insider-table";
 import { IpoTable } from "./ipo-table";
 import { KeyMetricsCard } from "./key-metrics-card";
 import { LockupTable } from "./lockup-table";
@@ -89,6 +96,7 @@ import { SentimentMarket } from "./sentiment-market";
 import { SentimentTicker } from "./sentiment-ticker";
 import { SentimentTrending } from "./sentiment-trending";
 import { StatementsTable } from "./statements-table";
+import { SuspensionTable } from "./suspension-table";
 import { TechnicalPanel } from "./technical-panel";
 import { TopHoldersTable } from "./top-holders-table";
 import { YieldCurveChart } from "./yield-curve-chart";
@@ -126,8 +134,13 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // (lockup-table.tsx), finance_convertible_bonds
 // (convertible-bonds-table.tsx), and finance_ipo (ipo-table.tsx). FE-14
 // (V6b) adds finance_index_weights (index-weights.tsx), finance_etf_list
-// (etf-list.tsx), and finance_option_chain (option-chain.tsx).
+// (etf-list.tsx), and finance_option_chain (option-chain.tsx). FE-15 (V7)
+// adds finance_block_trades (block-trades-table.tsx), finance_insider_trades
+// (insider-table.tsx), and finance_suspension (suspension-table.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
+	finance_block_trades: listEntry(BlockTradeRowSchema, (rows) => (
+		<BlockTradesTable data={rows} />
+	)),
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
 	)),
@@ -182,6 +195,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_index_weights: listEntry(IndexWeightRowSchema, (rows) => (
 		<IndexWeights data={rows} />
+	)),
+	finance_insider_trades: listEntry(InsiderRowSchema, (rows) => (
+		<InsiderTable data={rows} />
 	)),
 	finance_ipo: listEntry(IpoRowSchema, (rows) => <IpoTable data={rows} />),
 	finance_key_metrics: entry(KeyMetricsSchema, (data) => (
@@ -242,6 +258,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_stock_news: listEntry(StockNewsItemSchema, (rows) => (
 		<NewsList data={rows} />
+	)),
+	finance_suspension: listEntry(SuspensionRowSchema, (rows) => (
+		<SuspensionTable data={rows} />
 	)),
 	finance_technical: entry(TechnicalSchema, (data) => (
 		<TechnicalPanel data={data} />
