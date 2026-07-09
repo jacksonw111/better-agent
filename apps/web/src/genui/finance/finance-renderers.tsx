@@ -35,6 +35,7 @@ import {
 	StockHitSchema,
 	StockNewsItemSchema,
 } from "./finance-schemas-fe8";
+import { PredictionMarketSchema } from "./finance-schemas-fe9";
 import { ForecastTable } from "./forecast-table";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
@@ -43,6 +44,7 @@ import { KeyMetricsCard } from "./key-metrics-card";
 import { MacroPanel } from "./macro-panel";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { NewsList } from "./news-list";
+import { PredictionMarkets } from "./prediction-markets";
 import { QuoteCard } from "./quote-card";
 import { ReportsList } from "./reports-list";
 import { ResearchList } from "./research-list";
@@ -70,10 +72,12 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // finance_money_flow / finance_sector_list / finance_sector_constituents /
 // finance_yield_curve. FE-7 adds finance_macro_us / finance_macro_cn
 // (macro-panel.tsx) and finance_earnings_calendar / finance_economic_calendar
-// / finance_central_bank (calendar-list.tsx). FE-8 (final) adds finance_news /
+// / finance_central_bank (calendar-list.tsx). FE-8 adds finance_news /
 // finance_stock_news (news-list.tsx), finance_research (research-list.tsx),
 // finance_earnings_forecast (forecast-table.tsx), finance_list_reports
-// (reports-list.tsx), and finance_search (search-list.tsx).
+// (reports-list.tsx), and finance_search (search-list.tsx). FE-9 (final) adds
+// finance_prediction_markets (prediction-markets.tsx), a Polymarket odds
+// card.
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -130,6 +134,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 		<MoneyFlowChart data={rows} />
 	)),
 	finance_news: listEntry(NewsItemSchema, (rows) => <NewsList data={rows} />),
+	finance_prediction_markets: listEntry(PredictionMarketSchema, (markets) => (
+		<PredictionMarkets markets={markets} />
+	)),
 	finance_quote: entry(QuoteSchema, (data) => <QuoteCard data={data} />),
 	finance_research: listEntry(ResearchReportSchema, (rows) => (
 		<ResearchList data={rows} />
