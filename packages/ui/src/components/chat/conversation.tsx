@@ -14,7 +14,10 @@ import type { ChatMessage } from "./chat-blocks";
 import { ChatComposer } from "./chat-composer";
 import { type ChatAvatars, ChatRow, type RenderToolResult } from "./chat-row";
 import { RevealText } from "./reveal-text";
+import type { SkillPickerItem } from "./skill-picker";
 import { useChat } from "./use-chat";
+
+export type { SkillPickerItem } from "./skill-picker";
 
 function EmptyMessages() {
 	return (
@@ -107,6 +110,7 @@ export function Conversation({
 	avatars,
 	composerTools,
 	renderToolResult,
+	skills,
 }: {
 	sessionId: string;
 	agentClient: AgentClient;
@@ -114,6 +118,10 @@ export function Conversation({
 	avatars?: ChatAvatars;
 	composerTools?: ReactNode;
 	renderToolResult?: RenderToolResult;
+	/** The agent's assigned skills — feeds the composer's "/" picker (see
+	 * `ChatComposer`'s `skills` prop). `undefined` until they've loaded, or
+	 * for an agent with none, in which case the picker never opens. */
+	skills?: SkillPickerItem[];
 }) {
 	const { messages, streaming, send, stop } = useChat(sessionId, agentClient);
 	useInitialSend(initialText, send);
@@ -130,6 +138,7 @@ export function Conversation({
 				onSend={send}
 				onStop={stop}
 				sessionId={sessionId}
+				skills={skills}
 				streaming={streaming}
 				toolsSlot={composerTools}
 			/>

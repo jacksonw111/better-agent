@@ -2,11 +2,13 @@ import { Button } from "@better-agent/ui/components/button";
 import { Conversation } from "@better-agent/ui/components/chat/conversation";
 import { SessionPicker } from "@better-agent/ui/components/chat/session-picker";
 import type { AgentClient } from "@jacksonw111/agent-client";
+import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, XIcon } from "lucide-react";
 import { AgentToolsMenu } from "@/components/chat/agent-tools-menu";
 import { renderToolResult } from "@/genui/tool-renderers";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { agentAvatar, userAvatar } from "@/utils/avatar";
+import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
 
 interface ChatViewProps {
@@ -64,6 +66,18 @@ function ChatViewHeader({
 	);
 }
 
+// The skill picker's item shape wants a plain `description: string` (never
+// rendered as null); the stored column is nullable, so an unset description
+// falls back to empty rather than surfacing "null" in the picker.
+function toSkillPickerItems(
+	rows: { description: string | null; name: string }[] | undefined
+) {
+	return rows?.map((row) => ({
+		description: row.description ?? "",
+		name: row.name,
+	}));
+}
+
 export function ChatView({
 	agent,
 	agentClient,
@@ -75,6 +89,11 @@ export function ChatView({
 	onNewSession,
 }: ChatViewProps) {
 	const { email } = useCurrentUser();
+	// Feeds the composer's "/" skill picker (T5) — undefined until loaded, in
+	// which case the picker simply doesn't open yet.
+	const skills = useQuery(
+		orpc.skills.listAssigned.queryOptions({ input: { agentId: agent.id } })
+	);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<ChatViewHeader
@@ -96,6 +115,7 @@ export function ChatView({
 				key={sessionId}
 				renderToolResult={renderToolResult}
 				sessionId={sessionId}
+				skills={toSkillPickerItems(skills.data)}
 			/>
 		</div>
 	);
