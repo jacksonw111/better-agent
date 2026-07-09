@@ -5,6 +5,7 @@ import { BadSymbolError } from "./core/symbol";
 import { handleMessage } from "./mcp-server";
 import { createPdfProxyHandler } from "./pdf-proxy";
 import { registerRest } from "./rest";
+import { registerRestExtra } from "./rest-extra";
 import { TOOLS } from "./tool-defs";
 import type { ToolEnv } from "./tools-impl";
 
@@ -55,6 +56,7 @@ export function buildApp(): Hono {
 	});
 
 	registerRest(app);
+	registerRestExtra(app);
 
 	app.get("/pdf", createPdfProxyHandler(fetch));
 

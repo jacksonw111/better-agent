@@ -16,6 +16,11 @@ import { coerceKlinePeriod, getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
 import type { Market } from "./core/types";
 import {
+	handleDividends,
+	handleDragonTiger,
+	handleTopHolders,
+} from "./tools-impl-extra";
+import {
 	handleEconomicCalendar,
 	handleMacroCn,
 	handleMacroUs,
@@ -263,6 +268,9 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_yield_curve: (_args, env) => handleYieldCurve(env),
 	finance_news: (args) => handleNews(args),
 	finance_stock_news: (args) => handleStockNews(args),
+	finance_dividends: (args) => handleDividends(args),
+	finance_dragon_tiger: (args) => handleDragonTiger(args),
+	finance_top_holders: (args) => handleTopHolders(args),
 };
 
 export function runTool(
