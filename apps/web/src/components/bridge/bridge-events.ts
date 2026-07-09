@@ -5,6 +5,11 @@
 
 /** A single chat turn from either the user or the assistant. */
 export interface MessageEvent {
+	/** The stable id of the logical message this is the FINAL text for —
+	 * shared with any `OutputEvent` deltas that streamed the same message. See
+	 * `bridge-assistant-merge.ts`: a matching in-flight streamed bubble is
+	 * replaced in place (last-write-wins) instead of a second bubble. */
+	id?: string;
 	kind: "message";
 	role: "user" | "assistant";
 	text: string;
@@ -31,6 +36,9 @@ export interface FileEvent {
 
 /** Raw process output that doesn't fit the other kinds. */
 export interface OutputEvent {
+	/** The stable id of the logical message this delta streams text into —
+	 * shared with the eventual final `MessageEvent` for the same message. */
+	id?: string;
 	kind: "output";
 	/** True for a `thinking_delta` chunk (extended-thinking text streaming in),
 	 * as opposed to the assistant's ordinary response text. */

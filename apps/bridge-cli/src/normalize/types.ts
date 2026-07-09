@@ -5,6 +5,13 @@
 
 /** A single chat turn from either the user or the assistant. */
 export interface MessageEvent {
+	/** The stable id of the logical message this is the FINAL text for —
+	 * shared with any `OutputEvent` deltas that streamed the same message (see
+	 * `OutputEvent.id`). The web merges by this id: a matching in-flight
+	 * streamed bubble is replaced in place (last-write-wins) instead of a
+	 * second bubble being rendered. Omitted by adapters that never stream a
+	 * duplicate of their own final message (claude-code, pi). */
+	id?: string;
 	kind: "message";
 	role: "user" | "assistant";
 	text: string;
@@ -31,6 +38,14 @@ export interface FileEvent {
 
 /** Raw process output that doesn't fit the other kinds (e.g. shell output). */
 export interface OutputEvent {
+	/** The stable id of the logical message this delta streams text INTO —
+	 * shared with the eventual final `MessageEvent` for the same message (see
+	 * `MessageEvent.id`). Two chunks with the same id accumulate into one
+	 * block; the web keeps ONE bubble per id rather than a new one per delta
+	 * plus a duplicate for the final. Omitted where there's no correlating id
+	 * (or no final message follows at all — claude-code/pi/opencode ACP only
+	 * ever stream deltas for a given piece of text, never repeat it). */
+	id?: string;
 	kind: "output";
 	/** True for a `thinking_delta` chunk (extended-thinking text streaming in),
 	 * as opposed to the assistant's ordinary response text. */

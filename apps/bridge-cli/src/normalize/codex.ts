@@ -62,13 +62,17 @@ function normalizeCodexCommandExecutionItem(
 	];
 }
 
+// Streaming deltas (`item/agentMessage/delta`) and the final message
+// (`item.completed`) both carry the item's id — see `normalizeCodexAgentMessageDelta`
+// below — so the web can merge them into ONE bubble instead of rendering the
+// item's text twice (the reported "codex repeats every output" bug).
 function normalizeCodexAgentMessageItem(
 	item: Record<string, unknown>
 ): NormalizedEvent[] {
 	const text = asString(item.text);
 	return text === undefined
 		? NO_EVENTS
-		: [{ kind: "message", role: "assistant", text }];
+		: [{ id: asString(item.id), kind: "message", role: "assistant", text }];
 }
 
 function normalizeCodexItem(item: unknown): NormalizedEvent[] {
@@ -91,7 +95,9 @@ function normalizeCodexAgentMessageDelta(
 	params: Record<string, unknown>
 ): NormalizedEvent[] {
 	const text = asString(params.delta);
-	return text === undefined ? NO_EVENTS : [{ kind: "output", text }];
+	return text === undefined
+		? NO_EVENTS
+		: [{ id: asString(params.itemId), kind: "output", text }];
 }
 
 // Researched as a suspected dead path (plan §2: docs don't list a

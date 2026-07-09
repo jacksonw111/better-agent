@@ -1,8 +1,11 @@
-import {
-	appendText,
-	type ToolInvocation,
-} from "@better-agent/ui/components/chat/chat-blocks";
+import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
 import { isTaskToolInput } from "@/genui/tool-renderers";
+import {
+	accumulateOutput,
+	type FoldState,
+	finalizeAssistantMessage,
+	openAssistant,
+} from "./bridge-assistant-merge";
 import type {
 	MessageEvent,
 	NormalizedEvent,
@@ -17,7 +20,7 @@ import {
 	TURN_USAGE_STATUS,
 	USAGE_UPDATE_STATUS,
 } from "./bridge-session-status";
-import type { AssistantTurn, BridgeTurn, PlanTurn } from "./bridge-turn-types";
+import type { BridgeTurn, PlanTurn } from "./bridge-turn-types";
 import { stripTaskWrapper, type TaskInvocation } from "./task-card";
 import { parseTodoItems } from "./todo-list";
 import { flattenToolResult } from "./tool-result-text";
@@ -51,15 +54,6 @@ const HIDDEN_STATUS_KINDS = new Set<string>([
 	"auto_retry_start",
 	"auto_retry_end",
 ]);
-
-interface FoldState {
-	current: AssistantTurn | null;
-	/** The single plan/todo turn, updated in place as `plan` updates arrive. */
-	plan: PlanTurn | null;
-	tasksByCallId: Map<string, TaskInvocation>;
-	toolsByCallId: Map<string, ToolInvocation>;
-	turns: BridgeTurn[];
-}
 
 /** Folds a `plan` status update into the ONE plan turn: creates it on the first
  * update (at its natural position), then replaces its items in place on later
@@ -144,41 +138,18 @@ function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
 	}
 }
 
-/** Reuse the open assistant turn, or start (and record) a fresh one. */
-function openAssistant(state: FoldState, id: number): AssistantTurn {
-	if (state.current) {
-		return state.current;
-	}
-	const turn: AssistantTurn = {
-		kind: "assistant",
-		id,
-		blocks: [],
-		streaming: false,
-	};
-	state.turns.push(turn);
-	state.current = turn;
-	return turn;
-}
-
+/** A message is a turn boundary: it closes any open output accumulation. A
+ * user message always starts its own turn; an assistant message merges by id
+ * with its in-flight streamed bubble (or opens a fresh one) — see
+ * `finalizeAssistantMessage` in bridge-assistant-merge.ts for the id contract
+ * that fixes codex's double-rendered output. */
 function foldMessage(state: FoldState, id: number, event: MessageEvent): void {
-	// A message is a turn boundary: it closes any open output accumulation.
-	state.current = null;
 	if (event.role === "user") {
+		state.current = null;
 		state.turns.push({ kind: "user", id, text: event.text });
 		return;
 	}
-	const turn: AssistantTurn = {
-		kind: "assistant",
-		id,
-		blocks: [],
-		streaming: false,
-	};
-	if (event.thinking) {
-		turn.blocks.push({ kind: "reasoning", text: event.text });
-	} else {
-		appendText(turn.blocks, "text", event.text);
-	}
-	state.turns.push(turn);
+	finalizeAssistantMessage(state, id, event);
 }
 
 function foldTool(state: FoldState, id: number, event: ToolEvent): void {
@@ -223,11 +194,7 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 			foldMessage(state, id, event);
 			return;
 		case "output":
-			appendText(
-				openAssistant(state, id).blocks,
-				event.reasoning ? "reasoning" : "text",
-				event.text
-			);
+			accumulateOutput(state, id, event);
 			return;
 		case "tool":
 			foldTool(state, id, event);
@@ -261,6 +228,7 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
  */
 export function foldEventsToTurns(events: StreamEvent[]): BridgeTurn[] {
 	const state: FoldState = {
+		assistantByMessageId: new Map(),
 		current: null,
 		plan: null,
 		tasksByCallId: new Map(),

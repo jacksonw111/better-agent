@@ -8,7 +8,7 @@ describe("normalizeCodex - agentMessage items", () => {
 			params: { item: { type: "agentMessage", id: "item_1", text: "done" } },
 		});
 		expect(events).toEqual([
-			{ kind: "message", role: "assistant", text: "done" },
+			{ id: "item_1", kind: "message", role: "assistant", text: "done" },
 		]);
 	});
 
@@ -17,7 +17,26 @@ describe("normalizeCodex - agentMessage items", () => {
 			method: "item/agentMessage/delta",
 			params: { itemId: "item_1", delta: "Runnin" },
 		});
-		expect(events).toEqual([{ kind: "output", text: "Runnin" }]);
+		expect(events).toEqual([{ id: "item_1", kind: "output", text: "Runnin" }]);
+	});
+
+	// The double-render bug: without a shared id, the web can't tell a
+	// streamed delta and its final message are the SAME logical message, so
+	// it renders both — see bridge-turns.test.ts for the reducer-level proof.
+	it("shares the item id between a streamed delta and the item's final message", () => {
+		const delta = normalizeCodex({
+			method: "item/agentMessage/delta",
+			params: { itemId: "item_1", delta: "Runnin" },
+		})[0] as { id?: string };
+		const final = normalizeCodex({
+			method: "item/completed",
+			params: {
+				item: { type: "agentMessage", id: "item_1", text: "Running tests" },
+			},
+		})[0] as { id?: string };
+		expect(delta.id).toBe("item_1");
+		expect(final.id).toBe("item_1");
+		expect(delta.id).toBe(final.id);
 	});
 });
 

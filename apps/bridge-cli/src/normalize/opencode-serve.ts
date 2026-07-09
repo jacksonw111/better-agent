@@ -47,7 +47,18 @@ function serveEventSessionId(
  * delta. `partTexts` tracks what's already been emitted per part id and only
  * the new suffix goes out (as `output`, so the UI accumulates chunks into one
  * bubble — same reasoning as the ACP normalizer). A non-prefix rewrite falls
- * back to emitting the full new text. */
+ * back to emitting the full new text.
+ *
+ * RESIDUAL RISK (id contract): unlike codex, this normalizer never emits a
+ * final `message` event for the same content, so it can't hit the
+ * delta+final double-BUBBLE bug this file's `id` field fixes elsewhere (see
+ * normalize/codex.ts, bridge-turns.ts). But it also never stamps `id` on the
+ * `output` events it emits, so if the SAME logical message's part id ever
+ * changed mid-stream, `partTexts` would restart from "" for the new id and
+ * re-emit the already-shown text as a fresh delta — a doubled-TEXT-within-
+ * one-bubble failure, not a doubled bubble. No `opencode serve` binary is
+ * available to verify whether a part id is stable for a message's lifetime;
+ * left undocumented-but-unfixed rather than guessed at. */
 function normalizeServeTextPart(
 	part: Record<string, unknown>,
 	partTexts: Map<string, string>
