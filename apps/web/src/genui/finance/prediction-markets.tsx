@@ -32,6 +32,29 @@ function outcomeKey(
 	return outcome.name ? `${marketId}-${outcome.name}` : `${marketId}-${index}`;
 }
 
+/** Small pulsing dot marking an outcome whose price streams from a live feed
+ * rather than a periodic snapshot — a glanceable "实时" cue, not another
+ * label to read. */
+function LiveIndicator() {
+	return (
+		<span
+			aria-label="实时"
+			className="relative flex h-2 w-2 shrink-0"
+			role="status"
+			title="实时"
+		>
+			<span
+				className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+				style={{ backgroundColor: BAR_ACCENT_COLOR }}
+			/>
+			<span
+				className="relative inline-flex h-2 w-2 rounded-full"
+				style={{ backgroundColor: BAR_ACCENT_COLOR }}
+			/>
+		</span>
+	);
+}
+
 function OutcomeBar({ outcome }: { outcome: PredictionOutcomeData }) {
 	const widthPct =
 		clampProbability(outcome.probability) * PROBABILITY_PCT_MULTIPLIER;
@@ -46,6 +69,7 @@ function OutcomeBar({ outcome }: { outcome: PredictionOutcomeData }) {
 					style={{ backgroundColor: BAR_ACCENT_COLOR, width: `${widthPct}%` }}
 				/>
 			</div>
+			{outcome.livePrice ? <LiveIndicator /> : null}
 			<span className="w-12 shrink-0 text-right font-medium text-xs tabular-nums">
 				{formatProbabilityPct(outcome.probability)}
 			</span>

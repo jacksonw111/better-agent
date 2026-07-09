@@ -10,7 +10,7 @@ const PREDICTION_MARKET_FIXTURE = {
 	id: "0x1234",
 	liquidityUsd: 500_000,
 	outcomes: [
-		{ name: "Yes", probability: 0.62 },
+		{ livePrice: true, name: "Yes", probability: 0.62 },
 		{ name: "No", probability: 0.38 },
 	],
 	question: "Will the Fed cut rates in September?",

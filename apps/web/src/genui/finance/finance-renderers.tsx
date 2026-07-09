@@ -3,6 +3,7 @@ import { CalendarList } from "./calendar-list";
 import { CandlestickChart } from "./candlestick-chart";
 import { CommodityGrid } from "./commodity-grid";
 import { CompanyProfileCard } from "./company-profile-card";
+import { DivergenceCard } from "./divergence-card";
 import { DividendsTable } from "./dividends-table";
 import { DragonTigerTable } from "./dragon-tiger-table";
 import {
@@ -41,12 +42,14 @@ import {
 	TickerSentimentSchema,
 	TrendingSentimentSchema,
 } from "./finance-schemas-fe10";
+import { DivergenceSchema, MarginRowSchema } from "./finance-schemas-fe11";
 import { ForecastTable } from "./forecast-table";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
 import { KeyMetricsCard } from "./key-metrics-card";
 import { MacroPanel } from "./macro-panel";
+import { MarginTable } from "./margin-table";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { NewsList } from "./news-list";
 import { PredictionMarkets } from "./prediction-markets";
@@ -88,7 +91,9 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // card. FE-10 (final) adds the Adanos market-sentiment slice:
 // finance_sentiment_trending (sentiment-trending.tsx),
 // finance_sentiment_ticker (sentiment-ticker.tsx), finance_sentiment_market
-// (sentiment-market.tsx).
+// (sentiment-market.tsx). FE-11 adds finance_margin (margin-table.tsx) and
+// finance_divergence (divergence-card.tsx), plus a `livePrice` flag on
+// finance_prediction_markets outcomes (prediction-markets.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -98,6 +103,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_company_profile: entry(CompanyProfileSchema, (data) => (
 		<CompanyProfileCard data={data} />
+	)),
+	finance_divergence: entry(DivergenceSchema, (data) => (
+		<DivergenceCard data={data} />
 	)),
 	finance_dividends: listEntry(DividendRowSchema, (rows) => (
 		<DividendsTable data={rows} />
@@ -140,6 +148,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_macro_us: entry(MacroResultSchema, (data) => (
 		<MacroPanel data={data} />
+	)),
+	finance_margin: listEntry(MarginRowSchema, (rows) => (
+		<MarginTable data={rows} />
 	)),
 	finance_money_flow: listEntry(MoneyFlowRowSchema, (rows) => (
 		<MoneyFlowChart data={rows} />
