@@ -16,6 +16,7 @@ import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-s
 import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item-store";
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
+import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { createSkillStore } from "@better-agent/db/repositories/skill-store";
@@ -31,6 +32,7 @@ import { buildMcpResolver } from "./mcp";
 import {
 	buildComposioAccountResolver,
 	buildGoogleOAuth,
+	buildOpenConnectorAccountResolver,
 } from "./optional-services";
 import {
 	buildCancellation,
@@ -99,6 +101,7 @@ interface StoreParts {
 	memoryItemStore: ReturnType<typeof createMemoryItemStore>;
 	memoryStore: ReturnType<typeof createMemoryStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
+	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
 	skillStore: ReturnType<typeof createSkillStore>;
@@ -123,6 +126,7 @@ function buildStores(
 		attachment: parts.attachmentStore,
 		settings: parts.settings,
 		composioAccount: parts.composioAccount,
+		openConnectorAccount: parts.openConnectorAccount,
 		mcpServer: parts.mcpServerStore,
 		usage: parts.usageStore,
 		usageRecord: parts.usageRecordStore,
@@ -166,6 +170,9 @@ function assembleServices(
 		pendingToolCallStore: buildPendingToolCallStore(),
 		googleOAuth: buildGoogleOAuth(),
 		composio: buildComposioAccountResolver(parts.composioAccount),
+		openConnector: buildOpenConnectorAccountResolver(
+			parts.openConnectorAccount
+		),
 		embeddingClient: parts.embeddingClient,
 		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
 		authz: buildAuthzClient(parts.authzBinding),
@@ -185,6 +192,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		auth: buildAuthServices(db),
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),
+		openConnectorAccount: createOpenConnectorAccountStore(db, secretBox),
 		mcpServerStore: createMcpServerStore(db, secretBox),
 		webAuthzCache: createWebAuthzCacheStore(db),
 		bridgeTokenStore: createBridgeTokenStore(db),

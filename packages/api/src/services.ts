@@ -20,6 +20,7 @@ import type {
 	MemoryStore,
 	MessageStore,
 	ModelCacheStore,
+	OpenConnectorAccountStore,
 	PasswordResetStore,
 	ProviderCatalogStore,
 	ProviderCredentialStore,
@@ -37,6 +38,7 @@ import type { CancellationRegistry } from "@better-agent/agent/session/cancellat
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { McpService } from "@better-agent/agent/tool/mcp-tools";
+import type { OpenConnectorService } from "@better-agent/agent/tool/openconnector-tools";
 import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-store";
 import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
 import type { UsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
@@ -63,6 +65,7 @@ export interface AgentServices {
 	jwtService: JwtService;
 	mcp: (serverId: string) => Promise<McpService | null>;
 	modelFactory: ModelFactory;
+	openConnector: (accountId: string) => Promise<OpenConnectorService | null>;
 	pendingToolCallStore: PendingToolCallStore;
 	rateLimiter: RateLimiter;
 	relayStore: RelayStore;
@@ -81,6 +84,7 @@ export interface AgentServices {
 		refreshToken: RefreshTokenStore;
 		settings: SettingsStore;
 		composioAccount: ComposioAccountStore;
+		openConnectorAccount: OpenConnectorAccountStore;
 		mcpServer: McpServerStore;
 		usage: UsageStore;
 		usageRecord: UsageRecordStore;
