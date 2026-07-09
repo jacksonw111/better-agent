@@ -11,8 +11,8 @@ const THIRD_ID = 3;
 it("append returns monotonically increasing ids and read replays them in order", async () => {
 	const store = createInMemoryRelayStore();
 
-	const id1 = await store.append("s1", "events", { n: 1 });
-	const id2 = await store.append("s1", "events", { n: SECOND_ID });
+	const { id: id1 } = await store.append("s1", "events", { n: 1 });
+	const { id: id2 } = await store.append("s1", "events", { n: SECOND_ID });
 
 	expect(id1).toBe(1);
 	expect(id2).toBe(SECOND_ID);
@@ -20,6 +20,44 @@ it("append returns monotonically increasing ids and read replays them in order",
 		{ id: 1, data: { n: 1 } },
 		{ id: 2, data: { n: 2 } },
 	]);
+});
+
+it("append is idempotent: the same idempotencyKey twice stores one event and returns the existing id", async () => {
+	const store = createInMemoryRelayStore();
+
+	const first = await store.append("s1", "events", { n: 1 }, "key-a");
+	const second = await store.append("s1", "events", { n: 1 }, "key-a");
+
+	expect(first).toEqual({ id: 1, isNew: true });
+	expect(second).toEqual({ id: 1, isNew: false });
+	await expect(store.read("s1", "events", 0)).resolves.toEqual([
+		{ id: 1, data: { n: 1 } },
+	]);
+});
+
+it("append with different idempotencyKeys stores two distinct events", async () => {
+	const store = createInMemoryRelayStore();
+
+	const first = await store.append("s1", "events", "a", "key-a");
+	const second = await store.append("s1", "events", "b", "key-b");
+
+	expect(first).toEqual({ id: 1, isNew: true });
+	expect(second).toEqual({ id: SECOND_ID, isNew: true });
+	await expect(store.read("s1", "events", 0)).resolves.toEqual([
+		{ id: 1, data: "a" },
+		{ id: SECOND_ID, data: "b" },
+	]);
+});
+
+it("omitting idempotencyKey never dedupes: every call appends (matches pre-T1 behavior, used by the commands direction)", async () => {
+	const store = createInMemoryRelayStore();
+
+	const first = await store.append("s1", "commands", { same: true });
+	const second = await store.append("s1", "commands", { same: true });
+
+	expect(first).toEqual({ id: 1, isNew: true });
+	expect(second).toEqual({ id: SECOND_ID, isNew: true });
+	await expect(store.read("s1", "commands", 0)).resolves.toHaveLength(2);
 });
 
 it("read filters to ids strictly greater than afterId", async () => {

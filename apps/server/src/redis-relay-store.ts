@@ -1,5 +1,6 @@
 import {
 	MAX_WINDOW,
+	type RelayAppendResult,
 	type RelayDir,
 	type RelayEvent,
 	type RelayStore,
@@ -28,6 +29,17 @@ function listKey(sessionId: string, dir: RelayDir): string {
 	return `bridge:${sessionId}:${dir}`;
 }
 
+/** Hash of idempotencyKey -> assigned id, one per (sessionId, dir) — mirrors
+ * the in-memory store's `seenKeys`, but bounded by TTL (refreshed on every
+ * claim) instead of manual LRU pruning, since Redis has no cheap equivalent
+ * of "splice the oldest N off an array". `WINDOW_TTL_SEC` comfortably
+ * outlives a push-queue retry run (MAX_PUSH_RETRIES attempts, backoff capped
+ * at 5s each — seconds, not minutes), so a legitimate resend always finds
+ * its key still claimed. */
+function idempKey(sessionId: string, dir: RelayDir): string {
+	return `bridge:${sessionId}:${dir}:idemp`;
+}
+
 function channelFor(sessionId: string, dir: RelayDir): string {
 	return `bridge:${sessionId}:${dir}`;
 }
@@ -49,18 +61,59 @@ async function execPipeline(pipeline: ChainableCommander): Promise<void> {
 	}
 }
 
+/**
+ * Atomically claims `idempotencyKey` for `id` via `HSETNX`. Returns `true`
+ * once claimed (the caller should proceed to append `id`), or `false` when
+ * another append already owns the key — the caller then discards `id` (a
+ * harmless gap in the seq counter; ids were never guaranteed gapless, see
+ * `readEvents`'s doc comment on concurrent-append reordering) and reuses the
+ * WINNING append's id instead. Refreshes the hash's TTL only on a successful
+ * claim, so a hot key doesn't need refreshing on every duplicate hit.
+ */
+async function claimIdempotencyKey(
+	redis: Redis,
+	sessionId: string,
+	dir: RelayDir,
+	idempotencyKey: string,
+	id: number
+): Promise<{ claimed: true } | { claimed: false; id: number }> {
+	const hashKey = idempKey(sessionId, dir);
+	const claimed = await redis.hsetnx(hashKey, idempotencyKey, String(id));
+	if (claimed === 1) {
+		await redis.expire(hashKey, WINDOW_TTL_SEC);
+		return { claimed: true };
+	}
+	const winner = await redis.hget(hashKey, idempotencyKey);
+	return { claimed: false, id: Number(winner) };
+}
+
 async function appendEvent(
 	redis: Redis,
 	sessionId: string,
 	dir: RelayDir,
-	data: unknown
-): Promise<number> {
+	data: unknown,
+	idempotencyKey?: string
+): Promise<RelayAppendResult> {
 	// INCR must happen first (and stay its own round trip) — the assigned id
 	// is embedded in the payload the rest of the commands operate on. Once we
 	// have it, the list write + both TTL refreshes + the live publish have no
 	// ordering dependency on each other, so they're batched into a single
 	// pipelined round trip instead of 5 sequential ones.
 	const id = await redis.incr(seqKey(sessionId, dir));
+
+	if (idempotencyKey !== undefined) {
+		const claim = await claimIdempotencyKey(
+			redis,
+			sessionId,
+			dir,
+			idempotencyKey,
+			id
+		);
+		if (!claim.claimed) {
+			return { id: claim.id, isNew: false };
+		}
+	}
+
 	const event: RelayEvent = { id, data };
 	const payload = JSON.stringify(event);
 	const key = listKey(sessionId, dir);
@@ -75,7 +128,7 @@ async function appendEvent(
 			.publish(channelFor(sessionId, dir), payload)
 	);
 
-	return id;
+	return { id, isNew: true };
 }
 
 async function readEvents(
@@ -167,7 +220,8 @@ export function createRedisRelayStore(redis: Redis): RelayStore {
 	const router = createSubscriberRouter(redis);
 
 	return {
-		append: (sessionId, dir, data) => appendEvent(redis, sessionId, dir, data),
+		append: (sessionId, dir, data, idempotencyKey) =>
+			appendEvent(redis, sessionId, dir, data, idempotencyKey),
 
 		read: (sessionId, dir, afterId) =>
 			readEvents(redis, sessionId, dir, afterId),

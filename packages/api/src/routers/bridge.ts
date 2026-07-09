@@ -109,10 +109,23 @@ export const bridgeRouter = {
 
 	pushEvents: bridgeProcedure
 		.input(
-			z.object({
-				sessionId: z.uuid(),
-				events: z.array(z.unknown()).max(MAX_PUSH_BATCH),
-			})
+			z
+				.object({
+					sessionId: z.uuid(),
+					events: z.array(z.unknown()).max(MAX_PUSH_BATCH),
+					// T1 (docs/remote-control-redesign-plan.md): the CLI's
+					// client-minted idempotency key per event, aligned by index with
+					// `events` — see relay-client.ts's `QueuedEvent`. Optional so
+					// older/other CLI builds that don't send it still validate; those
+					// simply get no dedup (the pre-T1 behavior).
+					idempotencyKeys: z.array(z.string()).max(MAX_PUSH_BATCH).optional(),
+				})
+				.refine(
+					(value) =>
+						value.idempotencyKeys === undefined ||
+						value.idempotencyKeys.length === value.events.length,
+					{ message: "idempotencyKeys must align 1:1 with events" }
+				)
 		)
 		.handler(async ({ input, context }) => {
 			await requireOwnedBridgeSession(
@@ -127,7 +140,8 @@ export const bridgeRouter = {
 				context,
 				input.sessionId,
 				context.authedBridgeToken.userId,
-				input.events
+				input.events,
+				input.idempotencyKeys
 			);
 			await persistEventsBestEffort(context, input.sessionId, persisted);
 			await context.services.stores.bridgeSession.touch(input.sessionId);

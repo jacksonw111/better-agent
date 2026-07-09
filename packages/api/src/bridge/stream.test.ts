@@ -11,7 +11,7 @@ function createControllableRelayStore() {
 	const listeners = new Set<(event: RelayEvent) => void>();
 	let resolveRead: ((events: RelayEvent[]) => void) | null = null;
 	const store: RelayStore = {
-		append: () => Promise.resolve(0),
+		append: () => Promise.resolve({ id: 0, isNew: true }),
 		read: () =>
 			new Promise((resolve) => {
 				resolveRead = resolve;

@@ -20,14 +20,43 @@ function wait(ms: number): Promise<void> {
 it("append returns monotonically increasing ids and read replays them in order", async () => {
 	const store = createRedisRelayStore(new RedisMock());
 
-	const id1 = await store.append("append-read", "events", { n: 1 });
-	const id2 = await store.append("append-read", "events", { n: SECOND_ID });
+	const { id: id1 } = await store.append("append-read", "events", { n: 1 });
+	const { id: id2 } = await store.append("append-read", "events", {
+		n: SECOND_ID,
+	});
 
 	expect(id1).toBe(1);
 	expect(id2).toBe(SECOND_ID);
 	await expect(store.read("append-read", "events", 0)).resolves.toEqual([
 		{ id: 1, data: { n: 1 } },
 		{ id: 2, data: { n: 2 } },
+	]);
+});
+
+it("append is idempotent: the same idempotencyKey twice stores one event and returns the existing id", async () => {
+	const store = createRedisRelayStore(new RedisMock());
+
+	const first = await store.append("idemp-dup", "events", { n: 1 }, "key-a");
+	const second = await store.append("idemp-dup", "events", { n: 1 }, "key-a");
+
+	expect(first).toEqual({ id: 1, isNew: true });
+	expect(second).toEqual({ id: 1, isNew: false });
+	await expect(store.read("idemp-dup", "events", 0)).resolves.toEqual([
+		{ id: 1, data: { n: 1 } },
+	]);
+});
+
+it("append with different idempotencyKeys stores two distinct events", async () => {
+	const store = createRedisRelayStore(new RedisMock());
+
+	const first = await store.append("idemp-distinct", "events", "a", "key-a");
+	const second = await store.append("idemp-distinct", "events", "b", "key-b");
+
+	expect(first).toEqual({ id: 1, isNew: true });
+	expect(second).toEqual({ id: SECOND_ID, isNew: true });
+	await expect(store.read("idemp-distinct", "events", 0)).resolves.toEqual([
+		{ id: 1, data: "a" },
+		{ id: SECOND_ID, data: "b" },
 	]);
 });
 
@@ -138,11 +167,11 @@ it("keeps ids monotonic across a simulated window-list expiry (seq key outlives 
 	const redis = new RedisMock();
 	const store = createRedisRelayStore(redis);
 
-	const id1 = await store.append("seq-survives-expiry", "events", "a");
+	const { id: id1 } = await store.append("seq-survives-expiry", "events", "a");
 	// Simulate the 900s window list TTL elapsing while the much-longer-lived
 	// seq key survives: delete only the list key, leaving the counter intact.
 	await redis.del("bridge:seq-survives-expiry:events");
-	const id2 = await store.append("seq-survives-expiry", "events", "b");
+	const { id: id2 } = await store.append("seq-survives-expiry", "events", "b");
 
 	expect(id2).toBe(id1 + 1);
 });

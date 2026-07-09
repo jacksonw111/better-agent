@@ -5,12 +5,16 @@
 // real network or a real timer — see relay-client.test.ts.
 
 import type { AgentStartConfig } from "./adapters/types";
+import {
+	type AgentSessionIdRef,
+	captureAgentSessionId,
+} from "./capture-agent-session-id";
 import type { AfterIdRef, CommandSink, RelayEvent } from "./commands";
-import { isRecord } from "./normalize/types";
 import { type PollLoopOptions, type PollOutcome, pollLoop } from "./poll-loop";
 import { createPushQueue, type PushQueue } from "./push-queue";
 import { truncateEvents } from "./truncate-event";
 
+export type { AgentSessionIdRef } from "./capture-agent-session-id";
 export { type PollOutcome, pollLoop } from "./poll-loop";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
@@ -25,7 +29,14 @@ export interface RelayTransport {
 		afterId: number;
 		sessionId: string;
 	}): Promise<RelayEvent[]>;
-	pushEvents(input: { sessionId: string; events: unknown[] }): Promise<void>;
+	pushEvents(input: {
+		sessionId: string;
+		events: unknown[];
+		/** T1 (docs/remote-control-redesign-plan.md): client-minted, index-aligned
+		 * with `events` — see `QueuedEvent`. Stable across a push-queue retry of
+		 * the same batch, so the relay can dedup a resend whose ack was lost. */
+		idempotencyKeys?: string[];
+	}): Promise<void>;
 	startSession(input: {
 		agentKind: string;
 		label?: string;
@@ -65,6 +76,17 @@ export interface ForwardEventsOptions {
 	signal?: AbortSignal;
 	/** Sleep implementation for the flush-interval timer. */
 	sleep?: Sleep;
+}
+
+/** T1 (docs/remote-control-redesign-plan.md): an event paired with the
+ * idempotency key `forwardEvents` mints for it ONCE, at buffer time — before
+ * it's ever handed to the `pushEvents` retry queue. Because `push-queue.ts`
+ * resends the exact same batch array on retry (never rebuilding it), the key
+ * is naturally stable across retries without any extra bookkeeping: mint
+ * once, reuse on every resend of that batch. */
+export interface QueuedEvent<T> {
+	event: T;
+	idempotencyKey: string;
 }
 
 /** Enqueues `buffer` on `queue` if non-empty, returning the (now-empty) next buffer. */
@@ -118,16 +140,24 @@ function resolveForwardEventsConfig<T>(
  * has been successfully pushed; rejects immediately if a batch permanently
  * fails to push (see `PushQueue.fatal`) instead of waiting for `events` to
  * complete first.
+ *
+ * T1 (docs/remote-control-redesign-plan.md): each drained event is stamped
+ * with an idempotency key exactly once, right here, before it ever reaches
+ * `push` — see `QueuedEvent`. A monotonic per-call counter is enough (no
+ * sessionId prefix needed): the relay dedups within a (sessionId, dir)
+ * channel, so uniqueness only has to hold across the events one
+ * `forwardEvents` call ever produces.
  */
 export async function forwardEvents<T>(
 	events: AsyncIterable<T>,
-	push: (batch: T[]) => Promise<void>,
+	push: (batch: QueuedEvent<T>[]) => Promise<void>,
 	options: ForwardEventsOptions = {}
 ): Promise<void> {
 	const { maxBatchSize, flushIntervalMs, queue, sleep } =
 		resolveForwardEventsConfig(options, push);
 	const iterator = events[Symbol.asyncIterator]();
-	let buffer: T[] = [];
+	let buffer: QueuedEvent<T>[] = [];
+	let nextEventId = 1;
 	// Hold ONE outstanding iterator.next() across flush ticks. Re-calling next()
 	// every loop iteration (racing it against the flush timer) orphaned the
 	// still-pending call whenever the timer won first — so an event that arrived
@@ -150,65 +180,13 @@ export async function forwardEvents<T>(
 		}
 		pendingNext = iterator.next();
 		options.onEvent?.(result.value);
-		buffer.push(result.value);
+		buffer.push({ event: result.value, idempotencyKey: String(nextEventId++) });
 		if (buffer.length >= maxBatchSize) {
 			buffer = flushToQueue(buffer, queue);
 		}
 	}
 	flushToQueue(buffer, queue);
 	await queue.close();
-}
-
-/** Status event `kind`/`status` an adapter pushes once per session-open,
- * carrying (among other things) the underlying agent's own conversation id
- * at `detail.sessionId` — see `normalizeClaudeCode`/`sessionInfo` in
- * `normalize/claude-code.ts`, the one adapter that fills it. */
-const SESSION_READY_STATUS = "session_ready";
-
-/** Mutable holder for the underlying agent's own conversation id, captured
- * from a `session_ready` status event's `detail.sessionId` as events stream
- * past — read by the outer restart loop (`restart-loop.ts`) after a
- * `"restart"` outcome so it can `--resume` the SAME agent conversation, not
- * just the same bridge sessionId. `current` stays `undefined` until (and
- * unless) the adapter emits its first `session_ready`; a restart falls back
- * to whatever `--resume` id the CLI was originally launched with. Mirrors
- * `AfterIdRef`'s "mutable ref the caller can read back" shape. */
-export interface AgentSessionIdRef {
-	current?: string;
-}
-
-/** Extracts `detail.sessionId` from a `session_ready` status event, or
- * `undefined` for anything else (including a `session_ready` with no
- * sessionId — pi/opencode's `session_ready` doesn't carry one). */
-function sessionReadyId(event: unknown): string | undefined {
-	const detail =
-		isRecord(event) &&
-		event.kind === "status" &&
-		event.status === SESSION_READY_STATUS &&
-		isRecord(event.detail)
-			? event.detail
-			: undefined;
-	const sessionId = detail?.sessionId;
-	return typeof sessionId === "string" ? sessionId : undefined;
-}
-
-/** Wraps `events` so every `session_ready` status event's `detail.sessionId`
- * updates `ref.current` as it streams past, then yields the event on
- * unchanged — the one place `runBridgeSession` taps the agent's own
- * conversation id, without `forwardEvents` itself (kept generic and untyped
- * for testability) needing to know anything about normalized events. Mirrors
- * `truncateEvents`. */
-export async function* captureAgentSessionId(
-	events: AsyncIterable<unknown>,
-	ref: AgentSessionIdRef
-): AsyncGenerator<unknown> {
-	for await (const event of events) {
-		const id = sessionReadyId(event);
-		if (id !== undefined) {
-			ref.current = id;
-		}
-		yield event;
-	}
 }
 
 export interface RunBridgeSessionOptions {
@@ -271,7 +249,12 @@ export async function runBridgeSession(
 			[, outcome] = await Promise.all([
 				forwardEvents(
 					events,
-					(batch) => options.transport.pushEvents({ sessionId, events: batch }),
+					(batch) =>
+						options.transport.pushEvents({
+							sessionId,
+							events: batch.map((item) => item.event),
+							idempotencyKeys: batch.map((item) => item.idempotencyKey),
+						}),
 					{ ...options.forwardOptions, signal: options.signal }
 				).finally(stopPolling),
 				pollLoop(options.transport, sessionId, options.handle, afterIdRef, {
