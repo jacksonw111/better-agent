@@ -9,14 +9,20 @@
 // per https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/rpc.md
 // and docs/json.md): pi has **no built-in per-tool-call approval/permission
 // protocol at all ("No permission popups. Run in a container, or build your
-// own confirmation flow with extensions...", per its docs) — unlike codex/
-// opencode/claude-code, this normalizer exports no `ApprovalEvent` mapping,
-// and pi.ts wires an approval registry that only ever answers "unknown id"
-// (nothing is ever `register()`ed) so `AgentHandle.answerApproval` still has
-// well-defined behavior. Reverify the event field names below against the
-// installed pi version before relying on them.
+// own confirmation flow with extensions...", per its docs) — bash/tool calls
+// run ungated, unlike codex/opencode/claude-code (see terminal-header.tsx's
+// `NoApprovalGateBadge`, driven by `agent-capabilities.ts`'s `noApprovalGate`).
+// RC-T4: pi extensions CAN ask the user something via a separate
+// `extension_ui_request`/`extension_ui_response` sub-protocol (VERIFIED
+// against rpc.md, see `normalizePiExtensionUiRequest` below) — this is not a
+// tool-permission gate, just an extension-driven dialog, but it must still
+// never hang, so `select`/`confirm` requests DO map to an `ApprovalEvent`
+// here. Reverify the event field names below against the installed pi
+// version before relying on them.
 
 import {
+	type ApprovalEvent,
+	type ApprovalOption,
 	asString,
 	isRecord,
 	NO_EVENTS,
@@ -141,6 +147,62 @@ function normalizePiExtensionError(
 ): NormalizedEvent[] {
 	const message = asString(raw.error) ?? "pi extension error";
 	return [{ kind: "error", message, detail: raw }];
+}
+
+// --- extension_ui_request (RC-T4) -------------------------------------------
+//
+// Only `select`/`confirm` have a finite, nameable set of choices, so only
+// those two map to an `ApprovalEvent` here; `input`/`editor` ask for
+// free-form text (no deny analog) and are auto-cancelled immediately by
+// `adapters/pi-approvals.ts` instead of ever reaching this function as a
+// card — see `buildPiExtensionUiCancelResponse`'s doc comment
+// (normalize/pi-commands.ts) for the full request/response shape reference.
+
+const PI_CONFIRM_OPTIONS: ApprovalOption[] = [
+	{ id: "confirmed", label: "Confirm" },
+	{ id: "declined", label: "Decline" },
+];
+
+function piSelectOptions(raw: Record<string, unknown>): ApprovalOption[] {
+	if (!Array.isArray(raw.options)) {
+		return [];
+	}
+	return raw.options
+		.filter((option): option is string => typeof option === "string")
+		.map((label) => ({ id: label, label }));
+}
+
+/**
+ * Maps an `extension_ui_request` whose `method` is `select` or `confirm` to
+ * an `ApprovalEvent`; `[]` for `input`/`editor`, a malformed `select` with no
+ * usable string options, or any non-matching line.
+ */
+export function normalizePiExtensionUiRequest(
+	raw: Record<string, unknown>
+): ApprovalEvent[] {
+	// NO_EVENTS isn't reused here (unlike normalizePi below): it's typed
+	// `NormalizedEvent[]`, too broad for this function's `ApprovalEvent[]`
+	// return type.
+	if (raw.type !== "extension_ui_request" || typeof raw.id !== "string") {
+		return [];
+	}
+	if (raw.method !== "select" && raw.method !== "confirm") {
+		return [];
+	}
+	const options =
+		raw.method === "select" ? piSelectOptions(raw) : PI_CONFIRM_OPTIONS;
+	if (options.length === 0) {
+		return [];
+	}
+	return [
+		{
+			detail: asString(raw.message),
+			kind: "approval",
+			options,
+			requestId: raw.id,
+			title: asString(raw.title) ?? "pi extension needs an answer",
+		},
+	];
 }
 
 type PiEventHandler = (raw: Record<string, unknown>) => NormalizedEvent[];

@@ -1,4 +1,5 @@
 import {
+	FALLBACK_DENY_OPTION_ID,
 	normalizeOpencode,
 	normalizeOpencodeApprovalRequest,
 } from "../normalize/opencode";
@@ -10,6 +11,7 @@ import {
 import {
 	type ApprovalRegistry,
 	createApprovalRegistry,
+	presentApproval,
 	retractPendingApprovals,
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
@@ -36,6 +38,17 @@ import {
  * the ASSUMPTION note in normalize/opencode.ts about this shape. */
 function acpSelectedOutcome(optionId: string): unknown {
 	return { outcome: { optionId, outcome: "selected" } };
+}
+
+/** RC-T4: the reply for a request that has no real optionId to select — the
+ * shared timeout firing, or the user picking the synthetic
+ * `FALLBACK_DENY_OPTION_ID` card (see normalize/opencode.ts). ASSUMPTION
+ * (unverified — no `opencode` binary in this sandbox; shape per the ACP
+ * spec's `RequestPermissionOutcome` union, which alongside `selected` also
+ * documents a no-selection `cancelled` variant): `{ outcome: { outcome:
+ * "cancelled" } }`. */
+function acpCancelledOutcome(): unknown {
+	return { outcome: { outcome: "cancelled" } };
 }
 
 /** Merges the two pieces of context ACP's `available_commands_update`
@@ -85,9 +98,14 @@ function makeOpencodeNotificationHandler(
 	};
 }
 
-/** Wires opencode's ACP `session/request_permission` requests to the shared
- * approval registry: registers a reply function that answers the RPC
- * request, and emits the normalized event. */
+/** Wires opencode's ACP `session/request_permission` requests through the
+ * shared RC-T4 fail-closed contract (`presentApproval`): registers a reply
+ * function that answers the RPC request, presents the card, and — if nobody
+ * answers in time — replies with a cancelled outcome and pushes a visible
+ * timed-out event instead of leaving the tool call blocked forever. A reply
+ * for the synthetic `FALLBACK_DENY_OPTION_ID` (normalize/opencode.ts's fix
+ * for the audited empty-options silent-hang bug) also gets the cancelled
+ * outcome, never `acpSelectedOutcome` — there's no real optionId behind it. */
 function wireOpencodeApprovals(
 	rpc: JsonRpcIo,
 	events: { push(event: NormalizedEvent): void },
@@ -95,21 +113,28 @@ function wireOpencodeApprovals(
 ): void {
 	rpc.onRequest((id, method, params) => {
 		const requestId = String(id);
-		const approvalEvents = normalizeOpencodeApprovalRequest(
+		const [approvalEvent] = normalizeOpencodeApprovalRequest(
 			requestId,
 			method,
 			params
 		);
-		const [approvalEvent] = approvalEvents;
 		if (!approvalEvent) {
 			return;
 		}
-		approvals.register(requestId, approvalEvent.options, (optionId) => {
-			rpc.respond(id, acpSelectedOutcome(optionId));
+		presentApproval({
+			approvals,
+			event: approvalEvent,
+			events,
+			onAnswer(optionId) {
+				rpc.respond(
+					id,
+					optionId === FALLBACK_DENY_OPTION_ID
+						? acpCancelledOutcome()
+						: acpSelectedOutcome(optionId)
+				);
+			},
+			onTimeout: () => rpc.respond(id, acpCancelledOutcome()),
 		});
-		for (const event of approvalEvents) {
-			events.push(event);
-		}
 	});
 }
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildPiExtensionUiCancelResponse,
+	buildPiExtensionUiResponse,
 	buildPiGetAvailableModelsCommand,
 	buildPiGetCommandsCommand,
 	buildPiGetStateCommand,
@@ -197,5 +199,32 @@ describe("normalizePiAvailableModels", () => {
 			})
 		).toBeUndefined();
 		expect(normalizePiAvailableModels(null)).toBeUndefined();
+	});
+});
+
+describe("buildPiExtensionUiResponse (RC-T4)", () => {
+	it("replies a confirm method with a confirmed boolean, true only for the confirmed option id", () => {
+		expect(
+			JSON.parse(buildPiExtensionUiResponse("confirm", "req-1", "confirmed"))
+		).toEqual({ type: "extension_ui_response", id: "req-1", confirmed: true });
+		expect(
+			JSON.parse(buildPiExtensionUiResponse("confirm", "req-1", "declined"))
+		).toEqual({ type: "extension_ui_response", id: "req-1", confirmed: false });
+	});
+
+	it("replies a select method with the picked option id as value", () => {
+		expect(
+			JSON.parse(buildPiExtensionUiResponse("select", "req-2", "Allow"))
+		).toEqual({ type: "extension_ui_response", id: "req-2", value: "Allow" });
+	});
+});
+
+describe("buildPiExtensionUiCancelResponse (RC-T4)", () => {
+	it("builds the fail-closed cancel reply, regardless of method", () => {
+		expect(JSON.parse(buildPiExtensionUiCancelResponse("req-3"))).toEqual({
+			type: "extension_ui_response",
+			id: "req-3",
+			cancelled: true,
+		});
 	});
 });

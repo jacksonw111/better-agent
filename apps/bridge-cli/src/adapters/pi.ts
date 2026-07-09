@@ -11,26 +11,22 @@ import {
 	normalizePiStateModel,
 } from "../normalize/pi-commands";
 import {
-	buildPiGetSessionStatsCommand,
-	normalizePiSessionStats,
-	normalizePiStateRunning,
-	type PiSessionStats,
-} from "../normalize/pi-status";
-import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
-import { createApprovalRegistry } from "./approvals";
-import { createAsyncQueue } from "./async-queue";
+	isRecord,
+	type NormalizedEvent,
+	userMessageEvent,
+} from "../normalize/types";
+import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
+import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import { wirePiExtensionUiRequest } from "./pi-approvals";
+import { makePiStatusTracker } from "./pi-status";
 import { spawnProcessIo } from "./process-io";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
+	type TurnEpochRef,
 	turnStampingQueue,
 } from "./turn-epoch";
-import {
-	type Adapter,
-	AGENT_EXITED_STATUS,
-	type AgentHandle,
-	STATUS_SNAPSHOT_STATUS,
-} from "./types";
+import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
 
 /** ASSUMPTION (unverified, no `pi` binary available in this sandbox): `pi`'s
  * RPC mode is invoked as `pi --mode rpc`, with the working directory set via
@@ -125,88 +121,32 @@ function makePiSessionReadyTracker(events: {
 	};
 }
 
-/** How long `request()` waits for both replies before giving up and pushing
- * whatever's known so far — pi has no request ids and, unlike claude-code's
- * SDK control channel, no guaranteed reply at all, so an unanswered
- * `get_session_stats`/`get_state` must never leave `pending` (and the web's
- * Status popover) stuck forever. Mirrors claude-code-status.ts's
- * `CONTROL_CALL_TIMEOUT_MS`. */
-const STATUS_TIMEOUT_MS = 4000;
-
-/**
- * Tracks one in-flight `getStatus` request the way `makePiSessionReadyTracker`
- * tracks session_ready's pieces: `request()` fires the `get_session_stats` +
- * `get_state` frames, `onLine` collects both replies, and ONE
- * `status_snapshot` event is pushed the moment both have arrived (a new
- * `request()` before then simply re-arms with fresh frames) — or, failing
- * that, once `STATUS_TIMEOUT_MS` elapses, with whichever piece(s) never
- * arrived simply absent. pi has no request ids, so replies are matched by
- * command name — see the ASSUMPTION notes in normalize/pi-status.ts for the
- * response shapes.
- */
-function makePiStatusTracker(
-	io: { writeLine(line: string): void },
-	events: { push(event: NormalizedEvent): void }
-): { onLine(raw: unknown): void; request(): void } {
-	let pending = false;
-	let stats: PiSessionStats | undefined;
-	let state: { model?: string; running?: boolean } | undefined;
-	let timer: ReturnType<typeof setTimeout> | undefined;
-
-	const resolve = (): void => {
-		if (!pending) {
-			return;
-		}
-		pending = false;
-		clearTimeout(timer);
-		events.push({
-			kind: "status",
-			status: STATUS_SNAPSHOT_STATUS,
-			detail: { model: state?.model, running: state?.running, ...stats },
-		});
-	};
-
-	return {
-		request(): void {
-			pending = true;
-			stats = undefined;
-			state = undefined;
-			clearTimeout(timer);
-			timer = setTimeout(resolve, STATUS_TIMEOUT_MS);
-			io.writeLine(buildPiGetSessionStatsCommand());
-			io.writeLine(buildPiGetStateCommand());
-		},
-		onLine(raw: unknown): void {
-			if (!pending) {
-				return;
-			}
-			stats = normalizePiSessionStats(raw) ?? stats;
-			const running = normalizePiStateRunning(raw);
-			if (running !== undefined) {
-				state = { model: normalizePiStateModel(raw), running };
-			}
-			if (stats && state) {
-				resolve();
-			}
-		},
-	};
+/** The shared plumbing `drainPiStdout` closes over — bundled into one object
+ * so it stays under the repo's max-params gate. */
+interface PiStdoutDeps {
+	approvals: ApprovalRegistry;
+	events: { push(event: NormalizedEvent): void };
+	io: { lines: AsyncIterable<string>; writeLine(line: string): void };
+	modelProviders: Record<string, string>;
+	sessionReady: { onLine(raw: unknown): void };
+	statusTracker: { onLine(raw: unknown): void };
 }
 
 /** Consumes pi's stdout: feeds every parsed line to the session-ready +
  * status trackers, accumulates the modelId → provider map `setModel` needs,
- * and forwards each normalized event. Detached (fire-and-forget) from
- * `start` purely to keep it under the line gate. */
-async function drainPiStdout(
-	io: { lines: AsyncIterable<string> },
-	events: { push(event: NormalizedEvent): void },
-	sessionReady: { onLine(raw: unknown): void },
-	statusTracker: { onLine(raw: unknown): void },
-	modelProviders: Record<string, string>
-): Promise<void> {
+ * routes `extension_ui_request` lines through the RC-T4 no-hang contract
+ * (see pi-approvals.ts), and forwards each normalized event. Detached
+ * (fire-and-forget) from `start` purely to keep it under the line gate. */
+async function drainPiStdout(deps: PiStdoutDeps): Promise<void> {
+	const { approvals, events, io, modelProviders, sessionReady, statusTracker } =
+		deps;
 	for await (const line of io.lines) {
 		const raw = tryParseJson(line);
 		sessionReady.onLine(raw);
 		statusTracker.onLine(raw);
+		if (isRecord(raw)) {
+			wirePiExtensionUiRequest(raw, io, events, approvals);
+		}
 		const nextProviders = normalizePiModelProviders(raw);
 		if (nextProviders) {
 			Object.assign(modelProviders, nextProviders);
@@ -228,12 +168,64 @@ async function drainPiStderr(
 	}
 }
 
+/** The plumbing `buildPiAgentHandle` closes over — bundled into one object so
+ * it stays under the repo's max-params gate. */
+interface PiAgentHandleDeps {
+	approvals: ApprovalRegistry;
+	epoch: TurnEpochRef;
+	events: AsyncQueue<NormalizedEvent>;
+	io: {
+		stop(): void;
+		writeLine(line: string): void;
+	};
+	modelProviders: Record<string, string>;
+	statusTracker: { request(): void };
+}
+
+/** Builds the `AgentHandle` `start` returns. Extracted purely to keep `start`
+ * itself under the line gate. */
+function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
+	const { approvals, epoch, events, io, modelProviders, statusTracker } = deps;
+	return {
+		answerApproval(requestId: string, optionId: string): void {
+			approvals.answer(requestId, optionId);
+		},
+		events,
+		getStatus: statusTracker.request,
+		// Cancels the in-flight turn without ending the session — the web Stop
+		// button. pi's stdio protocol supports an abort frame directly. RC-T3:
+		// bumps the turn epoch so a straggler event still in flight on stdout
+		// is dropped as stale at the relay-client boundary (turn-epoch.ts) —
+		// pi has no per-tool-call approval protocol, so nothing to retract.
+		interrupt(): void {
+			bumpTurnEpoch(epoch);
+			io.writeLine(JSON.stringify({ type: "abort" }));
+		},
+		send(text: string): void {
+			// A new turn begins — bump BEFORE pushing (see `interrupt` above).
+			bumpTurnEpoch(epoch);
+			events.push(userMessageEvent(text));
+			io.writeLine(buildPiPromptCommand(text));
+		},
+		setModel: makePiSetModel(io, events, modelProviders),
+		stop(): void {
+			bumpTurnEpoch(epoch);
+			io.stop();
+			events.close();
+			approvals.clear();
+		},
+	};
+}
+
 /**
  * `pi --mode rpc` — Mario Zechner's `pi` coding agent's headless JSON-over-
  * stdio mode. Unlike codex/opencode/claude-code, pi has no per-tool-call
- * approval protocol at all (see normalize/pi.ts), so `answerApproval` is
- * wired to an approval registry that never has anything registered — any
- * call to it always emits the shared "unknown request" status event.
+ * approval protocol at all — bash/tool calls run ungated (see the
+ * `noApprovalGate` badge, agent-capabilities.ts). The approval registry here
+ * is used for exactly one thing instead: RC-T4's `extension_ui_request`
+ * `select`/`confirm` dialogs (see pi-approvals.ts) — anything else passed to
+ * `answerApproval` (an unknown/stale id) emits the shared "unknown request"
+ * status event.
  */
 export const piAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
@@ -255,7 +247,14 @@ export const piAdapter: Adapter = {
 		// modelId → provider, accumulated from get_available_models, so setModel
 		// can build set_model's required {provider, modelId} from a bare id.
 		const modelProviders: Record<string, string> = {};
-		drainPiStdout(io, events, sessionReady, statusTracker, modelProviders);
+		drainPiStdout({
+			approvals,
+			events,
+			io,
+			modelProviders,
+			sessionReady,
+			statusTracker,
+		});
 		drainPiStderr(io, events);
 
 		// Fired off once, right at start — see the ASSUMPTION note on
@@ -266,34 +265,13 @@ export const piAdapter: Adapter = {
 		io.writeLine(buildPiGetAvailableModelsCommand());
 		io.writeLine(buildPiGetCommandsCommand());
 
-		return {
-			answerApproval(requestId: string, optionId: string): void {
-				approvals.answer(requestId, optionId);
-			},
+		return buildPiAgentHandle({
+			approvals,
+			epoch,
 			events,
-			getStatus: statusTracker.request,
-			// Cancels the in-flight turn without ending the session — the web Stop
-			// button. pi's stdio protocol supports an abort frame directly. RC-T3:
-			// bumps the turn epoch so a straggler event still in flight on stdout
-			// is dropped as stale at the relay-client boundary (turn-epoch.ts) —
-			// pi has no per-tool-call approval protocol, so nothing to retract.
-			interrupt(): void {
-				bumpTurnEpoch(epoch);
-				io.writeLine(JSON.stringify({ type: "abort" }));
-			},
-			send(text: string): void {
-				// A new turn begins — bump BEFORE pushing (see `interrupt` above).
-				bumpTurnEpoch(epoch);
-				events.push(userMessageEvent(text));
-				io.writeLine(buildPiPromptCommand(text));
-			},
-			setModel: makePiSetModel(io, events, modelProviders),
-			stop(): void {
-				bumpTurnEpoch(epoch);
-				io.stop();
-				events.close();
-				approvals.clear();
-			},
-		};
+			io,
+			modelProviders,
+			statusTracker,
+		});
 	},
 };

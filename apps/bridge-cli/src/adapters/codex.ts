@@ -3,7 +3,11 @@ import {
 	normalizeCodexApprovalRequest,
 } from "../normalize/codex";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
-import { createApprovalRegistry, retractPendingApprovals } from "./approvals";
+import {
+	createApprovalRegistry,
+	presentApproval,
+	retractPendingApprovals,
+} from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import {
 	type CodexStatusCache,
@@ -36,9 +40,19 @@ function threadIdFrom(result: unknown): unknown {
 	return (thread as { id: unknown }).id;
 }
 
+/** codex's own wire value for "the user (or the shared RC-T4 timeout) said
+ * no" — the same `decision` string `normalizeCodexApprovalRequest`'s
+ * `decline` option already sends when a human picks it, reused here so an
+ * unanswered card times out into the exact same codex-side effect a manual
+ * deny would. */
+const CODEX_DECLINE_DECISION = "decline";
+
 /** Wires codex's approval *requests* (`execCommandApproval`/`applyPatchApproval`
- * style, id-bearing) to the shared approval registry: registers a reply
- * function that answers the RPC request, and emits the normalized event. */
+ * style, id-bearing) through the shared RC-T4 fail-closed contract
+ * (`presentApproval`): registers a reply function that answers the RPC
+ * request, presents the card, and — if nobody answers in time — replies
+ * `decline` and pushes a visible timed-out event instead of leaving the
+ * command blocked forever. */
 function wireCodexApprovals(
 	rpc: JsonRpcIo,
 	events: { push(event: NormalizedEvent): void },
@@ -46,21 +60,21 @@ function wireCodexApprovals(
 ): void {
 	rpc.onRequest((id, method, params) => {
 		const requestId = String(id);
-		const approvalEvents = normalizeCodexApprovalRequest(
+		const [approvalEvent] = normalizeCodexApprovalRequest(
 			requestId,
 			method,
 			params
 		);
-		const [approvalEvent] = approvalEvents;
 		if (!approvalEvent) {
 			return;
 		}
-		approvals.register(requestId, approvalEvent.options, (optionId) => {
-			rpc.respond(id, { decision: optionId });
+		presentApproval({
+			approvals,
+			event: approvalEvent,
+			events,
+			onAnswer: (optionId) => rpc.respond(id, { decision: optionId }),
+			onTimeout: () => rpc.respond(id, { decision: CODEX_DECLINE_DECISION }),
 		});
-		for (const event of approvalEvents) {
-			events.push(event);
-		}
 	});
 }
 
@@ -74,6 +88,48 @@ function wireCodexApprovals(
  * to select stdio, add it to `CODEX_ARGS` below.
  */
 const CODEX_ARGS = ["app-server"];
+
+/**
+ * RC-T4: gates codex's shell/patch execution — without these, `turn/start`
+ * left codex on its config.toml defaults, which (unset) run genuinely
+ * unsupervised. Verified against `codex-rs/protocol/src/protocol.rs`'s serde
+ * renames (see docs/research/agent-config-codex.md) — the wire VALUES below
+ * are confirmed from source, not guessed. `approval_policy: "untrusted"` is
+ * the SAFEST of the three simple policies: only "known safe" read-only
+ * commands auto-approve, everything else asks (`"on-request"` instead lets
+ * the MODEL decide when to ask, which is less safe; `"never"` never asks at
+ * all). `sandbox_policy: workspace-write` + `network_access: false` is the
+ * SAFEST sandbox that still lets codex do real work: writes are confined to
+ * the workspace and outbound network is off (`read-only` would block codex
+ * from editing anything at all; `danger-full-access` has no restrictions).
+ *
+ * ASSUMPTION (unverified — no `codex` binary in this sandbox): the exact JSON
+ * key CASING for these two top-level request fields. The doc confirms both
+ * fields ride on `turn/start` (and `thread/start`) and quotes the Rust struct
+ * field names verbatim as `approval_policy`/`sandbox_policy` (snake_case,
+ * with no `#[serde(rename_all)]` noted on the enclosing request struct
+ * itself, unlike the kebab-case enum VALUES which ARE explicitly renamed) —
+ * so snake_case is used as-is here, but only a real binary run can rule out
+ * an additional request-envelope-level camelCase rename layered on top.
+ */
+const CODEX_APPROVAL_POLICY = "untrusted";
+const CODEX_SANDBOX_POLICY = {
+	type: "workspace-write",
+	network_access: false,
+} as const;
+
+/** The two safety-knob fields spread onto `turn/start`'s params — see the
+ * `CODEX_APPROVAL_POLICY`/`CODEX_SANDBOX_POLICY` doc above for the exact
+ * values chosen and their verification status. */
+function codexPolicyParams(): {
+	approval_policy: string;
+	sandbox_policy: typeof CODEX_SANDBOX_POLICY;
+} {
+	return {
+		approval_policy: CODEX_APPROVAL_POLICY,
+		sandbox_policy: CODEX_SANDBOX_POLICY,
+	};
+}
 
 /** Builds `thread/start`'s params: `cwd` plus, when persisted, `model` —
  * verified against `codex-rs/protocol/src/protocol.rs` (`pub model: String`
@@ -120,7 +176,11 @@ function makeCodexHandle(
 			bumpTurnEpoch(epoch);
 			events.push(userMessageEvent(text));
 			rpc
-				.request("turn/start", { threadId, input: [{ type: "text", text }] })
+				.request("turn/start", {
+					threadId,
+					input: [{ type: "text", text }],
+					...codexPolicyParams(),
+				})
 				.catch((error: unknown) => {
 					events.push({
 						kind: "error",

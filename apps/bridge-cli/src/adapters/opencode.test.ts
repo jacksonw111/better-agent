@@ -1,3 +1,7 @@
+// RC-T4's empty-options no-hang approval coverage lives in its own file,
+// opencode-approvals.test.ts, purely to keep this file under the repo's
+// 300-line file cap.
+
 import { describe, expect, it, vi } from "vitest";
 import { connectJsonRpc } from "./jsonrpc-io";
 import { opencodeAdapter } from "./opencode";

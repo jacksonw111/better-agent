@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeOpencode } from "./opencode";
+import {
+	FALLBACK_DENY_OPTION_ID,
+	normalizeOpencode,
+	normalizeOpencodeApprovalRequest,
+} from "./opencode";
 
 describe("normalizeOpencode - message chunks", () => {
 	it("maps an agent_message_chunk to an accumulating output event", () => {
@@ -122,6 +126,49 @@ describe("normalizeOpencode - available_commands_update", () => {
 				method: "session/update",
 				params: { update: { sessionUpdate: "available_commands_update" } },
 			})
+		).toEqual([]);
+	});
+});
+
+describe("normalizeOpencodeApprovalRequest - empty/unparseable options (RC-T4)", () => {
+	it("presents a fallback deny-only card instead of dropping a request with an empty options array", () => {
+		const events = normalizeOpencodeApprovalRequest(
+			"req_1",
+			"session/request_permission",
+			{ toolCall: { title: "Run `rm -rf /`" }, options: [] }
+		);
+
+		expect(events).toEqual([
+			{
+				detail: undefined,
+				kind: "approval",
+				options: [
+					{
+						id: FALLBACK_DENY_OPTION_ID,
+						label: "Deny (no answerable options)",
+					},
+				],
+				requestId: "req_1",
+				title: "Run `rm -rf /`",
+			},
+		]);
+	});
+
+	it("presents the same fallback deny-only card when options is missing entirely", () => {
+		const events = normalizeOpencodeApprovalRequest(
+			"req_1",
+			"session/request_permission",
+			{ toolCall: {} }
+		);
+
+		expect(events[0]?.options).toEqual([
+			{ id: FALLBACK_DENY_OPTION_ID, label: "Deny (no answerable options)" },
+		]);
+	});
+
+	it("still returns [] for a request that isn't session/request_permission at all", () => {
+		expect(
+			normalizeOpencodeApprovalRequest("req_1", "session/update", {})
 		).toEqual([]);
 	});
 });

@@ -7,10 +7,7 @@
 // serve-only control surface (live `POST /mcp`, `GET/PATCH /config`,
 // `GET /global/health`, on-demand history/usage) for later plan phases.
 
-import {
-	createOpencodeServeNormalizer,
-	parseOpencodeServeModels,
-} from "../normalize/opencode-serve";
+import { parseOpencodeServeModels } from "../normalize/opencode-serve";
 import { parseOpencodeServeStatus } from "../normalize/opencode-serve-status";
 import {
 	isRecord,
@@ -23,11 +20,11 @@ import {
 	retractPendingApprovals,
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import { wireServeEventStream } from "./opencode-serve-approvals";
 import {
 	createServeHttp,
 	type EventSink,
 	firePost,
-	pumpServeEvents,
 	type ServeHttp,
 	waitForServeUrl,
 } from "./opencode-serve-http";
@@ -68,50 +65,12 @@ async function fetchServeModels(http: ServeHttp): Promise<string[]> {
 	}
 }
 
-interface ServeSessionContext {
+export interface ServeSessionContext {
 	approvals: ApprovalRegistry;
 	epoch: TurnEpochRef;
 	events: EventSink;
 	http: ServeHttp;
 	sessionId: string;
-}
-
-/** Routes the SSE stream through this session's normalizer; an approval event
- * additionally registers its reply (the `POST …/permissions/:id` call —
- * ASSUMPTION, unverified: body `{ response: <optionId> }`, where the option
- * ids are the fixed once/always/reject vocabulary the normalizer announces)
- * before being pushed. Detached — a stream failure after `stop()`/exit
- * (signal aborted) is silent. */
-function wireServeEventStream(
-	ctx: ServeSessionContext,
-	signal: AbortSignal
-): void {
-	const normalize = createOpencodeServeNormalizer(ctx.sessionId);
-	const route = (data: unknown): void => {
-		for (const event of normalize(data)) {
-			if (event.kind === "approval") {
-				ctx.approvals.register(event.requestId, event.options, (optionId) => {
-					firePost(
-						ctx.http,
-						`/session/${ctx.sessionId}/permissions/${event.requestId}`,
-						{ response: optionId },
-						ctx.events
-					);
-				});
-			}
-			ctx.events.push(event);
-		}
-	};
-	pumpServeEvents(ctx.http, signal, route).catch((error: unknown) => {
-		if (signal.aborted) {
-			return;
-		}
-		ctx.events.push({
-			kind: "error",
-			message: "opencode serve /event stream failed",
-			detail: error instanceof Error ? error.message : error,
-		});
-	});
 }
 
 /** Serve has no stateful model setter — the model rides on EVERY prompt as

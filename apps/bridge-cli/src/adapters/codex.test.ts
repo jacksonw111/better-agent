@@ -94,6 +94,23 @@ describe("codexAdapter", () => {
 // approvals) live in codex-approvals.test.ts — split out purely to keep this
 // file under the repo's 300-line limit.
 
+describe("codexAdapter - turn/start sandbox/approval policy (RC-T4)", () => {
+	it("gates shell/patch execution by sending approval_policy + sandbox_policy on every turn/start", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		handle.send("hello");
+
+		expect(rpc.request).toHaveBeenCalledWith("turn/start", {
+			threadId: "thread_1",
+			input: [{ type: "text", text: "hello" }],
+			approval_policy: "untrusted",
+			sandbox_policy: { type: "workspace-write", network_access: false },
+		});
+	});
+});
+
 describe("codexAdapter - startup config (R2-b)", () => {
 	it("passes the persisted model on thread/start", async () => {
 		const { rpc } = createFakeRpc();

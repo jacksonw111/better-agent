@@ -3,24 +3,14 @@
 // (codex.ts, opencode.ts, claude-code.ts) just call through to it. Exercised
 // here directly; codex.test.ts additionally covers one adapter-level
 // integration of the same double-answer / exit-then-answer paths, confirming
-// the protocol-level reply frame count.
+// the protocol-level reply frame count. `presentApproval` (RC-T4's shared
+// fail-closed + timeout contract, also exported from approvals.ts) has its
+// own spec file, present-approval.test.ts, purely to keep both under the
+// repo's 300-line file cap.
 
 import { describe, expect, it, vi } from "vitest";
-import type { NormalizedEvent } from "../normalize/types";
 import { createApprovalRegistry, retractPendingApprovals } from "./approvals";
-
-const APPROVAL_OPTIONS = [
-	{ id: "allow", label: "Allow" },
-	{ id: "deny", label: "Deny" },
-];
-
-function createFakeEvents(): {
-	events: { push(event: NormalizedEvent): void };
-	pushed: NormalizedEvent[];
-} {
-	const pushed: NormalizedEvent[] = [];
-	return { events: { push: (event) => pushed.push(event) }, pushed };
-}
+import { APPROVAL_OPTIONS, createFakeEvents } from "./approvals-test-helpers";
 
 describe("createApprovalRegistry - double answer", () => {
 	it("invokes the reply exactly once; a second answer for the same id is a no-op status warning", () => {

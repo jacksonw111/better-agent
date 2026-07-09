@@ -53,6 +53,49 @@ export function buildPiSetModelCommand(
 	return JSON.stringify({ type: "set_model", provider, modelId });
 }
 
+// --- extension_ui_request / extension_ui_response (RC-T4) ------------------
+//
+// VERIFIED (fetched packages/coding-agent/docs/rpc.md from badlogic/pi-mono
+// @ main): every request is `{ type: "extension_ui_request", id, method:
+// "select"|"confirm"|"input"|"editor", title, ... }`, matched by `id`.
+// Responses: `select` replies `{ type: "extension_ui_response", id, value }`
+// (value is one of the request's `options` strings); `confirm` replies
+// `{ ..., confirmed: boolean }`; any dialog method can instead reply
+// `{ ..., cancelled: true }`, which is what these two builders send — the
+// cancel form both `presentApproval`'s shared timeout AND the adapter's
+// immediate auto-cancel for unrepresentable `input`/`editor` requests use, so
+// an extension asking the user something can NEVER hang the turn (see
+// normalize/pi.ts's `normalizePiExtensionUiRequest` and
+// adapters/pi-approvals.ts).
+
+const PI_CONFIRM_METHOD = "confirm";
+
+/** Builds the stdin reply for a `select`/`confirm` extension_ui_request whose
+ * `optionId` (an `ApprovalEvent` option id from `normalizePiExtensionUiRequest`)
+ * was actually answered by the user — never called for the cancel/timeout
+ * path, see `buildPiExtensionUiCancelResponse`. */
+export function buildPiExtensionUiResponse(
+	method: string,
+	id: string,
+	optionId: string
+): string {
+	return method === PI_CONFIRM_METHOD
+		? JSON.stringify({
+				type: "extension_ui_response",
+				id,
+				confirmed: optionId === "confirmed",
+			})
+		: JSON.stringify({ type: "extension_ui_response", id, value: optionId });
+}
+
+/** Builds the stdin reply for the fail-closed path: a `select`/`confirm`
+ * whose shared timeout fired unanswered, or an `input`/`editor` request
+ * (free-form text has no deny analog, so it's auto-cancelled immediately
+ * instead of ever becoming a card). */
+export function buildPiExtensionUiCancelResponse(id: string): string {
+	return JSON.stringify({ type: "extension_ui_response", id, cancelled: true });
+}
+
 /** A command entry as returned by `get_commands` — see
  * `normalizePiCommandsResponse`'s ASSUMPTION note below for the source. */
 interface PiCommandInfo {

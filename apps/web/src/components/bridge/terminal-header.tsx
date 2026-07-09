@@ -1,5 +1,6 @@
+import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
-import { PowerIcon, SettingsIcon } from "lucide-react";
+import { PowerIcon, SettingsIcon, ShieldOffIcon } from "lucide-react";
 import { useState } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import type { AgentCapabilities } from "./agent-capabilities";
@@ -28,15 +29,33 @@ function shortSessionId(id: string): string {
 		: id;
 }
 
+/** RC-T4: pi runs shell/tool calls with NO approval gate at all (see
+ * `noApprovalGate`'s doc comment in agent-capabilities.ts) — this is the only
+ * user-visible signal of that, so a user doesn't mistake pi for pausing on
+ * tool calls the way claude/opencode do. */
+function NoApprovalGateBadge() {
+	return (
+		<Badge
+			title="pi runs shell and other tool calls without an approval prompt — nothing here will pause for your review."
+			variant="destructive"
+		>
+			<ShieldOffIcon className="size-3" />
+			Ungated
+		</Badge>
+	);
+}
+
 /** `Session: 11c186d9…` — the ONE prominent identifier for the session, the
  * agent/claude session id when the CLI has reported one, else the bridge
  * session id. Full id in the tooltip. Deliberately not the session `label`,
  * which is routinely "untitled". */
 function SessionIdLabel({
 	agentKind,
+	caps,
 	sessionId,
 }: {
 	agentKind: BridgeSessionRow["agentKind"];
+	caps: AgentCapabilities;
 	sessionId: string;
 }) {
 	return (
@@ -48,6 +67,7 @@ function SessionIdLabel({
 			<span className="truncate font-medium text-sm" title={sessionId}>
 				Session: {shortSessionId(sessionId)}
 			</span>
+			{caps.noApprovalGate && <NoApprovalGateBadge />}
 		</span>
 	);
 }
@@ -259,7 +279,11 @@ export function TerminalHeader({
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 py-2.5 sm:px-4">
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<div className="flex min-w-0 items-center gap-2.5">
-						<SessionIdLabel agentKind={agentKind} sessionId={sessionId} />
+						<SessionIdLabel
+							agentKind={agentKind}
+							caps={actions.caps}
+							sessionId={sessionId}
+						/>
 						<TerminalStatus status={status} />
 					</div>
 					<TerminalHeaderActions {...actions} status={status} />

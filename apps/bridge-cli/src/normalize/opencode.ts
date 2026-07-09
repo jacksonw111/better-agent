@@ -6,6 +6,7 @@
 
 import {
 	type ApprovalEvent,
+	type ApprovalOption,
 	asString,
 	isRecord,
 	NO_EVENTS,
@@ -155,6 +156,31 @@ function isAcpPermissionOption(value: unknown): value is AcpPermissionOption {
 	);
 }
 
+/**
+ * RC-T4: the audited silent-hang bug — a `session/request_permission` whose
+ * `params.options` was empty or entirely unparseable used to make this
+ * normalizer return `[]`, same as a request that didn't match the method at
+ * all. `adapters/opencode.ts`'s `wireOpencodeApprovals` treats an empty
+ * result as "not an approval, ignore it" — so the request was NEVER
+ * `rpc.respond`ed, and the tool call it gated blocked FOREVER: no card, no
+ * timeout, nothing visible.
+ *
+ * Fix: such a request still gets a card, but with only ONE representable
+ * choice — deny. There's no real ACP `optionId` behind an "allow" here (the
+ * request offered none), so fabricating one would let a user "approve"
+ * something this adapter could never actually select on the wire; offering
+ * only deny keeps the fail-closed guarantee (never silently hangs, never
+ * auto-allows) instead of lying about what a click does. This synthetic id is
+ * never a real ACP optionId, so `wireOpencodeApprovals` uses it (see
+ * `FALLBACK_DENY_OPTION_ID`'s export) to reply with `acpCancelledOutcome()`
+ * rather than `acpSelectedOutcome()`, which requires a genuine optionId.
+ */
+export const FALLBACK_DENY_OPTION_ID = "unrepresentable-deny";
+
+const FALLBACK_DENY_OPTIONS: ApprovalOption[] = [
+	{ id: FALLBACK_DENY_OPTION_ID, label: "Deny (no answerable options)" },
+];
+
 function acpApprovalDetail(
 	toolCall: Record<string, unknown>
 ): string | undefined {
@@ -166,7 +192,15 @@ function acpApprovalDetail(
 /**
  * Maps an ACP `session/request_permission` server-initiated *request* — an
  * `onRequest`-surfaced `(id, method, params)`, not an `onNotification` one —
- * to an `ApprovalEvent`, or `[]` if `method`/`params` don't match.
+ * to an `ApprovalEvent`, or `[]` if `method`/`params` don't match at all (not
+ * this protocol's request — a real non-match, not the empty-options bug
+ * below). Returns an array (rather than `ApprovalEvent | undefined`) to keep
+ * every path returning a real value: biome's formatter collapses
+ * `return undefined;` to a bare `return;`, which then trips eslint's
+ * `consistent-return` against the sibling `return {…};` — see the identical
+ * note in `use-bridge-connection-effects.ts`'s `noCleanup`. RC-T4: unlike a
+ * genuine non-match, a request whose `options` are empty/unparseable is NOT
+ * dropped here — see `FALLBACK_DENY_OPTIONS`'s doc comment above.
  */
 export function normalizeOpencodeApprovalRequest(
 	requestId: string,
@@ -176,21 +210,22 @@ export function normalizeOpencodeApprovalRequest(
 	if (method !== APPROVAL_METHOD || !isRecord(params)) {
 		return [];
 	}
-	const options = Array.isArray(params.options)
+	const parsedOptions = Array.isArray(params.options)
 		? params.options.filter(isAcpPermissionOption)
 		: [];
-	if (options.length === 0) {
-		return [];
-	}
+	const options: ApprovalOption[] =
+		parsedOptions.length === 0
+			? FALLBACK_DENY_OPTIONS
+			: parsedOptions.map((option) => ({
+					id: option.optionId,
+					label: option.name,
+				}));
 	const toolCall = isRecord(params.toolCall) ? params.toolCall : {};
 	return [
 		{
 			detail: acpApprovalDetail(toolCall),
 			kind: "approval",
-			options: options.map((option) => ({
-				id: option.optionId,
-				label: option.name,
-			})),
+			options,
 			requestId,
 			title: asString(toolCall.title) ?? "Approve action?",
 		},

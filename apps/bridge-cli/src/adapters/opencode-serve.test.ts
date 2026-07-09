@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { APPROVAL_TIMEOUT_MS } from "./approvals";
 import { messageCalls, startServe } from "./opencode-serve-test-support";
 import { spawnProcessIo } from "./process-io";
 
@@ -138,6 +139,42 @@ describe("opencodeServeAdapter - interrupt & approvals", () => {
 			call.url.endsWith("/session/ses_1/permissions/perm_1")
 		);
 		expect(reply).toMatchObject({ method: "POST", body: { response: "once" } });
+	});
+});
+
+describe("opencodeServeAdapter - approvals never hang forever (RC-T4)", () => {
+	it("an unanswered permission resolves declined via the shared timeout", async () => {
+		vi.useFakeTimers();
+		try {
+			const { handle, server } = await startServe();
+			const iterator = handle.events[Symbol.asyncIterator]();
+			await iterator.next(); // session_ready
+
+			server.emitSse({
+				type: "permission.updated",
+				properties: { id: "perm_3", sessionID: "ses_1", title: "Run `curl`" },
+			});
+			await iterator.next(); // the approval card
+
+			await vi.advanceTimersByTimeAsync(APPROVAL_TIMEOUT_MS);
+
+			const reply = server.calls.find((call) =>
+				call.url.endsWith("/session/ses_1/permissions/perm_3")
+			);
+			expect(reply).toMatchObject({
+				method: "POST",
+				body: { response: "reject" },
+			});
+			const { value: timeoutEvent } = await iterator.next();
+			expect(timeoutEvent).toMatchObject({
+				kind: "approval",
+				cancelled: true,
+				requestId: "perm_3",
+				title: "Timed out — declined",
+			});
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
 

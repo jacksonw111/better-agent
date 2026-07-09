@@ -26,6 +26,12 @@ export interface AgentCapabilities {
 	/** The agent supports switching models mid-session — gates the model
 	 * picker (Phase 5). */
 	modelSwitch: boolean;
+	/** True ONLY for an agent that runs shell/tool calls with NO approval gate
+	 * at all (currently just pi, per `toolApproval`'s doc comment below) —
+	 * drives a visible "runs ungated" badge on the session header (RC-T4) so a
+	 * user doesn't assume every agent pauses for approval the way claude/
+	 * opencode do. */
+	noApprovalGate: boolean;
 	/** The permission-mode values this agent actually accepts — gates both
 	 * whether the dropdown renders at all (empty = hidden) and which options
 	 * it offers (Phase 5). */
@@ -92,6 +98,7 @@ const CLAUDE_CAPABILITIES: AgentCapabilities = {
 	skills: true,
 	contextUsage: true,
 	toolApproval: true,
+	noApprovalGate: false,
 	modelSwitch: true,
 	interrupt: true,
 	usageMode: "stream",
@@ -100,7 +107,10 @@ const CLAUDE_CAPABILITIES: AgentCapabilities = {
 
 /** pi's RPC mode has no `session.list`-equivalent enumeration and no native
  * tool-approval hook, and only reports usage/cost via an on-demand poll
- * (`get_session_stats`) rather than a stream event. */
+ * (`get_session_stats`) rather than a stream event. `noApprovalGate: true` —
+ * pi runs shell/tool calls with NO approval gate at all (RC-T4): its adapter
+ * never emits an `approval` event, so nothing in the web UI would otherwise
+ * signal that shell here is unsupervised. */
 const PI_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
 	sessionList: false,
@@ -109,6 +119,7 @@ const PI_CAPABILITIES: AgentCapabilities = {
 	skills: true,
 	contextUsage: true,
 	toolApproval: false,
+	noApprovalGate: true,
 	modelSwitch: true,
 	interrupt: true,
 	usageMode: "poll",
@@ -135,6 +146,7 @@ const OPENCODE_CAPABILITIES: AgentCapabilities = {
 	skills: true,
 	contextUsage: true,
 	toolApproval: true,
+	noApprovalGate: false,
 	modelSwitch: true,
 	interrupt: true,
 	usageMode: "stream",
@@ -162,6 +174,7 @@ const CODEX_CAPABILITIES: AgentCapabilities = {
 	skills: false,
 	contextUsage: true,
 	toolApproval: false,
+	noApprovalGate: false,
 	modelSwitch: false,
 	interrupt: true,
 	usageMode: "none",

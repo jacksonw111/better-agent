@@ -5,7 +5,11 @@
 // control_request) produced it. Cleared on process exit so a dead agent
 // never leaves a dangling reply function that would write to a closed pipe.
 
-import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
+import type {
+	ApprovalEvent,
+	ApprovalOption,
+	NormalizedEvent,
+} from "../normalize/types";
 
 /** Status emitted in place of a reply when `answer()` is called with a
  * `requestId` that was never registered, or was already answered. */
@@ -15,6 +19,19 @@ const APPROVAL_UNKNOWN_STATUS = "approval_unknown";
  * `optionId` that wasn't among the options announced on the matching
  * `ApprovalEvent` — e.g. a stale or hand-crafted client request. */
 const APPROVAL_INVALID_OPTION_STATUS = "approval_invalid_option";
+
+const APPROVAL_TIMEOUT_MINUTES = 5;
+const MS_PER_MINUTE = 60_000;
+
+/** RC-T4: how long an approval card can sit unanswered before `presentApproval`
+ * gives up and resolves it declined — long enough a human has a real chance to
+ * see and act on it, short enough a forgotten card doesn't block a session
+ * indefinitely. No product spec pins this exact figure down; ASSUMPTION: 5
+ * minutes, the same order of magnitude as this file's other adapters' own
+ * request timeouts (e.g. `opencode-serve-http.ts`'s `REQUEST_TIMEOUT_MS`,
+ * `claude-code-status.ts`'s `CONTROL_CALL_TIMEOUT_MS`, both far shorter since
+ * they bound a machine-to-machine RPC rather than a human decision). */
+export const APPROVAL_TIMEOUT_MS = APPROVAL_TIMEOUT_MINUTES * MS_PER_MINUTE;
 
 /** A still-open approval: the options the user was offered (to validate
  * `answer()`'s `optionId` against) and the reply to invoke once one is
@@ -47,6 +64,16 @@ export interface ApprovalRegistry {
 		options: ApprovalOption[],
 		reply: (optionId: string) => void
 	): void;
+	/**
+	 * RC-T4: drops `requestId`'s pending reply WITHOUT invoking it, same
+	 * fail-closed contract as `retractAll` but scoped to one id — the shared
+	 * timeout in `presentApproval` below uses this so a card whose timer fires
+	 * after it was ALREADY answered (or already retracted by an interrupt) is a
+	 * harmless no-op instead of double-resolving it. Returns whether an entry
+	 * was actually removed, so the caller can tell "I won the race, resolve
+	 * declined" apart from "someone else already resolved this."
+	 */
+	retract(requestId: string): boolean;
 	/**
 	 * RC-T3: drops every still-pending reply WITHOUT invoking it — unlike
 	 * `clear()` this is called mid-session, when `interrupt()`/`stop()`
@@ -95,6 +122,9 @@ export function createApprovalRegistry(events: {
 		clear() {
 			pending.clear();
 		},
+		retract(requestId) {
+			return pending.delete(requestId);
+		},
 		retractAll() {
 			const requestIds = [...pending.keys()];
 			pending.clear();
@@ -123,4 +153,61 @@ export function retractPendingApprovals(
 			title: "Cancelled",
 		});
 	}
+}
+
+/**
+ * RC-T4: the fail-closed contract EVERY adapter's approval path routes
+ * through — codex/opencode's `onRequest`-surfaced approvals and opencode
+ * serve's SSE-surfaced ones alike. Fixes the audited class of bug where a
+ * malformed or simply unanswered approval request left the underlying tool
+ * call blocked FOREVER with no card, no timeout, and no way for the user to
+ * ever unblock it (opencode: an empty `options` array made the normalizer
+ * drop the request entirely before it ever reached this registry; pi: no
+ * approval concept at all, so a stuck confirmation prompt had nowhere to go).
+ * The guarantee this establishes: an approval is always either answered by
+ * the user, or — once `APPROVAL_TIMEOUT_MS` elapses with no answer — resolved
+ * as a VISIBLE decline, never a silent hang and never an auto-allow.
+ *
+ * Sequence: `register()`s `onAnswer` with the registry, pushes `event` (the
+ * card) onto `events`, and arms a timer. If the timer fires before an answer
+ * arrives, `approvals.retract(event.requestId)` — which only succeeds if
+ * nothing already claimed this id (an on-time answer, or an unrelated
+ * `retractAll()` from an interrupt) — pushes a visible "timed out — declined"
+ * event and calls `onTimeout`. An on-time answer clears the timer so it can
+ * never fire after the fact.
+ *
+ * Params are bundled into one object (rather than five positional args) to
+ * stay under this file's max-params lint gate.
+ */
+export interface PresentApprovalOptions {
+	approvals: ApprovalRegistry;
+	event: ApprovalEvent;
+	events: { push(event: NormalizedEvent): void };
+	onAnswer: (optionId: string) => void;
+	onTimeout: () => void;
+}
+
+export function presentApproval(options: PresentApprovalOptions): void {
+	const { approvals, events, event, onAnswer, onTimeout } = options;
+	const timer = setTimeout(() => {
+		if (!approvals.retract(event.requestId)) {
+			// Already answered, or already retracted by an interrupt — the
+			// timeout lost the race, so it must not double-resolve this id.
+			return;
+		}
+		events.push({
+			kind: "approval",
+			cancelled: true,
+			options: [],
+			requestId: event.requestId,
+			title: "Timed out — declined",
+		});
+		onTimeout();
+	}, APPROVAL_TIMEOUT_MS);
+
+	approvals.register(event.requestId, event.options, (optionId) => {
+		clearTimeout(timer);
+		onAnswer(optionId);
+	});
+	events.push(event);
 }
