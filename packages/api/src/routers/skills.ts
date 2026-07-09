@@ -23,6 +23,28 @@ const skillInput = z.object({
 
 const updateInput = idInput.extend(skillInput.partial().shape);
 
+// A user may only wire THEIR OWN MCP servers into a skill — a foreign id
+// would let them run someone else's MCP server (with that owner's stored
+// auth header) once the skill is assigned to one of the caller's agents and
+// activated. Mirrors filterOwnedIds in agents.ts. Non-owned or since-deleted
+// ids are dropped rather than rejected, so a save never locks up over a
+// stale link.
+async function filterOwnedMcpServerIds(
+	context: Context,
+	userId: string,
+	mcpServerIds: string[]
+): Promise<string[]> {
+	if (mcpServerIds.length === 0) {
+		return mcpServerIds;
+	}
+	const owned = new Set(
+		(await context.services.stores.mcpServer.listByUser(userId)).map(
+			(row) => row.id
+		)
+	);
+	return mcpServerIds.filter((id) => owned.has(id));
+}
+
 // Loads a skill and asserts the caller owns it. NOT_FOUND for both missing and
 // other-owner skills, so ownership never leaks.
 async function requireOwnedSkill(
@@ -53,12 +75,21 @@ async function requireOwnedAgentId(
 export const skillsRouter = {
 	create: authorizedUserProcedure
 		.input(skillInput)
-		.handler(({ input, context }) =>
-			context.services.stores.skill.create({
+		.handler(async ({ input, context }) => {
+			// Only touch mcpServerIds when the caller actually sent it — see the
+			// note in `update` for why an explicit `undefined` key must be avoided.
+			if (input.mcpServerIds !== undefined) {
+				input.mcpServerIds = await filterOwnedMcpServerIds(
+					context,
+					context.authedUser.id,
+					input.mcpServerIds
+				);
+			}
+			return context.services.stores.skill.create({
 				userId: context.authedUser.id,
 				...input,
-			})
-		),
+			});
+		}),
 
 	list: authorizedUserProcedure.handler(({ context }) =>
 		context.services.stores.skill.listByUser(context.authedUser.id)
@@ -75,6 +106,17 @@ export const skillsRouter = {
 		.handler(async ({ input, context }) => {
 			const { skillId, ...patch } = input;
 			await requireOwnedSkill(context, context.authedUser.id, skillId);
+			// Only touch mcpServerIds when the caller actually sent it — adding an
+			// explicit `mcpServerIds: undefined` key here would make the store
+			// treat "field omitted" as "clear the field", wiping the skill's
+			// existing MCP servers on every unrelated edit.
+			if (patch.mcpServerIds !== undefined) {
+				patch.mcpServerIds = await filterOwnedMcpServerIds(
+					context,
+					context.authedUser.id,
+					patch.mcpServerIds
+				);
+			}
 			const updated = await context.services.stores.skill.update(
 				skillId,
 				context.authedUser.id,

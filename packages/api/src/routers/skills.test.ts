@@ -1,4 +1,4 @@
-import type { AgentStore } from "@better-agent/agent/ports";
+import type { AgentStore, McpServerRow } from "@better-agent/agent/ports";
 import { createFakeAgentStore } from "@better-agent/agent/testing/fake-agent-store";
 import { createFakeSkillStore } from "@better-agent/agent/testing/fake-skill-store";
 import { createRouterClient } from "@orpc/server";
@@ -20,6 +20,7 @@ const BOB = {
 
 interface Stores {
 	agent: AgentStore;
+	mcpServer: { listByUser: (userId: string) => Promise<McpServerRow[]> };
 	skill: ReturnType<typeof createFakeSkillStore>;
 }
 
@@ -43,8 +44,26 @@ function buildClient(authedUser: typeof ALICE, stores: Stores) {
 	});
 }
 
-function freshStores(): Stores {
-	return { agent: createFakeAgentStore(), skill: createFakeSkillStore() };
+function mcpServerRow(id: string, userId: string): McpServerRow {
+	return {
+		id,
+		userId,
+		name: "svc",
+		url: "https://mcp.example.test",
+		authLast4: null,
+		createdAt: new Date(),
+	};
+}
+
+function freshStores(mcpServers: McpServerRow[] = []): Stores {
+	return {
+		agent: createFakeAgentStore(),
+		skill: createFakeSkillStore(),
+		mcpServer: {
+			listByUser: (userId: string) =>
+				Promise.resolve(mcpServers.filter((row) => row.userId === userId)),
+		},
+	};
 }
 
 const SKILL_INPUT = {
@@ -173,4 +192,55 @@ it("rejects assign when the caller doesn't own the skill", async () => {
 	await expect(
 		alice.skills.assignAgent({ agentId: aliceAgent.id, skillId: bobSkill.id })
 	).rejects.toThrow();
+});
+
+const OWNED_MCP_ID = "11111111-1111-4111-8111-111111111111";
+const FOREIGN_MCP_ID = "22222222-2222-4222-8222-222222222222";
+
+// Regression coverage for the cross-user MCP exposure bug: a foreign
+// mcpServerId (Bob's server) put into Alice's skill must never be persisted —
+// otherwise assigning the skill to Alice's own agent would let Alice's agent
+// run Bob's MCP server with Bob's stored auth header on activation.
+it("drops an mcpServerId the caller does not own on create, keeps an owned one", async () => {
+	const stores = freshStores([
+		mcpServerRow(OWNED_MCP_ID, ALICE.id),
+		mcpServerRow(FOREIGN_MCP_ID, BOB.id),
+	]);
+	const alice = buildClient(ALICE, stores);
+
+	const created = await alice.skills.create({
+		...SKILL_INPUT,
+		mcpServerIds: [OWNED_MCP_ID, FOREIGN_MCP_ID],
+	});
+	expect(created.mcpServerIds).toEqual([OWNED_MCP_ID]);
+});
+
+it("drops an mcpServerId the caller does not own on update, keeps an owned one", async () => {
+	const stores = freshStores([
+		mcpServerRow(OWNED_MCP_ID, ALICE.id),
+		mcpServerRow(FOREIGN_MCP_ID, BOB.id),
+	]);
+	const alice = buildClient(ALICE, stores);
+	const skill = await alice.skills.create(SKILL_INPUT);
+
+	const updated = await alice.skills.update({
+		skillId: skill.id,
+		mcpServerIds: [OWNED_MCP_ID, FOREIGN_MCP_ID],
+	});
+	expect(updated.mcpServerIds).toEqual([OWNED_MCP_ID]);
+});
+
+it("leaves mcpServerIds untouched when an update omits the field", async () => {
+	const stores = freshStores([mcpServerRow(OWNED_MCP_ID, ALICE.id)]);
+	const alice = buildClient(ALICE, stores);
+	const skill = await alice.skills.create({
+		...SKILL_INPUT,
+		mcpServerIds: [OWNED_MCP_ID],
+	});
+
+	const updated = await alice.skills.update({
+		skillId: skill.id,
+		name: "Deploy v2",
+	});
+	expect(updated.mcpServerIds).toEqual([OWNED_MCP_ID]);
 });
