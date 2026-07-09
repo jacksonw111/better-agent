@@ -20,6 +20,7 @@ function toAgentConfig(row: AgentRow) {
 		modelId: row.modelId,
 		params: row.params ?? null,
 		composioAccountIds: row.composioAccountIds ?? [],
+		openConnectorAccountIds: row.openConnectorAccountIds ?? [],
 		mcpServerIds: row.mcpServerIds ?? [],
 		toolAllowlist: row.toolAllowlist ?? null,
 		builtinTools: row.builtinTools ?? [],
@@ -94,7 +95,7 @@ function makeAgentWriteOps(
 async function unlinkFromColumn(
 	db: Db,
 	userId: string,
-	column: "mcpServerIds" | "composioAccountIds",
+	column: "mcpServerIds" | "composioAccountIds" | "openConnectorAccountIds",
 	id: string
 ): Promise<void> {
 	const rows = await db
@@ -156,6 +157,9 @@ export function createAgentStore(db: Db, box: SecretBox): AgentStore {
 		},
 		unlinkComposioAccount(userId, accountId) {
 			return unlinkFromColumn(db, userId, "composioAccountIds", accountId);
+		},
+		unlinkOpenConnectorAccount(userId, accountId) {
+			return unlinkFromColumn(db, userId, "openConnectorAccountIds", accountId);
 		},
 	};
 }
