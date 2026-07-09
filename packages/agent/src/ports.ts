@@ -127,8 +127,6 @@ export type {
 	UserStore,
 } from "./auth/store-ports";
 
-// Bridge relay ports live beside the relay implementation; re-exported here
-// so all ports keep a single import path.
 export type { RelayDir, RelayEvent, RelayStore } from "./bridge/relay-store";
 
 // Memory-system ports live in memory-ports.ts (split out to keep this file
@@ -144,6 +142,7 @@ export type {
 	MemoryRow,
 	MemoryStore,
 } from "./memory-ports";
+export type { AgentSkillRow, SkillRow, SkillStore } from "./skill-ports";
 
 export interface SettingsStore {
 	delete(key: string): Promise<void>;

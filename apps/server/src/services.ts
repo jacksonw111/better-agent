@@ -18,6 +18,7 @@ import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
+import { createSkillStore } from "@better-agent/db/repositories/skill-store";
 import { createUsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
@@ -95,6 +96,7 @@ interface StoreParts {
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
+	skillStore: ReturnType<typeof createSkillStore>;
 	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
@@ -127,6 +129,7 @@ function buildStores(
 		bridgeUsage: parts.bridgeUsageStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
+		skill: parts.skillStore,
 		...authStores,
 	};
 }
@@ -178,6 +181,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),
 		mcpServerStore: createMcpServerStore(db, secretBox),
+		skillStore: createSkillStore(db),
 		webAuthzCache: createWebAuthzCacheStore(db),
 		bridgeTokenStore: createBridgeTokenStore(db),
 		bridgeSessionStore: createBridgeSessionStore(db),

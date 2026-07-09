@@ -27,6 +27,7 @@ import type {
 	RelayStore,
 	SessionStore,
 	SettingsStore,
+	SkillStore,
 	UserStore,
 	WebAuthzCacheStore,
 } from "@better-agent/agent/ports";
@@ -91,6 +92,7 @@ export interface AgentServices {
 		bridgeUsage: BridgeUsageStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
+		skill: SkillStore;
 	};
 	tokenService: TokenService;
 }
