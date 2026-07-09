@@ -251,6 +251,7 @@ export function Terminal({
 				listSessions={view.listSessions}
 				onEnd={onEnd}
 				onSelectSession={onSelectSession}
+				restart={view.restart}
 				sessionId={sessionId}
 				sessionList={view.sessionList}
 				sessionReady={view.sessionReady}

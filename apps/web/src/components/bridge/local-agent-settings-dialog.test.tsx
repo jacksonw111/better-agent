@@ -49,6 +49,7 @@ vi.mock("@/utils/orpc", () => ({
 	orpc: {
 		bridge: {
 			listTokens: { key: () => ["bridge", "listTokens"] },
+			restartSession: { call: vi.fn().mockResolvedValue({ ok: true }) },
 			updateTokenConfig: {
 				mutationOptions: (opts: Record<string, unknown>) => ({
 					mutationFn: (args: Record<string, unknown>) => {
@@ -84,7 +85,7 @@ function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 	};
 }
 
-function renderDialog(token: BridgeTokenRow) {
+function renderDialog(token: BridgeTokenRow, sessionId?: string) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
@@ -93,6 +94,7 @@ function renderDialog(token: BridgeTokenRow) {
 			<LocalAgentSettingsDialog
 				onOpenChange={() => undefined}
 				open
+				sessionId={sessionId}
 				token={token}
 			/>
 		</QueryClientProvider>
@@ -161,4 +163,64 @@ it("flows model + permission-mode edits into the saved payload", async () => {
 		model: "claude-opus-4",
 		permissionMode: "plan",
 	});
+});
+
+it("shows a plain 'Settings saved' toast when only LIVE fields (model/permission mode) changed", async () => {
+	const { toast } = await import("sonner");
+	const view = renderDialog(makeToken(), "session-1");
+	fireEvent.click(view.getByRole("tab", { name: "Config" }));
+
+	fireEvent.change(view.getByLabelText("Model"), {
+		target: { value: "claude-opus-4" },
+	});
+	fireEvent.click(view.getByRole("button", { name: "Save" }));
+
+	await waitFor(() => {
+		expect(store.saveArgs).toHaveLength(1);
+	});
+	expect(toast.success).toHaveBeenCalledWith("Settings saved");
+});
+
+it("shows the restart hint with a 'Restart now' action when a non-LIVE field changes and a live sessionId is known", async () => {
+	const { toast } = await import("sonner");
+	const view = renderDialog(makeToken(), "session-1");
+	fireEvent.click(view.getByRole("tab", { name: "Config" }));
+
+	fireEvent.change(view.getByLabelText("Max turns"), {
+		target: { value: "5" },
+	});
+	fireEvent.click(view.getByRole("button", { name: "Save" }));
+
+	await waitFor(() => {
+		expect(store.saveArgs).toHaveLength(1);
+	});
+	expect(toast.success).toHaveBeenCalledWith(
+		"Saved — restart the agent to apply",
+		expect.objectContaining({
+			action: expect.objectContaining({ label: "Restart now" }),
+		})
+	);
+});
+
+it("shows only the informational restart note (no 'Restart now' action) when there's no live sessionId", async () => {
+	const { toast } = await import("sonner");
+	// No sessionId passed — mirrors this dialog opened from the connection
+	// panel, before any session exists.
+	const view = renderDialog(makeToken());
+	fireEvent.click(view.getByRole("tab", { name: "Config" }));
+
+	fireEvent.change(view.getByLabelText("Max turns"), {
+		target: { value: "5" },
+	});
+	fireEvent.click(view.getByRole("button", { name: "Save" }));
+
+	await waitFor(() => {
+		expect(store.saveArgs).toHaveLength(1);
+	});
+	expect(toast.success).toHaveBeenCalledWith(
+		"Saved — restart the agent to apply",
+		expect.objectContaining({
+			description: expect.stringContaining("Restart button"),
+		})
+	);
 });

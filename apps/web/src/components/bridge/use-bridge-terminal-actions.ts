@@ -1,5 +1,6 @@
 import type { Dispatch } from "react";
 import { toast } from "sonner";
+import { orpc } from "@/utils/orpc";
 import type { FeedAction } from "./use-bridge-feed";
 
 // Split out of use-bridge-terminal.ts purely to keep that file under the
@@ -65,6 +66,28 @@ function sendControlCommand(
 	});
 }
 
+const RESTART_FAILURE_MESSAGE = "Couldn't restart the agent — try again.";
+
+/** Restart is NOT a `{ type: "control", ... }` message relayed over this
+ * connection's own `sendRaw` channel like interrupt/setModel/etc — it's the
+ * distinct `bridge.restartSession` server procedure (R3), which appends the
+ * restart command to the session's relay directly from the server side (see
+ * packages/api/src/routers/bridge-restart.ts) so it works even if this tab's
+ * own SSE/poll connection is degraded. Called as a plain client request
+ * (not a `useMutation`) so this hook stays usable without a
+ * QueryClientProvider ancestor — same catch-and-toast shape as
+ * `sendControlCommand` above. */
+function restartSession(sessionId: string): Promise<void> {
+	return orpc.bridge.restartSession.call({ sessionId }).then(
+		() => undefined,
+		(error: unknown) => {
+			const message =
+				error instanceof Error ? error.message : RESTART_FAILURE_MESSAGE;
+			toast.error(message);
+		}
+	);
+}
+
 export interface SessionControls {
 	/** Asks the agent for its current status (model/context/cost/tokens/mcp/
 	 * running) — fire-and-forget like `listSessions`, the reply arrives
@@ -73,16 +96,21 @@ export interface SessionControls {
 	getStatus: () => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
+	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
+	 * the detail page's Restart button. See `restartSession` above. */
+	restart: () => Promise<void>;
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
 }
 
 /** Builds the detail page's session-control callbacks (Interrupt/model
  * picker/permission-mode dropdown/past-conversations request/status
- * refresh) atop `sendControlCommand`. Split out purely to keep
- * `useBridgeTerminal` itself under the repo's max-lines-per-function gate. */
+ * refresh/restart) atop `sendControlCommand` (plus the standalone `restart`
+ * request). Split out purely to keep `useBridgeTerminal` itself under the
+ * repo's max-lines-per-function gate. */
 export function useSessionControls(
-	sendRaw: (data: unknown) => Promise<void>
+	sendRaw: (data: unknown) => Promise<void>,
+	sessionId: string
 ): SessionControls {
 	return {
 		interrupt: () => sendControlCommand(sendRaw, "interrupt"),
@@ -92,5 +120,6 @@ export function useSessionControls(
 			sendControlCommand(sendRaw, "setPermissionMode", { mode }),
 		listSessions: () => sendControlCommand(sendRaw, "listSessions"),
 		getStatus: () => sendControlCommand(sendRaw, "getStatus"),
+		restart: () => restartSession(sessionId),
 	};
 }

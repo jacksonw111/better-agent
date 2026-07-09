@@ -12,6 +12,7 @@ import { AgentKindIcon } from "./local-agent-kind-icon";
 import { LocalAgentSessionPicker } from "./local-agent-session-picker";
 import { LocalAgentSettingsDialog } from "./local-agent-settings-dialog";
 import { PastConversations } from "./past-conversations";
+import { RestartSessionButton } from "./restart-session-button";
 import { SessionStatusHeader } from "./session-status-header";
 import { StatusSnapshotPanel } from "./status-snapshot-panel";
 import type { TerminalConnectionStatus } from "./terminal-status";
@@ -61,6 +62,10 @@ interface TerminalHeaderActionsProps {
 	listSessions: () => void;
 	onEnd?: () => void;
 	onSelectSession?: (sessionId: string) => void;
+	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
+	 * wired to the Restart button, gated the same as End (hidden once the
+	 * session has ended). */
+	restart: () => Promise<void>;
 	sessionList: SessionListDetail | null;
 	/** This token's sibling sessions — when present (with `onSelectSession`)
 	 * the header offers a session picker so the user can switch which
@@ -114,6 +119,7 @@ function SessionControls({
 						<LocalAgentSettingsDialog
 							onOpenChange={setSettingsOpen}
 							open={settingsOpen}
+							sessionId={activeSessionId ?? undefined}
 							token={token}
 						/>
 					)}
@@ -195,6 +201,7 @@ function TerminalHeaderActions({
 	listSessions,
 	onEnd,
 	onSelectSession,
+	restart,
 	sessionList,
 	sessions,
 	status,
@@ -217,6 +224,7 @@ function TerminalHeaderActions({
 				sessionList={sessionList}
 				statusSnapshot={statusSnapshot}
 			/>
+			{status !== "ended" && <RestartSessionButton restart={restart} />}
 			{status !== "ended" && onEnd !== undefined && (
 				<EndSessionButton ending={ending} onEnd={onEnd} />
 			)}

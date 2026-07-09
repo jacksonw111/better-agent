@@ -56,6 +56,11 @@ export interface UseBridgeTerminalResult {
 	 * "listSessions" }`; the reply arrives asynchronously as a `session_list`
 	 * status event, reflected in `sessionList` once it lands. */
 	listSessions: () => Promise<void>;
+	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
+	 * the detail page's Restart button. A distinct `bridge.restartSession`
+	 * server procedure, not a `sendRaw` control command (see
+	 * use-bridge-terminal-actions.ts). */
+	restart: () => Promise<void>;
 	sendInput: (text: string) => Promise<void>;
 	sending: boolean;
 	/** The latest `session_list` detail, or `null` before a `listSessions`
@@ -202,20 +207,22 @@ function useFeedPipeline(
 }
 
 /** Wires the session's control commands (getStatus/interrupt/setModel/
- * setPermissionMode/listSessions) plus the listSessions timeout fallback —
- * split out purely to keep `useBridgeTerminal` under the repo's
+ * setPermissionMode/listSessions/restart) plus the listSessions timeout
+ * fallback — split out purely to keep `useBridgeTerminal` under the repo's
  * max-lines-per-function gate. */
 function useControls(
 	sendRaw: (data: unknown) => Promise<void>,
-	feedSessionList: SessionListDetail | null
+	feedSessionList: SessionListDetail | null,
+	sessionId: string
 ) {
 	const {
 		getStatus,
 		interrupt,
+		restart,
 		setModel,
 		setPermissionMode,
 		listSessions: requestSessions,
-	} = useSessionControls(sendRaw);
+	} = useSessionControls(sendRaw, sessionId);
 	const { listSessions, sessionList } = useListSessionsWithTimeout(
 		requestSessions,
 		feedSessionList
@@ -224,6 +231,7 @@ function useControls(
 		getStatus,
 		interrupt,
 		listSessions,
+		restart,
 		sessionList,
 		setModel,
 		setPermissionMode,
@@ -255,10 +263,11 @@ export function useBridgeTerminal(
 		getStatus,
 		interrupt,
 		listSessions,
+		restart,
 		sessionList,
 		setModel,
 		setPermissionMode,
-	} = useControls(sendRaw, feed.sessionList);
+	} = useControls(sendRaw, feed.sessionList, sessionId);
 
 	return buildResult({
 		answerApproval,
@@ -268,6 +277,7 @@ export function useBridgeTerminal(
 		getStatus,
 		interrupt,
 		listSessions,
+		restart,
 		sendInput,
 		sending,
 		sessionList,

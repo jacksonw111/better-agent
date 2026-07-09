@@ -77,6 +77,8 @@ export interface BuildResultArgs {
 	getStatus: () => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
+	/** Asks the CLI to tear down and relaunch under the same sessionId (R3). */
+	restart: () => Promise<void>;
 	sendInput: (text: string) => Promise<void>;
 	sending: boolean;
 	sessionList: SessionListDetail | null;
@@ -108,6 +110,7 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		setModel: args.setModel,
 		setPermissionMode: args.setPermissionMode,
 		listSessions: args.listSessions,
+		restart: args.restart,
 		sessionReady: args.sessionReady,
 		sessionList: args.sessionList,
 		getStatus: args.getStatus,
