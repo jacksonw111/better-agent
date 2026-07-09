@@ -23,6 +23,45 @@ const COMMODITY_FIXTURE = {
 	time: "2026-07-08T09:30:00.000Z",
 };
 
+const QUOTE_FIXTURE = {
+	asks: [
+		{ price: 3201.5, volume: 1200 },
+		{ price: 3201.8, volume: 800 },
+	],
+	bids: [
+		{ price: 3201.2, volume: 1500 },
+		{ price: 3200.9, volume: 600 },
+	],
+	changePct: 0.42,
+	high: 3210.5,
+	last: 3200.12,
+	low: 3180.3,
+	market: "a",
+	name: "贵州茅台",
+	open: 3190.0,
+	prevClose: 3186.7,
+	symbol: "600519",
+	time: "2026-07-08T09:30:00.000Z",
+	volume: 1_234_567,
+};
+
+const TECHNICAL_FIXTURE = {
+	asOf: "2026-07-08",
+	boll: { lower: 3150.2, mid: 3190.5, upper: 3230.8 },
+	close: 3200.12,
+	ema12: 3195.4,
+	ema26: 3188.1,
+	kdj: { d: 60.2, j: 75.1, k: 65.4 },
+	ma5: 3198.1,
+	ma10: 3192.4,
+	ma20: 3180.9,
+	ma60: 3150.2,
+	macd: { dea: 5.2, dif: 6.1, macd: 1.8 },
+	period: "daily",
+	rsi14: 58.3,
+	symbol: "600519",
+};
+
 function financeTool(name: string) {
 	const tool = TOOL_RESULT_RENDERERS[name];
 	if (!tool) {
@@ -52,5 +91,25 @@ it("parses a representative finance_commodity fixture", () => {
 it("returns null for finance_commodity given a wrong shape", () => {
 	expect(
 		financeTool("finance_commodity").parse([{ unrelated: "shape" }])
+	).toBeNull();
+});
+
+it("parses a representative finance_quote fixture", () => {
+	expect(financeTool("finance_quote").parse(QUOTE_FIXTURE)).not.toBeNull();
+});
+
+it("returns null for finance_quote given a wrong shape", () => {
+	expect(financeTool("finance_quote").parse({ unrelated: "shape" })).toBeNull();
+});
+
+it("parses a representative finance_technical fixture", () => {
+	expect(
+		financeTool("finance_technical").parse(TECHNICAL_FIXTURE)
+	).not.toBeNull();
+});
+
+it("returns null for finance_technical given a wrong shape", () => {
+	expect(
+		financeTool("finance_technical").parse({ unrelated: "shape" })
 	).toBeNull();
 });

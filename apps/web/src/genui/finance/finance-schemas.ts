@@ -37,3 +37,78 @@ export const CommodityQuoteSchema = z.object({
 });
 
 export type CommodityQuoteData = z.infer<typeof CommodityQuoteSchema>;
+
+// FE-2 slice: finance_quote / finance_technical.
+
+const DepthLevelSchema = z.object({
+	price: z.number().nullable().catch(null),
+	volume: z.number().nullable().catch(null),
+});
+
+export type DepthLevelData = z.infer<typeof DepthLevelSchema>;
+
+export const QuoteSchema = z.object({
+	// Required discriminator: identifies this as a single-symbol quote.
+	symbol: z.string(),
+	market: z.string().catch(""),
+	name: z.string().catch(""),
+	last: z.number().nullable().catch(null),
+	prevClose: z.number().nullable().catch(null),
+	open: z.number().nullable().catch(null),
+	high: z.number().nullable().catch(null),
+	low: z.number().nullable().catch(null),
+	changePct: z.number().nullable().catch(null),
+	volume: z.number().nullable().catch(null),
+	time: z.string().catch(""),
+	bids: z.array(DepthLevelSchema).catch([]),
+	asks: z.array(DepthLevelSchema).catch([]),
+});
+
+export type QuoteData = z.infer<typeof QuoteSchema>;
+
+const MacdSchema = z
+	.object({
+		dif: z.number().nullable().catch(null),
+		dea: z.number().nullable().catch(null),
+		macd: z.number().nullable().catch(null),
+	})
+	.nullable()
+	.catch(null);
+
+const KdjSchema = z
+	.object({
+		k: z.number().nullable().catch(null),
+		d: z.number().nullable().catch(null),
+		j: z.number().nullable().catch(null),
+	})
+	.nullable()
+	.catch(null);
+
+const BollSchema = z
+	.object({
+		upper: z.number().nullable().catch(null),
+		mid: z.number().nullable().catch(null),
+		lower: z.number().nullable().catch(null),
+	})
+	.nullable()
+	.catch(null);
+
+export const TechnicalSchema = z.object({
+	// Required discriminator: identifies this as a technical-indicator panel.
+	symbol: z.string(),
+	period: z.string().catch(""),
+	asOf: z.string().catch(""),
+	close: z.number().nullable().catch(null),
+	ma5: z.number().nullable().catch(null),
+	ma10: z.number().nullable().catch(null),
+	ma20: z.number().nullable().catch(null),
+	ma60: z.number().nullable().catch(null),
+	ema12: z.number().nullable().catch(null),
+	ema26: z.number().nullable().catch(null),
+	macd: MacdSchema,
+	rsi14: z.number().nullable().catch(null),
+	kdj: KdjSchema,
+	boll: BollSchema,
+});
+
+export type TechnicalData = z.infer<typeof TechnicalSchema>;
