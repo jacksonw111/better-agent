@@ -1,3 +1,4 @@
+import type { SkillRow } from "@better-agent/agent/ports";
 import { buildBuiltinToolDefs } from "@better-agent/agent/tool/builtin-tools";
 import {
 	buildComposioToolDefs,
@@ -70,8 +71,38 @@ function shapeSourceDefs(
 	return allowed.map((def) => ({ ...def, defer: true }));
 }
 
+// Skills T3 tool-folding: an ACTIVE skill (see skill-activation.ts) may bring
+// its own builtin tools + MCP servers, over and above whatever the base agent
+// already has, so the skill's playbook can actually call them. MCP servers
+// are resolved the exact same way the agent's own mcpServerIds are (line ~90
+// above) — `context.services.mcp` owner-scopes internally (a skill's
+// mcpServerIds are only ever ids the skill's owner set via the skills router).
+async function assembleSkillToolDefs(
+	context: Context,
+	skill: SkillRow
+): Promise<ToolDef[]> {
+	const perServer = await Promise.all(
+		(skill.mcpServerIds ?? []).map(async (serverId) =>
+			safeMcpDefs(await context.services.mcp(serverId))
+		)
+	);
+	return [
+		...perServer.flat(),
+		...buildBuiltinToolDefs(skill.allowedTools ?? []),
+	];
+}
+
+// Last-wins de-dupe by tool name — buildTools() (packages/agent/src/tool/registry.ts)
+// throws on a duplicate name, so if a skill re-declares a tool the base agent
+// already carries, the skill's copy (appended last) is the one that survives.
+function dedupeByName(defs: ToolDef[]): ToolDef[] {
+	const byName = new Map(defs.map((def) => [def.name, def]));
+	return [...byName.values()];
+}
+
 // An agent's tools: every authenticated toolkit of each linked composio account,
-// each linked MCP server's tools, plus its enabled built-in tools.
+// each linked MCP server's tools, plus its enabled built-in tools — plus, when
+// `activeSkill` is passed (Skills T3), that skill's own tools folded in.
 export async function assembleAgentToolDefs(
 	context: Context,
 	agent: {
@@ -79,7 +110,8 @@ export async function assembleAgentToolDefs(
 		composioAccountIds: string[];
 		mcpServerIds: string[];
 		toolAllowlist?: string[] | null;
-	}
+	},
+	activeSkill?: SkillRow | null
 ): Promise<ToolDef[]> {
 	const perAccount = await Promise.all(
 		(agent.composioAccountIds ?? []).map(async (accountId) => {
@@ -93,8 +125,13 @@ export async function assembleAgentToolDefs(
 		)
 	);
 	const allowlist = agent.toolAllowlist ?? null;
-	return [
+	const baseDefs = [
 		...shapeSourceDefs([...perAccount.flat(), ...perServer.flat()], allowlist),
 		...buildBuiltinToolDefs(agent.builtinTools ?? []),
 	];
+	if (!activeSkill) {
+		return baseDefs;
+	}
+	const skillDefs = await assembleSkillToolDefs(context, activeSkill);
+	return dedupeByName([...baseDefs, ...skillDefs]);
 }

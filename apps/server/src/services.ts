@@ -52,6 +52,7 @@ function buildRuntime(parts: {
 	memoryStore: ReturnType<typeof createMemoryStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
+	skillStore: ReturnType<typeof createSkillStore>;
 	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
 }) {
 	const { deps } = parts;
@@ -74,6 +75,10 @@ function buildRuntime(parts: {
 		memoryStore: parts.memoryStore,
 		memoryItemStore: parts.memoryItemStore,
 		embeddingClient: parts.embeddingClient,
+		// Skills T3 injection (see packages/agent/src/session/skill-context.ts):
+		// each turn injects the agent's skill index + any activated skill's full
+		// instructions into the system prompt.
+		skillStore: parts.skillStore,
 	});
 }
 
@@ -181,7 +186,6 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),
 		mcpServerStore: createMcpServerStore(db, secretBox),
-		skillStore: createSkillStore(db),
 		webAuthzCache: createWebAuthzCacheStore(db),
 		bridgeTokenStore: createBridgeTokenStore(db),
 		bridgeSessionStore: createBridgeSessionStore(db),
@@ -205,11 +209,12 @@ export function buildServices(
 		uploads
 	);
 	const cancellation = buildCancellation();
-	// Shared across buildRuntime (B1 memory-retrieval injection) and the
-	// stores exposed on context.services — one instance each, not one per use.
+	// Shared across buildRuntime (B1 memory-retrieval / Skills T3 injection) and
+	// the stores exposed on context.services — one instance each, not one per use.
 	const memoryStore = createMemoryStore(db);
 	const memoryItemStore = createMemoryItemStore(db);
 	const embeddingClient = buildEmbeddingClient();
+	const skillStore = createSkillStore(db);
 	const runtime = buildRuntime({
 		deps,
 		sessionStore,
@@ -220,6 +225,7 @@ export function buildServices(
 		memoryStore,
 		memoryItemStore,
 		embeddingClient,
+		skillStore,
 	});
 	return assembleServices({
 		deps,
@@ -231,6 +237,7 @@ export function buildServices(
 		memoryStore,
 		memoryItemStore,
 		embeddingClient,
+		skillStore,
 		db,
 		authzBinding,
 		mcpBinding,

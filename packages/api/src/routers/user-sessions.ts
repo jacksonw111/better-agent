@@ -14,20 +14,32 @@ import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
 import { assembleAgentToolDefs } from "./agent-tool-defs";
 import { drain, errorMessage, promptInput } from "./sessions";
+import { resolveActiveSkill } from "./skill-activation";
 import { createTurnChannel, pumpTurn } from "./turn-channel";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
 
+// Skills T3: folds the turn's ACTIVE skill (derived from the `/skill-name`
+// directive in the conversation, see skill-activation.ts) into the assembled
+// toolset — `text` is this turn's just-submitted prompt, not yet persisted.
 async function agentToolDefs(
 	context: Context,
-	agentId: string
+	agentId: string,
+	sessionId: string,
+	text: string
 ): Promise<ToolDef[]> {
 	const agent = await context.services.stores.agent.get(agentId);
 	if (!agent) {
 		return [];
 	}
-	return assembleAgentToolDefs(context, agent);
+	const activeSkill = await resolveActiveSkill(
+		context,
+		agentId,
+		sessionId,
+		text
+	);
+	return assembleAgentToolDefs(context, agent, activeSkill);
 }
 
 async function requireUserSession(
@@ -63,7 +75,12 @@ async function* streamUserTurn(
 		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
-		const toolDefs = await agentToolDefs(context, session.agentId);
+		const toolDefs = await agentToolDefs(
+			context,
+			session.agentId,
+			input.sessionId,
+			input.text
+		);
 		const allDefs = [...remoteDefs, ...toolDefs];
 		// Detached execution: the pump (kept alive via waitUntil) drives the turn;
 		// this response only observes. NOTE the request abort signal is deliberately

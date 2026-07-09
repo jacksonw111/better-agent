@@ -12,6 +12,7 @@ import type {
 	ModelCacheStore,
 	ProviderCatalogStore,
 	SessionStore,
+	SkillStore,
 	UsageRecordStore,
 } from "../ports";
 import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
@@ -67,6 +68,7 @@ export interface SessionRuntimeDeps {
 	providerCatalogStore: ProviderCatalogStore;
 	sessionLock: SessionLock;
 	sessionStore: SessionStore;
+	skillStore?: SkillStore;
 	sleep?: (ms: number) => Promise<void>;
 	summarizer: Summarizer;
 	titler?: Titler;

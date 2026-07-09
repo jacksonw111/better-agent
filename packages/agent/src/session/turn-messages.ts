@@ -9,10 +9,12 @@ import type {
 	MessageStore,
 	ModelCacheStore,
 	SessionStore,
+	SkillStore,
 } from "../ports";
 import { compactSession, type Summarizer } from "./compaction";
 import { buildDynamicContext } from "./dynamic-context";
 import { buildMemoryContext, latestUserText } from "./memory-retrieval";
+import { buildSkillContext } from "./skill-context";
 import { type ResolvedImages, toModelMessages } from "./to-model-messages";
 import { estimateTokens, exceedsContext } from "./token-estimate";
 import type { MessageWithParts, Session } from "./types";
@@ -29,6 +31,10 @@ interface BuildTurnMessagesDeps {
 	messageStore: MessageStore;
 	modelCacheStore: ModelCacheStore;
 	sessionStore: SessionStore;
+	/** Skills T3 injection (see skill-context.ts). Optional — omitted in most
+	 * existing turn-messages tests, which don't exercise skills; the skills
+	 * block is simply skipped when absent. */
+	skillStore?: SkillStore;
 	summarizer: Summarizer;
 }
 
@@ -128,11 +134,49 @@ export async function persistUserTurn(input: {
 	}
 }
 
+// Skills T3 injection: appends the agent's skill index (+ any activated
+// skill's full instructions, see skill-context.ts) right after the dynamic
+// context. A no-op whenever skillStore isn't wired for this deps object or
+// the agent has no assigned skills.
+async function resolveSkillPrompt(
+	deps: BuildTurnMessagesDeps,
+	agentId: string,
+	history: MessageWithParts[]
+): Promise<string | null> {
+	if (!deps.skillStore) {
+		return null;
+	}
+	return await buildSkillContext(deps.skillStore, agentId, history);
+}
+
 // B1 retrieval injection: appends a compact block of the agent's assigned
-// memories most relevant to the current turn, right after the dynamic
-// context. A no-op (returns the base prompt unchanged) whenever memory isn't
-// wired for this deps object, the agent has no assigned memories, or
-// retrieval fails — see buildMemoryContext's own guards/try-catch.
+// memories most relevant to the current turn. A no-op (returns null) whenever
+// memory isn't wired for this deps object, the agent has no assigned
+// memories, or retrieval fails — see buildMemoryContext's own guards/try-catch.
+async function resolveMemoryPrompt(
+	deps: BuildTurnMessagesDeps,
+	agentId: string,
+	history: MessageWithParts[]
+): Promise<string | null> {
+	if (!(deps.memoryStore && deps.memoryItemStore)) {
+		return null;
+	}
+	return await buildMemoryContext(
+		{
+			memoryStore: deps.memoryStore,
+			memoryItemStore: deps.memoryItemStore,
+			embeddingClient: deps.embeddingClient,
+		},
+		agentId,
+		latestUserText(history)
+	);
+}
+
+/** Composes the full system prompt: base (systemPrompt + dynamic context),
+ * then the skills block, then the memory block — each appended only when
+ * non-null. All three blocks end up in ONE leading system message
+ * (to-model-messages.ts), so they ride a single Anthropic cacheControl
+ * breakpoint (provider/cache-policy.ts) rather than needing their own. */
 async function resolveSystemPrompt(
 	deps: BuildTurnMessagesDeps,
 	agent: AgentConfig,
@@ -140,19 +184,14 @@ async function resolveSystemPrompt(
 	now: Date
 ): Promise<string> {
 	const base = `${agent.systemPrompt}\n\n${buildDynamicContext(now)}`;
-	if (!(deps.memoryStore && deps.memoryItemStore)) {
-		return base;
-	}
-	const memoryBlock = await buildMemoryContext(
-		{
-			memoryStore: deps.memoryStore,
-			memoryItemStore: deps.memoryItemStore,
-			embeddingClient: deps.embeddingClient,
-		},
-		agent.id,
-		latestUserText(history)
-	);
-	return memoryBlock ? `${base}\n\n${memoryBlock}` : base;
+	const blocks = await Promise.all([
+		resolveSkillPrompt(deps, agent.id, history),
+		resolveMemoryPrompt(deps, agent.id, history),
+	]);
+	return [
+		base,
+		...blocks.filter((block): block is string => block !== null),
+	].join("\n\n");
 }
 
 export async function buildTurnMessages(
