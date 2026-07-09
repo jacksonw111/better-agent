@@ -89,3 +89,62 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_ipo");
+
+// V6b batch: market-structure tools (指数成分权重/ETF列表/期权链; all
+// EastMoney).
+
+TOOLS.push({
+	name: "finance_index_weights",
+	description:
+		"指数成分股权重 (沪深300/上证50/科创50): 成分股 + 权重% + 行业/PE/ROE. " +
+		"index = hs300 (default) | sz50 | star50.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			index: {
+				type: "string",
+				description: "hs300 (default) | sz50 | star50.",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_index_weights");
+
+TOOLS.push({
+	name: "finance_etf_list",
+	description:
+		"A-share ETF 列表 (top by change%): 代码/名称/最新价/涨跌幅/成交量/换手率.",
+	inputSchema: {
+		type: "object",
+		properties: {
+			limit: {
+				type: "number",
+				description: "Number of rows (default 30, max 100).",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_etf_list");
+
+TOOLS.push({
+	name: "finance_option_chain",
+	description:
+		"ETF期权链 (50/300/500 ETF options): 合约/认购认沽/行权价/最新价/涨跌幅/成交量. " +
+		"underlying = 300etf (default) | 50etf | 500etf. Greeks/IV not available (paid).",
+	inputSchema: {
+		type: "object",
+		properties: {
+			underlying: {
+				type: "string",
+				description: "300etf (default) | 50etf | 500etf.",
+			},
+		},
+		required: [],
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_option_chain");

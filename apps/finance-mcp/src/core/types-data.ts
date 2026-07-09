@@ -55,3 +55,41 @@ export interface IpoRow {
 	market: string;
 	name: string;
 }
+
+// V6b batch: index weights / ETF list / option chain.
+
+// 指数成分权重 (index constituent weights): 成分股 + 权重% + 行业/PE/ROE for
+// one of the tracked benchmark indices (沪深300/上证50/科创50).
+export interface IndexWeightRow {
+	changePct: number | null;
+	closePrice: number | null;
+	code: string;
+	industry: string;
+	name: string;
+	pe: number | null;
+	roe: number | null;
+	weight: number | null;
+}
+
+// ETF列表 (ETF list): 代码/名称/最新价/涨跌幅/成交量/换手率, ranked by change%.
+export interface EtfRow {
+	changePct: number;
+	code: string;
+	name: string;
+	price: number;
+	turnover: number;
+	turnoverRate: number;
+	volume: number;
+}
+
+// 期权链 (ETF option chain): 合约/认购认沽/行权价/最新价/涨跌幅/成交量 for one
+// of the 50/300/500 ETF option underlyings.
+export interface OptionRow {
+	changePct: number;
+	code: string;
+	kind: "call" | "put";
+	last: number;
+	name: string;
+	strike: number | null;
+	volume: number;
+}
