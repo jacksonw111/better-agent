@@ -1,22 +1,56 @@
-name: Release CLI (standalone binaries)
+name: Release CLI (auto on version bump)
 
-# Push a tag like `cli-v0.1.0` to build standalone binaries and publish them
-# as a GitHub Release. `bun build --compile` embeds the Bun runtime, so each
-# binary runs with NO Node.js / npm installed on the user's machine.
+# AUTOMATIC: bump `apps/bridge-cli/package.json` "version" and merge to `dev` →
+# this builds the standalone binaries and publishes a GitHub Release tagged
+# `cli-v<version>`. Idempotent — if that version's release already exists it
+# skips, so editing package.json for other reasons won't re-release. Manual
+# re-run via the Actions "Run workflow" button (workflow_dispatch).
+#
+# `bun build --compile` embeds the Bun runtime, so each binary runs with NO
+# Node.js / npm on the user's machine.
 #
 # Install (users):
 #   curl -fsSL https://github.com/jacksonw111/better-agent/releases/latest/download/install.sh | bash
 #   better-agent-bridge --agent claude-code --token bt_… --server https://…
+
 on:
   push:
-    tags:
-      - "cli-v*"
+    branches: [dev]
+    paths:
+      - "apps/bridge-cli/package.json"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
 
 jobs:
+  # Compute the target tag from the current CLI version and decide whether a
+  # release is needed (skips if `cli-v<version>` was already published).
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./apps/bridge-cli/package.json').version")
+          tag="cli-v${version}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if gh release view "${tag}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${tag} already released — skipping."
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::New version ${version} → releasing ${tag}."
+          fi
+
   release:
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +80,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${GITHUB_REF#refs/tags/}"
-          gh release create "${tag}" \
+          gh release create "${{ needs.gate.outputs.tag }}" \
             better-agent-bridge-darwin-arm64 \
             better-agent-bridge-darwin-x64 \
             better-agent-bridge-linux-x64 \
             better-agent-bridge-linux-arm64 \
             apps/bridge-cli/install.sh \
-            --title "${tag}" \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "${{ needs.gate.outputs.tag }}" \
             --generate-notes
