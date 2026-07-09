@@ -1,12 +1,8 @@
-import { createRequire } from "node:module";
+// The published version, for `-v`/`--version`. A STATIC json import so every
+// bundler (bun --compile, tsdown, tsx) inlines the value at build time — a
+// runtime `require("../package.json")` breaks in the bun-compiled standalone
+// binary, which runs from bun's virtual FS (`/$bunfs/root`) where the file
+// doesn't exist.
+import pkg from "../package.json" with { type: "json" };
 
-// Read from package.json instead of hardcoding so `-v`/`--version` never
-// drifts from the published version. `createRequire(import.meta.url)`
-// resolves correctly both under tsx (this file lives at src/version.ts) and
-// in the bundled dist/index.mjs (tsdown inlines this module, so
-// import.meta.url there points at dist/index.mjs) — both sit exactly one
-// level below the package root, where package.json lives.
-const require = createRequire(import.meta.url);
-const { version } = require("../package.json") as { version: string };
-
-export const BRIDGE_CLI_VERSION: string = version;
+export const BRIDGE_CLI_VERSION: string = pkg.version;
