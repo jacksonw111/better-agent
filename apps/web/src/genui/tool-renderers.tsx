@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ZodType } from "zod";
+import { FINANCE_RENDERERS } from "./finance/finance-renderers";
 import { unwrapToolResult } from "./tool-result-envelope";
 import { TweetCardFromTweet } from "./tweet-card-node";
 import { UserCard } from "./user-card";
@@ -44,7 +45,7 @@ export function isTaskToolInput(input: unknown): boolean {
 	return hasSubagentType(record) || hasDescriptionAndPrompt(record);
 }
 
-interface ToolResultRenderer {
+export interface ToolResultRenderer {
 	/** Parses a raw tool-result value (see unwrapToolResult) into render-ready
 	 * data, or null when it doesn't match this tool's expected shape. */
 	parse(result: unknown): unknown;
@@ -55,7 +56,9 @@ interface ToolResultRenderer {
 // always built from the SAME schema/render pair in `entry`, so the cast can
 // never see a mismatched value — there's no `unknown`-typed public API that
 // lets a caller mix parse output from one entry with render from another.
-function entry<T>(
+// Exported so sibling registries (e.g. finance/finance-renderers.tsx) can
+// build their own ToolResultRenderer entries the same way.
+export function entry<T>(
 	schema: ZodType<T>,
 	render: (data: T) => ReactNode
 ): ToolResultRenderer {
@@ -74,7 +77,7 @@ function entry<T>(
 // good ones. Only a fully-unparseable result (a non-array, or an array where
 // EVERY element fails — i.e. the shape is wrong, not just one stray item) falls
 // back to the raw tool block.
-function listEntry<T>(
+export function listEntry<T>(
 	elementSchema: ZodType<T>,
 	render: (data: T[]) => ReactNode
 ): ToolResultRenderer {
@@ -182,6 +185,7 @@ export const TOOL_RESULT_RENDERERS: Record<string, ToolResultRenderer> = {
 		NormalizedProfileSchema,
 		renderSingleProfile
 	),
+	...FINANCE_RENDERERS,
 };
 
 /** The `renderToolResult` hook threaded into the chat UI: null/undefined

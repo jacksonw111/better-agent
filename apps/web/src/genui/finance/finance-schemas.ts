@@ -1,0 +1,39 @@
+import { z } from "zod";
+
+// Resilient Zod schemas for the finance-mcp tool results, mirroring the
+// pattern in ../x-result-schemas.ts: only the field(s) that identify the
+// shape are required, every display field has a `.catch` default or is
+// `.nullable()` — a stray null must never blank the whole render.
+//
+// This is the FE-1 slice only (finance_index_quote / finance_commodity).
+// Later batches (finance_quote, finance_kline, finance_technical, …) extend
+// this file with additional schema + inferred-type export pairs — keep each
+// block self-contained so it stays easy to append to.
+
+export const IndexQuoteSchema = z.object({
+	// Required discriminator: identifies this as an index quote.
+	code: z.string(),
+	region: z.string().catch(""),
+	name: z.string().catch(""),
+	last: z.number().nullable().catch(null),
+	prevClose: z.number().nullable().catch(null),
+	changePct: z.number().nullable().catch(null),
+	high: z.number().nullable().catch(null),
+	low: z.number().nullable().catch(null),
+});
+
+export type IndexQuoteData = z.infer<typeof IndexQuoteSchema>;
+
+export const CommodityQuoteSchema = z.object({
+	// Required discriminator: identifies this as a commodity quote.
+	key: z.string(),
+	name: z.string().catch(""),
+	last: z.number().nullable().catch(null),
+	changePct: z.number().nullable().catch(null),
+	high: z.number().nullable().catch(null),
+	low: z.number().nullable().catch(null),
+	prevClose: z.number().nullable().catch(null),
+	time: z.string().catch(""),
+});
+
+export type CommodityQuoteData = z.infer<typeof CommodityQuoteSchema>;
