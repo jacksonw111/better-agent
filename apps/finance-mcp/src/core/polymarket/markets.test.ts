@@ -95,3 +95,87 @@ describe("getPredictionMarkets edge cases", () => {
 		expect(markets).toEqual([]);
 	});
 });
+
+describe("getPredictionMarkets: live CLOB midpoints", () => {
+	it("enriches each outcome's probability with the live CLOB midpoint", async () => {
+		const fetchImpl = (url: string | URL | Request) => {
+			const href = String(url);
+			if (href.startsWith("https://clob.polymarket.com/midpoint")) {
+				const mid = href.includes("token_id=yes-token") ? "0.05" : "0.95";
+				return Promise.resolve(Response.json({ mid }));
+			}
+			return Promise.resolve(
+				Response.json([
+					marketFixture({ clobTokenIds: '["yes-token","no-token"]' }),
+				])
+			);
+		};
+		const markets = await getPredictionMarkets(undefined, 12, {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(markets[0]?.outcomes).toEqual([
+			{ name: "Yes", probability: 0.05, livePrice: true },
+			{ name: "No", probability: 0.95, livePrice: true },
+		]);
+	});
+
+	it("falls back to the Gamma outcomePrices value when a midpoint fetch fails", async () => {
+		const fetchImpl = (url: string | URL | Request) => {
+			const href = String(url);
+			if (href.startsWith("https://clob.polymarket.com/midpoint")) {
+				return Promise.resolve(new Response("boom", { status: 500 }));
+			}
+			return Promise.resolve(
+				Response.json([
+					marketFixture({ clobTokenIds: '["yes-token","no-token"]' }),
+				])
+			);
+		};
+		const markets = await getPredictionMarkets(undefined, 12, {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(markets[0]?.outcomes[0]).toMatchObject({
+			name: "Yes",
+			probability: 0.03,
+		});
+		expect(markets[0]?.outcomes[0]?.livePrice).toBeUndefined();
+	});
+});
+
+describe("getPredictionMarkets: live CLOB midpoints — skip cases", () => {
+	it("skips enrichment (no CLOB call) when clobTokenIds is missing", async () => {
+		const fetchImpl = (url: string | URL | Request) => {
+			const href = String(url);
+			if (href.startsWith("https://clob.polymarket.com/midpoint")) {
+				throw new Error("must not fetch midpoint without clobTokenIds");
+			}
+			return Promise.resolve(Response.json([marketFixture()]));
+		};
+		const markets = await getPredictionMarkets(undefined, 12, {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(markets[0]?.outcomes[0]).toMatchObject({
+			name: "Yes",
+			probability: 0.03,
+		});
+	});
+
+	it("skips enrichment when clobTokenIds length mismatches outcomes", async () => {
+		const fetchImpl = (url: string | URL | Request) => {
+			const href = String(url);
+			if (href.startsWith("https://clob.polymarket.com/midpoint")) {
+				throw new Error("must not fetch midpoint on length mismatch");
+			}
+			return Promise.resolve(
+				Response.json([marketFixture({ clobTokenIds: '["yes-token"]' })])
+			);
+		};
+		const markets = await getPredictionMarkets(undefined, 12, {
+			fetchImpl: fetchImpl as typeof fetch,
+		});
+		expect(markets[0]?.outcomes[0]).toMatchObject({
+			name: "Yes",
+			probability: 0.03,
+		});
+	});
+});

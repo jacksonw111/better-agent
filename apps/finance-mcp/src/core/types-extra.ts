@@ -38,6 +38,7 @@ export interface HolderRow {
 }
 
 export interface PredictionOutcome {
+	livePrice?: boolean;
 	name: string;
 	probability: number;
 }
@@ -110,4 +111,41 @@ export interface MarketSentiment {
 	positiveCount: number;
 	sentimentScore: number;
 	trend: string;
+}
+
+// V4: A-share margin trading (融资融券) history via EastMoney datacenter.
+export interface MarginRow {
+	date: string;
+	financingBalance: number | null;
+	financingBalanceRatio: number | null;
+	financingBuy: number | null;
+	securitiesBalance: number | null;
+	securitiesVolume: number | null;
+	totalBalance: number | null;
+}
+
+// V4: price↔sentiment divergence signal (kline trend + Adanos sentiment).
+export type PriceTrend = "up" | "down" | "flat";
+export type SentimentTrendDir = "bullish" | "bearish" | "neutral";
+export type DivergenceSignal =
+	| "顶背离"
+	| "底背离"
+	| "多头共振"
+	| "空头共振"
+	| "中性"
+	| "数据不足";
+
+export interface Divergence {
+	bearishPct: number | null;
+	bullishPct: number | null;
+	buzzScore: number | null;
+	note: string;
+	priceChange1d: number | null;
+	priceChange5d: number | null;
+	priceTrend: PriceTrend | null;
+	sentimentNet: number | null;
+	sentimentScore: number | null;
+	sentimentTrend: SentimentTrendDir | null;
+	signal: DivergenceSignal;
+	ticker: string;
 }

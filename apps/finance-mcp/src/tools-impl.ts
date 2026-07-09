@@ -40,6 +40,7 @@ import {
 	handleSentimentTicker,
 	handleSentimentTrending,
 } from "./tools-impl-sentiment";
+import { SIGNALS_HANDLERS } from "./tools-impl-signals";
 
 export interface ToolEnv {
 	ADANOS_API_KEY?: string;
@@ -282,6 +283,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_sentiment_trending: (args, env) => handleSentimentTrending(args, env),
 	finance_sentiment_ticker: (args, env) => handleSentimentTicker(args, env),
 	finance_sentiment_market: (args, env) => handleSentimentMarket(args, env),
+	...SIGNALS_HANDLERS,
 };
 
 export function runTool(

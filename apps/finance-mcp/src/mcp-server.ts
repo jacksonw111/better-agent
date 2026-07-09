@@ -13,6 +13,9 @@ import "./tool-defs-extra";
 // finance_sentiment_ticker / finance_sentiment_market onto the shared
 // TOOLS/TOOL_NAMES arrays.
 import "./tool-defs-sentiment";
+// Side-effect import: registers finance_margin / finance_divergence onto the
+// shared TOOLS/TOOL_NAMES arrays.
+import "./tool-defs-signals";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool

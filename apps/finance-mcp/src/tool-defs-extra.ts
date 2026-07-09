@@ -77,7 +77,8 @@ TOOLS.push({
 		"Polymarket prediction markets — real-money odds on real-world events " +
 		"(politics, macro, crypto, sports). Returns top markets by volume (or " +
 		"filtered by `query` keyword): question, outcome probabilities, volume, " +
-		"end date. Great for event-probability / sentiment signals.",
+		"end date. Outcome probabilities are live CLOB midpoints (fallback to " +
+		"Gamma last price). Great for event-probability / sentiment signals.",
 	inputSchema: {
 		type: "object",
 		properties: {
