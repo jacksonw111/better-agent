@@ -81,6 +81,65 @@ const CANDLE_FIXTURE = [
 	},
 ];
 
+const KEY_METRICS_FIXTURE = {
+	changePct: 0.42,
+	close: 1680.5,
+	floatMarketCap: 2_100_000_000_000,
+	floatShares: 1_250_000_000,
+	marketCap: 2_110_000_000_000,
+	pb: 8.9,
+	pcf: 24.1,
+	peg: 1.8,
+	peStatic: 28.4,
+	peTtm: 26.7,
+	ps: 12.3,
+	symbol: "600519.SH",
+	totalShares: 1_256_000_000,
+	tradeDate: "2026-07-08",
+};
+
+const COMPANY_PROFILE_FIXTURE = {
+	address: "贵州省仁怀市茅台镇",
+	businessScope: "食品、饮料生产销售",
+	chairman: "丁雄军",
+	csrcIndustry: "酒、饮料和精制茶制造业",
+	employees: 41_000,
+	foundDate: "1951-01-01",
+	industry: "白酒",
+	listingDate: "2001-08-27",
+	market: "上海证券交易所",
+	name: "贵州茅台",
+	profile: "公司主要从事茅台酒及系列酒的生产与销售。",
+	regCapital: 1_256_000_000,
+};
+
+const INDICATOR_ROW_FIXTURE = {
+	bps: 195.3,
+	debtRatio: 18.2,
+	eps: 68.5,
+	grossMargin: 91.9,
+	netMargin: 52.3,
+	netProfit: 86_000_000_000,
+	netProfitYoy: 15.2,
+	opCashPerShare: 72.4,
+	reportDate: "2025-12-31",
+	reportName: "2025年年报",
+	revenue: 170_000_000_000,
+	revenueYoy: 16.1,
+	roe: 34.6,
+	roeDeducted: 34.1,
+};
+
+const STATEMENT_ROW_FIXTURE = {
+	netProfit: 86_000_000_000,
+	netProfitDeducted: 85_000_000_000,
+	operatingCost: 15_000_000_000,
+	operatingProfit: 120_000_000_000,
+	reportDate: "2025-12-31",
+	revenue: 170_000_000_000,
+	totalProfit: 121_000_000_000,
+};
+
 function financeTool(name: string) {
 	const tool = TOOL_RESULT_RENDERERS[name];
 	if (!tool) {
@@ -140,5 +199,53 @@ it("parses a representative finance_kline fixture", () => {
 it("returns null for finance_kline given a wrong shape", () => {
 	expect(
 		financeTool("finance_kline").parse([{ unrelated: "shape" }])
+	).toBeNull();
+});
+
+it("parses a representative finance_key_metrics fixture", () => {
+	expect(
+		financeTool("finance_key_metrics").parse(KEY_METRICS_FIXTURE)
+	).not.toBeNull();
+});
+
+it("returns null for finance_key_metrics given a wrong shape", () => {
+	expect(
+		financeTool("finance_key_metrics").parse({ unrelated: "shape" })
+	).toBeNull();
+});
+
+it("parses a representative finance_company_profile fixture", () => {
+	expect(
+		financeTool("finance_company_profile").parse(COMPANY_PROFILE_FIXTURE)
+	).not.toBeNull();
+});
+
+it("returns null for finance_company_profile given a wrong shape", () => {
+	expect(
+		financeTool("finance_company_profile").parse({ unrelated: "shape" })
+	).toBeNull();
+});
+
+it("parses a representative finance_financial_indicators fixture", () => {
+	expect(
+		financeTool("finance_financial_indicators").parse([INDICATOR_ROW_FIXTURE])
+	).not.toBeNull();
+});
+
+it("returns null for finance_financial_indicators given a wrong shape", () => {
+	expect(
+		financeTool("finance_financial_indicators").parse([{ unrelated: "shape" }])
+	).toBeNull();
+});
+
+it("parses a representative finance_financial_statements fixture", () => {
+	expect(
+		financeTool("finance_financial_statements").parse([STATEMENT_ROW_FIXTURE])
+	).not.toBeNull();
+});
+
+it("returns null for finance_financial_statements given a wrong shape", () => {
+	expect(
+		financeTool("finance_financial_statements").parse([{ unrelated: "shape" }])
 	).toBeNull();
 });

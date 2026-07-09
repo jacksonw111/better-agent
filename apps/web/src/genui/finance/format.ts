@@ -68,6 +68,19 @@ export function formatNum(
 	});
 }
 
+/** Plain percentage ratio, e.g. ROE 23.1 → "23.1%" — the source value is
+ * already %-scale and this adds no signed prefix (unlike `formatPct` below,
+ * which is for period-over-period changes). "—" for null/NaN. */
+export function formatRatio(
+	n: number | null | undefined,
+	dp: number = DEFAULT_DP
+): string {
+	if (n === null || n === undefined || Number.isNaN(n)) {
+		return "—";
+	}
+	return `${formatNum(n, dp)}%`;
+}
+
 /** Signed percentage, e.g. "+1.24%" / "-0.49%" / "0.00%", "—" for null/NaN. */
 export function formatPct(
 	n: number | null | undefined,
