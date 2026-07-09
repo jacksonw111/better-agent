@@ -223,3 +223,65 @@ export const StatementRowSchema = z.object({
 });
 
 export type StatementRowData = z.infer<typeof StatementRowSchema>;
+
+// FE-5 slice: finance_top_holders / finance_dividends / finance_dragon_tiger /
+// finance_hsgt_flow. Mirrors HolderRow / DividendRow / DragonTigerRow /
+// HsgtRow in apps/finance-mcp/src/core/types-extra.ts and HsgtRow in
+// types.ts. Each is an array result (see listEntry in finance-renderers.tsx).
+
+export const HolderRowSchema = z.object({
+	// Required discriminator: identifies this as a top-holder row.
+	holder: z.string(),
+	endDate: z.string().catch(""),
+	rank: z.number().nullable().catch(null),
+	shares: z.number().nullable().catch(null),
+	freeFloatRatio: z.number().nullable().catch(null),
+	changeShares: z.number().nullable().catch(null),
+	changeRatio: z.number().nullable().catch(null),
+	isInstitution: z.boolean().catch(false),
+});
+
+export type HolderRowData = z.infer<typeof HolderRowSchema>;
+
+export const DividendRowSchema = z.object({
+	// Required discriminator: identifies this as a dividend-plan row.
+	reportDate: z.string(),
+	noticeDate: z.string().catch(""),
+	plan: z.string().catch(""),
+	bonusRatioTransfer: z.number().nullable().catch(null),
+	bonusRatioDividend: z.number().nullable().catch(null),
+	pretaxDividendRmb: z.number().nullable().catch(null),
+	recordDate: z.string().catch(""),
+	exDividendDate: z.string().catch(""),
+	progress: z.string().catch(""),
+});
+
+export type DividendRowData = z.infer<typeof DividendRowSchema>;
+
+export const DragonTigerRowSchema = z.object({
+	// Required discriminator: identifies this as a dragon-tiger billboard row.
+	tradeDate: z.string(),
+	code: z.string().catch(""),
+	name: z.string().catch(""),
+	close: z.number().nullable().catch(null),
+	changePct: z.number().nullable().catch(null),
+	turnoverRate: z.number().nullable().catch(null),
+	billboardAmount: z.number().nullable().catch(null),
+	reason: z.string().catch(""),
+});
+
+export type DragonTigerRowData = z.infer<typeof DragonTigerRowSchema>;
+
+export const HsgtRowSchema = z.object({
+	// Required discriminator: identifies this as a HSGT (沪深港通) flow row.
+	tradeDate: z.string(),
+	channel: z.string().catch(""),
+	direction: z.enum(["north", "south"]).catch("north"),
+	netAmt: z.number().nullable().catch(null),
+	buyAmt: z.number().nullable().catch(null),
+	sellAmt: z.number().nullable().catch(null),
+	leadStock: z.string().nullable().catch(null),
+	indexChangeRate: z.number().nullable().catch(null),
+});
+
+export type HsgtRowData = z.infer<typeof HsgtRowSchema>;
