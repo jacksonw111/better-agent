@@ -55,9 +55,11 @@ jobs:
           secrets: |
             FRED_API_KEY
             API_TOKEN
+            ADANOS_API_KEY
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
+          ADANOS_API_KEY: ${{ secrets.ADANOS_API_KEY }}
 
   authz:
     runs-on: ubuntu-latest

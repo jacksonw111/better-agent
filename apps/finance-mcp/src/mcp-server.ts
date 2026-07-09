@@ -9,6 +9,10 @@ import "./tool-defs-market";
 // Side-effect import: registers finance_dividends / finance_dragon_tiger /
 // finance_top_holders onto the shared TOOLS/TOOL_NAMES arrays.
 import "./tool-defs-extra";
+// Side-effect import: registers finance_sentiment_trending /
+// finance_sentiment_ticker / finance_sentiment_market onto the shared
+// TOOLS/TOOL_NAMES arrays.
+import "./tool-defs-sentiment";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool

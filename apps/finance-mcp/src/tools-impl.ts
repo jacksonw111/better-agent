@@ -35,8 +35,14 @@ import {
 	handleSectorList,
 	handleStockNews,
 } from "./tools-impl-market";
+import {
+	handleSentimentMarket,
+	handleSentimentTicker,
+	handleSentimentTrending,
+} from "./tools-impl-sentiment";
 
 export interface ToolEnv {
+	ADANOS_API_KEY?: string;
 	FRED_API_KEY?: string;
 }
 
@@ -273,6 +279,9 @@ const HANDLERS: Record<string, ToolHandler> = {
 	finance_dragon_tiger: (args) => handleDragonTiger(args),
 	finance_top_holders: (args) => handleTopHolders(args),
 	finance_prediction_markets: (args) => handlePredictionMarkets(args),
+	finance_sentiment_trending: (args, env) => handleSentimentTrending(args, env),
+	finance_sentiment_ticker: (args, env) => handleSentimentTicker(args, env),
+	finance_sentiment_market: (args, env) => handleSentimentMarket(args, env),
 };
 
 export function runTool(

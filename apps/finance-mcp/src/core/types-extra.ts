@@ -51,3 +51,63 @@ export interface PredictionMarket {
 	slug: string;
 	volumeUsd: number;
 }
+
+// Adanos market-sentiment API (Reddit/X/Polymarket/News buzz + sentiment).
+export interface DailySentiment {
+	bearishPct: number;
+	bullishPct: number;
+	buzzScore: number;
+	date: string;
+	mentions: number;
+	sentimentScore: number;
+}
+
+export interface TrendingSentiment {
+	bearishPct: number;
+	bullishPct: number;
+	buzzScore: number;
+	mentions: number;
+	name: string;
+	sentimentScore: number;
+	ticker: string;
+	trend: string;
+	uniquePosts: number;
+}
+
+export interface TickerSentiment {
+	bearishPct: number;
+	bullishPct: number;
+	buzzScore: number;
+	dailyTrend: DailySentiment[];
+	found: boolean;
+	mentions: number;
+	name: string;
+	negativeCount: number;
+	neutralCount: number;
+	periodDays: number;
+	positiveCount: number;
+	sentimentScore: number;
+	ticker: string;
+	trend: string;
+}
+
+export interface SentimentDriver {
+	buzzScore: number;
+	mentions: number;
+	sentimentScore: number;
+	ticker: string;
+}
+
+export interface MarketSentiment {
+	activeTickers: number;
+	bearishPct: number;
+	bullishPct: number;
+	buzzScore: number;
+	drivers: SentimentDriver[];
+	mentions: number;
+	negativeCount: number;
+	neutralCount: number;
+	positiveCount: number;
+	sentimentScore: number;
+	trend: string;
+}

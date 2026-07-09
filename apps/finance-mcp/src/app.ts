@@ -7,6 +7,7 @@ import { handleMessage } from "./mcp-server";
 import { createPdfProxyHandler } from "./pdf-proxy";
 import { registerRest } from "./rest";
 import { registerRestExtra } from "./rest-extra";
+import { registerRestSentiment } from "./rest-sentiment";
 import { TOOLS } from "./tool-defs";
 import type { ToolEnv } from "./tools-impl";
 
@@ -80,6 +81,7 @@ export function buildApp(): Hono {
 
 	registerRest(app);
 	registerRestExtra(app);
+	registerRestSentiment(app);
 
 	app.get("/pdf", createPdfProxyHandler(fetch));
 
