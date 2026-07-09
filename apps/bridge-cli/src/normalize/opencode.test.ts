@@ -172,3 +172,22 @@ describe("normalizeOpencodeApprovalRequest - empty/unparseable options (RC-T4)",
 		).toEqual([]);
 	});
 });
+
+// RC-T6: defensive unknown-type audit — an unrecognized top-level JSON-RPC
+// `method` or a non-object/malformed line must drop safely, never throw. An
+// unrecognized `sessionUpdate` INSIDE a real `session/update` notification is
+// deliberately a pass-through (not a drop — see `normalizeAcpUpdate`'s
+// documented default case), so that shape isn't re-asserted here.
+describe("normalizeOpencode - unknown/malformed input (RC-T6)", () => {
+	it("drops a notification whose method isn't session/update without throwing", () => {
+		expect(() =>
+			normalizeOpencode({ method: "some/other_method", params: {} })
+		).not.toThrow();
+		expect(normalizeOpencode({ method: "some/other_method" })).toEqual([]);
+	});
+
+	it("drops a non-object line without throwing", () => {
+		expect(() => normalizeOpencode("not an object")).not.toThrow();
+		expect(normalizeOpencode(null)).toEqual([]);
+	});
+});

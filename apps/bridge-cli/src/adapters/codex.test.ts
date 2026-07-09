@@ -89,6 +89,69 @@ describe("codexAdapter", () => {
 	});
 });
 
+// RC-T6: codex app-server versions have serialized `thread/start`'s thread
+// id under different keys — see codex.ts's `threadIdFrom` doc comment.
+// Driven through `interrupt()`'s `turn/interrupt` call (the id's only other
+// consumer besides `turn/start`, covered by the sandbox/approval-policy spec
+// below) rather than exporting `threadIdFrom` directly, so this proves the
+// resolved id actually reaches the wire, not just the parsing helper.
+describe("codexAdapter - thread/start multi-key thread id (RC-T6)", () => {
+	it("resolves the thread id from a top-level sessionId when thread.id is absent", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(rpc.request).mockImplementation((method: string) =>
+			method === "thread/start"
+				? Promise.resolve({ sessionId: "session_2" })
+				: Promise.resolve({})
+		);
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		handle.interrupt?.();
+
+		expect(rpc.request).toHaveBeenCalledWith("turn/interrupt", {
+			threadId: "session_2",
+		});
+	});
+
+	it("resolves the thread id from a top-level threadId when neither thread.id nor sessionId is present", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(rpc.request).mockImplementation((method: string) =>
+			method === "thread/start"
+				? Promise.resolve({ threadId: "thread_3" })
+				: Promise.resolve({})
+		);
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		handle.interrupt?.();
+
+		expect(rpc.request).toHaveBeenCalledWith("turn/interrupt", {
+			threadId: "thread_3",
+		});
+	});
+
+	it("prefers thread.id over every other key when several are present", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(rpc.request).mockImplementation((method: string) =>
+			method === "thread/start"
+				? Promise.resolve({
+						thread: { id: "thread_1" },
+						sessionId: "session_2",
+						threadId: "thread_3",
+					})
+				: Promise.resolve({})
+		);
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		handle.interrupt?.();
+
+		expect(rpc.request).toHaveBeenCalledWith("turn/interrupt", {
+			threadId: "thread_1",
+		});
+	});
+});
+
 // codexAdapter's approval-request specs (surfacing a request, replying,
 // unknown-id/repeated/post-exit answers, and RC-T3's interrupt-retracts-
 // approvals) live in codex-approvals.test.ts — split out purely to keep this

@@ -2,7 +2,12 @@ import {
 	normalizeCodex,
 	normalizeCodexApprovalRequest,
 } from "../normalize/codex";
-import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
+import {
+	asString,
+	isRecord,
+	type NormalizedEvent,
+	userMessageEvent,
+} from "../normalize/types";
 import {
 	createApprovalRegistry,
 	presentApproval,
@@ -29,15 +34,30 @@ import {
 	type StartOptions,
 } from "./types";
 
+/** codex's app-server response key for `thread/start`'s thread id has
+ * drifted across versions — some builds nest it at `thread.id` or
+ * `thread.sessionId`, others flatten it to a top-level `sessionId` or
+ * `threadId`. Tries each in turn (first non-empty string wins) so a codex
+ * version bump doesn't silently produce `threadId: undefined` on every
+ * subsequent `turn/start`/`turn/interrupt` call.
+ *
+ * ASSUMPTION (unverified — no `codex` binary in this sandbox): the exact set
+ * of alternate keys. Mirrors hermes's `codex_app_server_session.py`
+ * (`thread.id` / `thread.sessionId` / `sessionId` / `threadId`), which
+ * verified this cross-version drift against a real codex 0.130.0 binary.
+ */
 function threadIdFrom(result: unknown): unknown {
-	if (result === null || typeof result !== "object" || !("thread" in result)) {
+	if (!isRecord(result)) {
 		return null;
 	}
-	const thread = (result as { thread: unknown }).thread;
-	if (thread === null || typeof thread !== "object" || !("id" in thread)) {
-		return null;
-	}
-	return (thread as { id: unknown }).id;
+	const thread = isRecord(result.thread) ? result.thread : undefined;
+	return (
+		asString(thread?.id) ??
+		asString(thread?.sessionId) ??
+		asString(result.sessionId) ??
+		asString(result.threadId) ??
+		null
+	);
 }
 
 /** codex's own wire value for "the user (or the shared RC-T4 timeout) said

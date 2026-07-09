@@ -147,6 +147,74 @@ describe("piAdapter - getStatus timeout - pending clears", () => {
 		}));
 });
 
+/** A `get_session_stats` reply line — shared by the stale-generation spec
+ * below purely to keep its `it()` under the line gate. */
+function statsReplyLine(input: number, output: number, cost: number): string {
+	return JSON.stringify({
+		type: "response",
+		command: "get_session_stats",
+		success: true,
+		data: { tokens: { input, output }, cost },
+	});
+}
+
+/** A `get_state` reply line — same reason as `statsReplyLine` above. */
+function stateReplyLine(modelId: string, isStreaming: boolean): string {
+	return JSON.stringify({
+		type: "response",
+		command: "get_state",
+		success: true,
+		data: { model: { id: modelId }, isStreaming },
+	});
+}
+
+// RC-T6: pi's get_session_stats/get_state replies carry no request id, so a
+// slow reply from an earlier request() still in flight when a newer
+// request() re-arms used to be silently accepted as the new one's own reply
+// — see pi-status.ts's makePiStatusTracker doc comment.
+describe("piAdapter - getStatus stale-generation reply (RC-T6)", () => {
+	it("ignores a slow reply from a superseded request() and resolves with the current one's own replies", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		// gen1: neither reply has landed yet. gen2: re-arms before gen1's
+		// replies arrive — two outstanding requests per command type are now
+		// in flight.
+		handle.getStatus?.();
+		handle.getStatus?.();
+
+		// gen1's stale replies land first (FIFO — sent first, answered
+		// first) — must NOT be accepted as gen2's answer; gen2's own (fresh)
+		// replies land second.
+		pushLine(statsReplyLine(1, 1, 0));
+		pushLine(stateReplyLine("stale", false));
+		pushLine(statsReplyLine(9, 9, 0.09));
+		pushLine(stateReplyLine("fresh", true));
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "status",
+			status: "status_snapshot",
+			detail: {
+				model: "fresh",
+				running: true,
+				tokens: {
+					input: 9,
+					output: 9,
+					cacheRead: undefined,
+					cacheWrite: undefined,
+				},
+				costUsd: 0.09,
+				contextUsage: undefined,
+			},
+			turnEpoch: 0,
+		});
+	});
+});
+
 describe("piAdapter - getStatus timeout - recovery", () => {
 	it("still resolves normally on a fresh request() after a previous one timed out", () =>
 		withFakeTimers(async () => {

@@ -17,6 +17,42 @@ function isFileChangePath(path: unknown): path is string {
 	return typeof path === "string";
 }
 
+/** Some codex builds tear a turn down by emitting a raw `<turn_aborted>` (or
+ * self-closing `<turn_aborted/>`) marker as literal agentMessage text —
+ * instead of a clean `turn/completed` notification — when an interrupt or
+ * upstream error short-circuits the normal completion path. Detecting the
+ * marker and synthesizing the same `turn_completed` status
+ * `session-watchdog.ts`'s `TURN_END_STATUSES` (and the web's `bridge-
+ * turns.ts`) already treat as turn-terminal keeps the turn from hanging
+ * forever waiting for a `turn/completed` that will never arrive.
+ *
+ * Mirrors hermes's `codex_app_server_session.py`
+ * (`_has_turn_aborted_marker`/`_TURN_ABORTED_MARKERS`), which verified this
+ * behavior against a real codex 0.130.0 binary — this adapter has no codex
+ * binary to reverify it against, so treat the marker text itself as
+ * confirmed but this wiring as unexercised. */
+const TURN_ABORTED_MARKERS = ["<turn_aborted>", "<turn_aborted/>"];
+
+function hasTurnAbortedMarker(text: string): boolean {
+	return TURN_ABORTED_MARKERS.some((marker) => text.includes(marker));
+}
+
+/** The synthetic terminal-status event to append whenever `text` contains a
+ * `<turn_aborted>` marker — `NO_EVENTS` otherwise. Shared by the agentMessage
+ * item handler and its streaming delta so the marker ends the turn cleanly
+ * regardless of which notification it happens to land in. */
+function turnAbortedEvents(text: string): NormalizedEvent[] {
+	return hasTurnAbortedMarker(text)
+		? [
+				{
+					kind: "status",
+					status: "turn_completed",
+					detail: { turnAborted: true },
+				},
+			]
+		: NO_EVENTS;
+}
+
 function normalizeCodexFileChangeItem(
 	item: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -70,9 +106,13 @@ function normalizeCodexAgentMessageItem(
 	item: Record<string, unknown>
 ): NormalizedEvent[] {
 	const text = asString(item.text);
-	return text === undefined
-		? NO_EVENTS
-		: [{ id: asString(item.id), kind: "message", role: "assistant", text }];
+	if (text === undefined) {
+		return NO_EVENTS;
+	}
+	return [
+		{ id: asString(item.id), kind: "message", role: "assistant", text },
+		...turnAbortedEvents(text),
+	];
 }
 
 function normalizeCodexItem(item: unknown): NormalizedEvent[] {
@@ -95,9 +135,13 @@ function normalizeCodexAgentMessageDelta(
 	params: Record<string, unknown>
 ): NormalizedEvent[] {
 	const text = asString(params.delta);
-	return text === undefined
-		? NO_EVENTS
-		: [{ id: asString(params.itemId), kind: "output", text }];
+	if (text === undefined) {
+		return NO_EVENTS;
+	}
+	return [
+		{ id: asString(params.itemId), kind: "output", text },
+		...turnAbortedEvents(text),
+	];
 }
 
 // Researched as a suspected dead path (plan §2: docs don't list a

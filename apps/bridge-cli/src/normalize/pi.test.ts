@@ -276,3 +276,17 @@ describe("normalizePiExtensionUiRequest (RC-T4) - non-representable/malformed in
 		expect(normalizePiExtensionUiRequest({ type: "agent_start" })).toEqual([]);
 	});
 });
+
+// RC-T6: defensive unknown-type audit — an unrecognized top-level `type` (a
+// future pi event) or a non-object line must drop safely, never throw.
+describe("normalizePi - unknown/malformed input (RC-T6)", () => {
+	it("drops an unrecognized top-level type without throwing", () => {
+		expect(() => normalizePi({ type: "future_event_type" })).not.toThrow();
+		expect(normalizePi({ type: "future_event_type" })).toEqual([]);
+	});
+
+	it("drops a non-object line without throwing", () => {
+		expect(() => normalizePi("not an object")).not.toThrow();
+		expect(normalizePi(null)).toEqual([]);
+	});
+});

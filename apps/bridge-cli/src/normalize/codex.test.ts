@@ -111,3 +111,52 @@ describe("normalizeCodex - turn notifications and edge cases", () => {
 		expect(normalizeCodex({ method: "item/started" })).toEqual([]);
 	});
 });
+
+describe("normalizeCodex - <turn_aborted> marker (RC-T6)", () => {
+	it("ends the turn cleanly when item/completed's agentMessage text is a raw <turn_aborted> marker", () => {
+		const events = normalizeCodex({
+			method: "item/completed",
+			params: {
+				item: { type: "agentMessage", id: "item_1", text: "<turn_aborted>" },
+			},
+		});
+		expect(events).toEqual([
+			{
+				id: "item_1",
+				kind: "message",
+				role: "assistant",
+				text: "<turn_aborted>",
+			},
+			{
+				kind: "status",
+				status: "turn_completed",
+				detail: { turnAborted: true },
+			},
+		]);
+	});
+
+	it("ends the turn cleanly when the marker arrives inside a streamed delta instead", () => {
+		const events = normalizeCodex({
+			method: "item/agentMessage/delta",
+			params: { itemId: "item_1", delta: "<turn_aborted/>" },
+		});
+		expect(events).toEqual([
+			{ id: "item_1", kind: "output", text: "<turn_aborted/>" },
+			{
+				kind: "status",
+				status: "turn_completed",
+				detail: { turnAborted: true },
+			},
+		]);
+	});
+
+	it("does not treat ordinary agentMessage text as an abort marker", () => {
+		const events = normalizeCodex({
+			method: "item/completed",
+			params: { item: { type: "agentMessage", id: "item_1", text: "done" } },
+		});
+		expect(events).toEqual([
+			{ id: "item_1", kind: "message", role: "assistant", text: "done" },
+		]);
+	});
+});

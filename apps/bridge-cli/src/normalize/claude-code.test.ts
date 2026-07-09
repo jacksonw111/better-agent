@@ -239,3 +239,20 @@ describe("normalizeClaudeCode - user tool_result block", () => {
 		expect(events[0]).toMatchObject({ status: "failed" });
 	});
 });
+
+// RC-T6: defensive unknown-type audit — an unrecognized top-level `type` (a
+// future stream-json line shape) or a non-object line must drop safely
+// (empty array), never throw.
+describe("normalizeClaudeCode - unknown/malformed input (RC-T6)", () => {
+	it("drops an unrecognized top-level type without throwing", () => {
+		expect(() =>
+			normalizeClaudeCode({ type: "future_line_shape", payload: {} })
+		).not.toThrow();
+		expect(normalizeClaudeCode({ type: "future_line_shape" })).toEqual([]);
+	});
+
+	it("drops a non-object line without throwing", () => {
+		expect(() => normalizeClaudeCode("not an object")).not.toThrow();
+		expect(normalizeClaudeCode(null)).toEqual([]);
+	});
+});
