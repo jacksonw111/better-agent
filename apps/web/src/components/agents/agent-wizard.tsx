@@ -83,7 +83,7 @@ function WizardStepBody({
 	agentId: string | null;
 }) {
 	return (
-		<div className="flex min-h-64 flex-col sm:min-h-80">
+		<div className="flex min-h-80 flex-col overflow-y-auto sm:min-h-96">
 			{step === IDENTITY_STEP ? <IdentityStep form={form} set={set} /> : null}
 			{step === MODEL_STEP ? <ModelStep form={form} set={set} /> : null}
 			{step === PARAMS_STEP ? <ParamsStep form={form} set={set} /> : null}
@@ -131,7 +131,7 @@ export function AgentWizard({
 		isLastStep(step) ? onSubmit(form) : setStep((current) => current + 1);
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="sm:max-w-lg">
+			<DialogContent className="sm:max-w-2xl">
 				<DialogHeader>
 					<DialogTitle>{initial ? "Edit agent" : "New agent"}</DialogTitle>
 				</DialogHeader>
