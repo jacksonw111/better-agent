@@ -13,6 +13,7 @@ function makeAgentTokenOps(
 				id: crypto.randomUUID(),
 				...rest,
 				composioAccountIds: rest.composioAccountIds ?? [],
+				openConnectorAccountIds: rest.openConnectorAccountIds ?? [],
 				mcpServerIds: rest.mcpServerIds ?? [],
 				toolAllowlist: rest.toolAllowlist ?? null,
 				builtinTools: rest.builtinTools ?? [],
@@ -53,12 +54,13 @@ function makeAgentTokenOps(
 function unlinkFromArray(
 	map: Map<string, AgentConfig>,
 	userId: string,
-	field: "mcpServerIds" | "composioAccountIds",
+	field: "mcpServerIds" | "composioAccountIds" | "openConnectorAccountIds",
 	id: string
 ): void {
 	for (const agent of map.values()) {
-		if (agent.userId === userId && agent[field].includes(id)) {
-			agent[field] = agent[field].filter((value) => value !== id);
+		const values = agent[field] ?? [];
+		if (agent.userId === userId && values.includes(id)) {
+			agent[field] = values.filter((value) => value !== id);
 		}
 	}
 }
@@ -107,8 +109,8 @@ export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
 			unlinkFromArray(map, userId, "composioAccountIds", accountId);
 			return Promise.resolve();
 		},
-		// AgentConfig doesn't track open-connector account ids yet; no-op until it does.
-		unlinkOpenConnectorAccount(_userId, _accountId) {
+		unlinkOpenConnectorAccount(userId, accountId) {
+			unlinkFromArray(map, userId, "openConnectorAccountIds", accountId);
 			return Promise.resolve();
 		},
 	};

@@ -13,6 +13,9 @@ export interface AgentConfig {
 	mcpServerIds: string[];
 	modelId: string;
 	name: string;
+	/** Linked open-connector account ids; optional so pre-existing agent
+	 * fixtures that predate the integration stay valid. */
+	openConnectorAccountIds?: string[];
 	params: AgentParams | null;
 	providerId: string;
 	systemPrompt: string;
@@ -31,6 +34,7 @@ export interface AgentInput {
 	mcpServerIds: string[];
 	modelId: string;
 	name: string;
+	openConnectorAccountIds?: string[];
 	params: AgentParams | null;
 	providerId: string;
 	systemPrompt: string;
