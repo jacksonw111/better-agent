@@ -4,6 +4,7 @@ import { CandlestickChart } from "./candlestick-chart";
 import { CnHotList } from "./cn-hot-list";
 import { CommodityGrid } from "./commodity-grid";
 import { CompanyProfileCard } from "./company-profile-card";
+import { ConvertibleBondsTable } from "./convertible-bonds-table";
 import { DivergenceCard } from "./divergence-card";
 import { DividendsTable } from "./dividends-table";
 import { DragonTigerTable } from "./dragon-tiger-table";
@@ -49,16 +50,25 @@ import {
 	HolderCountRowSchema,
 	SentimentCompareSchema,
 } from "./finance-schemas-fe12";
+import {
+	ConvertibleBondRowSchema,
+	IpoRowSchema,
+	LockupRowSchema,
+	PreannounceRowSchema,
+} from "./finance-schemas-fe13";
 import { ForecastTable } from "./forecast-table";
 import { HolderCountChart } from "./holder-count-chart";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
+import { IpoTable } from "./ipo-table";
 import { KeyMetricsCard } from "./key-metrics-card";
+import { LockupTable } from "./lockup-table";
 import { MacroPanel } from "./macro-panel";
 import { MarginChart } from "./margin-chart";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { NewsList } from "./news-list";
+import { PreannounceList } from "./preannounce-list";
 import { PredictionMarkets } from "./prediction-markets";
 import { QuoteCard } from "./quote-card";
 import { ReportsList } from "./reports-list";
@@ -103,7 +113,10 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // finance_divergence (divergence-card.tsx), plus a `livePrice` flag on
 // finance_prediction_markets outcomes (prediction-markets.tsx). FE-12 adds
 // finance_sentiment_compare (sentiment-compare.tsx), finance_holder_count
-// (holder-count-chart.tsx), and finance_cn_hot (cn-hot-list.tsx).
+// (holder-count-chart.tsx), and finance_cn_hot (cn-hot-list.tsx). FE-13 adds
+// finance_earnings_preannounce (preannounce-list.tsx), finance_lockup
+// (lockup-table.tsx), finance_convertible_bonds
+// (convertible-bonds-table.tsx), and finance_ipo (ipo-table.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -116,6 +129,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_company_profile: entry(CompanyProfileSchema, (data) => (
 		<CompanyProfileCard data={data} />
+	)),
+	finance_convertible_bonds: listEntry(ConvertibleBondRowSchema, (rows) => (
+		<ConvertibleBondsTable data={rows} />
 	)),
 	finance_divergence: entry(DivergenceSchema, (data) => (
 		<DivergenceCard data={data} />
@@ -131,6 +147,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_earnings_forecast: listEntry(ForecastRowSchema, (rows) => (
 		<ForecastTable data={rows} />
+	)),
+	finance_earnings_preannounce: listEntry(PreannounceRowSchema, (rows) => (
+		<PreannounceList data={rows} />
 	)),
 	finance_economic_calendar: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -150,6 +169,7 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_index_quote: listEntry(IndexQuoteSchema, (items) => (
 		<IndexGrid items={items} />
 	)),
+	finance_ipo: listEntry(IpoRowSchema, (rows) => <IpoTable data={rows} />),
 	finance_key_metrics: entry(KeyMetricsSchema, (data) => (
 		<KeyMetricsCard data={data} />
 	)),
@@ -158,6 +178,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_list_reports: listEntry(ReportSchema, (rows) => (
 		<ReportsList data={rows} />
+	)),
+	finance_lockup: listEntry(LockupRowSchema, (rows) => (
+		<LockupTable data={rows} />
 	)),
 	finance_macro_cn: entry(MacroResultSchema, (data) => (
 		<MacroPanel data={data} />
