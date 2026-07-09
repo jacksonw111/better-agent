@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAsyncQueue } from "./adapters/async-queue";
 import {
+	type AgentSessionIdRef,
 	forwardEvents,
 	type RelayTransport,
 	runBridgeSession,
@@ -76,10 +77,9 @@ describe("forwardEvents", () => {
 
 it("forwards an event that only arrives after several idle flush ticks", async () => {
 	// Regression: a slow source (e.g. claude's ~4s first token) lets the flush
-	// timer fire repeatedly while no event has arrived. The loop must keep the
-	// SAME pending iterator.next() across those ticks — re-creating it each
-	// iteration orphaned the outstanding call, so the eventual event resolved a
-	// next() nobody awaited and was silently dropped (nothing ever forwarded).
+	// timer fire repeatedly before any event arrives. The loop must keep the
+	// SAME pending iterator.next() across those ticks, or the eventual event
+	// resolves a next() nobody awaited and is silently dropped.
 	const push = vi.fn().mockResolvedValue(undefined);
 	const queue = createAsyncQueue<string>();
 	const { sleep, resolveCall } = createControllableSleep();
@@ -113,6 +113,7 @@ function fakeTransport(
 			.mockResolvedValue({ sessionId: "sess_1", config: null }),
 		pushEvents: vi.fn().mockResolvedValue(undefined),
 		pollCommands,
+		fetchConfig: vi.fn().mockResolvedValue({ config: null }),
 	};
 }
 
@@ -139,13 +140,12 @@ async function startsSessionPushesEventsAndPollsUnderOneSessionId(): Promise<voi
 		pollOptions: { sleep },
 	});
 
-	expect(result).toEqual({ sessionId: "sess_1" });
+	expect(result).toEqual({ outcome: "ended", sessionId: "sess_1" });
 	expect(transport.pushEvents).toHaveBeenCalledWith({
 		sessionId: "sess_1",
 		events: ["e1", "e2"],
 	});
-	// The agent process must be released once the session winds down,
-	// whether that's a clean finish or a failure below.
+	// The agent process must be released once the session winds down.
 	expect(stop).toHaveBeenCalledTimes(1);
 }
 
@@ -168,8 +168,7 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
 	transport.pushEvents = pushEvents;
 	const stop = vi.fn();
-	// Only the trailing batch ever flushes; the retry backoff resolves instantly.
-	const neverSleep: Sleep = () => new Promise(() => undefined);
+	const neverSleep: Sleep = () => new Promise(() => undefined); // trailing flush only
 
 	await runBridgeSession({
 		sessionId: "sess_1",
@@ -189,23 +188,26 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 		pollOptions: { sleep: () => Promise.resolve() },
 	});
 
-	// The retry carried the exact same batch through, in order, exactly once.
-	expect(pushedBatches).toEqual([[1, 2, 3]]);
+	expect(pushedBatches).toEqual([[1, 2, 3]]); // exact same batch, in order, once
 	expect(pushEvents).toHaveBeenCalledTimes(2);
 	expect(stop).toHaveBeenCalledTimes(1);
 }
 
-async function aControlStopCommandStopsTheAgentAndEndsTheSession(): Promise<void> {
+/** Shared by the `control:stop` and `control:restart` cases below — both tear
+ * down the process (`stop` called once by the control handling, once more by
+ * `runBridgeSession`'s own `finally`) and differ only in outcome/status. */
+async function aControlCommandTearsDownAndReportsOutcome(
+	action: "restart" | "stop",
+	outcome: "restart" | "stopped",
+	status: "restarting" | "stopped_by_server"
+): Promise<void> {
 	const controller = new AbortController(); // never aborted externally — proves the session ends on its own
-	// A real adapter's `stop()` closes its own event queue; mimicked here so
-	// this exercises the same end-to-end shutdown a live agent process would.
+	// A real adapter's stop() closes its own event queue; mimicked here.
 	const events = createAsyncQueue<string>();
 	const stop = vi.fn(() => events.close());
 	const pollCommands = vi
 		.fn()
-		.mockResolvedValueOnce([
-			{ id: 1, data: { type: "control", action: "stop" } },
-		]);
+		.mockResolvedValueOnce([{ id: 1, data: { type: "control", action } }]);
 	const transport = fakeTransport(pollCommands);
 
 	const result = await runBridgeSession({
@@ -218,17 +220,51 @@ async function aControlStopCommandStopsTheAgentAndEndsTheSession(): Promise<void
 		},
 	});
 
-	expect(result).toEqual({ sessionId: "sess_1" });
-	// Once from dispatchCommands reacting to the control:stop command, once
-	// more from runBridgeSession's own unconditional cleanup `finally` —
-	// mirrors the existing double-call-safe SIGINT path (real adapters'
-	// `stop()` is idempotent).
+	expect(result).toEqual({ outcome, sessionId: "sess_1" });
 	expect(stop).toHaveBeenCalledTimes(2);
 	expect(pollCommands).toHaveBeenCalledTimes(1);
 	expect(transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
 		sessionId: "sess_1",
-		events: [{ kind: "status", status: "stopped_by_server" }],
+		events: [{ kind: "status", status }],
 	});
+}
+
+async function capturesTheLatestSessionReadyIdIntoAgentSessionIdRef(): Promise<void> {
+	const controller = new AbortController();
+	const transport = fakeTransport(vi.fn().mockResolvedValue([]));
+	const sleep: Sleep = () => {
+		controller.abort();
+		return Promise.resolve();
+	};
+	const agentSessionIdRef: AgentSessionIdRef = {};
+
+	await runBridgeSession({
+		sessionId: "sess_1",
+		transport,
+		handle: {
+			answerApproval: vi.fn(),
+			events: arrayEvents([
+				{
+					kind: "status",
+					status: "session_ready",
+					detail: { sessionId: "conv_1" },
+				},
+				{ kind: "message", role: "assistant", text: "hi" },
+				{
+					kind: "status",
+					status: "session_ready",
+					detail: { sessionId: "conv_2" },
+				},
+			]),
+			send: vi.fn(),
+			stop: vi.fn(),
+		},
+		signal: controller.signal,
+		agentSessionIdRef,
+		pollOptions: { sleep },
+	});
+
+	expect(agentSessionIdRef.current).toBe("conv_2"); // the LATEST id, not the first
 }
 
 describe("runBridgeSession", () => {
@@ -242,8 +278,22 @@ describe("runBridgeSession", () => {
 		retriesAFailedPushEventsBatchInsteadOfDroppingIt
 	);
 
+	it("a control:stop command stops the agent, pushes a status event, and ends the session", () =>
+		aControlCommandTearsDownAndReportsOutcome(
+			"stop",
+			"stopped",
+			"stopped_by_server"
+		));
+
+	it("a control:restart command stops the current process, pushes a restarting status, and returns the 'restart' outcome", () =>
+		aControlCommandTearsDownAndReportsOutcome(
+			"restart",
+			"restart",
+			"restarting"
+		));
+
 	it(
-		"a control:stop command stops the agent, pushes a status event, and ends the session",
-		aControlStopCommandStopsTheAgentAndEndsTheSession
+		"captures the latest session_ready event's detail.sessionId into agentSessionIdRef",
+		capturesTheLatestSessionReadyIdIntoAgentSessionIdRef
 	);
 });

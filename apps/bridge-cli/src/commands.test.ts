@@ -49,10 +49,7 @@ describe("parseCommandText", () => {
 	});
 });
 
-// The Local Agent detail page's session controls (Phase 5): Interrupt/model
-// picker/permission-mode dropdown, each relayed as its own `control` action.
-// Split out of the `describe("parseCommandText", ...)` block above to stay
-// under this repo's max-lines-per-function gate.
+// The Local Agent detail page's session controls (Phase 5).
 describe("parseCommandText control commands", () => {
 	it("accepts a control:interrupt command", () => {
 		expect(parseCommandText({ type: "control", action: "interrupt" })).toEqual({
@@ -98,17 +95,20 @@ describe("parseCommandText control commands", () => {
 			parseCommandText({ type: "control", action: "listSessions" })
 		).toEqual({ type: "control", action: "listSessions" });
 	});
+
+	it("accepts a control:restart command", () => {
+		expect(parseCommandText({ type: "control", action: "restart" })).toEqual({
+			type: "control",
+			action: "restart",
+		});
+	});
 });
 
 // Cross-boundary regression: apps/web/src/components/bridge/
-// use-bridge-terminal.ts's `makeAnswerApproval` sends its decision as
-// `transport.sendInput({ sessionId, data: { type: "approval", requestId,
-// optionId } })` — an object, never `JSON.stringify`'d. These two cases pin
-// down why: the string check in `parseCommandText` runs first, so a
-// stringified approval is indistinguishable from plain chat text and would
-// never reach `answerApproval`, leaving the approval stalled forever. Split
-// out of the `describe("parseCommandText", ...)` block above to stay under
-// this repo's max-lines-per-function gate.
+// use-bridge-terminal.ts's `makeAnswerApproval` sends its decision as an
+// object, never `JSON.stringify`'d — the string check in `parseCommandText`
+// runs first, so a stringified approval would otherwise be indistinguishable
+// from plain chat text and never reach `answerApproval`.
 describe("parseCommandText web/CLI approval boundary", () => {
 	it("routes the exact object the web sends to an approval command, not text", () => {
 		const webApprovalPayload = {
@@ -138,9 +138,8 @@ describe("parseCommandText web/CLI approval boundary", () => {
 	});
 });
 
-/** Shared by both `dispatchCommands` describe blocks below (split apart to
- * stay under this repo's max-lines-per-function gate) so each still exercises
- * the exact same sink shape. */
+/** Shared by both `dispatchCommands` describe blocks below (split apart for
+ * the max-lines-per-function gate) so each exercises the same sink shape. */
 function fakeSink(): CommandSink & {
 	interrupt: Mock<() => void>;
 	listSessions: Mock<() => void>;
@@ -172,7 +171,11 @@ describe("dispatchCommands", () => {
 
 		expect(sink.stop).toHaveBeenCalledTimes(1);
 		expect(sink.send).not.toHaveBeenCalled();
-		expect(result).toEqual({ wasActive: true, stopRequested: true });
+		expect(result).toEqual({
+			wasActive: true,
+			stopRequested: true,
+			restartRequested: false,
+		});
 		expect(afterIdRef.current).toBe(7);
 	});
 
@@ -182,7 +185,11 @@ describe("dispatchCommands", () => {
 
 		const result = dispatchCommands([{ id: 1, data: "go" }], sink, afterIdRef);
 
-		expect(result).toEqual({ wasActive: true, stopRequested: false });
+		expect(result).toEqual({
+			wasActive: true,
+			stopRequested: false,
+			restartRequested: false,
+		});
 	});
 
 	it("reports stopRequested: false and wasActive: false when no commands are seen", () => {
@@ -192,14 +199,32 @@ describe("dispatchCommands", () => {
 		expect(dispatchCommands([], sink, afterIdRef)).toEqual({
 			wasActive: false,
 			stopRequested: false,
+			restartRequested: false,
 		});
 	});
 });
 
-// The Local Agent detail page's session controls (Phase 5) routed through
-// dispatchCommands. Split out of the `describe("dispatchCommands", ...)`
-// block above to stay under this repo's max-lines-per-function gate.
-describe("dispatchCommands control commands", () => {
+// `restart`/`interrupt`, split out to stay under the max-lines gate.
+describe("dispatchCommands restart/interrupt", () => {
+	it("reports restartRequested (without calling any sink method) for a control:restart command", () => {
+		const sink = fakeSink();
+		const afterIdRef = { current: 0 };
+
+		const result = dispatchCommands(
+			[{ id: 3, data: { type: "control", action: "restart" } }],
+			sink,
+			afterIdRef
+		);
+
+		expect(result).toEqual({
+			wasActive: true,
+			stopRequested: false,
+			restartRequested: true,
+		});
+		expect(sink.stop).not.toHaveBeenCalled();
+		expect(afterIdRef.current).toBe(3);
+	});
+
 	it("calls sink.interrupt (without setting stopRequested) for a control:interrupt command", () => {
 		const sink = fakeSink();
 		const afterIdRef = { current: 0 };
@@ -212,9 +237,17 @@ describe("dispatchCommands control commands", () => {
 
 		expect(sink.interrupt).toHaveBeenCalledTimes(1);
 		expect(sink.stop).not.toHaveBeenCalled();
-		expect(result).toEqual({ wasActive: true, stopRequested: false });
+		expect(result).toEqual({
+			wasActive: true,
+			stopRequested: false,
+			restartRequested: false,
+		});
 	});
+});
 
+// The Local Agent detail page's remaining session controls (Phase 5) routed
+// through dispatchCommands, split out to stay under the same gate.
+describe("dispatchCommands control commands", () => {
 	it("calls sink.setModel with the requested model for a control:setModel command", () => {
 		const sink = fakeSink();
 		const afterIdRef = { current: 0 };
@@ -257,6 +290,10 @@ describe("dispatchCommands control commands", () => {
 		);
 
 		expect(sink.listSessions).toHaveBeenCalledTimes(1);
-		expect(result).toEqual({ wasActive: true, stopRequested: false });
+		expect(result).toEqual({
+			wasActive: true,
+			stopRequested: false,
+			restartRequested: false,
+		});
 	});
 });

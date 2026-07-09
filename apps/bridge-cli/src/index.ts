@@ -3,8 +3,8 @@ import { AGENT_CLI, selectAdapter } from "./adapters";
 import { findOnPath } from "./adapters/process-io";
 import type { AgentKind } from "./adapters/types";
 import { handleInfoFlags, parseArgs } from "./args";
-import { runBridgeSession } from "./relay-client";
 import { createRelayTransport } from "./relay-transport";
+import { runRestartLoop } from "./restart-loop";
 import { BRIDGE_CLI_VERSION } from "./version";
 
 // `process.argv` is `[nodeExecutable, scriptPath, ...userArgs]`.
@@ -46,50 +46,6 @@ async function startAgentSession(
 	return { sessionId, handle };
 }
 
-/** Wires SIGINT/SIGTERM to a clean shutdown, drives the bridge session to
- * completion, and reports the outcome — the rest of `main` after the agent
- * has started. */
-async function runSession(
-	args: ReturnType<typeof parseArgs>,
-	transport: ReturnType<typeof createRelayTransport>,
-	handle: Awaited<ReturnType<typeof startAgentSession>>["handle"],
-	sessionId: string
-): Promise<void> {
-	const controller = new AbortController();
-
-	const stop = () => {
-		controller.abort();
-		handle.stop();
-	};
-	process.once("SIGINT", stop);
-	process.once("SIGTERM", stop);
-
-	const { sessionId: endedSessionId } = await runBridgeSession({
-		transport,
-		handle,
-		sessionId,
-		signal: controller.signal,
-		onStart: (id) =>
-			process.stdout.write(
-				`Connected. Session ${id}. Drive it from the web Local Agent view; input here is forwarded to the agent.\n`
-			),
-		pollOptions: args.debug
-			? {
-					onCommands: (commands) =>
-						process.stderr.write(`← command(s): ${JSON.stringify(commands)}\n`),
-				}
-			: undefined,
-		forwardOptions: {
-			onWarning: (message) => process.stderr.write(`${message}\n`),
-			onEvent: args.debug
-				? (event) => process.stderr.write(`→ event: ${JSON.stringify(event)}\n`)
-				: undefined,
-		},
-	});
-
-	process.stdout.write(`Bridge session ended: ${endedSessionId}\n`);
-}
-
 async function main(): Promise<void> {
 	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
 	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
@@ -116,7 +72,7 @@ async function main(): Promise<void> {
 		adapter,
 		transport
 	);
-	await runSession(args, transport, handle, sessionId);
+	await runRestartLoop({ adapter, args, handle, sessionId, transport });
 }
 
 main().catch((error: unknown) => {

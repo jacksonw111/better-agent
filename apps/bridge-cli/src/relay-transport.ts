@@ -48,5 +48,6 @@ export function createRelayTransport(
 			await client.bridge.pushEvents(input);
 		},
 		pollCommands: (input) => client.bridge.pollCommands(input),
+		fetchConfig: () => client.bridge.fetchConfig(),
 	};
 }

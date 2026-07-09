@@ -14,6 +14,7 @@ function fakeTransport(
 		startSession: vi.fn().mockResolvedValue({ sessionId: "sess_1" }),
 		pushEvents: vi.fn().mockResolvedValue(undefined),
 		pollCommands,
+		fetchConfig: vi.fn().mockResolvedValue({ config: null }),
 	};
 }
 
@@ -100,7 +101,7 @@ describe("pollLoop - approval commands", () => {
 });
 
 describe("pollLoop - control stop", () => {
-	it("stops the agent, pushes a final status event, and returns without polling again", async () => {
+	it("stops the agent, pushes a final status event, and returns 'stopped' without polling again", async () => {
 		const controller = new AbortController(); // never aborted: proves pollLoop returns on its own
 		const pollCommands = vi
 			.fn()
@@ -114,11 +115,12 @@ describe("pollLoop - control stop", () => {
 		const neverSleep: Sleep = () =>
 			Promise.reject(new Error("should not sleep after a stop command"));
 
-		await pollLoop(transport, "sess_1", sink, afterIdRef, {
+		const outcome = await pollLoop(transport, "sess_1", sink, afterIdRef, {
 			signal: controller.signal,
 			sleep: neverSleep,
 		});
 
+		expect(outcome).toBe("stopped");
 		expect(stop).toHaveBeenCalledTimes(1);
 		expect(pollCommands).toHaveBeenCalledTimes(1);
 		expect(transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
@@ -126,6 +128,66 @@ describe("pollLoop - control stop", () => {
 			events: [{ kind: "status", status: "stopped_by_server" }],
 		});
 		expect(afterIdRef.current).toBe(9);
+	});
+});
+
+describe("pollLoop - control restart", () => {
+	it("pushes a restarting status, stops the current process, and returns 'restart' without polling again", async () => {
+		const controller = new AbortController(); // never aborted: proves pollLoop returns on its own
+		const pollCommands = vi
+			.fn()
+			.mockResolvedValue([
+				{ id: 4, data: { type: "control", action: "restart" } },
+			]);
+		const transport = fakeTransport(pollCommands);
+		const stop = vi.fn();
+		const sink: CommandSink = { ...fakeCommandSink(), stop };
+		const afterIdRef = { current: 0 };
+		const neverSleep: Sleep = () =>
+			Promise.reject(new Error("should not sleep after a restart command"));
+
+		const outcome = await pollLoop(transport, "sess_1", sink, afterIdRef, {
+			signal: controller.signal,
+			sleep: neverSleep,
+		});
+
+		expect(outcome).toBe("restart");
+		// `dispatchCommands` itself routes "restart" to no `CommandSink` method
+		// (see commands.ts) — `pollOnce` calls `sink.stop()` directly instead, so
+		// the CURRENT process actually exits (letting `runBridgeSession`'s
+		// `forwardEvents` half of its `Promise.all` complete) without the
+		// server-issued restart ever being mistaken for a `control: stop`
+		// upstream (that distinction lives entirely in the returned outcome).
+		expect(stop).toHaveBeenCalledTimes(1);
+		expect(pollCommands).toHaveBeenCalledTimes(1);
+		expect(transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
+			sessionId: "sess_1",
+			events: [{ kind: "status", status: "restarting" }],
+		});
+		expect(afterIdRef.current).toBe(4);
+	});
+});
+
+describe("pollLoop - ended (no control command)", () => {
+	it("returns 'ended' when the signal aborts without a stop/restart control command", async () => {
+		const controller = new AbortController();
+		const pollCommands = vi.fn().mockResolvedValue([]);
+		const transport = fakeTransport(pollCommands);
+		const afterIdRef = { current: 0 };
+		const sleep: Sleep = () => {
+			controller.abort();
+			return Promise.resolve();
+		};
+
+		const outcome = await pollLoop(
+			transport,
+			"sess_1",
+			fakeCommandSink(),
+			afterIdRef,
+			{ signal: controller.signal, sleep }
+		);
+
+		expect(outcome).toBe("ended");
 	});
 });
 

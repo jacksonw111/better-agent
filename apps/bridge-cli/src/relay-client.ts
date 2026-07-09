@@ -6,14 +6,21 @@
 
 import type { AgentStartConfig } from "./adapters/types";
 import type { AfterIdRef, CommandSink, RelayEvent } from "./commands";
-import { type PollLoopOptions, pollLoop } from "./poll-loop";
+import { isRecord } from "./normalize/types";
+import { type PollLoopOptions, type PollOutcome, pollLoop } from "./poll-loop";
 import { createPushQueue, type PushQueue } from "./push-queue";
 import { truncateEvents } from "./truncate-event";
 
-export { pollLoop } from "./poll-loop";
+export { type PollOutcome, pollLoop } from "./poll-loop";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
 export interface RelayTransport {
+	/** Re-fetches the calling bridge token's current persisted startup config
+	 * (the same shape `startSession`'s `config` returns) — what a restarting
+	 * CLI calls instead of `startSession` again, since minting a new session
+	 * would break the seamless reconnect a restart is for (see
+	 * `restart-loop.ts`). */
+	fetchConfig(): Promise<{ config: AgentStartConfig | null }>;
 	pollCommands(input: {
 		afterId: number;
 		sessionId: string;
@@ -152,7 +159,62 @@ export async function forwardEvents<T>(
 	await queue.close();
 }
 
+/** Status event `kind`/`status` an adapter pushes once per session-open,
+ * carrying (among other things) the underlying agent's own conversation id
+ * at `detail.sessionId` — see `normalizeClaudeCode`/`sessionInfo` in
+ * `normalize/claude-code.ts`, the one adapter that fills it. */
+const SESSION_READY_STATUS = "session_ready";
+
+/** Mutable holder for the underlying agent's own conversation id, captured
+ * from a `session_ready` status event's `detail.sessionId` as events stream
+ * past — read by the outer restart loop (`restart-loop.ts`) after a
+ * `"restart"` outcome so it can `--resume` the SAME agent conversation, not
+ * just the same bridge sessionId. `current` stays `undefined` until (and
+ * unless) the adapter emits its first `session_ready`; a restart falls back
+ * to whatever `--resume` id the CLI was originally launched with. Mirrors
+ * `AfterIdRef`'s "mutable ref the caller can read back" shape. */
+export interface AgentSessionIdRef {
+	current?: string;
+}
+
+/** Extracts `detail.sessionId` from a `session_ready` status event, or
+ * `undefined` for anything else (including a `session_ready` with no
+ * sessionId — pi/opencode's `session_ready` doesn't carry one). */
+function sessionReadyId(event: unknown): string | undefined {
+	const detail =
+		isRecord(event) &&
+		event.kind === "status" &&
+		event.status === SESSION_READY_STATUS &&
+		isRecord(event.detail)
+			? event.detail
+			: undefined;
+	const sessionId = detail?.sessionId;
+	return typeof sessionId === "string" ? sessionId : undefined;
+}
+
+/** Wraps `events` so every `session_ready` status event's `detail.sessionId`
+ * updates `ref.current` as it streams past, then yields the event on
+ * unchanged — the one place `runBridgeSession` taps the agent's own
+ * conversation id, without `forwardEvents` itself (kept generic and untyped
+ * for testability) needing to know anything about normalized events. Mirrors
+ * `truncateEvents`. */
+export async function* captureAgentSessionId(
+	events: AsyncIterable<unknown>,
+	ref: AgentSessionIdRef
+): AsyncGenerator<unknown> {
+	for await (const event of events) {
+		const id = sessionReadyId(event);
+		if (id !== undefined) {
+			ref.current = id;
+		}
+		yield event;
+	}
+}
+
 export interface RunBridgeSessionOptions {
+	/** See `AgentSessionIdRef`. Optional: only the outer restart loop needs
+	 * it, so tests that don't exercise restart can omit it. */
+	agentSessionIdRef?: AgentSessionIdRef;
 	forwardOptions?: ForwardEventsOptions;
 	handle: CommandSink & {
 		events: AsyncIterable<unknown>;
@@ -179,10 +241,15 @@ export interface RunBridgeSessionOptions {
  * poll loop running forever. `handle.stop()` always runs before this
  * function returns or throws — on any exit path — so a failure here (e.g.
  * `startSession` rejecting) never orphans the spawned agent process.
+ *
+ * The returned `outcome` (see `PollOutcome`) lets the caller — `main`'s
+ * outer restart loop (`restart-loop.ts`) — tell a server-issued `stop` apart
+ * from a `restart` apart from the agent simply exiting on its own, WITHOUT
+ * this function itself knowing anything about relaunching.
  */
 export async function runBridgeSession(
 	options: RunBridgeSessionOptions
-): Promise<{ sessionId: string }> {
+): Promise<{ outcome: PollOutcome; sessionId: string }> {
 	try {
 		const { sessionId } = options;
 		options.onStart?.(sessionId);
@@ -194,10 +261,16 @@ export async function runBridgeSession(
 			stopPolling();
 		}
 
+		let events: AsyncIterable<unknown> = truncateEvents(options.handle.events);
+		if (options.agentSessionIdRef) {
+			events = captureAgentSessionId(events, options.agentSessionIdRef);
+		}
+
+		let outcome: PollOutcome;
 		try {
-			await Promise.all([
+			[, outcome] = await Promise.all([
 				forwardEvents(
-					truncateEvents(options.handle.events),
+					events,
 					(batch) => options.transport.pushEvents({ sessionId, events: batch }),
 					{ ...options.forwardOptions, signal: options.signal }
 				).finally(stopPolling),
@@ -210,7 +283,7 @@ export async function runBridgeSession(
 			options.signal.removeEventListener("abort", stopPolling);
 		}
 
-		return { sessionId };
+		return { outcome, sessionId };
 	} finally {
 		options.handle.stop();
 	}

@@ -78,10 +78,22 @@ export interface ControlGetStatusCommand {
 	type: "control";
 }
 
+/** A server-initiated request to reconfigure and relaunch the agent IN
+ * PLACE (see `RESTART_CONTROL_COMMAND` in
+ * `packages/api/src/routers/bridge-restart.ts`). Unlike `ControlStopCommand`,
+ * this must NOT end the bridge session — `restart-loop.ts` tears down the
+ * current agent process, re-fetches fresh config, and starts a new one under
+ * the SAME bridge sessionId; the process itself never exits. */
+export interface ControlRestartCommand {
+	action: "restart";
+	type: "control";
+}
+
 export type ControlCommand =
 	| ControlGetStatusCommand
 	| ControlInterruptCommand
 	| ControlListSessionsCommand
+	| ControlRestartCommand
 	| ControlSetModelCommand
 	| ControlSetPermissionModeCommand
 	| ControlStopCommand;
@@ -122,6 +134,9 @@ function parseControlCommand(
 	if (data.action === "getStatus") {
 		return { action: "getStatus", type: "control" };
 	}
+	if (data.action === "restart") {
+		return { action: "restart", type: "control" };
+	}
 	return null;
 }
 
@@ -131,8 +146,8 @@ function parseControlCommand(
  * `{ text }` (a plain-text command), `{ type: "approval", requestId,
  * optionId }` (the web UI's reply to an `ApprovalEvent`), and `{ type:
  * "control", action: "stop" | "interrupt" | "setModel" |
- * "setPermissionMode" | "listSessions" | "getStatus", ... }` (the web UI's
- * session controls); anything else is `null` and left undispatched.
+ * "setPermissionMode" | "listSessions" | "getStatus" | "restart", ... }`
+ * (session controls); anything else is `null` and left undispatched.
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
@@ -193,6 +208,11 @@ export interface CommandSink {
 
 /** What `dispatchCommands` did with a batch of relayed commands. */
 export interface DispatchResult {
+	/** A `control: restart` command was seen — the caller (`pollLoop`) should
+	 * end with a "restart" `PollOutcome` instead of "stopped", so the outer
+	 * restart loop relaunches the agent instead of exiting the process.
+	 * Tracked independently of `stopRequested`, not merged into it. */
+	restartRequested: boolean;
 	/** A `control: stop` command was seen — the caller (`pollLoop`) should
 	 * stop polling and wind the session down instead of scheduling another
 	 * poll. */
@@ -227,7 +247,10 @@ function callGetStatus(sink: CommandSink): void {
 
 /** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`
  * method. Split out of `dispatchCommands` purely to keep that loop's body
- * short. */
+ * short. `restart` has no branch here — routing it to `sink.stop()` at this
+ * layer would make it indistinguishable from an ordinary stop; `pollOnce`
+ * (poll-loop.ts) reports `restartRequested` as its own `PollOutcome` AND
+ * separately calls `sink.stop()` to actually end the current process. */
 function dispatchControlCommand(
 	command: ControlCommand,
 	sink: CommandSink
@@ -250,14 +273,15 @@ function dispatchControlCommand(
 /** Parses and dispatches each command to `sink` — a text command calls
  * `sink.send`, an approval command calls `sink.answerApproval`, a control
  * command calls the matching `sink.stop`/`interrupt`/`setModel`/
- * `setPermissionMode` — advancing `afterIdRef` past every command seen,
- * whether or not it was dispatched. */
+ * `setPermissionMode` (nothing, for `restart` — see `dispatchControlCommand`)
+ * — advancing `afterIdRef` past every command seen either way. */
 export function dispatchCommands(
 	commands: RelayEvent[],
 	sink: CommandSink,
 	afterIdRef: AfterIdRef
 ): DispatchResult {
 	let stopRequested = false;
+	let restartRequested = false;
 	for (const command of commands) {
 		const parsed = parseCommandText(command.data);
 		if (parsed?.type === "text") {
@@ -267,8 +291,9 @@ export function dispatchCommands(
 		} else if (parsed?.type === "control") {
 			dispatchControlCommand(parsed, sink);
 			stopRequested = stopRequested || parsed.action === "stop";
+			restartRequested = restartRequested || parsed.action === "restart";
 		}
 		afterIdRef.current = command.id;
 	}
-	return { stopRequested, wasActive: commands.length > 0 };
+	return { restartRequested, stopRequested, wasActive: commands.length > 0 };
 }
