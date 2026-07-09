@@ -44,13 +44,13 @@ jobs:
       - name: Verify required config
         env:
           SERVER_PASSWD: ${{ secrets.SERVER_PASSWD }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_DEPLOY_DIR: ${{ vars.SERVER_DEPLOY_DIR }}
+          SERVER_HOST: ${{ vars.SERVER_HOST || secrets.SERVER_HOST }}
+          SERVER_DEPLOY_DIR: ${{ vars.SERVER_DEPLOY_DIR || secrets.SERVER_DEPLOY_DIR }}
         run: |
           missing=""
           [ -n "$SERVER_PASSWD" ]   || missing="$missing SERVER_PASSWD(secret)"
-          [ -n "$SERVER_HOST" ]       || missing="$missing SERVER_HOST(variable)"
-          [ -n "$SERVER_DEPLOY_DIR" ] || missing="$missing SERVER_DEPLOY_DIR(variable)"
+          [ -n "$SERVER_HOST" ]       || missing="$missing SERVER_HOST(variable-or-secret)"
+          [ -n "$SERVER_DEPLOY_DIR" ] || missing="$missing SERVER_DEPLOY_DIR(variable-or-secret)"
           if [ -n "$missing" ]; then
             echo "::error::Missing GitHub config:$missing — see the header of this workflow file."
             exit 1
@@ -62,26 +62,26 @@ jobs:
       - name: Copy compose files to server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER || 'root' }}
+          host: ${{ vars.SERVER_HOST || secrets.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER || secrets.SERVER_USER || 'root' }}
           password: ${{ secrets.SERVER_PASSWD }}
-          port: ${{ vars.SERVER_PORT || '22' }}
+          port: ${{ vars.SERVER_PORT || secrets.SERVER_PORT || '22' }}
           source: "deploy/compose/docker-compose.yml,deploy/compose/Caddyfile"
-          target: ${{ vars.SERVER_DEPLOY_DIR }}
+          target: ${{ vars.SERVER_DEPLOY_DIR || secrets.SERVER_DEPLOY_DIR }}
           strip_components: 2
 
       - name: Pull images and restart the stack
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER || 'root' }}
+          host: ${{ vars.SERVER_HOST || secrets.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER || secrets.SERVER_USER || 'root' }}
           password: ${{ secrets.SERVER_PASSWD }}
-          port: ${{ vars.SERVER_PORT || '22' }}
+          port: ${{ vars.SERVER_PORT || secrets.SERVER_PORT || '22' }}
           # Fail the job if any command fails, so a broken deploy is visible.
           script_stop: true
           script: |
             set -eu
-            cd "${{ vars.SERVER_DEPLOY_DIR }}"
+            cd "${{ vars.SERVER_DEPLOY_DIR || secrets.SERVER_DEPLOY_DIR }}"
             echo "── deploying in $(pwd) ──"
             docker compose pull
             docker compose up -d --remove-orphans
