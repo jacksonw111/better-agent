@@ -66,7 +66,8 @@ async function fetchClistRows(
 }
 
 function fsForType(type: string): string {
-	return type === "concept" ? "m:90 t:3 f:!50" : "m:90 t:2 f:!50";
+	// NOTE: the `f:!50` filter akshare uses 520s on the push2 mirror — omit it.
+	return type === "concept" ? "m:90 t:3" : "m:90 t:2";
 }
 
 // EastMoney's selector must arrive on the wire exactly as its own web client
