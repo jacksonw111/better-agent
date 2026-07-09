@@ -91,6 +91,24 @@ describe("piAdapter - send()", () => {
 	});
 });
 
+describe("piAdapter - interrupt", () => {
+	// T0: the web Stop button relays `interrupt()` — before this, pi's
+	// AgentHandle had no `interrupt` at all despite agent-capabilities.ts
+	// advertising `interrupt: true`, so Stop silently did nothing even though
+	// pi's own protocol supports an abort frame.
+	it("writes an abort command frame to stdin", async () => {
+		const { io } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		handle.interrupt?.();
+
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({ type: "abort" })
+		);
+	});
+});
+
 describe("piAdapter - session_ready", () => {
 	it("sends get_state and get_commands once, right at start", async () => {
 		const { io } = createFakeProcessIo();

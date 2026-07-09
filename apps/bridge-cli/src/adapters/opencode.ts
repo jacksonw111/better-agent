@@ -212,6 +212,13 @@ export const opencodeAdapter: Adapter = {
 			},
 			events,
 			getStatus: makeOpencodeGetStatus(statusCache, events),
+			// Cancels the in-flight turn without ending the session — the web Stop
+			// button. Fire-and-forget notification (ACP's `session/cancel` has no
+			// reply), matching the plan's §2/T0 GUESS on the method name — see
+			// docs/research/agent-config-opencode.md's ACP wire-surface table.
+			interrupt(): void {
+				rpc.notify("session/cancel", { sessionId });
+			},
 			send: opencodeSend(rpc, events, () => sessionId),
 			...modeControls,
 			stop(): void {

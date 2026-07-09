@@ -58,16 +58,19 @@ export interface AgentCapabilities {
 	usageMode: UsageMode;
 }
 
-/** claude's full `PermissionMode` enum (mirrors `PERMISSION_MODES` in
- * `apps/bridge-cli/src/adapters/claude-code.ts`). */
-const CLAUDE_PERMISSION_MODES = [
-	"default",
-	"acceptEdits",
-	"bypassPermissions",
-	"plan",
-	"dontAsk",
-	"auto",
-];
+/** The claude `PermissionMode` values offered as one-click web options —
+ * deliberately NOT the SDK's full 6-value enum (mirrored in full by
+ * `PERMISSION_MODES` in `apps/bridge-cli/src/adapters/claude-code-startup-
+ * config.ts`, which still validates/accepts all 6 for a startup config a user
+ * sets deliberately, e.g. via the API/token directly). `bypassPermissions`
+ * ("Bypass all permission checks") and `auto` ("Use a model classifier to
+ * approve/deny permission prompts") both grant tool execution WITHOUT the
+ * web's `canUseTool` human-approval gate — offering them here let a relayed
+ * `setPermissionMode` flip a LIVE running session into ungated shell with no
+ * re-auth (the T0 audit finding). `dontAsk` stays: per the SDK docs it DENIES
+ * unapproved tools rather than granting them, so it can only narrow, not
+ * escalate, privilege. */
+const CLAUDE_PERMISSION_MODES = ["default", "acceptEdits", "plan", "dontAsk"];
 
 /** opencode's ACP modes — `build` (the default acting mode) and `plan`
  * (read-only planning). Per the §2 research these are the real values, not the

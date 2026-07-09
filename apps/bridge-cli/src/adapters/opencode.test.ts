@@ -220,3 +220,20 @@ describe("opencodeAdapter - model & permission controls", () => {
 		});
 	});
 });
+
+describe("opencodeAdapter - interrupt", () => {
+	// T0: the web Stop button relays `interrupt()` — before this, opencode's
+	// AgentHandle had no `interrupt` at all despite agent-capabilities.ts
+	// advertising `interrupt: true`, so Stop silently did nothing.
+	it("notifies session/cancel with the session id on interrupt", async () => {
+		const { rpc } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await opencodeAdapter.start("/tmp/project");
+
+		handle.interrupt?.();
+
+		expect(rpc.notify).toHaveBeenCalledWith("session/cancel", {
+			sessionId: "session_1",
+		});
+	});
+});

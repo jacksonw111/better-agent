@@ -6,7 +6,7 @@ import { CAPABILITIES, capabilities } from "./agent-capabilities";
 // matrix itself; terminal.test.tsx / terminal-controls.test.tsx cover the UI
 // actually gating on it.
 
-it("gives claude the full matrix — every optional surface on, the full permission-mode set", () => {
+it("gives claude the full matrix — every optional surface on, the safe permission-mode subset", () => {
 	const claude = capabilities("claude-code");
 	expect(claude.reasoning).toBe(true);
 	expect(claude.sessionList).toBe(true);
@@ -21,11 +21,20 @@ it("gives claude the full matrix — every optional surface on, the full permiss
 	expect(claude.permissionModes).toEqual([
 		"default",
 		"acceptEdits",
-		"bypassPermissions",
 		"plan",
 		"dontAsk",
-		"auto",
 	]);
+});
+
+// T0 security regression: `bypassPermissions`/`auto` both grant tool
+// execution without the web's `canUseTool` approval gate — a relayed
+// `setPermissionMode` offering them as one-click LIVE options would flip a
+// running session into ungated shell with no re-auth. They must never
+// reappear in the web-selectable set, however the safe subset above evolves.
+it("never offers bypassPermissions or auto as web-selectable claude permission modes", () => {
+	const claude = capabilities("claude-code");
+	expect(claude.permissionModes).not.toContain("bypassPermissions");
+	expect(claude.permissionModes).not.toContain("auto");
 });
 
 it("gives pi no session-list or tool-approval, a poll usage mode, and no permission menu (pi has no approval concept)", () => {

@@ -135,11 +135,13 @@ export interface AgentHandle {
 	getStatus?(): void;
 	/**
 	 * Cancels the in-flight turn but keeps the session alive — distinct from
-	 * `stop`, which ends the session outright. Optional: only adapters backed
-	 * by a control protocol that supports mid-turn cancellation (currently
-	 * claude-code, via the SDK's `query.interrupt()`) implement it; the CLI's
-	 * `CommandSink` routing (see `apps/bridge-cli/src/commands.ts`) treats a
-	 * missing `interrupt` as a no-op rather than an error.
+	 * `stop`, which ends the session outright. Every adapter implements it
+	 * (claude-code via the SDK's `query.interrupt()`, codex's `turn/interrupt`,
+	 * opencode's ACP `session/cancel`, pi's `{type:"abort"}` stdin frame), but
+	 * it stays optional here — the CLI's `CommandSink` routing (see
+	 * `apps/bridge-cli/src/commands.ts`) treats a missing `interrupt` as a
+	 * no-op rather than an error — so a future adapter without one degrades
+	 * safely instead of crashing.
 	 */
 	interrupt?(): void;
 	/**

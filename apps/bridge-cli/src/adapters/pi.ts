@@ -263,6 +263,11 @@ export const piAdapter: Adapter = {
 			},
 			events,
 			getStatus: statusTracker.request,
+			// Cancels the in-flight turn without ending the session — the web Stop
+			// button. pi's stdio protocol supports an abort frame directly.
+			interrupt(): void {
+				io.writeLine(JSON.stringify({ type: "abort" }));
+			},
 			send(text: string): void {
 				events.push(userMessageEvent(text));
 				io.writeLine(buildPiPromptCommand(text));
