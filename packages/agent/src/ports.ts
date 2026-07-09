@@ -60,6 +60,7 @@ export interface AgentStore {
 	/** Remove a deleted source from every one of the user's agents. */
 	unlinkComposioAccount(userId: string, accountId: string): Promise<void>;
 	unlinkMcpServer(userId: string, serverId: string): Promise<void>;
+	unlinkOpenConnectorAccount(userId: string, accountId: string): Promise<void>;
 	update(id: string, input: AgentInput): Promise<AgentConfig | null>;
 }
 
@@ -198,16 +199,16 @@ export interface ComposioAccountStore {
 }
 
 export type BridgeSessionStatus = "active" | "ended";
-
-// Bridge-token port types live in bridge-token-ports.ts (split out to keep this
-// file under the 300-line limit) and are re-exported here so the public
-// `@better-agent/agent/ports` surface is unchanged.
 export type {
 	BridgeAgentKind,
 	BridgeTokenConfig,
 	BridgeTokenRow,
 	BridgeTokenStore,
 } from "./bridge-token-ports";
+export type {
+	OpenConnectorAccountRow,
+	OpenConnectorAccountStore,
+} from "./open-connector-ports";
 
 export interface BridgeSessionRow {
 	agentKind: BridgeAgentKind;

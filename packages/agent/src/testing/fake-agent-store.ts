@@ -107,5 +107,9 @@ export function createFakeAgentStore(seed: AgentConfig[] = []): AgentStore {
 			unlinkFromArray(map, userId, "composioAccountIds", accountId);
 			return Promise.resolve();
 		},
+		// AgentConfig doesn't track open-connector account ids yet; no-op until it does.
+		unlinkOpenConnectorAccount(_userId, _accountId) {
+			return Promise.resolve();
+		},
 	};
 }
