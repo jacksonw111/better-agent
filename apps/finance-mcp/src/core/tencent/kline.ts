@@ -1,6 +1,6 @@
 import { fetchWithRetry } from "../http";
 import { parseSymbol } from "../symbol";
-import type { Candle } from "../types";
+import type { Candle, Market } from "../types";
 
 export type KlinePeriod =
 	| "day"
@@ -11,6 +11,13 @@ export type KlinePeriod =
 	| "15m"
 	| "30m"
 	| "60m";
+
+// US symbols need the exchange-suffixed Tencent code (e.g. `usAAPL.OQ`) to
+// get a full kline series — the plain `usAAPL` code returns a degenerate
+// 2-point series from fqkline/mkline. The suffix is resolved from the
+// realtime quote endpoint (see resolveTencentCode below).
+const QUOTE_HOST = "https://qt.gtimg.cn/q=";
+const US_QUOTE_SUFFIXED_CODE_FIELD = 2;
 
 const KLINE_HOST = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get";
 // NOTE: the mkline (intraday minute) endpoint lives on a DIFFERENT host —
@@ -138,6 +145,37 @@ interface KlineOpts {
 	signal?: AbortSignal;
 }
 
+// Resolves the exchange-suffixed Tencent code for US symbols (e.g.
+// `usAAPL` -> `usAAPL.OQ`) via the realtime quote endpoint. A-share/HK
+// symbols are returned unchanged with no extra fetch. Any parse/fetch
+// failure degrades gracefully to the original (unsuffixed) code rather
+// than throwing, so a quote-resolution hiccup never blocks kline data.
+async function resolveTencentCode(
+	market: Market,
+	tencent: string,
+	opts: KlineOpts
+): Promise<string> {
+	if (market !== "us") {
+		return tencent;
+	}
+	try {
+		const res = await fetchWithRetry(
+			`${QUOTE_HOST}${tencent}`,
+			{ headers: { Referer: "https://gu.qq.com/" } },
+			{ fetchImpl: opts.fetchImpl, signal: opts.signal }
+		);
+		if (!res.ok) {
+			return tencent;
+		}
+		const text = new TextDecoder("gbk").decode(await res.arrayBuffer());
+		const payload = text.split('"')[1] ?? "";
+		const suffixedCode = payload.split("~")[US_QUOTE_SUFFIXED_CODE_FIELD];
+		return suffixedCode ? `us${suffixedCode}` : tencent;
+	} catch {
+		return tencent;
+	}
+}
+
 async function fetchMinuteKline(
 	tencent: string,
 	period: KlinePeriod,
@@ -178,11 +216,12 @@ export async function getKline(
 	limit: number,
 	opts: KlineOpts = {}
 ): Promise<Candle[]> {
-	const { tencent } = parseSymbol(symbol);
+	const { market, tencent } = parseSymbol(symbol);
+	const code = await resolveTencentCode(market, tencent, opts);
 	const effectiveLimit = limit > 0 ? Math.min(limit, MAX_LIMIT) : DEFAULT_LIMIT;
 	const fetchCount = Math.max(effectiveLimit, MIN_FETCH);
 	const candles = isMinutePeriod(period)
-		? await fetchMinuteKline(tencent, period, fetchCount, opts)
-		: await fetchDayKline(tencent, period, fetchCount, opts);
+		? await fetchMinuteKline(code, period, fetchCount, opts)
+		: await fetchDayKline(code, period, fetchCount, opts);
 	return limit > 0 ? candles.slice(-effectiveLimit) : candles;
 }
