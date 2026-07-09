@@ -34,14 +34,14 @@ export function ReasoningTrigger({ label }: { label: string }) {
 		<Collapsible.Trigger className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
 			<BrainIcon className="size-3.5" />
 			<span>{label}</span>
-			<ChevronDownIcon className="size-3.5 transition-transform data-[panel-open]:rotate-180" />
+			<ChevronDownIcon className="ml-auto size-3.5 transition-transform data-[panel-open]:rotate-180" />
 		</Collapsible.Trigger>
 	);
 }
 
 export function ReasoningContent({ children }: { children: ReactNode }) {
 	return (
-		<Collapsible.Panel className="mt-2 whitespace-pre-wrap text-muted-foreground text-xs leading-relaxed">
+		<Collapsible.Panel className="mt-2 text-muted-foreground text-xs leading-relaxed">
 			{children}
 		</Collapsible.Panel>
 	);

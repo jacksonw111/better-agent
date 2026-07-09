@@ -37,7 +37,9 @@ function BlockView({
 		return (
 			<Reasoning isStreaming={streaming}>
 				<ReasoningTrigger label="Reasoning" />
-				<ReasoningContent>{block.text}</ReasoningContent>
+				<ReasoningContent>
+					<Response isAnimating={streaming}>{block.text}</Response>
+				</ReasoningContent>
 			</Reasoning>
 		);
 	}
