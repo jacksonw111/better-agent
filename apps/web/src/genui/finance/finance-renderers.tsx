@@ -36,6 +36,11 @@ import {
 	StockNewsItemSchema,
 } from "./finance-schemas-fe8";
 import { PredictionMarketSchema } from "./finance-schemas-fe9";
+import {
+	MarketSentimentSchema,
+	TickerSentimentSchema,
+	TrendingSentimentSchema,
+} from "./finance-schemas-fe10";
 import { ForecastTable } from "./forecast-table";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
@@ -51,6 +56,9 @@ import { ResearchList } from "./research-list";
 import { SearchList } from "./search-list";
 import { SectorHeatmap } from "./sector-heatmap";
 import { SectorStocksList } from "./sector-stocks-list";
+import { SentimentMarket } from "./sentiment-market";
+import { SentimentTicker } from "./sentiment-ticker";
+import { SentimentTrending } from "./sentiment-trending";
 import { StatementsTable } from "./statements-table";
 import { TechnicalPanel } from "./technical-panel";
 import { TopHoldersTable } from "./top-holders-table";
@@ -75,9 +83,12 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // / finance_central_bank (calendar-list.tsx). FE-8 adds finance_news /
 // finance_stock_news (news-list.tsx), finance_research (research-list.tsx),
 // finance_earnings_forecast (forecast-table.tsx), finance_list_reports
-// (reports-list.tsx), and finance_search (search-list.tsx). FE-9 (final) adds
+// (reports-list.tsx), and finance_search (search-list.tsx). FE-9 adds
 // finance_prediction_markets (prediction-markets.tsx), a Polymarket odds
-// card.
+// card. FE-10 (final) adds the Adanos market-sentiment slice:
+// finance_sentiment_trending (sentiment-trending.tsx),
+// finance_sentiment_ticker (sentiment-ticker.tsx), finance_sentiment_market
+// (sentiment-market.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -149,6 +160,15 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_sector_list: listEntry(SectorRowSchema, (items) => (
 		<SectorHeatmap items={items} />
+	)),
+	finance_sentiment_market: entry(MarketSentimentSchema, (data) => (
+		<SentimentMarket data={data} />
+	)),
+	finance_sentiment_ticker: entry(TickerSentimentSchema, (data) => (
+		<SentimentTicker data={data} />
+	)),
+	finance_sentiment_trending: listEntry(TrendingSentimentSchema, (rows) => (
+		<SentimentTrending data={rows} />
 	)),
 	finance_stock_news: listEntry(StockNewsItemSchema, (rows) => (
 		<NewsList data={rows} />
