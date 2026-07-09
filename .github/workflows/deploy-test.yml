@@ -81,10 +81,8 @@ jobs:
           workingDirectory: apps/weread-mcp
           command: deploy
           secrets: |
-            WEREAD_API_KEY
             API_TOKEN
         env:
-          WEREAD_API_KEY: ${{ secrets.WEREAD_API_KEY }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
 
   authz:

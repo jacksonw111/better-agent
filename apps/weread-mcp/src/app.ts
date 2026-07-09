@@ -13,6 +13,16 @@ const NOT_CONFIGURED = 503;
 const BAD_GATEWAY = 502;
 const PARSE_ERROR = -32_700;
 
+function resolveWereadEnv(
+	env: ToolEnv | undefined,
+	headerValue: string | undefined
+): ToolEnv {
+	const fallback = env?.WEREAD_API_KEY;
+	const key =
+		(headerValue && headerValue.length > 0 ? headerValue : fallback) ?? "";
+	return { ...(env ?? {}), WEREAD_API_KEY: key };
+}
+
 function registerGuards(app: Hono): void {
 	app.use("/api/*", cors());
 	app.use("/mcp", cors());
@@ -59,7 +69,11 @@ export function buildApp(): Hono {
 				BAD_REQUEST
 			);
 		}
-		const response = await handleMessage(message, c.env as ToolEnv);
+		const env = resolveWereadEnv(
+			c.env as ToolEnv,
+			c.req.header("x-weread-key")
+		);
+		const response = await handleMessage(message, env);
 		if (response === null) {
 			return c.body(null, ACCEPTED);
 		}

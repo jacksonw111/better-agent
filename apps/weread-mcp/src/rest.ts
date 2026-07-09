@@ -4,7 +4,11 @@ import type { ToolEnv } from "./core/types";
 import { NotConfiguredError, wereadCall } from "./core/weread-client";
 
 function envKey(c: Context): string {
-	const key = (c.env as ToolEnv | undefined)?.WEREAD_API_KEY ?? "";
+	const headerKey = c.req.header("x-weread-key");
+	const key =
+		(headerKey && headerKey.length > 0
+			? headerKey
+			: (c.env as ToolEnv | undefined)?.WEREAD_API_KEY) ?? "";
 	if (!key) {
 		throw new NotConfiguredError();
 	}

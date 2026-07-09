@@ -74,7 +74,7 @@ describe("weread-mcp app", () => {
 		};
 		expect(body.result.isError).toBe(true);
 		const text = body.result.content[0]?.text ?? "";
-		expect(text).toContain("WEREAD_API_KEY");
+		expect(text).toContain("x-weread-key");
 	});
 
 	it("REST /api/shelf returns 503 when WEREAD_API_KEY unset", async () => {
