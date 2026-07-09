@@ -280,6 +280,9 @@ it("keeps a Task call whose input only has description+prompt as a task turn too
 	expect(task.task.resultText).toBe("all tests passed");
 });
 
+// RC-T3 cancelled-approval-retract fold specs live in
+// bridge-turns-retract.test.ts — split out to fit the 300-line file limit.
+
 it("dedupes replayed ids so the assistant text is never doubled", () => {
 	const window = [
 		{ id: 1, data: { kind: "output", text: "abc" } },

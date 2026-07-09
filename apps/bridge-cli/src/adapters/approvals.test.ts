@@ -7,7 +7,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { NormalizedEvent } from "../normalize/types";
-import { createApprovalRegistry } from "./approvals";
+import { createApprovalRegistry, retractPendingApprovals } from "./approvals";
 
 const APPROVAL_OPTIONS = [
 	{ id: "allow", label: "Allow" },
@@ -93,5 +93,79 @@ describe("createApprovalRegistry - optionId validation", () => {
 		registry.answer("req_1", "allow");
 
 		expect(reply).toHaveBeenCalledExactlyOnceWith("allow");
+	});
+});
+
+describe("createApprovalRegistry - retractAll (RC-T3)", () => {
+	it("drops every pending reply without invoking it, and returns their requestIds", () => {
+		const { events } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+		const replyA = vi.fn();
+		const replyB = vi.fn();
+		registry.register("req_1", APPROVAL_OPTIONS, replyA);
+		registry.register("req_2", APPROVAL_OPTIONS, replyB);
+
+		const retracted = registry.retractAll();
+
+		expect(retracted.sort()).toEqual(["req_1", "req_2"]);
+		expect(replyA).not.toHaveBeenCalled();
+		expect(replyB).not.toHaveBeenCalled();
+	});
+
+	it("makes a later answer() for a retracted id a no-op status warning, not a resolve", () => {
+		const { events, pushed } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+		const reply = vi.fn();
+		registry.register("req_1", APPROVAL_OPTIONS, reply);
+
+		registry.retractAll();
+		registry.answer("req_1", "allow");
+
+		expect(reply).not.toHaveBeenCalled();
+		expect(pushed).toEqual([
+			{
+				kind: "status",
+				status: "approval_unknown",
+				detail: { requestId: "req_1" },
+			},
+		]);
+	});
+
+	it("returns an empty list and is a no-op when nothing is pending", () => {
+		const { events } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+		expect(registry.retractAll()).toEqual([]);
+	});
+});
+
+describe("retractPendingApprovals (RC-T3)", () => {
+	it("pushes a cancelled ApprovalEvent for every pending request, then leaves them un-repliable", () => {
+		const { events, pushed } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+		const reply = vi.fn();
+		registry.register("req_1", APPROVAL_OPTIONS, reply);
+
+		retractPendingApprovals(registry, events);
+
+		expect(pushed).toEqual([
+			{
+				kind: "approval",
+				cancelled: true,
+				options: [],
+				requestId: "req_1",
+				title: "Cancelled",
+			},
+		]);
+		registry.answer("req_1", "allow");
+		expect(reply).not.toHaveBeenCalled();
+	});
+
+	it("pushes nothing when there are no pending approvals", () => {
+		const { events, pushed } = createFakeEvents();
+		const registry = createApprovalRegistry(events);
+
+		retractPendingApprovals(registry, events);
+
+		expect(pushed).toEqual([]);
 	});
 });

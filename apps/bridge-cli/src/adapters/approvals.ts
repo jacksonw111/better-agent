@@ -47,6 +47,18 @@ export interface ApprovalRegistry {
 		options: ApprovalOption[],
 		reply: (optionId: string) => void
 	): void;
+	/**
+	 * RC-T3: drops every still-pending reply WITHOUT invoking it — unlike
+	 * `clear()` this is called mid-session, when `interrupt()`/`stop()`
+	 * supersedes the current turn, so a late `answer()` for one of these ids
+	 * can never resolve a resolver whose turn context has already changed
+	 * (the audited claude-code bug: `interrupt()` left the pending approval
+	 * live, and the user's later answer resolved it into the NEXT turn).
+	 * Returns the requestIds that were pending, so the caller can push a
+	 * retract/cancelled `ApprovalEvent` for each so the web removes the
+	 * still-open card.
+	 */
+	retractAll(): string[];
 }
 
 /** Builds an `ApprovalRegistry` that reports unknown-id and invalid-option
@@ -83,5 +95,32 @@ export function createApprovalRegistry(events: {
 		clear() {
 			pending.clear();
 		},
+		retractAll() {
+			const requestIds = [...pending.keys()];
+			pending.clear();
+			return requestIds;
+		},
 	};
+}
+
+/**
+ * RC-T3: retracts every pending approval on `approvals` and pushes a
+ * cancelled `ApprovalEvent` for each so the web removes the still-open card
+ * — the shared "interrupt clears pending approvals + retracts cards" step
+ * every adapter's `interrupt()`/`stop()` calls (see the design note on
+ * `ApprovalRegistry.retractAll`). A no-op when nothing was pending.
+ */
+export function retractPendingApprovals(
+	approvals: ApprovalRegistry,
+	events: { push(event: NormalizedEvent): void }
+): void {
+	for (const requestId of approvals.retractAll()) {
+		events.push({
+			kind: "approval",
+			cancelled: true,
+			options: [],
+			requestId,
+			title: "Cancelled",
+		});
+	}
 }

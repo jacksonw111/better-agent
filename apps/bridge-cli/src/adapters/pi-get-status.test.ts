@@ -102,6 +102,7 @@ describe("piAdapter - getStatus timeout", () => {
 				kind: "status",
 				status: "status_snapshot",
 				detail: { model: undefined, running: undefined },
+				turnEpoch: 0,
 			});
 		}));
 });
@@ -141,6 +142,7 @@ describe("piAdapter - getStatus timeout - pending clears", () => {
 				kind: "message",
 				role: "assistant",
 				text: "after timeout",
+				turnEpoch: 0,
 			});
 		}));
 });
@@ -188,6 +190,7 @@ describe("piAdapter - getStatus timeout - recovery", () => {
 					costUsd: 0.01,
 					contextUsage: undefined,
 				},
+				turnEpoch: 0,
 			});
 		}));
 });

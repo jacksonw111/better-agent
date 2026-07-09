@@ -57,7 +57,11 @@ describe("piAdapter - process lifecycle", () => {
 		triggerExit({ code: 1, signal: null });
 
 		const { value: statusEvent } = await iterator.next();
-		expect(statusEvent).toEqual({ kind: "status", status: "agent_exited" });
+		expect(statusEvent).toEqual({
+			kind: "status",
+			status: "agent_exited",
+			turnEpoch: 0,
+		});
 
 		const result = await iterator.next();
 		expect(result.done).toBe(true);
@@ -88,6 +92,21 @@ describe("piAdapter - send()", () => {
 		expect(io.writeLine).toHaveBeenCalledWith(
 			JSON.stringify({ type: "prompt", message: "hello" })
 		);
+	});
+
+	it("stamps each turn's events with a bumped turnEpoch (RC-T3)", async () => {
+		const { io } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		handle.send("first turn");
+		expect((await iterator.next()).value).toMatchObject({ turnEpoch: 1 });
+
+		handle.interrupt?.();
+		handle.send("second turn");
+		expect((await iterator.next()).value).toMatchObject({ turnEpoch: 3 });
 	});
 });
 
@@ -159,6 +178,7 @@ describe("piAdapter - session_ready response parsing", () => {
 				slashCommands: ["fix-tests", "skill:brave-search"],
 				skills: ["brave-search"],
 			},
+			turnEpoch: 0,
 		});
 	});
 });
@@ -197,6 +217,7 @@ describe("piAdapter - session_ready model merge", () => {
 				slashCommands: [],
 				skills: [],
 			},
+			turnEpoch: 0,
 		});
 	});
 });
@@ -235,6 +256,7 @@ describe("piAdapter - session_ready emitted only once", () => {
 			kind: "message",
 			role: "assistant",
 			text: "after the second response",
+			turnEpoch: 0,
 		});
 	});
 });

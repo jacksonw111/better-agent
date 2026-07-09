@@ -3,8 +3,20 @@
 // the server, the web UI) only ever need to understand these seven shapes,
 // never any agent-specific protocol.
 
+/** RC-T3 (docs/remote-control-redesign-plan.md, Pillar 3): the monotonic
+ * per-session turn counter an adapter stamps onto every event it pushes —
+ * see `apps/bridge-cli/src/adapters/turn-epoch.ts`. Optional/additive so
+ * every existing event shape stays backward compatible; absent on an event
+ * an adapter hasn't been wired for epoch stamping yet. `relay-client.ts`'s
+ * `forwardEvents` drops any event whose `turnEpoch` is lower than the
+ * highest one already forwarded — the straggler-drop that keeps an aborted
+ * turn's late output from rendering into the next turn. */
+interface TurnScoped {
+	turnEpoch?: number;
+}
+
 /** A single chat turn from either the user or the assistant. */
-export interface MessageEvent {
+export interface MessageEvent extends TurnScoped {
 	/** The stable id of the logical message this is the FINAL text for —
 	 * shared with any `OutputEvent` deltas that streamed the same message (see
 	 * `OutputEvent.id`). The web merges by this id: a matching in-flight
@@ -19,7 +31,7 @@ export interface MessageEvent {
 }
 
 /** A tool invocation, from request through to its result. */
-export interface ToolEvent {
+export interface ToolEvent extends TurnScoped {
 	id: string;
 	input?: unknown;
 	kind: "tool";
@@ -29,7 +41,7 @@ export interface ToolEvent {
 }
 
 /** A file created/modified/deleted by the agent. */
-export interface FileEvent {
+export interface FileEvent extends TurnScoped {
 	change: "created" | "modified" | "deleted";
 	diff?: string;
 	kind: "file";
@@ -37,7 +49,7 @@ export interface FileEvent {
 }
 
 /** Raw process output that doesn't fit the other kinds (e.g. shell output). */
-export interface OutputEvent {
+export interface OutputEvent extends TurnScoped {
 	/** The stable id of the logical message this delta streams text INTO —
 	 * shared with the eventual final `MessageEvent` for the same message (see
 	 * `MessageEvent.id`). Two chunks with the same id accumulate into one
@@ -55,14 +67,14 @@ export interface OutputEvent {
 }
 
 /** Lifecycle/progress information (session init, turn start/end, retries…). */
-export interface StatusEvent {
+export interface StatusEvent extends TurnScoped {
 	detail?: unknown;
 	kind: "status";
 	status: string;
 }
 
 /** A recoverable-or-not error surfaced by the agent or its transport. */
-export interface ErrorEvent {
+export interface ErrorEvent extends TurnScoped {
 	detail?: unknown;
 	kind: "error";
 	message: string;
@@ -80,7 +92,13 @@ export interface ApprovalOption {
  * proceed. `requestId` round-trips through `AgentHandle.answerApproval` —
  * see `apps/bridge-cli/src/adapters/types.ts`.
  */
-export interface ApprovalEvent {
+export interface ApprovalEvent extends TurnScoped {
+	/** RC-T3: set (instead of a fresh approval request) when `interrupt()`/
+	 * `stop()` retracts a still-pending approval — the web removes the open
+	 * card for `requestId` instead of rendering a new one. `options`/`title`
+	 * are still populated (a fixed placeholder) purely to satisfy the shape;
+	 * the web never reads them for a cancelled card. */
+	cancelled?: boolean;
 	detail?: string;
 	kind: "approval";
 	options: ApprovalOption[];

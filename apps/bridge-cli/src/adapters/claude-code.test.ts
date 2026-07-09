@@ -1,8 +1,4 @@
-import {
-	type CanUseTool,
-	listSessions,
-	query,
-} from "@anthropic-ai/claude-agent-sdk";
+import { type CanUseTool, query } from "@anthropic-ai/claude-agent-sdk";
 import { expect, it, vi } from "vitest";
 import { claudeCodeAdapter } from "./claude-code";
 import { mockQuery, nextEvent } from "./claude-code-test-harness";
@@ -25,7 +21,11 @@ it("streams the reply as output once and drops the duplicate final text block", 
 			delta: { type: "text_delta", text: "hey" },
 		},
 	});
-	expect(await nextEvent(iterator)).toEqual({ kind: "output", text: "hey" });
+	expect(await nextEvent(iterator)).toEqual({
+		kind: "output",
+		text: "hey",
+		turnEpoch: 0,
+	});
 
 	// ...and the final assistant message repeats it plus a tool_use: the text
 	// block must be dropped (already streamed above) while tool_use survives.
@@ -61,6 +61,7 @@ it("normalizes a thinking_delta stream_event into a reasoning-flagged output eve
 		kind: "output",
 		text: "pondering…",
 		reasoning: true,
+		turnEpoch: 0,
 	});
 });
 
@@ -73,7 +74,12 @@ it("persists the user's turn AND forwards it to the SDK on send", async () => {
 	handle.send("do the thing");
 	expect(await iterator.next()).toEqual({
 		done: false,
-		value: { kind: "message", role: "user", text: "do the thing" },
+		value: {
+			kind: "message",
+			role: "user",
+			text: "do the thing",
+			turnEpoch: 1,
+		},
 	});
 	const { value } = await harness.prompt[Symbol.asyncIterator]().next();
 	expect(value).toEqual({
@@ -230,66 +236,5 @@ it("omits models from session_ready when the agent reports none", async () => {
 	).toBeUndefined();
 });
 
-it("listSessions() pushes a session_list status event with the fetched sessions", async () => {
-	mockQuery();
-	vi.mocked(listSessions).mockResolvedValue([
-		{
-			sessionId: "sess-1",
-			summary: "Fix the login bug",
-			lastModified: 1_700_000_000_000,
-			gitBranch: "main",
-			cwd: "/tmp/project",
-		},
-		{
-			sessionId: "sess-2",
-			summary: "first prompt fallback",
-			customTitle: "My renamed session",
-			lastModified: 1_700_000_001_000,
-		},
-	]);
-	const handle = await claudeCodeAdapter.start("/tmp/project");
-	const iterator = handle.events[Symbol.asyncIterator]();
-
-	handle.listSessions?.();
-
-	expect(await nextEvent(iterator)).toEqual({
-		kind: "status",
-		status: "session_list",
-		detail: {
-			sessions: [
-				{
-					id: "sess-1",
-					title: "Fix the login bug",
-					lastModified: 1_700_000_000_000,
-					gitBranch: "main",
-					cwd: "/tmp/project",
-				},
-				{
-					id: "sess-2",
-					title: "My renamed session",
-					lastModified: 1_700_000_001_000,
-					gitBranch: undefined,
-					cwd: undefined,
-				},
-			],
-		},
-	});
-	expect(vi.mocked(listSessions)).toHaveBeenLastCalledWith({
-		dir: "/tmp/project",
-	});
-});
-
-it("listSessions() pushes an error event when the SDK call rejects", async () => {
-	mockQuery();
-	vi.mocked(listSessions).mockRejectedValue(new Error("no claude dir"));
-	const handle = await claudeCodeAdapter.start("/tmp/project");
-	const iterator = handle.events[Symbol.asyncIterator]();
-
-	handle.listSessions?.();
-
-	expect(await nextEvent(iterator)).toEqual({
-		kind: "error",
-		message: "Failed to list past claude sessions",
-		detail: "no claude dir",
-	});
-});
+// listSessions() specs live in claude-code-list-sessions.test.ts — split out
+// purely to keep this file under the repo's 300-line limit.

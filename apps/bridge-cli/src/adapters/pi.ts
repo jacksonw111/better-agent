@@ -21,6 +21,11 @@ import { createApprovalRegistry } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import { spawnProcessIo } from "./process-io";
 import {
+	bumpTurnEpoch,
+	createTurnEpoch,
+	turnStampingQueue,
+} from "./turn-epoch";
+import {
 	type Adapter,
 	AGENT_EXITED_STATUS,
 	type AgentHandle,
@@ -233,7 +238,11 @@ async function drainPiStderr(
 export const piAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
 		const io = await spawnProcessIo("pi", PI_ARGS, dir);
-		const events = createAsyncQueue<NormalizedEvent>();
+		const epoch = createTurnEpoch();
+		const events = turnStampingQueue(
+			createAsyncQueue<NormalizedEvent>(),
+			epoch
+		);
 		const approvals = createApprovalRegistry(events);
 		io.onExit(() => {
 			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
@@ -264,16 +273,23 @@ export const piAdapter: Adapter = {
 			events,
 			getStatus: statusTracker.request,
 			// Cancels the in-flight turn without ending the session — the web Stop
-			// button. pi's stdio protocol supports an abort frame directly.
+			// button. pi's stdio protocol supports an abort frame directly. RC-T3:
+			// bumps the turn epoch so a straggler event still in flight on stdout
+			// is dropped as stale at the relay-client boundary (turn-epoch.ts) —
+			// pi has no per-tool-call approval protocol, so nothing to retract.
 			interrupt(): void {
+				bumpTurnEpoch(epoch);
 				io.writeLine(JSON.stringify({ type: "abort" }));
 			},
 			send(text: string): void {
+				// A new turn begins — bump BEFORE pushing (see `interrupt` above).
+				bumpTurnEpoch(epoch);
 				events.push(userMessageEvent(text));
 				io.writeLine(buildPiPromptCommand(text));
 			},
 			setModel: makePiSetModel(io, events, modelProviders),
 			stop(): void {
+				bumpTurnEpoch(epoch);
 				io.stop();
 				events.close();
 				approvals.clear();

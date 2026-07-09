@@ -65,7 +65,11 @@ describe("codexAdapter", () => {
 		triggerExit({ code: 1, signal: null });
 
 		const { value: statusEvent } = await iterator.next();
-		expect(statusEvent).toEqual({ kind: "status", status: "agent_exited" });
+		expect(statusEvent).toEqual({
+			kind: "status",
+			status: "agent_exited",
+			turnEpoch: 0,
+		});
 
 		const result = await iterator.next();
 		expect(result.done).toBe(true);
@@ -85,110 +89,10 @@ describe("codexAdapter", () => {
 	});
 });
 
-// An arbitrary RPC request id, distinct from 0/1 so it's obviously not being
-// confused with an array index or a boolean-ish flag.
-const APPROVAL_REQUEST_ID = 7;
-
-describe("codexAdapter - approvals", () => {
-	it("surfaces a commandExecution approval request and replies via answerApproval", async () => {
-		const { rpc, triggerRequest } = createFakeRpc();
-		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
-
-		const handle = await codexAdapter.start("/tmp/project");
-		const iterator = handle.events[Symbol.asyncIterator]();
-
-		triggerRequest(
-			APPROVAL_REQUEST_ID,
-			"item/commandExecution/requestApproval",
-			{
-				itemId: "item_1",
-				command: ["rm", "-rf", "node_modules"],
-			}
-		);
-
-		const { value: event } = await iterator.next();
-		expect(event).toEqual({
-			detail: "rm -rf node_modules",
-			kind: "approval",
-			options: [
-				{ id: "accept", label: "Allow" },
-				{ id: "decline", label: "Deny" },
-			],
-			requestId: String(APPROVAL_REQUEST_ID),
-			title: "Run command?",
-		});
-
-		handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept");
-		expect(rpc.respond).toHaveBeenCalledExactlyOnceWith(APPROVAL_REQUEST_ID, {
-			decision: "accept",
-		});
-	});
-
-	it("emits a status warning instead of replying for an unknown requestId", async () => {
-		const { rpc } = createFakeRpc();
-		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
-		const handle = await codexAdapter.start("/tmp/project");
-
-		handle.answerApproval("does-not-exist", "accept");
-
-		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
-		expect(event).toEqual({
-			detail: { requestId: "does-not-exist" },
-			kind: "status",
-			status: "approval_unknown",
-		});
-		expect(rpc.respond).not.toHaveBeenCalled();
-	});
-});
-
-describe("codexAdapter - approvals - repeated or post-exit answers", () => {
-	it("writes exactly one reply frame when answerApproval is called twice for the same requestId", async () => {
-		const { rpc, triggerRequest } = createFakeRpc();
-		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
-		const handle = await codexAdapter.start("/tmp/project");
-		const iterator = handle.events[Symbol.asyncIterator]();
-
-		triggerRequest(
-			APPROVAL_REQUEST_ID,
-			"item/commandExecution/requestApproval",
-			{ itemId: "item_1", command: ["ls"] }
-		);
-		await iterator.next();
-
-		handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept");
-		handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept");
-
-		expect(rpc.respond).toHaveBeenCalledExactlyOnceWith(APPROVAL_REQUEST_ID, {
-			decision: "accept",
-		});
-		const { value: event } = await iterator.next();
-		expect(event).toEqual({
-			detail: { requestId: String(APPROVAL_REQUEST_ID) },
-			kind: "status",
-			status: "approval_unknown",
-		});
-	});
-
-	it("does not throw and writes no reply for answerApproval called after the process exits", async () => {
-		const { rpc, triggerRequest, triggerExit } = createFakeRpc();
-		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
-		const handle = await codexAdapter.start("/tmp/project");
-
-		triggerRequest(
-			APPROVAL_REQUEST_ID,
-			"item/commandExecution/requestApproval",
-			{ itemId: "item_1", command: ["ls"] }
-		);
-		await handle.events[Symbol.asyncIterator]().next();
-
-		triggerExit({ code: 0, signal: null });
-
-		expect(() =>
-			handle.answerApproval(String(APPROVAL_REQUEST_ID), "accept")
-		).not.toThrow();
-		expect(rpc.respond).not.toHaveBeenCalled();
-	});
-});
+// codexAdapter's approval-request specs (surfacing a request, replying,
+// unknown-id/repeated/post-exit answers, and RC-T3's interrupt-retracts-
+// approvals) live in codex-approvals.test.ts — split out purely to keep this
+// file under the repo's 300-line limit.
 
 describe("codexAdapter - startup config (R2-b)", () => {
 	it("passes the persisted model on thread/start", async () => {
@@ -250,9 +154,12 @@ describe("codexAdapter - getStatus", () => {
 				tokens: { input: 100, output: 20, cacheRead: 5 },
 				contextUsage: { used: 120, size: 1000, pct: 12 },
 			},
+			turnEpoch: 0,
 		});
 	});
+});
 
+describe("codexAdapter - getStatus - empty snapshot", () => {
 	it("answers getStatus with an empty-fields snapshot when no notifications have arrived yet", async () => {
 		const { rpc } = createFakeRpc();
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
@@ -272,6 +179,7 @@ describe("codexAdapter - getStatus", () => {
 				tokens: undefined,
 				contextUsage: undefined,
 			},
+			turnEpoch: 0,
 		});
 	});
 });

@@ -7,14 +7,24 @@ import {
 	type NormalizedEvent,
 	userMessageEvent,
 } from "../normalize/types";
-import { createApprovalRegistry } from "./approvals";
-import { createAsyncQueue } from "./async-queue";
+import {
+	type ApprovalRegistry,
+	createApprovalRegistry,
+	retractPendingApprovals,
+} from "./approvals";
+import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
 import {
 	createOpencodeStatusCache,
 	makeOpencodeGetStatus,
 	updateOpencodeStatusCache,
 } from "./opencode-status";
+import {
+	bumpTurnEpoch,
+	createTurnEpoch,
+	type TurnEpochRef,
+	turnStampingQueue,
+} from "./turn-epoch";
 import {
 	type Adapter,
 	AGENT_EXITED_STATUS,
@@ -152,9 +162,13 @@ function applyOpencodeStartupConfig(
 function opencodeSend(
 	rpc: JsonRpcIo,
 	events: { push(event: NormalizedEvent): void },
-	getSessionId: () => string | undefined
+	getSessionId: () => string | undefined,
+	epoch: TurnEpochRef
 ): (text: string) => void {
 	return (text: string) => {
+		// A new turn begins — bump the epoch BEFORE pushing the user's own
+		// turn-start event (see the RC-T3 note on `opencodeAdapter.start`).
+		bumpTurnEpoch(epoch);
 		events.push(userMessageEvent(text));
 		rpc
 			.request("session/prompt", {
@@ -171,17 +185,30 @@ function opencodeSend(
 	};
 }
 
+/** Wires the turn-epoch-stamped event queue, approval registry, and the
+ * rpc-exit cleanup shared by every ACP session — extracted purely so `start`
+ * stays under the line gate. */
+function createOpencodePipeline(rpc: JsonRpcIo): {
+	approvals: ApprovalRegistry;
+	epoch: TurnEpochRef;
+	events: AsyncQueue<NormalizedEvent>;
+} {
+	const epoch = createTurnEpoch();
+	const events = turnStampingQueue(createAsyncQueue<NormalizedEvent>(), epoch);
+	const approvals = createApprovalRegistry(events);
+	rpc.onExit(() => {
+		events.push({ kind: "status", status: AGENT_EXITED_STATUS });
+		events.close();
+		approvals.clear();
+	});
+	return { approvals, epoch, events };
+}
+
 /** `opencode acp` — the Agent Client Protocol server built into opencode. */
 export const opencodeAdapter: Adapter = {
 	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const rpc = await connectJsonRpc("opencode", ["acp"], dir);
-		const events = createAsyncQueue<NormalizedEvent>();
-		const approvals = createApprovalRegistry(events);
-		rpc.onExit(() => {
-			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
-			events.close();
-			approvals.clear();
-		});
+		const { approvals, epoch, events } = createOpencodePipeline(rpc);
 
 		let sessionId: string | undefined;
 		rpc.onNotification(
@@ -217,11 +244,22 @@ export const opencodeAdapter: Adapter = {
 			// reply), matching the plan's §2/T0 GUESS on the method name — see
 			// docs/research/agent-config-opencode.md's ACP wire-surface table.
 			interrupt(): void {
+				// RC-T3: supersede the current turn and retract any pending
+				// approval BEFORE notifying opencode, so a straggler `session/update`
+				// or a late approval answer can never land against a turn context
+				// that's already moved on — mirrors claude-code.ts's `interrupt()`.
+				bumpTurnEpoch(epoch);
+				retractPendingApprovals(approvals, events);
 				rpc.notify("session/cancel", { sessionId });
 			},
-			send: opencodeSend(rpc, events, () => sessionId),
+			send: opencodeSend(rpc, events, () => sessionId, epoch),
 			...modeControls,
 			stop(): void {
+				bumpTurnEpoch(epoch);
+				// Retract before close(): a push after the queue is closed is a
+				// silent no-op (see async-queue.ts), so the cancelled ApprovalEvent
+				// must land first.
+				retractPendingApprovals(approvals, events);
 				rpc.stop();
 				events.close();
 				approvals.clear();

@@ -3,7 +3,7 @@ import {
 	normalizeCodexApprovalRequest,
 } from "../normalize/codex";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
-import { createApprovalRegistry } from "./approvals";
+import { createApprovalRegistry, retractPendingApprovals } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
 import {
 	type CodexStatusCache,
@@ -12,6 +12,12 @@ import {
 	updateCodexStatusCache,
 } from "./codex-status";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
+import {
+	bumpTurnEpoch,
+	createTurnEpoch,
+	type TurnEpochRef,
+	turnStampingQueue,
+} from "./turn-epoch";
 import {
 	type Adapter,
 	AGENT_EXITED_STATUS,
@@ -90,6 +96,7 @@ function threadStartParams(
  * one object so `makeCodexHandle` stays under the repo's max-params gate. */
 interface CodexHandleDeps {
 	approvals: ReturnType<typeof createApprovalRegistry>;
+	epoch: TurnEpochRef;
 	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>;
 	rpc: JsonRpcIo;
 	statusCache: CodexStatusCache;
@@ -98,7 +105,7 @@ interface CodexHandleDeps {
 /** Builds the codex `AgentHandle` — the send/interrupt/stop/approval controls
  * over the app-server thread. Extracted so `start` stays under the line gate. */
 function makeCodexHandle(
-	{ approvals, events, rpc, statusCache }: CodexHandleDeps,
+	{ approvals, epoch, events, rpc, statusCache }: CodexHandleDeps,
 	threadId: unknown
 ): AgentHandle {
 	return {
@@ -108,6 +115,9 @@ function makeCodexHandle(
 		events,
 		getStatus: makeCodexGetStatus(statusCache, events),
 		send(text: string): void {
+			// A new turn begins — bump the epoch BEFORE pushing the user's own
+			// turn-start event (see the RC-T3 note on `codexAdapter.start`).
+			bumpTurnEpoch(epoch);
 			events.push(userMessageEvent(text));
 			rpc
 				.request("turn/start", { threadId, input: [{ type: "text", text }] })
@@ -124,10 +134,22 @@ function makeCodexHandle(
 		// so that button did nothing; `stop()` only killed the process.
 		// ASSUMPTION (unverified, no codex binary): `turn/interrupt` cancels the
 		// running turn on the thread.
+		//
+		// RC-T3: supersede the current turn and retract any pending approval
+		// BEFORE requesting the interrupt, so a straggler notification or a late
+		// approval answer can never land against a turn context that's already
+		// moved on — mirrors claude-code.ts's `interrupt()`.
 		interrupt(): void {
+			bumpTurnEpoch(epoch);
+			retractPendingApprovals(approvals, events);
 			rpc.request("turn/interrupt", { threadId }).catch(() => undefined);
 		},
 		stop(): void {
+			bumpTurnEpoch(epoch);
+			// Retract before close(): a push after the queue is closed is a
+			// silent no-op (see async-queue.ts), so the cancelled ApprovalEvent
+			// must land first.
+			retractPendingApprovals(approvals, events);
 			rpc.stop();
 			events.close();
 			approvals.clear();
@@ -138,7 +160,11 @@ function makeCodexHandle(
 export const codexAdapter: Adapter = {
 	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const rpc = await connectJsonRpc("codex", CODEX_ARGS, dir);
-		const events = createAsyncQueue<NormalizedEvent>();
+		const epoch = createTurnEpoch();
+		const events = turnStampingQueue(
+			createAsyncQueue<NormalizedEvent>(),
+			epoch
+		);
 		const approvals = createApprovalRegistry(events);
 		rpc.onExit(() => {
 			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
@@ -164,7 +190,7 @@ export const codexAdapter: Adapter = {
 			threadStartParams(dir, opts?.config)
 		);
 		return makeCodexHandle(
-			{ approvals, events, rpc, statusCache },
+			{ approvals, epoch, events, rpc, statusCache },
 			threadIdFrom(started)
 		);
 	},

@@ -16,7 +16,11 @@ describe("opencodeAdapter", () => {
 		triggerExit({ code: 1, signal: null });
 
 		const { value: statusEvent } = await iterator.next();
-		expect(statusEvent).toEqual({ kind: "status", status: "agent_exited" });
+		expect(statusEvent).toEqual({
+			kind: "status",
+			status: "agent_exited",
+			turnEpoch: 0,
+		});
 
 		const result = await iterator.next();
 		expect(result.done).toBe(true);
@@ -50,6 +54,7 @@ describe("opencodeAdapter - session_ready", () => {
 				cwd: "/tmp/project",
 				sessionId: "session_1",
 			},
+			turnEpoch: 0,
 		});
 	});
 });
@@ -83,6 +88,7 @@ describe("opencodeAdapter - session_ready emitted only once", () => {
 			kind: "status",
 			status: "plan",
 			detail: [{ content: "step 1" }],
+			turnEpoch: 0,
 		});
 	});
 });
@@ -118,6 +124,7 @@ describe("opencodeAdapter - approvals", () => {
 			],
 			requestId: String(APPROVAL_REQUEST_ID),
 			title: "Run `ls`",
+			turnEpoch: 0,
 		});
 
 		handle.answerApproval(String(APPROVAL_REQUEST_ID), "allow-once");
@@ -138,6 +145,7 @@ describe("opencodeAdapter - approvals", () => {
 			detail: { requestId: "does-not-exist" },
 			kind: "status",
 			status: "approval_unknown",
+			turnEpoch: 0,
 		});
 		expect(rpc.respond).not.toHaveBeenCalled();
 	});
@@ -173,6 +181,7 @@ describe("opencodeAdapter - getStatus", () => {
 				costUsd: 0.045,
 				contextUsage: { used: 48_000, size: 200_000, pct: 24 },
 			},
+			turnEpoch: 0,
 		});
 	});
 
@@ -189,6 +198,7 @@ describe("opencodeAdapter - getStatus", () => {
 			kind: "status",
 			status: "status_snapshot",
 			detail: { model: undefined, costUsd: undefined, contextUsage: undefined },
+			turnEpoch: 0,
 		});
 	});
 });
@@ -235,5 +245,33 @@ describe("opencodeAdapter - interrupt", () => {
 		expect(rpc.notify).toHaveBeenCalledWith("session/cancel", {
 			sessionId: "session_1",
 		});
+	});
+
+	it("retracts a pending approval and emits a cancelled event; a late answer is a no-op (RC-T3)", async () => {
+		const { rpc, triggerRequest } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+		const handle = await opencodeAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		triggerRequest(APPROVAL_REQUEST_ID, "session/request_permission", {
+			sessionId: "session_1",
+			toolCall: { title: "Run `rm`", rawInput: { command: "rm -rf" } },
+			options: [{ optionId: "allow-once", name: "Allow", kind: "allow_once" }],
+		});
+		await iterator.next(); // the approval event
+
+		handle.interrupt?.();
+		const { value: retract } = await iterator.next();
+		expect(retract).toEqual({
+			kind: "approval",
+			cancelled: true,
+			options: [],
+			requestId: String(APPROVAL_REQUEST_ID),
+			title: "Cancelled",
+			turnEpoch: 1,
+		});
+
+		handle.answerApproval(String(APPROVAL_REQUEST_ID), "allow-once");
+		expect(rpc.respond).not.toHaveBeenCalled();
 	});
 });

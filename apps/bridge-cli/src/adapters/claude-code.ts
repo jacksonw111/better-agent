@@ -6,8 +6,18 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { normalizeClaudeCode } from "../normalize/claude-code";
 import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
-import { isRecord, userMessageEvent } from "../normalize/types";
+import { userMessageEvent } from "../normalize/types";
+import {
+	type ApprovalRegistry,
+	createApprovalRegistry,
+	retractPendingApprovals,
+} from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import {
+	type ClaudeQuery,
+	fetchSupportedModels,
+	withReportedModels,
+} from "./claude-code-models";
 import {
 	configQueryOptions,
 	isPermissionMode,
@@ -19,6 +29,12 @@ import {
 	recordSessionInfo,
 } from "./claude-code-status";
 import { findOnPath } from "./process-io";
+import {
+	bumpTurnEpoch,
+	createTurnEpoch,
+	type TurnEpochRef,
+	turnStampingQueue,
+} from "./turn-epoch";
 import type { Adapter, AgentHandle, StartOptions } from "./types";
 
 // Drives the LOCAL claude via the official Claude Agent SDK rather than
@@ -34,56 +50,6 @@ const APPROVAL_OPTIONS: ApprovalOption[] = [
 	{ id: "allow", label: "Allow" },
 	{ id: "deny", label: "Deny" },
 ];
-
-/** How long to wait for the SDK's `supportedModels()` — resolved off the same
- * init handshake that yields the `session_ready` line — before emitting
- * `session_ready` without a model list. A safety valve so a stuck control
- * channel can never freeze the feed at its very first event; in practice the
- * list is already resolved by the time the init line is normalized. */
-const SUPPORTED_MODELS_TIMEOUT_MS = 4000;
-
-type ClaudeQuery = ReturnType<typeof query>;
-
-/** Fetches this session's available model ids from the SDK control channel,
- * resolving to `undefined` (never rejecting, never hanging) on any failure or
- * timeout — see SUPPORTED_MODELS_TIMEOUT_MS. The web model picker lists exactly
- * these ids; an empty/absent list hides the picker. */
-function fetchSupportedModels(
-	session: ClaudeQuery
-): Promise<string[] | undefined> {
-	let timer: ReturnType<typeof setTimeout>;
-	const timeout = new Promise<undefined>((resolve) => {
-		timer = setTimeout(() => resolve(undefined), SUPPORTED_MODELS_TIMEOUT_MS);
-	});
-	const models = session
-		.supportedModels()
-		.then((infos) => infos.map((info) => info.value))
-		.catch(() => undefined)
-		.finally(() => clearTimeout(timer));
-	return Promise.race([models, timeout]);
-}
-
-/** Folds the agent's reported model ids into the one-time `session_ready`
- * event, leaving every other event untouched. The list comes from the SDK
- * (`supportedModels()`), not the raw init line `normalize/claude-code.ts` sees,
- * so it's merged here in the adapter rather than in normalize. */
-async function withReportedModels(
-	event: NormalizedEvent,
-	models: Promise<string[] | undefined>
-): Promise<NormalizedEvent> {
-	if (event.kind !== "status" || event.status !== "session_ready") {
-		return event;
-	}
-	const list = await models;
-	if (list === undefined || list.length === 0 || !isRecord(event.detail)) {
-		return event;
-	}
-	return {
-		kind: "status",
-		status: "session_ready",
-		detail: { ...event.detail, models: list },
-	};
-}
 
 function safeJson(value: unknown): string {
 	try {
@@ -104,11 +70,17 @@ function userTurn(text: string): SDKUserMessage {
 interface EventSink {
 	push(event: NormalizedEvent): void;
 }
-type ApprovalMap = Map<string, (allow: boolean) => void>;
 
 // Turns each SDK tool-permission request into an approval event and blocks on
-// the user's web decision (resolved via the handle's answerApproval).
-function makeCanUseTool(events: EventSink, approvals: ApprovalMap): CanUseTool {
+// the user's web decision (resolved via the handle's answerApproval). Backed
+// by the shared `ApprovalRegistry` (not a bare requestId->resolver map) so
+// `interrupt()`/`stop()` can retract every still-pending request through the
+// same `retractPendingApprovals` helper the other adapters use — see the
+// RC-T3 module doc on `handle.interrupt` below for why that matters.
+function makeCanUseTool(
+	events: EventSink,
+	approvals: ApprovalRegistry
+): CanUseTool {
 	return (toolName, toolInput, options) => {
 		const requestId = options.toolUseID;
 		events.push({
@@ -119,10 +91,9 @@ function makeCanUseTool(events: EventSink, approvals: ApprovalMap): CanUseTool {
 			options: APPROVAL_OPTIONS,
 		});
 		return new Promise<PermissionResult>((resolve) => {
-			approvals.set(requestId, (allow) => {
-				approvals.delete(requestId);
+			approvals.register(requestId, APPROVAL_OPTIONS, (optionId) => {
 				resolve(
-					allow
+					optionId === "allow"
 						? { behavior: "allow", updatedInput: toolInput }
 						: { behavior: "deny", message: "Denied from the bridge." }
 				);
@@ -163,7 +134,7 @@ function startClaudeQuery(
 	opts: StartOptions | undefined,
 	input: AsyncQueue<SDKUserMessage>,
 	events: EventSink,
-	approvals: ApprovalMap
+	approvals: ApprovalRegistry
 ): ClaudeQuery {
 	return query({
 		prompt: input,
@@ -189,29 +160,53 @@ function startClaudeQuery(
 	});
 }
 
+/** The shared plumbing `buildClaudeHandle` closes over — bundled into one
+ * object so it stays under the repo's max-params gate (mirrors codex.ts's
+ * `CodexHandleDeps`/opencode's equivalent). */
+interface ClaudeHandleDeps {
+	approvals: ApprovalRegistry;
+	dir: string;
+	epoch: TurnEpochRef;
+	events: AsyncQueue<NormalizedEvent>;
+	input: AsyncQueue<SDKUserMessage>;
+	lastKnown: LastKnownSessionInfo;
+	session: ClaudeQuery;
+}
+
 /** Assembles the returned `AgentHandle` — the session's public surface —
- * once `startClaudeQuery` + `drainSession` are wired up. */
-function buildClaudeHandle(
-	dir: string,
-	session: ClaudeQuery,
-	input: AsyncQueue<SDKUserMessage>,
-	events: AsyncQueue<NormalizedEvent>,
-	approvals: ApprovalMap,
-	lastKnown: LastKnownSessionInfo
-): AgentHandle {
+ * once `startClaudeQuery` + `drainSession` are wired up.
+ *
+ * RC-T3 (docs/remote-control-redesign-plan.md, Pillar 3): fixes the audited
+ * bug where `interrupt()` called `session.interrupt()` but never touched the
+ * approvals map — a pending approval card survived into the NEXT turn, and
+ * the user's later answer resolved a `canUseTool` promise whose turn context
+ * had already moved on. `send`/`interrupt`/`stop` now all bump the shared
+ * turn epoch (stamped onto every event via `events`, already wrapped by
+ * `turnStampingQueue` in `start`), and `interrupt`/`stop` additionally
+ * retract every pending approval — clearing the resolver (so a late
+ * `answerApproval` for it is the registry's normal "unknown id" no-op) and
+ * pushing a cancelled `ApprovalEvent` so the web removes the open card. */
+function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
+	const { approvals, dir, epoch, events, input, lastKnown, session } = deps;
 	return {
 		events,
 		getStatus: makeClaudeGetStatus(session, events, lastKnown),
 		answerApproval(requestId: string, optionId: string): void {
-			approvals.get(requestId)?.(optionId === "allow");
+			approvals.answer(requestId, optionId);
 		},
 		// Cancels the in-flight turn only — unlike `stop`, the input/events
 		// queues stay open so the user can keep chatting in the same session.
 		interrupt(): void {
+			bumpTurnEpoch(epoch);
+			retractPendingApprovals(approvals, events);
 			session.interrupt().catch(() => undefined);
 		},
 		listSessions: makeListSessions(dir, events),
 		send(text: string): void {
+			// A new turn begins — bump the epoch BEFORE pushing the user's own
+			// turn-start event, so everything from here on (including this event)
+			// carries the new epoch.
+			bumpTurnEpoch(epoch);
 			// Persist the user's own turn (see userMessageEvent) so it survives
 			// a page reload, THEN forward it to the agent.
 			events.push(userMessageEvent(text));
@@ -228,6 +223,8 @@ function buildClaudeHandle(
 			}
 		},
 		stop(): void {
+			bumpTurnEpoch(epoch);
+			retractPendingApprovals(approvals, events);
 			input.close();
 			session.interrupt().catch(() => undefined);
 			events.close();
@@ -238,10 +235,13 @@ function buildClaudeHandle(
 export const claudeCodeAdapter: Adapter = {
 	// biome-ignore lint/suspicious/useAwait: the Adapter interface returns a Promise; the SDK query starts lazily.
 	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
-		const events = createAsyncQueue<NormalizedEvent>();
+		const epoch = createTurnEpoch();
+		const events = turnStampingQueue(
+			createAsyncQueue<NormalizedEvent>(),
+			epoch
+		);
 		const input = createAsyncQueue<SDKUserMessage>();
-		// requestId → resolver that completes the pending canUseTool promise.
-		const approvals: ApprovalMap = new Map();
+		const approvals = createApprovalRegistry(events);
 
 		const session = startClaudeQuery(dir, opts, input, events, approvals);
 		// Kicked off immediately: `supportedModels()` resolves off the same init
@@ -254,6 +254,14 @@ export const claudeCodeAdapter: Adapter = {
 		const lastKnown: LastKnownSessionInfo = {};
 		drainSession(session, events, models, lastKnown);
 
-		return buildClaudeHandle(dir, session, input, events, approvals, lastKnown);
+		return buildClaudeHandle({
+			approvals,
+			dir,
+			epoch,
+			events,
+			input,
+			lastKnown,
+			session,
+		});
 	},
 };

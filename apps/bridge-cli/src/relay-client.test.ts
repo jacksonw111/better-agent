@@ -97,6 +97,50 @@ describe("forwardEvents", () => {
 	});
 });
 
+describe("forwardEvents - straggler drop (RC-T3)", () => {
+	it("drops a straggler event stamped with an epoch lower than one already forwarded", async () => {
+		const push = vi.fn().mockResolvedValue(undefined);
+		const onWarning = vi.fn();
+		const events = [
+			{ kind: "output", text: "turn 1", turnEpoch: 1 },
+			{ kind: "output", text: "turn 2", turnEpoch: 2 },
+			// The interrupt already bumped the epoch to 2 (and turn 2's own event
+			// above already forwarded), then this turn-1 straggler finally
+			// arrives — it must never reach `push`.
+			{ kind: "output", text: "late turn 1 straggler", turnEpoch: 1 },
+		];
+
+		await forwardEvents(arrayEvents(events), push, {
+			maxBatchSize: 100,
+			sleep: () => new Promise(() => undefined),
+			onWarning,
+		});
+
+		expect(push).toHaveBeenCalledExactlyOnceWith([
+			{ event: events[0], idempotencyKey: "1" },
+			{ event: events[1], idempotencyKey: "2" },
+		]);
+		expect(onWarning).toHaveBeenCalledExactlyOnceWith(
+			"forwardEvents: dropped a straggler event from a superseded turn"
+		);
+	});
+
+	it("never drops events with no stamped turnEpoch", async () => {
+		const push = vi.fn().mockResolvedValue(undefined);
+
+		await forwardEvents(arrayEvents([1, 2, 3]), push, {
+			maxBatchSize: 100,
+			sleep: () => new Promise(() => undefined),
+		});
+
+		expect(push).toHaveBeenCalledExactlyOnceWith([
+			{ event: 1, idempotencyKey: "1" },
+			{ event: 2, idempotencyKey: "2" },
+			{ event: 3, idempotencyKey: "3" },
+		]);
+	});
+});
+
 it("forwards an event that only arrives after several idle flush ticks", async () => {
 	// Regression: a slow source (e.g. claude's ~4s first token) lets the flush
 	// timer fire repeatedly before any event arrives. The loop must keep the

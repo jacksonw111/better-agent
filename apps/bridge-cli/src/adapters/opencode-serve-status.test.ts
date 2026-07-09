@@ -37,6 +37,7 @@ describe("opencodeServeAdapter - getStatus", () => {
 				costUsd: 0.045,
 				tokens: { input: 100, output: 20, cacheRead: 5, cacheWrite: 0 },
 			},
+			turnEpoch: 0,
 		});
 		const call = server.calls.find((c) =>
 			c.url.endsWith("/session/ses_1/message")
@@ -57,6 +58,7 @@ describe("opencodeServeAdapter - getStatus", () => {
 			kind: "status",
 			status: "status_snapshot",
 			detail: {},
+			turnEpoch: 0,
 		});
 	});
 });

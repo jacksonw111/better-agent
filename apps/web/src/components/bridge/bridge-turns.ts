@@ -7,6 +7,7 @@ import {
 	openAssistant,
 } from "./bridge-assistant-merge";
 import type {
+	ApprovalEvent,
 	MessageEvent,
 	NormalizedEvent,
 	StatusEvent,
@@ -216,9 +217,32 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 			state.turns.push({ kind: "file", id, event });
 			return;
 		default:
-			state.current = null;
-			state.turns.push({ kind: "approval", id, event });
+			foldApproval(state, id, event);
 	}
+}
+
+/**
+ * RC-T3: an approval event stamped `cancelled: true` retracts a still-open
+ * approval card (turn epoch superseded by an interrupt/stop — see
+ * `apps/bridge-cli/src/adapters/approvals.ts`'s `retractPendingApprovals`)
+ * instead of rendering as a new turn: the matching still-open card (by
+ * `requestId`) is removed from the feed rather than left dangling for the
+ * user to answer into a dead turn.
+ */
+function foldApproval(
+	state: FoldState,
+	id: number,
+	event: ApprovalEvent
+): void {
+	state.current = null;
+	if (event.cancelled) {
+		state.turns = state.turns.filter(
+			(turn) =>
+				!(turn.kind === "approval" && turn.event.requestId === event.requestId)
+		);
+		return;
+	}
+	state.turns.push({ kind: "approval", id, event });
 }
 
 /**

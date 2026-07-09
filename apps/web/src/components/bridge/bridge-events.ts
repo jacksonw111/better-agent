@@ -3,8 +3,17 @@
 // so the shape is duplicated here — only the seven `kind`s and the fields the
 // terminal view actually renders, not the full agent-protocol surface.
 
+/** RC-T3 (docs/remote-control-redesign-plan.md, Pillar 3): mirrors the CLI's
+ * `TurnScoped` (`apps/bridge-cli/src/normalize/types.ts`) — the monotonic
+ * per-session turn counter an adapter stamps onto every event it pushes.
+ * Optional/additive; not currently read by the web beyond the cancelled-
+ * approval retract in `bridge-turns.ts`. */
+interface TurnScoped {
+	turnEpoch?: number;
+}
+
 /** A single chat turn from either the user or the assistant. */
-export interface MessageEvent {
+export interface MessageEvent extends TurnScoped {
 	/** The stable id of the logical message this is the FINAL text for —
 	 * shared with any `OutputEvent` deltas that streamed the same message. See
 	 * `bridge-assistant-merge.ts`: a matching in-flight streamed bubble is
@@ -17,7 +26,7 @@ export interface MessageEvent {
 }
 
 /** A tool invocation, from request through to its result. */
-export interface ToolEvent {
+export interface ToolEvent extends TurnScoped {
 	id: string;
 	input?: unknown;
 	kind: "tool";
@@ -27,7 +36,7 @@ export interface ToolEvent {
 }
 
 /** A file created/modified/deleted by the agent. */
-export interface FileEvent {
+export interface FileEvent extends TurnScoped {
 	change: "created" | "modified" | "deleted";
 	diff?: string;
 	kind: "file";
@@ -35,7 +44,7 @@ export interface FileEvent {
 }
 
 /** Raw process output that doesn't fit the other kinds. */
-export interface OutputEvent {
+export interface OutputEvent extends TurnScoped {
 	/** The stable id of the logical message this delta streams text into —
 	 * shared with the eventual final `MessageEvent` for the same message. */
 	id?: string;
@@ -48,14 +57,14 @@ export interface OutputEvent {
 }
 
 /** Lifecycle/progress information (session init, turn start/end, retries…). */
-export interface StatusEvent {
+export interface StatusEvent extends TurnScoped {
 	detail?: unknown;
 	kind: "status";
 	status: string;
 }
 
 /** A recoverable-or-not error surfaced by the agent or its transport. */
-export interface ErrorEvent {
+export interface ErrorEvent extends TurnScoped {
 	detail?: unknown;
 	kind: "error";
 	message: string;
@@ -74,7 +83,11 @@ export interface ApprovalOption {
  * optionId }` decision command sent back via `sendInput` — see
  * `apps/bridge-cli/src/commands.ts`.
  */
-export interface ApprovalEvent {
+export interface ApprovalEvent extends TurnScoped {
+	/** RC-T3: set when this event retracts a still-open approval card (the
+	 * adapter interrupted/stopped the turn before the user answered) instead
+	 * of requesting a fresh decision — see `bridge-turns.ts`'s fold. */
+	cancelled?: boolean;
 	detail?: string;
 	kind: "approval";
 	options: ApprovalOption[];

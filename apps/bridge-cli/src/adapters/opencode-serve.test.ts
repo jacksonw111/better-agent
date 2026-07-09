@@ -27,6 +27,7 @@ describe("opencodeServeAdapter - start", () => {
 				sessionId: "ses_1",
 				models: ["anthropic/claude-sonnet-4"],
 			},
+			turnEpoch: 0,
 		});
 	});
 
@@ -43,7 +44,12 @@ describe("opencodeServeAdapter - start", () => {
 		});
 
 		const { value: event } = await iterator.next();
-		expect(event).toEqual({ kind: "output", text: "hi", reasoning: false });
+		expect(event).toEqual({
+			kind: "output",
+			text: "hi",
+			reasoning: false,
+			turnEpoch: 0,
+		});
 	});
 });
 
@@ -56,7 +62,12 @@ describe("opencodeServeAdapter - send & model", () => {
 		handle.send("do it");
 
 		const { value: echoed } = await iterator.next();
-		expect(echoed).toEqual({ kind: "message", role: "user", text: "do it" });
+		expect(echoed).toEqual({
+			kind: "message",
+			role: "user",
+			text: "do it",
+			turnEpoch: 1,
+		});
 		expect(messageCalls(server)[0]).toMatchObject({
 			method: "POST",
 			body: { parts: [{ type: "text", text: "do it" }] },
@@ -130,6 +141,39 @@ describe("opencodeServeAdapter - interrupt & approvals", () => {
 	});
 });
 
+describe("opencodeServeAdapter - interrupt retracts approvals (RC-T3)", () => {
+	it("retracts a pending approval and emits a cancelled event; a late answer is a no-op", async () => {
+		const { handle, server } = await startServe();
+		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // session_ready
+
+		server.emitSse({
+			type: "permission.updated",
+			properties: { id: "perm_2", sessionID: "ses_1", title: "Run `rm`" },
+		});
+		await iterator.next(); // the approval event
+
+		handle.interrupt?.();
+		const { value: retract } = await iterator.next();
+		expect(retract).toEqual({
+			kind: "approval",
+			cancelled: true,
+			options: [],
+			requestId: "perm_2",
+			title: "Cancelled",
+			turnEpoch: 1,
+		});
+
+		// A late answer for the retracted request must never fire the
+		// permissions POST — the registry no longer knows about it.
+		handle.answerApproval("perm_2", "once");
+		const reply = server.calls.find((call) =>
+			call.url.endsWith("/session/ses_1/permissions/perm_2")
+		);
+		expect(reply).toBeUndefined();
+	});
+});
+
 describe("opencodeServeAdapter - lifecycle", () => {
 	it("pushes agent_exited and closes events when the process exits on its own", async () => {
 		const { fake, handle } = await startServe();
@@ -139,7 +183,11 @@ describe("opencodeServeAdapter - lifecycle", () => {
 		fake.triggerExit({ code: 1, signal: null });
 
 		const { value: status } = await iterator.next();
-		expect(status).toEqual({ kind: "status", status: "agent_exited" });
+		expect(status).toEqual({
+			kind: "status",
+			status: "agent_exited",
+			turnEpoch: 0,
+		});
 		const { done } = await iterator.next();
 		expect(done).toBe(true);
 	});

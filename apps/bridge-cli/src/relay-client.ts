@@ -13,6 +13,7 @@ import type { AfterIdRef, CommandSink, RelayEvent } from "./commands";
 import { type PollLoopOptions, type PollOutcome, pollLoop } from "./poll-loop";
 import { createPushQueue, type PushQueue } from "./push-queue";
 import { truncateEvents } from "./truncate-event";
+import { isStaleTurnEvent } from "./turn-stale";
 
 export type { AgentSessionIdRef } from "./capture-agent-session-id";
 export { type PollOutcome, pollLoop } from "./poll-loop";
@@ -166,6 +167,10 @@ export async function forwardEvents<T>(
 	// gap and nothing was ever forwarded. Only advance to a new next() after the
 	// current one yields a value.
 	let pendingNext = iterator.next();
+	// RC-T3: the highest turnEpoch forwarded so far — anything stamped lower
+	// (a straggler from a superseded turn) is dropped in isStaleTurnEvent
+	// instead of ever reaching `push`, one place covering every adapter.
+	const highestTurnEpoch = { epoch: 0 };
 
 	for (;;) {
 		const tick = sleep(flushIntervalMs).then(() => FLUSH_TICK);
@@ -179,6 +184,12 @@ export async function forwardEvents<T>(
 			break;
 		}
 		pendingNext = iterator.next();
+		if (isStaleTurnEvent(result.value, highestTurnEpoch)) {
+			options.onWarning?.(
+				"forwardEvents: dropped a straggler event from a superseded turn"
+			);
+			continue;
+		}
 		options.onEvent?.(result.value);
 		buffer.push({ event: result.value, idempotencyKey: String(nextEventId++) });
 		if (buffer.length >= maxBatchSize) {

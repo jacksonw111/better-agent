@@ -62,7 +62,7 @@ describe("piAdapter - stdout/stderr relay", () => {
 		);
 
 		const { value: event } = await iterator.next();
-		expect(event).toEqual({ kind: "output", text: "hi" });
+		expect(event).toEqual({ kind: "output", text: "hi", turnEpoch: 0 });
 	});
 
 	it("relays stderr lines as error events", async () => {
@@ -85,6 +85,7 @@ describe("piAdapter - stdout/stderr relay", () => {
 		expect(event).toEqual({
 			kind: "error",
 			message: "pi: something went wrong",
+			turnEpoch: 0,
 		});
 	});
 });
@@ -105,6 +106,7 @@ describe("piAdapter - answerApproval has no protocol to wire into", () => {
 			detail: { requestId: "anything" },
 			kind: "status",
 			status: "approval_unknown",
+			turnEpoch: 0,
 		});
 		expect(io.writeLine).not.toHaveBeenCalled();
 	});
@@ -206,6 +208,7 @@ describe("piAdapter - session_ready models merge", () => {
 				slashCommands: [],
 				skills: [],
 			},
+			turnEpoch: 0,
 		});
 	});
 });

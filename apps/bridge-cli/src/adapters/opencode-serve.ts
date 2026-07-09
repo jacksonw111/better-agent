@@ -17,8 +17,12 @@ import {
 	type NormalizedEvent,
 	userMessageEvent,
 } from "../normalize/types";
-import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
-import { createAsyncQueue } from "./async-queue";
+import {
+	type ApprovalRegistry,
+	createApprovalRegistry,
+	retractPendingApprovals,
+} from "./approvals";
+import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import {
 	createServeHttp,
 	type EventSink,
@@ -27,7 +31,13 @@ import {
 	type ServeHttp,
 	waitForServeUrl,
 } from "./opencode-serve-http";
-import { spawnProcessIo } from "./process-io";
+import { type ProcessIo, spawnProcessIo } from "./process-io";
+import {
+	bumpTurnEpoch,
+	createTurnEpoch,
+	type TurnEpochRef,
+	turnStampingQueue,
+} from "./turn-epoch";
 import {
 	type Adapter,
 	AGENT_EXITED_STATUS,
@@ -60,6 +70,7 @@ async function fetchServeModels(http: ServeHttp): Promise<string[]> {
 
 interface ServeSessionContext {
 	approvals: ApprovalRegistry;
+	epoch: TurnEpochRef;
 	events: EventSink;
 	http: ServeHttp;
 	sessionId: string;
@@ -130,6 +141,9 @@ function makeServeControls(
 ): Pick<AgentHandle, "send" | "setModel" | "interrupt"> {
 	return {
 		send(text: string): void {
+			// A new turn begins — bump the epoch BEFORE pushing the user's own
+			// turn-start event (see the RC-T3 note on `opencodeServeAdapter.start`).
+			bumpTurnEpoch(ctx.epoch);
 			ctx.events.push(userMessageEvent(text));
 			const body: Record<string, unknown> = {
 				parts: [{ type: "text", text }],
@@ -152,6 +166,13 @@ function makeServeControls(
 			modelRef.current = parsed;
 		},
 		interrupt(): void {
+			// RC-T3: supersede the current turn and retract any pending approval
+			// (pending permission request) BEFORE aborting the remote turn, so a
+			// straggler SSE event or a late approval answer can never land against
+			// a turn context that's already moved on — mirrors claude-code.ts's
+			// `interrupt()`.
+			bumpTurnEpoch(ctx.epoch);
+			retractPendingApprovals(ctx.approvals, ctx.events);
 			// ASSUMPTION (unverified): `POST /session/:id/abort` cancels the
 			// in-flight turn but keeps the session alive.
 			firePost(
@@ -193,19 +214,33 @@ function makeServeGetStatus(ctx: ServeSessionContext): () => void {
 	};
 }
 
+/** Wires the turn-epoch-stamped event queue, approval registry, and the
+ * process-exit cleanup shared by every serve session — extracted purely so
+ * `start` stays under the line gate. */
+function createServePipeline(io: ProcessIo): {
+	approvals: ApprovalRegistry;
+	epoch: TurnEpochRef;
+	events: AsyncQueue<NormalizedEvent>;
+	sseAbort: AbortController;
+} {
+	const epoch = createTurnEpoch();
+	const events = turnStampingQueue(createAsyncQueue<NormalizedEvent>(), epoch);
+	const approvals = createApprovalRegistry(events);
+	const sseAbort = new AbortController();
+	io.onExit(() => {
+		sseAbort.abort();
+		events.push({ kind: "status", status: AGENT_EXITED_STATUS });
+		events.close();
+		approvals.clear();
+	});
+	return { approvals, epoch, events, sseAbort };
+}
+
 /** `opencode serve` + HTTP/SSE — the serve-backed opencode transport. */
 export const opencodeServeAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
 		const io = await spawnProcessIo("opencode", SERVE_ARGS, dir);
-		const events = createAsyncQueue<NormalizedEvent>();
-		const approvals = createApprovalRegistry(events);
-		const sseAbort = new AbortController();
-		io.onExit(() => {
-			sseAbort.abort();
-			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
-			events.close();
-			approvals.clear();
-		});
+		const { approvals, epoch, events, sseAbort } = createServePipeline(io);
 
 		let http: ServeHttp;
 		let sessionId: string;
@@ -218,7 +253,13 @@ export const opencodeServeAdapter: Adapter = {
 			throw error;
 		}
 
-		const ctx: ServeSessionContext = { approvals, events, http, sessionId };
+		const ctx: ServeSessionContext = {
+			approvals,
+			epoch,
+			events,
+			http,
+			sessionId,
+		};
 		wireServeEventStream(ctx, sseAbort.signal);
 		events.push({
 			kind: "status",
@@ -234,6 +275,11 @@ export const opencodeServeAdapter: Adapter = {
 			getStatus: makeServeGetStatus(ctx),
 			...makeServeControls(ctx, {}),
 			stop(): void {
+				bumpTurnEpoch(epoch);
+				// Retract before close(): a push after the queue is closed is a
+				// silent no-op (see async-queue.ts), so the cancelled ApprovalEvent
+				// must land first.
+				retractPendingApprovals(approvals, events);
 				sseAbort.abort();
 				io.stop();
 				events.close();
