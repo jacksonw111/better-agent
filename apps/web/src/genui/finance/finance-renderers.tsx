@@ -1,6 +1,7 @@
 import { entry, listEntry, type ToolResultRenderer } from "../tool-renderers";
 import { CalendarList } from "./calendar-list";
 import { CandlestickChart } from "./candlestick-chart";
+import { CnHotList } from "./cn-hot-list";
 import { CommodityGrid } from "./commodity-grid";
 import { CompanyProfileCard } from "./company-profile-card";
 import { DivergenceCard } from "./divergence-card";
@@ -43,7 +44,13 @@ import {
 	TrendingSentimentSchema,
 } from "./finance-schemas-fe10";
 import { DivergenceSchema, MarginRowSchema } from "./finance-schemas-fe11";
+import {
+	CnHotRowSchema,
+	HolderCountRowSchema,
+	SentimentCompareSchema,
+} from "./finance-schemas-fe12";
 import { ForecastTable } from "./forecast-table";
+import { HolderCountChart } from "./holder-count-chart";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
@@ -59,6 +66,7 @@ import { ResearchList } from "./research-list";
 import { SearchList } from "./search-list";
 import { SectorHeatmap } from "./sector-heatmap";
 import { SectorStocksList } from "./sector-stocks-list";
+import { SentimentCompare } from "./sentiment-compare";
 import { SentimentMarket } from "./sentiment-market";
 import { SentimentTicker } from "./sentiment-ticker";
 import { SentimentTrending } from "./sentiment-trending";
@@ -93,10 +101,15 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // finance_sentiment_ticker (sentiment-ticker.tsx), finance_sentiment_market
 // (sentiment-market.tsx). FE-11 adds finance_margin (margin-chart.tsx) and
 // finance_divergence (divergence-card.tsx), plus a `livePrice` flag on
-// finance_prediction_markets outcomes (prediction-markets.tsx).
+// finance_prediction_markets outcomes (prediction-markets.tsx). FE-12 adds
+// finance_sentiment_compare (sentiment-compare.tsx), finance_holder_count
+// (holder-count-chart.tsx), and finance_cn_hot (cn-hot-list.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
+	)),
+	finance_cn_hot: listEntry(CnHotRowSchema, (rows) => (
+		<CnHotList data={rows} />
 	)),
 	finance_commodity: listEntry(CommodityQuoteSchema, (items) => (
 		<CommodityGrid items={items} />
@@ -127,6 +140,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_financial_statements: listEntry(StatementRowSchema, (rows) => (
 		<StatementsTable data={rows} />
+	)),
+	finance_holder_count: listEntry(HolderCountRowSchema, (rows) => (
+		<HolderCountChart data={rows} />
 	)),
 	finance_hsgt_flow: listEntry(HsgtRowSchema, (rows) => (
 		<HsgtTable data={rows} />
@@ -171,6 +187,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_sector_list: listEntry(SectorRowSchema, (items) => (
 		<SectorHeatmap items={items} />
+	)),
+	finance_sentiment_compare: listEntry(SentimentCompareSchema, (rows) => (
+		<SentimentCompare data={rows} />
 	)),
 	finance_sentiment_market: entry(MarketSentimentSchema, (data) => (
 		<SentimentMarket data={data} />
