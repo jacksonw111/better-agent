@@ -8,6 +8,7 @@ import { ConvertibleBondsTable } from "./convertible-bonds-table";
 import { DivergenceCard } from "./divergence-card";
 import { DividendsTable } from "./dividends-table";
 import { DragonTigerTable } from "./dragon-tiger-table";
+import { EtfList } from "./etf-list";
 import {
 	CandleSchema,
 	CommodityQuoteSchema,
@@ -56,10 +57,16 @@ import {
 	LockupRowSchema,
 	PreannounceRowSchema,
 } from "./finance-schemas-fe13";
+import {
+	EtfRowSchema,
+	IndexWeightRowSchema,
+	OptionRowSchema,
+} from "./finance-schemas-fe14";
 import { ForecastTable } from "./forecast-table";
 import { HolderCountChart } from "./holder-count-chart";
 import { HsgtTable } from "./hsgt-table";
 import { IndexGrid } from "./index-grid";
+import { IndexWeights } from "./index-weights";
 import { IndicatorsTable } from "./indicators-table";
 import { IpoTable } from "./ipo-table";
 import { KeyMetricsCard } from "./key-metrics-card";
@@ -68,6 +75,7 @@ import { MacroPanel } from "./macro-panel";
 import { MarginChart } from "./margin-chart";
 import { MoneyFlowChart } from "./money-flow-chart";
 import { NewsList } from "./news-list";
+import { OptionChain } from "./option-chain";
 import { PreannounceList } from "./preannounce-list";
 import { PredictionMarkets } from "./prediction-markets";
 import { QuoteCard } from "./quote-card";
@@ -116,7 +124,9 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // (holder-count-chart.tsx), and finance_cn_hot (cn-hot-list.tsx). FE-13 adds
 // finance_earnings_preannounce (preannounce-list.tsx), finance_lockup
 // (lockup-table.tsx), finance_convertible_bonds
-// (convertible-bonds-table.tsx), and finance_ipo (ipo-table.tsx).
+// (convertible-bonds-table.tsx), and finance_ipo (ipo-table.tsx). FE-14
+// (V6b) adds finance_index_weights (index-weights.tsx), finance_etf_list
+// (etf-list.tsx), and finance_option_chain (option-chain.tsx).
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_central_bank: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
@@ -154,6 +164,7 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_economic_calendar: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />
 	)),
+	finance_etf_list: listEntry(EtfRowSchema, (rows) => <EtfList data={rows} />),
 	finance_financial_indicators: listEntry(IndicatorRowSchema, (rows) => (
 		<IndicatorsTable data={rows} />
 	)),
@@ -168,6 +179,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	)),
 	finance_index_quote: listEntry(IndexQuoteSchema, (items) => (
 		<IndexGrid items={items} />
+	)),
+	finance_index_weights: listEntry(IndexWeightRowSchema, (rows) => (
+		<IndexWeights data={rows} />
 	)),
 	finance_ipo: listEntry(IpoRowSchema, (rows) => <IpoTable data={rows} />),
 	finance_key_metrics: entry(KeyMetricsSchema, (data) => (
@@ -195,6 +209,9 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 		<MoneyFlowChart data={rows} />
 	)),
 	finance_news: listEntry(NewsItemSchema, (rows) => <NewsList data={rows} />),
+	finance_option_chain: listEntry(OptionRowSchema, (rows) => (
+		<OptionChain data={rows} />
+	)),
 	finance_prediction_markets: listEntry(PredictionMarketSchema, (markets) => (
 		<PredictionMarkets markets={markets} />
 	)),
