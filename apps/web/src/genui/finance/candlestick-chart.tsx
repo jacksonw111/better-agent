@@ -7,6 +7,7 @@ import type {
 	ISeriesApi,
 	Time,
 } from "lightweight-charts";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { loadChartModule } from "./chart-module";
 import type { CandleData } from "./finance-schemas";
@@ -52,8 +53,14 @@ async function buildChart(container: HTMLDivElement): Promise<ChartHandles> {
 	const { createChart, CandlestickSeries, HistogramSeries, ColorType } =
 		await loadChartModule();
 	const chart = createChart(container, {
+		// autoSize installs an internal ResizeObserver that measures the
+		// container itself — this is what survives a container that starts at
+		// clientWidth 0 (built async inside a chat bubble, before layout has
+		// run) and grows once the bubble is actually laid out. A manual
+		// `width: container.clientWidth` read at build time bakes in the 0 and
+		// visually collapses the chart to a single sliver.
+		autoSize: true,
 		height: CHART_HEIGHT,
-		width: container.clientWidth,
 		layout: {
 			background: { type: ColorType.Solid, color: "transparent" },
 			textColor: TEXT_COLOR,
@@ -99,9 +106,10 @@ function ChartCanvas({ candles }: { candles: CandleData[] }) {
 	useEffect(() => {
 		const container = containerRef.current;
 		let disposed = false;
-		let resizeObserver: ResizeObserver | undefined;
 
 		if (container) {
+			// autoSize (see buildChart) owns width/height tracking from here on —
+			// no manual ResizeObserver needed.
 			buildChart(container).then(({ chart, candleSeries, volumeSeries }) => {
 				if (disposed) {
 					chart.remove();
@@ -110,20 +118,12 @@ function ChartCanvas({ candles }: { candles: CandleData[] }) {
 				chartRef.current = chart;
 				candleSeriesRef.current = candleSeries;
 				volumeSeriesRef.current = volumeSeries;
-				resizeObserver = new ResizeObserver((entries) => {
-					const width = entries[0]?.contentRect.width;
-					if (width) {
-						chart.applyOptions({ width });
-					}
-				});
-				resizeObserver.observe(container);
 				setReady(true);
 			});
 		}
 
 		return () => {
 			disposed = true;
-			resizeObserver?.disconnect();
 			chartRef.current?.remove();
 			chartRef.current = null;
 			candleSeriesRef.current = null;
@@ -142,10 +142,19 @@ function ChartCanvas({ candles }: { candles: CandleData[] }) {
 		chartRef.current?.timeScale().fitContent();
 	}, [candles, ready]);
 
-	return <div className="w-full" ref={containerRef} />;
+	// Explicit height (not just width:100%) so the container always has a
+	// non-zero box for autoSize's ResizeObserver to measure, even before the
+	// chat bubble has finished laying out horizontally.
+	return (
+		<div
+			className="w-full"
+			ref={containerRef}
+			style={{ height: CHART_HEIGHT }}
+		/>
+	);
 }
 
-function ChartPlaceholder({ children }: { children: React.ReactNode }) {
+function ChartPlaceholder({ children }: { children: ReactNode }) {
 	return (
 		<div
 			className="flex items-center justify-center rounded-xl border bg-card text-muted-foreground text-sm"
@@ -154,6 +163,16 @@ function ChartPlaceholder({ children }: { children: React.ReactNode }) {
 			{children}
 		</div>
 	);
+}
+
+/** "N 根 · first ~ last" (or just one date when there's only one candle) —
+ * makes the chart visibly a series even at a glance, before the async chart
+ * itself has finished mounting. */
+function formatCandleRange(candles: CandleData[]): string {
+	const first = candles[0]?.time ?? "";
+	const last = candles.at(-1)?.time ?? "";
+	const range = first === last ? first : `${first} ~ ${last}`;
+	return `${candles.length} 根 · ${range}`;
 }
 
 /** finance_kline → a TradingView-style candlestick + volume chart. Candles
@@ -168,7 +187,7 @@ export function CandlestickChart({ candles }: { candles: CandleData[] }) {
 		);
 	}
 	return (
-		<CardShell title="K线">
+		<CardShell subtitle={formatCandleRange(candles)} title="K线">
 			<div className="rounded-xl border bg-card p-2">
 				<ChartCanvas candles={candles} />
 			</div>
