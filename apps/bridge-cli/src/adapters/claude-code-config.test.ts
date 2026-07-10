@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { claudeCodeAdapter } from "./claude-code";
 import { mockQuery } from "./claude-code-test-harness";
@@ -116,4 +119,41 @@ it("setMcpServers applies servers LIVE via the SDK query", async () => {
 			headers: { Authorization: "Bearer fin" },
 		},
 	});
+});
+
+// R4: at start the adapter writes the resolved skills to disk and enables
+// exactly those via the SDK `skills` option.
+it("writes SKILL.md files at start and enables them via the skills option", async () => {
+	const { harness } = mockQuery();
+	const dir = await mkdtemp(join(tmpdir(), "ba-adapter-skills-"));
+	try {
+		await claudeCodeAdapter.start(dir, {
+			skills: [{ name: "pdf", description: "PDFs", instructions: "# PDF" }],
+		});
+
+		expect(harness.options?.skills).toEqual(["pdf"]);
+		const content = await readFile(
+			join(dir, ".claude", "skills", "pdf", "SKILL.md"),
+			"utf8"
+		);
+		expect(content).toContain("name: pdf");
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+it("omits the skills option when no skills are configured", async () => {
+	const { harness } = mockQuery();
+	await claudeCodeAdapter.start("/tmp/project");
+	expect(harness.options?.skills).toBeUndefined();
+});
+
+// R4 LIVE: reloadSkills re-scans .claude/skills with no restart.
+it("reloadSkills reloads from disk via the SDK query", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+
+	handle.reloadSkills?.();
+
+	expect(harness.reloadSkills).toHaveBeenCalledTimes(1);
 });

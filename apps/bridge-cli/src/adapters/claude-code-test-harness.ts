@@ -24,6 +24,7 @@ export interface QueryHarness {
 	 * startup config (systemPrompt preset+append, maxTurns, …). */
 	options: Record<string, unknown> | undefined;
 	prompt: AsyncIterable<SDKUserMessage>;
+	reloadSkills: ReturnType<typeof vi.fn>;
 	setMcpServers: ReturnType<typeof vi.fn>;
 	setModel: ReturnType<typeof vi.fn>;
 	setPermissionMode: ReturnType<typeof vi.fn>;
@@ -44,6 +45,7 @@ export function mockQuery(models: Array<{ value: string }> = []): {
 	const setMcpServers = vi.fn(() =>
 		Promise.resolve({ added: [], failed: [], removed: [] })
 	);
+	const reloadSkills = vi.fn(() => Promise.resolve({ commands: [] }));
 	const setPermissionMode = vi.fn(() => Promise.resolve());
 	const supportedModels = vi.fn(() => Promise.resolve(models));
 	const getContextUsage = vi.fn(() =>
@@ -62,6 +64,7 @@ export function mockQuery(models: Array<{ value: string }> = []): {
 		harness.interrupt = interrupt;
 		harness.setModel = setModel;
 		harness.setMcpServers = setMcpServers;
+		harness.reloadSkills = reloadSkills;
 		harness.setPermissionMode = setPermissionMode;
 		harness.supportedModels = supportedModels;
 		harness.getContextUsage = getContextUsage;
@@ -71,6 +74,7 @@ export function mockQuery(models: Array<{ value: string }> = []): {
 			interrupt,
 			setModel,
 			setMcpServers,
+			reloadSkills,
 			setPermissionMode,
 			supportedModels,
 			getContextUsage,

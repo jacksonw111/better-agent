@@ -151,6 +151,15 @@ export interface AgentHandle {
 	 * adapter implements the control methods; only claude-code currently does.
 	 */
 	listSessions?(): void;
+	/**
+	 * Reloads the session's skills from disk LIVE (R4), no restart — after the
+	 * CLI has (re)written the SKILL.md files. Only claude-code implements it
+	 * (`query.reloadSkills`); other agents pick up skill changes on their next
+	 * restart, so they omit it (a missing method is the `CommandSink`'s normal
+	 * no-op). The skills a session first launched with are written + enabled by
+	 * `Adapter.start` from `StartOptions.skills`, not here.
+	 */
+	reloadSkills?(): void;
 	/** Feeds a user command (from the web UI, relayed through the server) to the agent. */
 	send(text: string): void;
 	/**
@@ -195,6 +204,13 @@ export interface StartOptions {
 	 * claude-code's adapter honors this; every other adapter's `start` simply
 	 * doesn't declare the parameter, so it's a no-op for them by construction. */
 	resume?: string;
+	/** The skills to install for this session (R4), resolved server-side by
+	 * `resolveSkills` from the token's `config.skills`. The adapter writes each
+	 * as a `SKILL.md` under the agent's skills dir at start; claude-code then
+	 * enables them (SDK `skills` option) and can reload them LIVE via
+	 * `AgentHandle.reloadSkills`. Empty/absent → only the agent's own on-disk
+	 * skills. */
+	skills?: ResolvedSkill[];
 }
 
 /** An MCP server resolved server-side (`resolveMcpServers` in
@@ -207,6 +223,16 @@ export interface ResolvedMcpServer {
 	headers: Record<string, string>;
 	name: string;
 	url: string;
+}
+
+/** A skill resolved server-side (`resolveSkills` in `packages/api`) into the
+ * three parts a `SKILL.md` needs — its frontmatter `name`/`description` and
+ * the markdown body (`instructions`). Redeclared locally so the CLI takes no
+ * runtime dep on the API package (same reason as `ResolvedMcpServer`). */
+export interface ResolvedSkill {
+	description: string;
+	instructions: string;
+	name: string;
 }
 
 /** Startup config the bridge CLI forwards to an adapter (a subset of the

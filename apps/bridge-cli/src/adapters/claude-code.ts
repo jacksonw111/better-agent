@@ -14,6 +14,7 @@ import {
 	fetchSupportedModels,
 	withReportedModels,
 } from "./claude-code-models";
+import { writeSkillFiles } from "./claude-code-skills";
 import {
 	claudeMcpServers,
 	configQueryOptions,
@@ -89,13 +90,18 @@ interface StartClaudeQueryDeps {
 	events: EventSink;
 	input: AsyncQueue<SDKUserMessage>;
 	opts: StartOptions | undefined;
+	/** R4: the sanitized names of the SKILL.md files the CLI already wrote for
+	 * this session (see `writeSkillFiles`) — passed to the SDK `skills` option
+	 * so exactly these are enabled. Empty → leave the SDK default (every
+	 * discovered skill), not "skills off". */
+	skillNames: string[];
 }
 
 /** Starts the SDK `query()` session: the claude subprocess + handshake, wired
  * to this handle's input queue, tool-approval routing, and persisted startup
  * config from the bridge token. */
 function startClaudeQuery(deps: StartClaudeQueryDeps): ClaudeQuery {
-	const { approvals, dir, events, input, opts } = deps;
+	const { approvals, dir, events, input, opts, skillNames } = deps;
 	return query({
 		prompt: input,
 		options: {
@@ -110,6 +116,9 @@ function startClaudeQuery(deps: StartClaudeQueryDeps): ClaudeQuery {
 			// R5-b: MCP servers this session launched with (LIVE-replaceable — see
 			// the handle's setMcpServers).
 			mcpServers: claudeMcpServers(opts?.mcpServers),
+			// R4: enable exactly the skills the CLI just wrote to .claude/skills;
+			// omit when none so the SDK keeps its default (every discovered skill).
+			skills: skillNames.length > 0 ? skillNames : undefined,
 			// Extended thinking's reasoning text only streams as `thinking_delta`
 			// frames under includePartialMessages — which also streams the
 			// response text as `text_delta` frames, duplicating what later
@@ -190,6 +199,11 @@ function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 			// Fire-and-forget like setModel (result surfaces via next getStatus).
 			session.setMcpServers(claudeMcpServers(servers)).catch(() => undefined);
 		},
+		reloadSkills(): void {
+			// R4 LIVE: re-scan .claude/skills after the CLI (re)wrote SKILL.md.
+			// Fire-and-forget; the refreshed skill list surfaces via next getStatus.
+			session.reloadSkills().catch(() => undefined);
+		},
 		stop(): void {
 			bumpTurnEpoch(epoch);
 			retractPendingApprovals(approvals, events);
@@ -201,7 +215,6 @@ function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 }
 
 export const claudeCodeAdapter: Adapter = {
-	// biome-ignore lint/suspicious/useAwait: the Adapter interface returns a Promise; the SDK query starts lazily.
 	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const epoch = createTurnEpoch();
 		const events = turnStampingQueue(
@@ -211,7 +224,17 @@ export const claudeCodeAdapter: Adapter = {
 		const input = createAsyncQueue<SDKUserMessage>();
 		const approvals = createApprovalRegistry(events);
 
-		const session = startClaudeQuery({ approvals, dir, events, input, opts });
+		// R4: write the session's SKILL.md files BEFORE query() so the SDK
+		// discovers them at start; the returned names enable exactly these.
+		const skillNames = await writeSkillFiles(dir, opts?.skills);
+		const session = startClaudeQuery({
+			approvals,
+			dir,
+			events,
+			input,
+			opts,
+			skillNames,
+		});
 		// Kicked off immediately: `supportedModels()` resolves off the same init
 		// handshake that produces the `session_ready` line, so it's ready by the
 		// time `withReportedModels` merges it in (see fetchSupportedModels).
