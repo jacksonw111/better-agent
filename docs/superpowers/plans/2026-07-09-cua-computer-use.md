@@ -92,7 +92,32 @@ setup.
 
 ---
 
-## Lane B — hot-file edits (gate on a clean bridge tree)
+## Lane B — REVISED: agent-token executor (not the bridge relay)
+
+**Binding decision (locked):** the cloud **agent's own token** (`agents.tokenHash`/`tokenCipher`,
+resolved by `agentProcedure` via `findByTokenHash`) is the link. The CUA CLI authenticates AS the
+agent and executes its computer-use tool calls locally — exactly the `packages/client`
+`createAgentClient` + `dispatchToolCall` + `submitToolResult` pattern (`agentProcedure` on the
+`sessions` router). This **removes** the original B1 (bridge-relay control actions) and B2 (bridge
+`AgentCapabilities` flag) — CUA does not go through the `bt_` bridge relay at all.
+
+- **B1 (CUA executor CLI):** a new bridge-cli entry `apps/bridge-cli/src/cua/cua-runner.ts` (+ a
+  subcommand) that: takes an **agent token**, ensures a lume VM (A1), connects the computer-server
+  WS (A2) once the VM has an IP, registers the 5 computer-use tools as `ClientToolDef`s whose
+  `execute` calls the A2 handler, consumes the agent's computer-use tool calls, and
+  `submitToolResult`s. Opens the VNC socket to the server proxy (A4) so the web can watch.
+- **B2 (executor tool-call delivery):** ensure the CLI (as the agent) receives computer-use tool
+  calls from **cloud-initiated** turns. Add/confirm a server channel (`sessions` executor
+  subscribe, `agentProcedure`) that streams pending computer-use calls for the agent; reuse the
+  existing SSE/remote-tool machinery where possible. The computer-use `ToolDef`s park server-side
+  (A3) and resolve on the CLI's `submitToolResult`.
+- **B3 (inject + enable):** in `assembleAgentToolDefs`, inject `buildComputerUseToolDefs(store)`
+  (A3) when the agent has computer-use enabled (a per-agent flag, e.g. `agents.computerUse`); no
+  bridge session needed. The park keys on the turn's sessionId+callId; the agent-token CLI resolves.
+- **B4 (web):** a per-agent "local computer" toggle + a VNC viewer (A5) on the agent/session view,
+  keyed by session; status of the connected executor. **User verifies the UI.**
+
+### Original Lane B (superseded — kept for reference)
 
 ### Task B1: VM-lifecycle control actions (bridge-cli)
 **Files:** edit `apps/bridge-cli/src/commands.ts` (+ `CommandSink`), `adapters/types.ts`
