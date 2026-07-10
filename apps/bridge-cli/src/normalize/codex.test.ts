@@ -12,31 +12,28 @@ describe("normalizeCodex - agentMessage items", () => {
 		]);
 	});
 
-	it("maps an agentMessage delta to an output event", () => {
+	// hermes-verified contract (codex_event_projector.py): a message
+	// materializes EXACTLY ONCE, on `item/completed`. Streaming deltas are
+	// display-only and must NOT emit a renderable event — emitting one
+	// alongside the terminal message is what double-rendered every codex reply
+	// ("repeated output"). So an ordinary delta yields no events.
+	it("drops a streaming agentMessage delta (display-only, no renderable event)", () => {
 		const events = normalizeCodex({
 			method: "item/agentMessage/delta",
 			params: { itemId: "item_1", delta: "Runnin" },
 		});
-		expect(events).toEqual([{ id: "item_1", kind: "output", text: "Runnin" }]);
+		expect(events).toEqual([]);
 	});
 
-	// The double-render bug: without a shared id, the web can't tell a
-	// streamed delta and its final message are the SAME logical message, so
-	// it renders both — see bridge-turns.test.ts for the reducer-level proof.
-	it("shares the item id between a streamed delta and the item's final message", () => {
-		const delta = normalizeCodex({
-			method: "item/agentMessage/delta",
-			params: { itemId: "item_1", delta: "Runnin" },
-		})[0] as { id?: string };
-		const final = normalizeCodex({
-			method: "item/completed",
-			params: {
-				item: { type: "agentMessage", id: "item_1", text: "Running tests" },
-			},
-		})[0] as { id?: string };
-		expect(delta.id).toBe("item_1");
-		expect(final.id).toBe("item_1");
-		expect(delta.id).toBe(final.id);
+	// The empty-bubble bug: codex fires `item/started` with an agentMessage
+	// whose text is still empty; materializing it produced a blank assistant
+	// bubble. Only the terminal `item/completed` may materialize the message.
+	it("does not materialize an agentMessage on item/started", () => {
+		const events = normalizeCodex({
+			method: "item/started",
+			params: { item: { type: "agentMessage", id: "item_1", text: "" } },
+		});
+		expect(events).toEqual([]);
 	});
 });
 
@@ -140,8 +137,9 @@ describe("normalizeCodex - <turn_aborted> marker (RC-T6)", () => {
 			method: "item/agentMessage/delta",
 			params: { itemId: "item_1", delta: "<turn_aborted/>" },
 		});
+		// The delta itself stays display-only (no renderable output event); only
+		// the synthetic turn-terminal status is surfaced so the turn can't hang.
 		expect(events).toEqual([
-			{ id: "item_1", kind: "output", text: "<turn_aborted/>" },
 			{
 				kind: "status",
 				status: "turn_completed",

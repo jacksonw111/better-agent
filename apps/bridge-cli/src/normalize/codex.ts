@@ -98,10 +98,16 @@ function normalizeCodexCommandExecutionItem(
 	];
 }
 
-// Streaming deltas (`item/agentMessage/delta`) and the final message
-// (`item.completed`) both carry the item's id — see `normalizeCodexAgentMessageDelta`
-// below — so the web can merge them into ONE bubble instead of rendering the
-// item's text twice (the reported "codex repeats every output" bug).
+// A codex agentMessage materializes as a renderable `message` EXACTLY ONCE,
+// on the terminal `item/completed` — mirroring hermes's `codex_event_projector`
+// (`if method != "item/completed": return ProjectionResult()`), verified against
+// a real codex binary. Two bugs this closes: (1) `item/started` carries the same
+// item with EMPTY text, which rendered a blank assistant bubble ("empty
+// output"); (2) the streaming deltas below used to emit their own renderable
+// `output` events, which double-rendered the reply when the web couldn't prove
+// they shared the final message's id ("repeated output"). Now only this
+// terminal event is renderable, so neither can happen regardless of the wire's
+// id conventions.
 function normalizeCodexAgentMessageItem(
 	item: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -115,22 +121,33 @@ function normalizeCodexAgentMessageItem(
 	];
 }
 
-function normalizeCodexItem(item: unknown): NormalizedEvent[] {
+// `terminal` is true only for `item/completed`. Non-terminal `item/started`
+// notifications must not materialize agentMessage/fileChange content (empty/
+// premature) — only commandExecution surfaces on start, since it carries a
+// `status` and dedups by id so the same tool bubble updates in place.
+function normalizeCodexItem(
+	item: unknown,
+	terminal: boolean
+): NormalizedEvent[] {
 	if (!isRecord(item) || typeof item.type !== "string") {
 		return NO_EVENTS;
 	}
 	switch (item.type) {
 		case "agentMessage":
-			return normalizeCodexAgentMessageItem(item);
+			return terminal ? normalizeCodexAgentMessageItem(item) : NO_EVENTS;
 		case "commandExecution":
 			return normalizeCodexCommandExecutionItem(item);
 		case "fileChange":
-			return normalizeCodexFileChangeItem(item);
+			return terminal ? normalizeCodexFileChangeItem(item) : NO_EVENTS;
 		default:
 			return NO_EVENTS;
 	}
 }
 
+// Streaming deltas are DISPLAY-ONLY: the message materializes once on
+// `item/completed` (see `normalizeCodexAgentMessageItem`). We deliberately emit
+// NO renderable event for the delta text — only a `<turn_aborted>` marker that
+// happens to land in a delta is honored, so the turn can still end cleanly.
 function normalizeCodexAgentMessageDelta(
 	params: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -138,10 +155,7 @@ function normalizeCodexAgentMessageDelta(
 	if (text === undefined) {
 		return NO_EVENTS;
 	}
-	return [
-		{ id: asString(params.itemId), kind: "output", text },
-		...turnAbortedEvents(text),
-	];
+	return turnAbortedEvents(text);
 }
 
 // Researched as a suspected dead path (plan §2: docs don't list a
@@ -160,8 +174,8 @@ type CodexNotificationHandler = (
 ) => NormalizedEvent[];
 
 const CODEX_NOTIFICATION_HANDLERS: Record<string, CodexNotificationHandler> = {
-	"item/started": (params) => normalizeCodexItem(params.item),
-	"item/completed": (params) => normalizeCodexItem(params.item),
+	"item/started": (params) => normalizeCodexItem(params.item, false),
+	"item/completed": (params) => normalizeCodexItem(params.item, true),
 	"item/agentMessage/delta": normalizeCodexAgentMessageDelta,
 	"turn/started": (params) => [
 		{ kind: "status", status: "turn_started", detail: params.turn },

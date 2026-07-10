@@ -14,6 +14,7 @@ import {
 	retractPendingApprovals,
 } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
+import { logRawCodexNotification } from "./codex-debug";
 import {
 	type CodexStatusCache,
 	createCodexStatusCache,
@@ -254,6 +255,7 @@ export const codexAdapter: Adapter = {
 
 		const statusCache = createCodexStatusCache();
 		rpc.onNotification((method, params) => {
+			logRawCodexNotification(method, params);
 			updateCodexStatusCache(statusCache, method, params);
 			for (const event of normalizeCodex({ method, params })) {
 				events.push(event);
