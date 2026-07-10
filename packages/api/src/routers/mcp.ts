@@ -44,6 +44,17 @@ async function requireOwnedMcpServer(
 	return server;
 }
 
+// A raw bearer token, as typed by the owner, mapped to the Authorization
+// header value the mcpServer store persists. `null`/`undefined` pass through
+// unchanged so callers can distinguish "no token" from "leave it as-is".
+function mapBearerToken<T extends string | null | undefined>(
+	bearerToken: T
+): T extends string ? string : T {
+	return (
+		bearerToken ? `Bearer ${bearerToken}` : bearerToken
+	) as T extends string ? string : T;
+}
+
 async function createOwnedServer(
 	context: Context,
 	userId: string,
@@ -52,7 +63,7 @@ async function createOwnedServer(
 	const server = await context.services.stores.mcpServer.create({
 		name: input.name,
 		url: input.url,
-		authHeader: input.bearerToken ? `Bearer ${input.bearerToken}` : undefined,
+		authHeader: mapBearerToken(input.bearerToken),
 		userId,
 	});
 	// Validate by connecting + listing tools; roll back a bad config so the
@@ -90,6 +101,42 @@ export const mcpRouter = {
 		.handler(({ input, context }) =>
 			createOwnedServer(context, context.authedUser.id, input)
 		),
+
+	updateServer: authorizedUserProcedure
+		.input(
+			z.object({
+				serverId: z.uuid(),
+				name: z.string().min(1).optional(),
+				url: z.url().optional(),
+				// undefined = leave the stored token as-is; null = clear it;
+				// a string = replace it.
+				bearerToken: z.string().min(1).nullable().optional(),
+			})
+		)
+		.handler(async ({ input, context }) => {
+			await requireOwnedMcpServer(
+				context,
+				context.authedUser.id,
+				input.serverId
+			);
+			const updated = await context.services.stores.mcpServer.update(
+				input.serverId,
+				{
+					name: input.name,
+					url: input.url,
+					authHeader: mapBearerToken(input.bearerToken),
+				}
+			);
+			if (!updated) {
+				throw new ORPCError("NOT_FOUND", { message: "MCP server not found" });
+			}
+			await context.services.stores.activity.log({
+				userId: context.authedUser.id,
+				type: "mcp_server_updated",
+				summary: `Updated MCP server “${updated.name}”`,
+			});
+			return updated;
+		}),
 
 	deleteServer: authorizedUserProcedure
 		.input(serverIdInput)

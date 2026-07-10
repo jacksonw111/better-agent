@@ -7,6 +7,35 @@ import type { McpServerRow, McpServerStore } from "@better-agent/agent/ports";
 
 const AUTH_LAST4 = 4;
 
+function applyUpdate(
+	rows: Map<string, McpServerRow>,
+	authHeaders: Map<string, string>,
+	id: string,
+	patch: { name?: string; url?: string; authHeader?: string | null }
+): McpServerRow | null {
+	const row = rows.get(id);
+	if (!row) {
+		return null;
+	}
+	const updated: McpServerRow = {
+		...row,
+		...(patch.name === undefined ? {} : { name: patch.name }),
+		...(patch.url === undefined ? {} : { url: patch.url }),
+	};
+	if (patch.authHeader !== undefined) {
+		updated.authLast4 = patch.authHeader
+			? patch.authHeader.slice(-AUTH_LAST4)
+			: null;
+		if (patch.authHeader) {
+			authHeaders.set(id, patch.authHeader);
+		} else {
+			authHeaders.delete(id);
+		}
+	}
+	rows.set(id, updated);
+	return updated;
+}
+
 /** In-memory McpServerStore (name/url/auth-header only — enough for the R5-a
  * bridge-mcp-resolve tests, which only exercise getById/getAuthHeader). */
 export function memoryMcpServerStore(
@@ -44,6 +73,9 @@ export function memoryMcpServerStore(
 			return Promise.resolve(
 				[...rows.values()].filter((row) => row.userId === userId)
 			);
+		},
+		update(id, patch) {
+			return Promise.resolve(applyUpdate(rows, authHeaders, id, patch));
 		},
 	};
 }

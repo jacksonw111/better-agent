@@ -50,3 +50,33 @@ it("scopes servers per owner and round-trips the encrypted auth header", async (
 	expect(bobServers[0]?.authLast4).toBeNull();
 	expect(await store.getAuthHeader(bobServers[0]?.id ?? "")).toBeNull();
 });
+
+it("update() patches only the given fields, and null clears the auth header", async () => {
+	const store = createMcpServerStore(db, box);
+	const alice = await seedUser("alice2@x.com");
+	const server = await store.create({
+		name: "X API",
+		url: "https://api.x.com/mcp",
+		authHeader: "Bearer tok_secret_9999",
+		userId: alice,
+	});
+
+	const renamed = await store.update(server.id, { name: "X API v2" });
+	expect(renamed).toMatchObject({
+		name: "X API v2",
+		url: "https://api.x.com/mcp",
+		authLast4: "9999",
+	});
+
+	const cleared = await store.update(server.id, { authHeader: null });
+	expect(cleared?.authLast4).toBeNull();
+	expect(await store.getAuthHeader(server.id)).toBeNull();
+	// Name from the earlier patch survives an unrelated later patch.
+	expect(cleared?.name).toBe("X API v2");
+
+	expect(
+		await store.update("00000000-0000-0000-0000-000000000000", {
+			name: "nope",
+		})
+	).toBeNull();
+});

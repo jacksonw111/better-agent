@@ -16,6 +16,31 @@ const BOB = {
 	blocked: false,
 };
 
+const AUTH_LAST4 = 4;
+
+function applyServerUpdate(
+	rows: McpServerRow[],
+	id: string,
+	patch: { name?: string; url?: string; authHeader?: string | null }
+): McpServerRow | null {
+	const row = rows.find((r) => r.id === id);
+	if (!row) {
+		return null;
+	}
+	if (patch.name !== undefined) {
+		row.name = patch.name;
+	}
+	if (patch.url !== undefined) {
+		row.url = patch.url;
+	}
+	if (patch.authHeader !== undefined) {
+		row.authLast4 = patch.authHeader
+			? patch.authHeader.slice(-AUTH_LAST4)
+			: null;
+	}
+	return row;
+}
+
 function memoryServerStore() {
 	const rows: McpServerRow[] = [];
 	return {
@@ -36,7 +61,7 @@ function memoryServerStore() {
 				name: input.name,
 				url: input.url,
 				userId: input.userId,
-				authLast4: input.authHeader?.slice(-4) ?? null,
+				authLast4: input.authHeader?.slice(-AUTH_LAST4) ?? null,
 				createdAt: new Date(),
 			};
 			rows.push(row);
@@ -49,6 +74,10 @@ function memoryServerStore() {
 			}
 			return Promise.resolve();
 		},
+		update: (
+			id: string,
+			patch: { name?: string; url?: string; authHeader?: string | null }
+		) => Promise.resolve(applyServerUpdate(rows, id, patch)),
 	};
 }
 
@@ -105,4 +134,45 @@ it("servers are scoped to their owner; foreign access is NOT_FOUND", async () =>
 
 	await alice.mcp.deleteServer({ serverId: server.id });
 	expect(await alice.mcp.listServers()).toHaveLength(0);
+});
+
+it("updateServer patches an owned server, including clearing its token, and rejects a non-owner", async () => {
+	const { clientFor } = build();
+	const alice = clientFor(ALICE);
+	const bob = clientFor(BOB);
+
+	const server = await alice.mcp.createServer({
+		name: "X API",
+		url: "https://api.x.com/mcp",
+		bearerToken: "tok_1234",
+	});
+
+	await expect(
+		bob.mcp.updateServer({ serverId: server.id, name: "Hijacked" })
+	).rejects.toThrow();
+
+	const renamed = await alice.mcp.updateServer({
+		serverId: server.id,
+		name: "X API v2",
+		url: "https://api.x.com/mcp/v2",
+	});
+	expect(renamed).toMatchObject({
+		name: "X API v2",
+		url: "https://api.x.com/mcp/v2",
+		authLast4: "1234",
+	});
+
+	const rotated = await alice.mcp.updateServer({
+		serverId: server.id,
+		bearerToken: "tok_5678",
+	});
+	expect(rotated?.authLast4).toBe("5678");
+	// Untouched fields survive a partial update.
+	expect(rotated?.name).toBe("X API v2");
+
+	const cleared = await alice.mcp.updateServer({
+		serverId: server.id,
+		bearerToken: null,
+	});
+	expect(cleared?.authLast4).toBeNull();
 });

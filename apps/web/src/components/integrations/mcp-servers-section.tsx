@@ -19,6 +19,7 @@ import type { McpServerRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
 import { AddMcpServerDialog } from "./add-mcp-server-dialog";
+import { EditMcpServerDialog } from "./edit-mcp-server-dialog";
 import { IntegrationsEmptyState } from "./empty-state";
 import { ExportMcpMenu } from "./export-mcp-menu";
 import { McpToolsPreview } from "./mcp-tools-preview";
@@ -86,6 +87,7 @@ function ServerRow({
 				<div className="flex items-center justify-end gap-1">
 					<McpToolsPreview serverId={row.id} serverName={row.name} />
 					<ExportMcpMenu server={row} />
+					<EditMcpServerDialog server={row} />
 					<DeleteConfirm
 						label={`Delete ${row.name}?`}
 						onConfirm={() => onDelete(row.id)}

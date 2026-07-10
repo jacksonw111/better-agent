@@ -57,7 +57,7 @@ export interface AgentStore {
 		tokenHash: string,
 		token?: string
 	): Promise<AgentConfig | null>;
-	/** Remove a deleted source from every one of the user's agents. */
+	/** Remove a deleted source from every agent. */
 	unlinkComposioAccount(userId: string, accountId: string): Promise<void>;
 	unlinkMcpServer(userId: string, serverId: string): Promise<void>;
 	unlinkOpenConnectorAccount(userId: string, accountId: string): Promise<void>;
@@ -119,8 +119,7 @@ export interface AttachmentStore {
 	listByMessage(messageId: string): Promise<AttachmentRow[]>;
 }
 
-// Auth-related store ports live beside the auth types; re-exported here so all
-// ports keep a single import path.
+// Auth-related store ports live beside the auth types; re-exported here.
 export type {
 	MagicLinkStore,
 	PasswordResetStore,
@@ -130,9 +129,8 @@ export type {
 
 export type { RelayDir, RelayEvent, RelayStore } from "./bridge/relay-store";
 
-// Memory-system ports live in memory-ports.ts (split out to keep this file
-// under the 300-line limit) and are re-exported here so the public
-// `@better-agent/agent/ports` surface is unchanged.
+// Memory-system ports live in memory-ports.ts (split out for the 300-line
+// limit) and are re-exported so the public ports surface is unchanged.
 export type {
 	AgentMemoryRow,
 	EmbeddingClient,
@@ -173,6 +171,11 @@ export interface McpServerStore {
 	getAuthHeader(id: string): Promise<string | null>;
 	getById(id: string): Promise<McpServerRow | null>;
 	listByUser(userId: string): Promise<McpServerRow[]>;
+	/** Partial patch: omitted fields are untouched; `authHeader: null` clears it. */
+	update(
+		id: string,
+		patch: { name?: string; url?: string; authHeader?: string | null }
+	): Promise<McpServerRow | null>;
 }
 
 export interface ComposioAccountRow {
@@ -247,8 +250,7 @@ export interface BridgeMessageRow {
 export interface BridgeMessageStore {
 	/** Persists one relayed event under its relay-assigned seq. */
 	append(sessionId: string, seq: number, event: unknown): Promise<void>;
-	/** Persists a batch of relayed events (each under its own relay-assigned
-	 * seq) in a single round trip. A no-op for an empty batch. */
+	/** Persists a batch of relayed events under their own seq, in one round trip. */
 	appendMany(sessionId: string, rows: BridgeMessageRow[]): Promise<void>;
 	/** Returns persisted events with seq > afterSeq, in ascending seq order. */
 	list(
@@ -280,7 +282,6 @@ export interface AuthzClient {
 		code: string
 	): Promise<{ authorized: boolean; reason?: string }>;
 }
-
 export interface EmailSender {
 	sendMagicLink(input: { email: string; url: string }): Promise<void>;
 	sendPasswordReset(input: { email: string; url: string }): Promise<void>;
@@ -290,7 +291,6 @@ export interface GoogleProfile {
 	email: string;
 	emailVerified: boolean;
 }
-
 export interface GoogleOAuth {
 	/** The Google consent URL to redirect the user to. */
 	authUrl(state: string): string;

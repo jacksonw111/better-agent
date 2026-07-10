@@ -32,7 +32,7 @@ function useCreateServer(onDone: () => void) {
 	);
 }
 
-function NameUrlFields({
+export function NameUrlFields({
 	name,
 	url,
 	onName,
