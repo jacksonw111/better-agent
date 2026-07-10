@@ -5,6 +5,7 @@ import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
 import { createS3Bucket } from "./s3-bucket";
 import { buildServices } from "./services";
+import { createVncRouteDeps, registerVncRoutes } from "./vnc-proxy";
 
 initLogger({
 	env: { service: "better-agent-server" },
@@ -27,8 +28,16 @@ const uploads =
 		: undefined;
 const services = buildServices(db, undefined, uploads);
 const app = buildApp(services);
+// Session-scoped VNC WebSocket proxy (video plane). Wired here, not in
+// buildApp, because buildApp is shared with the Workers entry (worker.ts),
+// where long-lived WebSockets aren't supported — only this Node/Docker
+// deployment injects the WS upgrade handler onto the http server below.
+const { injectWebSocket } = registerVncRoutes(
+	app,
+	createVncRouteDeps(services)
+);
 
-serve(
+const server = serve(
 	{
 		fetch: app.fetch,
 		port: 3000,
@@ -37,3 +46,4 @@ serve(
 		log.info("server", `Server is running on http://localhost:${info.port}`);
 	}
 );
+injectWebSocket(server);
