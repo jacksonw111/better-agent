@@ -61,23 +61,25 @@ export interface ApprovalLineProps {
 	answeredOptionId?: string;
 	event: ApprovalEvent;
 	onAnswer?: (requestId: string, optionId: string) => void;
-	pending: boolean;
 }
 
 /**
  * Approval request card: title + optional detail + one button per option.
  * The first option is the "allow"-style default action, the rest render as
  * outline buttons. Once `answeredOptionId` is set — either from this
- * session's own click or a replayed event for an already-answered
- * `requestId` — every button disables and the chosen one shows a check.
+ * session's own click (optimistically, before the round trip settles — see
+ * `makeAnswerApproval`) or a replayed event for an already-answered
+ * `requestId` — THIS card's buttons disable and the chosen one shows a check.
+ * Disabling is per-card (keyed by `requestId`), deliberately NOT gated on the
+ * connection's global "sending" flag: that flag flips for any send, so gating
+ * on it greyed out every open approval card when the user answered one.
  */
 export function ApprovalLine({
 	answeredOptionId,
 	event,
 	onAnswer,
-	pending,
 }: ApprovalLineProps) {
-	const disabled = answeredOptionId !== undefined || pending;
+	const disabled = answeredOptionId !== undefined;
 	return (
 		<Card className="gap-2 font-sans" size="sm">
 			<CardHeader>

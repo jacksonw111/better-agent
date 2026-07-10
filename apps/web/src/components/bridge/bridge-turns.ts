@@ -56,6 +56,18 @@ const HIDDEN_STATUS_KINDS = new Set<string>([
 	"auto_retry_end",
 ]);
 
+/** Hidden statuses that mark a genuine turn boundary (lifecycle start/end) —
+ * the only hidden ones that close an in-flight assistant bubble (see
+ * `foldStatus`); the rest are mid-stream metric heartbeats. */
+const TURN_BOUNDARY_STATUS_KINDS = new Set<string>([
+	"agent_start",
+	"agent_end",
+	"turn_start",
+	"turn_end",
+	"turn_started",
+	"turn_completed",
+]);
+
 /** Folds a `plan` status update into the ONE plan turn: creates it on the first
  * update (at its natural position), then replaces its items in place on later
  * updates so the checklist fills in rather than stacking copies. An empty/
@@ -189,6 +201,29 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
 	state.toolsByCallId.set(event.id, tool);
 }
 
+/**
+ * Folds a `status` event. It closes the in-flight assistant bubble ONLY for a
+ * genuine turn boundary or a DISPLAYED status line — never a hidden mid-stream
+ * heartbeat (`usage_update`/`queue_update`/…, which opencode emits between an
+ * assistant's own output deltas). Nulling `current` on those fragmented one
+ * reply into a bubble per heartbeat — the "sentence-by-sentence" bug.
+ */
+function foldStatus(state: FoldState, id: number, event: StatusEvent): void {
+	if (event.status === PLAN_STATUS) {
+		state.current = null;
+		foldPlan(state, id, event);
+		return;
+	}
+	if (HIDDEN_STATUS_KINDS.has(event.status)) {
+		if (TURN_BOUNDARY_STATUS_KINDS.has(event.status)) {
+			state.current = null;
+		}
+		return;
+	}
+	state.current = null;
+	state.turns.push({ kind: "status", id, event });
+}
+
 function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 	switch (event.kind) {
 		case "message":
@@ -201,12 +236,7 @@ function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
 			foldTool(state, id, event);
 			return;
 		case "status":
-			state.current = null;
-			if (event.status === PLAN_STATUS) {
-				foldPlan(state, id, event);
-			} else if (!HIDDEN_STATUS_KINDS.has(event.status)) {
-				state.turns.push({ kind: "status", id, event });
-			}
+			foldStatus(state, id, event);
 			return;
 		case "error":
 			state.current = null;

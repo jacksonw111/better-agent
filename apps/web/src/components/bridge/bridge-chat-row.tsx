@@ -43,8 +43,6 @@ export interface BridgeChatRowProps {
 	/** True once the session has ended — suppresses the streaming caret. */
 	ended: boolean;
 	onAnswerApproval: (requestId: string, optionId: string) => void;
-	/** True while a sendInput mutation is in flight — gates approval buttons. */
-	sending: boolean;
 	turn: BridgeTurn;
 }
 
@@ -80,7 +78,6 @@ function BridgeChatRowImpl({
 	avatars,
 	ended,
 	onAnswerApproval,
-	sending,
 	turn,
 }: BridgeChatRowProps) {
 	switch (turn.kind) {
@@ -109,7 +106,6 @@ function BridgeChatRowImpl({
 					answeredOptionId={answered[turn.event.requestId]}
 					event={turn.event}
 					onAnswer={onAnswerApproval}
-					pending={sending}
 				/>
 			);
 	}

@@ -12,7 +12,6 @@ function renderTurn(turn: TaskTurn) {
 			onAnswerApproval={() => {
 				// no-op for this test
 			}}
-			sending={false}
 			turn={turn}
 		/>
 	);

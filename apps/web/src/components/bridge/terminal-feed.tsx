@@ -63,7 +63,6 @@ export interface TerminalFeedProps {
 	answered: Record<string, string>;
 	avatars: ChatAvatars;
 	ended: boolean;
-	sending: boolean;
 	/** True for the entire in-flight turn — keeps the working skeleton visible
 	 * throughout, not just before the first token. */
 	turnInFlight: boolean;
@@ -76,7 +75,6 @@ export function TerminalFeed({
 	answered,
 	avatars,
 	ended,
-	sending,
 	turnInFlight,
 	turns,
 }: TerminalFeedProps) {
@@ -117,7 +115,6 @@ export function TerminalFeed({
 										avatars={avatars}
 										ended={ended}
 										onAnswerApproval={answerApproval}
-										sending={sending}
 										turn={turn}
 									/>
 								</MessageScrollerItem>

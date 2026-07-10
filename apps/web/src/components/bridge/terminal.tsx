@@ -123,7 +123,6 @@ function TerminalBody(props: TerminalBodyProps) {
 				answered={props.answered}
 				avatars={props.avatars}
 				ended={props.ended}
-				sending={props.sending}
 				turnInFlight={props.turnInFlight}
 				turns={props.turns}
 			/>

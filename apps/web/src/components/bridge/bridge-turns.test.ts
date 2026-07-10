@@ -157,7 +157,7 @@ it("keeps reasoning and reply output in separate blocks, with no duplication", (
 	]);
 });
 
-it("hides session_ready and turn_usage from the turn list but still closes the assistant boundary", () => {
+it("hides session_ready/turn_usage AND does not let them fragment the assistant bubble", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "first" }),
 		ev(2, {
@@ -173,18 +173,12 @@ it("hides session_ready and turn_usage from the turn list but still closes the a
 		}),
 		ev(5, { kind: "status", status: "some-other-status" }),
 	]);
-	// Neither curated status shows up as its own turn — only the ordinary
-	// status kind does, alongside the two assistant bubbles it separated.
-	expect(turns.map((t) => t.kind)).toEqual([
-		"assistant",
-		"assistant",
-		"status",
-	]);
+	// Hidden non-boundary heartbeats interleave mid-stream (opencode fires one
+	// per session/update) and must NOT split a reply: the two outputs merge
+	// into ONE bubble. Only the displayed status closes it + shows as a turn.
+	expect(turns.map((t) => t.kind)).toEqual(["assistant", "status"]);
 	expect(asAssistant(turns[0]).blocks).toEqual([
-		{ kind: "text", text: "first" },
-	]);
-	expect(asAssistant(turns[1]).blocks).toEqual([
-		{ kind: "text", text: "second" },
+		{ kind: "text", text: "firstsecond" },
 	]);
 });
 
