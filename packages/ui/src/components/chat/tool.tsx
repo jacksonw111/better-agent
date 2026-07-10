@@ -19,6 +19,14 @@ export type RenderToolResult = (
 	result: unknown
 ) => ReactNode | null;
 
+/** An app-supplied hook that renders the ENTIRE tool card — header, input, and
+ * result across every status (running/complete/error), not just the result of
+ * a finished call like `RenderToolResult`. Returning null falls back to the
+ * default rich/plain rendering. The local-agent terminal uses this to render
+ * real CLI executions (shell commands, file edits, reads) as terminal-style
+ * cards; the web-agent chat leaves it unset and keeps `RenderToolResult`. */
+export type RenderTool = (tool: ToolInvocation) => ReactNode | null;
+
 function formatValue(value: unknown): string {
 	if (value === undefined) {
 		return "";
@@ -126,11 +134,19 @@ function PlainToolView({ tool }: { tool: ToolInvocation }) {
 
 function ToolInvocationView({
 	tool,
+	renderTool,
 	renderToolResult,
 }: {
 	tool: ToolInvocation;
+	renderTool?: RenderTool;
 	renderToolResult?: RenderToolResult;
 }) {
+	// A full-card renderer wins when it claims the tool (non-null); otherwise
+	// fall through to the result-only rich renderer, then the plain block.
+	const custom = renderTool?.(tool);
+	if (custom != null) {
+		return <>{custom}</>;
+	}
 	const rich = richResult(tool, renderToolResult);
 	if (rich !== null) {
 		return <RichToolView rich={rich} tool={tool} />;
@@ -156,9 +172,11 @@ function ToolSection({ label, value }: { label: string; value: string }) {
 
 export function ToolGroup({
 	tools,
+	renderTool,
 	renderToolResult,
 }: {
 	tools: ToolInvocation[];
+	renderTool?: RenderTool;
 	renderToolResult?: RenderToolResult;
 }) {
 	if (tools.length === 0) {
@@ -169,6 +187,7 @@ export function ToolGroup({
 			{tools.map((tool) => (
 				<ToolInvocationView
 					key={tool.callId}
+					renderTool={renderTool}
 					renderToolResult={renderToolResult}
 					tool={tool}
 				/>

@@ -25,7 +25,7 @@ import {
 } from "./assistant-actions-row";
 import { AttachmentImage } from "./attachment-image";
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
-import type { RenderToolResult } from "./tool";
+import type { RenderTool, RenderToolResult } from "./tool";
 import { ToolGroup } from "./tool";
 
 export type { SaveImageHandler } from "./assistant-actions-row";
@@ -33,10 +33,12 @@ export type { SaveImageHandler } from "./assistant-actions-row";
 function BlockView({
 	block,
 	streaming,
+	renderTool,
 	renderToolResult,
 }: {
 	block: ChatBlock;
 	streaming: boolean;
+	renderTool?: RenderTool;
 	renderToolResult?: RenderToolResult;
 }) {
 	if (block.kind === "reasoning") {
@@ -51,7 +53,11 @@ function BlockView({
 	}
 	if (block.kind === "tool") {
 		return (
-			<ToolGroup renderToolResult={renderToolResult} tools={[block.tool]} />
+			<ToolGroup
+				renderTool={renderTool}
+				renderToolResult={renderToolResult}
+				tools={[block.tool]}
+			/>
 		);
 	}
 	if (block.kind === "text") {
@@ -64,10 +70,12 @@ function BlockView({
 function AssistantContent({
 	message,
 	streaming,
+	renderTool,
 	renderToolResult,
 }: {
 	message: ChatMessage;
 	streaming: boolean;
+	renderTool?: RenderTool;
 	renderToolResult?: RenderToolResult;
 }) {
 	return (
@@ -77,6 +85,7 @@ function AssistantContent({
 					block={block}
 					// biome-ignore lint/suspicious/noArrayIndexKey: blocks are append-only and never reorder
 					key={`${index}-${block.kind}`}
+					renderTool={renderTool}
 					renderToolResult={renderToolResult}
 					streaming={streaming}
 				/>
@@ -97,10 +106,12 @@ function isThinking(message: ChatMessage): boolean {
 
 function AssistantBody({
 	message,
+	renderTool,
 	renderToolResult,
 	onSaveImage,
 }: {
 	message: ChatMessage;
+	renderTool?: RenderTool;
 	renderToolResult?: RenderToolResult;
 	onSaveImage?: SaveImageHandler;
 }) {
@@ -122,6 +133,7 @@ function AssistantBody({
 			<div ref={contentRef}>
 				<AssistantContent
 					message={message}
+					renderTool={renderTool}
 					renderToolResult={renderToolResult}
 					streaming={streaming}
 				/>
@@ -230,12 +242,14 @@ export function ChatRow({
 	message,
 	agentClient,
 	avatars,
+	renderTool,
 	renderToolResult,
 	onSaveImage,
 }: {
 	message: ChatMessage;
 	agentClient?: AgentClient;
 	avatars?: ChatAvatars;
+	renderTool?: RenderTool;
 	renderToolResult?: RenderToolResult;
 	onSaveImage?: SaveImageHandler;
 }) {
@@ -253,6 +267,7 @@ export function ChatRow({
 						<AssistantBody
 							message={message}
 							onSaveImage={onSaveImage}
+							renderTool={renderTool}
 							renderToolResult={renderToolResult}
 						/>
 					</BubbleContent>
@@ -262,4 +277,4 @@ export function ChatRow({
 	);
 }
 
-export type { RenderToolResult } from "./tool";
+export type { RenderTool, RenderToolResult } from "./tool";
