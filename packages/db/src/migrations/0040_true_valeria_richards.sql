@@ -1,0 +1,1 @@
+ALTER TABLE "bridge_sessions" ADD COLUMN "vnc_endpoint" text;

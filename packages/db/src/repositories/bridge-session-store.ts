@@ -31,6 +31,7 @@ function toRow(
 		status: row.status,
 		createdAt: row.createdAt,
 		lastSeenAt: row.lastSeenAt,
+		vncEndpoint: row.vncEndpoint ?? null,
 	};
 }
 

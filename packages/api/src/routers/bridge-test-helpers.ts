@@ -132,22 +132,29 @@ function memoryUpdateConfig(
 	return Promise.resolve(updated);
 }
 
+function newSessionRow(
+	input: Parameters<BridgeSessionStore["create"]>[0]
+): BridgeSessionRow {
+	return {
+		id: crypto.randomUUID(),
+		userId: input.userId,
+		tokenId: input.tokenId,
+		agentKind: input.agentKind,
+		label: input.label ?? null,
+		agentSessionId: null,
+		status: "active",
+		createdAt: new Date(),
+		lastSeenAt: new Date(),
+		vncEndpoint: null,
+	};
+}
+
 function memoryBridgeSessionStore(
 	rows: Map<string, BridgeSessionRow>
 ): BridgeSessionStore {
 	return {
-		create({ userId, tokenId, agentKind, label }) {
-			const row: BridgeSessionRow = {
-				id: crypto.randomUUID(),
-				userId,
-				tokenId,
-				agentKind,
-				label: label ?? null,
-				agentSessionId: null,
-				status: "active",
-				createdAt: new Date(),
-				lastSeenAt: new Date(),
-			};
+		create(input) {
+			const row = newSessionRow(input);
 			rows.set(row.id, row);
 			return Promise.resolve(row);
 		},

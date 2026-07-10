@@ -69,6 +69,10 @@ export const bridgeSessions = pgTable(
 		// `session_ready` event arrives, and never set at all for adapters that
 		// don't report one.
 		agentSessionId: text("agent_session_id"),
+		// The VNC WebSocket endpoint the browser noVNC viewer connects through
+		// for a cua/computer-use session. Nullable: only set for sessions that
+		// boot a Cua VM; null for every other local-agent run.
+		vncEndpoint: text("vnc_endpoint"),
 		status: text("status")
 			.$type<BridgeSessionStatus>()
 			.notNull()

@@ -19,6 +19,7 @@ export const SESSION: BridgeSessionRow = {
 	status: "active",
 	createdAt: new Date("2026-07-04T00:00:00Z"),
 	lastSeenAt: new Date("2026-07-04T00:00:00Z"),
+	vncEndpoint: null,
 };
 
 export const OTHER_SESSION: BridgeSessionRow = { ...SESSION, id: "session-2" };

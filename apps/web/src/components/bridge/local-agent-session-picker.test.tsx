@@ -28,6 +28,7 @@ function makeSession(overrides: Partial<BridgeSessionRow>): BridgeSessionRow {
 		status: "active",
 		createdAt: new Date(BASE_MS),
 		lastSeenAt: new Date(BASE_MS),
+		vncEndpoint: null,
 		...overrides,
 	};
 }

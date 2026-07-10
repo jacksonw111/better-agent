@@ -281,6 +281,13 @@
       "when": 1783604748156,
       "tag": "0039_lovely_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1783668330784,
+      "tag": "0040_true_valeria_richards",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,7 @@ function row(overrides: Partial<BridgeSessionRow> = {}): BridgeSessionRow {
 		status: "active",
 		createdAt: new Date(),
 		lastSeenAt: new Date(),
+		vncEndpoint: null,
 		...overrides,
 	};
 }

@@ -200,7 +200,6 @@ export interface ComposioAccountStore {
 	list(): Promise<ComposioAccountRow[]>;
 	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
-
 export type BridgeSessionStatus = "active" | "ended";
 export type {
 	BridgeAgentKind,
@@ -224,6 +223,7 @@ export interface BridgeSessionRow {
 	status: BridgeSessionStatus;
 	tokenId: string;
 	userId: string;
+	vncEndpoint: string | null;
 }
 
 export interface BridgeSessionStore {

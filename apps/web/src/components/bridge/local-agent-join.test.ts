@@ -33,6 +33,7 @@ function makeSession(
 		status: "active",
 		createdAt: NOW,
 		lastSeenAt: NOW,
+		vncEndpoint: null,
 		...overrides,
 	};
 }
