@@ -1,4 +1,9 @@
 import { Button } from "@better-agent/ui/components/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@better-agent/ui/components/tooltip";
 import { cn } from "@better-agent/ui/lib/utils";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -28,16 +33,23 @@ export function Action({
 	children: ReactNode;
 }) {
 	return (
-		<Button
-			aria-label={label}
-			className="text-muted-foreground hover:text-foreground"
-			onClick={onClick}
-			size="icon-xs"
-			type="button"
-			variant="ghost"
-		>
-			{children}
-		</Button>
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<Button
+						aria-label={label}
+						className="text-muted-foreground hover:text-foreground"
+						onClick={onClick}
+						size="icon-xs"
+						type="button"
+						variant="ghost"
+					/>
+				}
+			>
+				{children}
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 }
 

@@ -5,6 +5,11 @@ import {
 	PopoverTitle,
 	PopoverTrigger,
 } from "@better-agent/ui/components/popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@better-agent/ui/components/tooltip";
 import { useMutation } from "@tanstack/react-query";
 import { RotateCwIcon } from "lucide-react";
 import { useState } from "react";
@@ -22,6 +27,31 @@ function useRotateToken(onRotated: (token: string) => void) {
 	);
 }
 
+/** The icon trigger, split out so it carries both the hover tooltip and the
+ * confirm popover without pushing `RegenerateToken` past the line-count gate. */
+function RegenerateTokenTrigger() {
+	return (
+		<Tooltip>
+			<TooltipTrigger
+				render={
+					<PopoverTrigger
+						render={
+							<Button
+								aria-label="Regenerate token"
+								size="icon-xs"
+								variant="ghost"
+							/>
+						}
+					/>
+				}
+			>
+				<RotateCwIcon className="size-3.5" />
+			</TooltipTrigger>
+			<TooltipContent>Regenerate token</TooltipContent>
+		</Tooltip>
+	);
+}
+
 export function RegenerateToken({
 	agentId,
 	onToken,
@@ -33,17 +63,7 @@ export function RegenerateToken({
 	const [open, setOpen] = useState(false);
 	return (
 		<Popover onOpenChange={setOpen} open={open}>
-			<PopoverTrigger
-				render={
-					<Button
-						aria-label="Regenerate token"
-						size="icon-xs"
-						variant="ghost"
-					/>
-				}
-			>
-				<RotateCwIcon className="size-3.5" />
-			</PopoverTrigger>
+			<RegenerateTokenTrigger />
 			<PopoverContent>
 				<PopoverTitle className="text-sm">
 					Regenerate token? Any external client using the old token will stop

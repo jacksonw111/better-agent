@@ -1,4 +1,9 @@
 import { Button } from "@better-agent/ui/components/button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@better-agent/ui/components/tooltip";
 import { Link } from "@tanstack/react-router";
 import { MessageSquareIcon, PencilIcon } from "lucide-react";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
@@ -12,7 +17,7 @@ interface RowActionProps {
 	row: AgentRow;
 }
 
-// All actions are icon buttons (hover shows the label) for a consistent row.
+// All actions are icon buttons (hover shows a tooltip) for a consistent row.
 export function AgentRowActions({
 	row,
 	onEdit,
@@ -21,24 +26,36 @@ export function AgentRowActions({
 }: RowActionProps) {
 	return (
 		<div className="flex justify-end gap-1">
-			<Button
-				aria-label="Chat"
-				render={<Link search={{ agentId: row.id }} to="/chat" />}
-				size="icon-xs"
-				title="Chat"
-				variant="ghost"
-			>
-				<MessageSquareIcon className="size-4" />
-			</Button>
-			<Button
-				aria-label="Edit"
-				onClick={() => onEdit(row)}
-				size="icon-xs"
-				title="Edit"
-				variant="ghost"
-			>
-				<PencilIcon className="size-4" />
-			</Button>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<Button
+							aria-label="Chat with agent"
+							render={<Link search={{ agentId: row.id }} to="/chat" />}
+							size="icon-xs"
+							variant="ghost"
+						/>
+					}
+				>
+					<MessageSquareIcon className="size-4" />
+				</TooltipTrigger>
+				<TooltipContent>Chat with agent</TooltipContent>
+			</Tooltip>
+			<Tooltip>
+				<TooltipTrigger
+					render={
+						<Button
+							aria-label="Edit agent"
+							onClick={() => onEdit(row)}
+							size="icon-xs"
+							variant="ghost"
+						/>
+					}
+				>
+					<PencilIcon className="size-4" />
+				</TooltipTrigger>
+				<TooltipContent>Edit agent</TooltipContent>
+			</Tooltip>
 			<RegenerateToken agentId={row.id} onToken={onTokenRotated} />
 			<DeleteConfirm
 				label="Delete this agent?"
