@@ -15,43 +15,33 @@ the app afterward.
 
 All within Cloudflare's free tier.
 
-## One-time bootstrap
+## Bootstrap
 
-Run locally with Wrangler logged in to the same Cloudflare account the app deploys to
-(`npx wrangler login`). Node 22+.
+The workflow is **self-bootstrapping**: it creates the D1 database and R2 bucket on its first run
+(idempotent afterwards) and resolves the D1 id at runtime, authenticating entirely through the
+existing `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` secrets. No local `wrangler login` and no
+`OC_D1_DATABASE_ID` are needed.
 
-```bash
-# 1. Create the D1 database — copy the printed database_id.
-npx wrangler d1 create open-connector
+The only prerequisite is three stable secrets (they must NOT change between runs — the encryption
+key is scrypt-stretched to the AES-256 key, and the tokens are stored in the app account row):
 
-# 2. Create the R2 bucket (name is fixed in wrangler.example.jsonc).
-npx wrangler r2 bucket create open-connector-transit-files
-
-# 3. Generate three secrets (do NOT paste them into a terminal that logs history;
-#    pipe straight into `gh secret set`). Examples:
-openssl rand -hex 32   # -> OOMOL_CONNECT_ADMIN_TOKEN
-openssl rand -hex 32   # -> OOMOL_CONNECT_RUNTIME_TOKEN
-openssl rand -hex 32   # -> OOMOL_CONNECT_ENCRYPTION_KEY
-```
-
-### Repo secrets to set (on `jacksonw111/better-agent`)
-
-| Secret | Value |
+| Secret | Purpose |
 |---|---|
-| `OC_D1_DATABASE_ID` | the `database_id` printed by `wrangler d1 create` |
-| `OC_ADMIN_TOKEN` | random 32-byte hex — gates open-connector `/api/*` |
-| `OC_RUNTIME_TOKEN` | random 32-byte hex — gates `/v1/*` + `/mcp` |
-| `OC_ENCRYPTION_KEY` | random 32-byte hex — AES-256-GCM for stored provider credentials |
+| `OC_ADMIN_TOKEN` | random string — gates open-connector `/api/*` |
+| `OC_RUNTIME_TOKEN` | random string — gates `/v1/*` + `/mcp` |
+| `OC_ENCRYPTION_KEY` | random string — scrypt→AES-256-GCM for stored provider credentials |
 
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` already exist (shared with the other Workers
-deploys). Set the new ones, e.g.:
+Set them once (piped so the value never hits shell history):
 
 ```bash
-gh secret set OC_D1_DATABASE_ID  --repo jacksonw111/better-agent --body '<database_id>'
-gh secret set OC_ADMIN_TOKEN     --repo jacksonw111/better-agent < <(openssl rand -hex 32)
-gh secret set OC_RUNTIME_TOKEN   --repo jacksonw111/better-agent < <(openssl rand -hex 32)
-gh secret set OC_ENCRYPTION_KEY  --repo jacksonw111/better-agent < <(openssl rand -hex 32)
+openssl rand -hex 32 | gh secret set OC_ADMIN_TOKEN    --repo jacksonw111/better-agent
+openssl rand -hex 32 | gh secret set OC_RUNTIME_TOKEN  --repo jacksonw111/better-agent
+openssl rand -hex 32 | gh secret set OC_ENCRYPTION_KEY --repo jacksonw111/better-agent
 ```
+
+> The **CLOUDFLARE_API_TOKEN must have D1:Edit, R2:Edit, and Workers Scripts:Edit** permissions for
+> the self-bootstrap (create D1/R2, put secrets, deploy). The existing token is used for the other
+> Workers deploys; if the bootstrap step fails with an authorization error, widen the token's scope.
 
 ## Deploy
 
