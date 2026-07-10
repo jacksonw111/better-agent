@@ -49,7 +49,11 @@ import {
 } from "./turn-messages";
 import type { Message, PartStatus, Session } from "./types";
 
-const DEFAULT_MAX_STEPS = 50;
+// Max agentic tool-use steps per turn. Raised from 50 to comfortably cover
+// multi-step flows (e.g. computer-use observe→act loops) and longer coding
+// turns — opencode leaves this effectively unbounded (50–200 calls in
+// practice); 200 keeps a runaway-loop backstop while not cutting real work.
+const DEFAULT_MAX_STEPS = 200;
 
 export interface SessionRuntimeDeps {
 	agentStore: AgentStore;

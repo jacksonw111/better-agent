@@ -39,7 +39,7 @@ it("adapts a ToolDef into an AI-SDK tool whose execute runs the def", async () =
 
 it("truncates very large tool output", async () => {
 	const big = echoTool({
-		execute: () => Promise.resolve({ output: "x".repeat(60_000) }),
+		execute: () => Promise.resolve({ output: "x".repeat(200_000) }),
 	});
 	const tools = buildTools([big], ctxBase);
 	const echo = tools.echo;
