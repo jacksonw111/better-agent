@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
+import { CloudAgentUsage } from "@/components/dashboard/cloud-agent-usage";
 import {
 	DEFAULT_WINDOW,
 	type WindowDays,
@@ -73,8 +74,9 @@ function DashboardBody({
 				)}
 				<ActivityHeatmap />
 			</div>
-			<div className="lg:col-span-1">
+			<div className="flex flex-col gap-4 lg:col-span-1">
 				<UsageOverview windowDays={windowDays} />
+				<CloudAgentUsage windowDays={windowDays} />
 			</div>
 		</div>
 	);

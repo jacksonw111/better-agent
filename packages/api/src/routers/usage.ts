@@ -116,6 +116,20 @@ function sumAggregateTotals(
 	);
 }
 
+/** Per-cloud-agent token/cost totals + turn count for one user over a rolling
+ * window (3/7/12 days) — the cloud (hosted web) counterpart of the Local
+ * Agents bridge's `usageByAgentKind`. Grouped by the owning session's
+ * `agentId`, joined to `agents` for the display name. */
+export async function usageByAgent(
+	store: UsageStore,
+	userId: string,
+	windowDays: number
+) {
+	const since = new Date(Date.now() - windowDays * MS_PER_DAY);
+	const byAgent = await store.byAgent(userId, since);
+	return { windowDays, byAgent };
+}
+
 /** Rejects an out-of-bounds `range`: `from` after `to`, or a span longer
  * than `MAX_AGGREGATE_RANGE_DAYS` (the "day" groupBy buckets in app memory,
  * so an unbounded range means unbounded rows over the wire). */
@@ -178,6 +192,19 @@ export const usageRouter = {
 				context.services.stores.usage,
 				context.authedUser.id,
 				input.days
+			)
+		),
+	// Per-cloud-agent token/cost breakdown over the same rolling window (3/7/12
+	// days) `summary` uses. Aggregated from messages.usage (owner's sessions),
+	// grouped by the session's agentId. Cloud counterpart of
+	// `bridge.usageByAgentKind` (Local Agents).
+	byAgent: authorizedUserProcedure
+		.input(usageWindowInput)
+		.handler(({ input, context }) =>
+			usageByAgent(
+				context.services.stores.usage,
+				context.authedUser.id,
+				input.windowDays
 			)
 		),
 	// Unified token/cost aggregation over `usage_records` (chat + bridge),

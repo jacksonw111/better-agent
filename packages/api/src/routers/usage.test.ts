@@ -34,6 +34,36 @@ function buildClient(
 	return { client, dailySummary };
 }
 
+function buildByAgentClient(
+	byAgent: Array<{
+		agentId: string;
+		costCents: number;
+		inputTokens: number;
+		name: string;
+		outputTokens: number;
+		turns: number;
+	}>
+) {
+	const byAgentFn = vi.fn().mockResolvedValue(byAgent);
+	const services = {
+		authz: { enabled: false },
+		stores: {
+			activity: { log: () => Promise.resolve() },
+			usage: { byAgent: byAgentFn },
+		},
+	};
+	const client = createRouterClient(appRouter, {
+		context: {
+			services: services as never,
+			authedAgent: null,
+			authedUser: USER,
+			clientIp: "127.0.0.1",
+			userAgent: null,
+		},
+	});
+	return { client, byAgentFn };
+}
+
 function buildAggregateClient(groups: UsageAggregateRow[]) {
 	const aggregate = vi.fn().mockResolvedValue(groups);
 	const services = {
@@ -124,6 +154,55 @@ it("dailyActivity rejects a range beyond the max (180 days)", async () => {
 it("dailyActivity rejects non-positive day counts", async () => {
 	const { client } = buildClient([]);
 	await expect(client.usage.dailyActivity({ days: 0 })).rejects.toThrow();
+});
+
+it("byAgent returns the per-agent rows for the window, scoped to the authed user", async () => {
+	const { client, byAgentFn } = buildByAgentClient([
+		{
+			agentId: "a1",
+			name: "Research Bot",
+			inputTokens: 100,
+			outputTokens: 40,
+			costCents: 5,
+			turns: 2,
+		},
+		{
+			agentId: "a2",
+			name: "Support Bot",
+			inputTokens: 20,
+			outputTokens: 10,
+			costCents: 1,
+			turns: 1,
+		},
+	]);
+
+	const res = await client.usage.byAgent({ windowDays: 12 });
+
+	expect(byAgentFn).toHaveBeenCalledTimes(1);
+	const [calledUserId, since] = byAgentFn.mock.calls[0] as [string, Date];
+	expect(calledUserId).toBe(USER.id);
+	const expectedSince = Date.now() - 12 * 86_400_000;
+	expect(Math.abs(since.getTime() - expectedSince)).toBeLessThan(5000);
+
+	expect(res.windowDays).toBe(12);
+	expect(res.byAgent).toEqual([
+		{
+			agentId: "a1",
+			name: "Research Bot",
+			inputTokens: 100,
+			outputTokens: 40,
+			costCents: 5,
+			turns: 2,
+		},
+		{
+			agentId: "a2",
+			name: "Support Bot",
+			inputTokens: 20,
+			outputTokens: 10,
+			costCents: 1,
+			turns: 1,
+		},
+	]);
 });
 
 it("aggregate scopes to the authed user and sums totals across groups", async () => {

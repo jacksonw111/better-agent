@@ -24,6 +24,11 @@ const localAgentUsage = {
 	],
 };
 
+const cloudAgentUsage = {
+	windowDays: 7,
+	byAgent: [],
+};
+
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
 		usage: {
@@ -37,6 +42,12 @@ vi.mock("@/utils/orpc", () => ({
 				queryOptions: () => ({
 					queryKey: ["usage", "dailyActivity"],
 					queryFn: () => Promise.resolve([]),
+				}),
+			},
+			byAgent: {
+				queryOptions: () => ({
+					queryKey: ["usage", "byAgent"],
+					queryFn: () => Promise.resolve(cloudAgentUsage),
 				}),
 			},
 		},

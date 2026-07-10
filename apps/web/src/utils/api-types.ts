@@ -40,3 +40,14 @@ export type BridgeSessionRow = Awaited<
 export type LocalAgentUsageRow = Awaited<
 	ReturnType<Client["bridge"]["usageByAgentKind"]>
 >["byKind"][number];
+
+export type CloudAgentUsageServerRow = Awaited<
+	ReturnType<Client["usage"]["byAgent"]>
+>["byAgent"][number];
+
+/** Display row for the Cloud Agents card: same shape the server returns, but
+ * with `costCents` converted to `costUsd` (dollars) so the view can reuse
+ * `formatCostUsd` — the same formatter the Local Agents card uses. */
+export type CloudAgentUsageRow = Omit<CloudAgentUsageServerRow, "costCents"> & {
+	costUsd: number;
+};
