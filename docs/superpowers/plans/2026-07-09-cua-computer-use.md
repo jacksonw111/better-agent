@@ -41,12 +41,31 @@ Dispatch Lane A concurrently (worktree-isolated per task). Gate Lane B on a clea
   `lume stop`); `list()` → `GET /lume/vms`; `get(name)` → status incl. VNC/ip. Degrade + typed
   errors; inject `fetchImpl` for tests. Test with a fake fetch (fixtures for run/list/status).
 
-### Task A2: cua execution handler (ax actions via `@trycua/computer`)
-**Files:** create `apps/bridge-cli/src/cua/cua-handler.ts` + `.test.ts`.
-- `createCuaHandler({ computer })` exposing ax actions: `observe()` → accessibility tree text,
-  `clickElement(index)`, `type(text)`, `scroll(dir, amount)`, `key(combo)`. Each returns a text
-  result string. Uses the `@trycua/computer` `Computer` client in `ax` mode. No screenshots.
-  Unit-test the action→SDK-call mapping with a fake `Computer`.
+### Task A2: cua execution handler (ax actions via direct computer-server WS)
+**CORRECTION (verified against the SDK + source):** `@trycua/computer` (0.1.6) is **cloud-only**
+(`VMProviderType.CLOUD` / `CloudComputer`, needs a Cua API key + fetches VMs from Cua's cloud) — it
+**cannot target a local lume VM**. So the local handler talks to the VM's **computer-server
+WebSocket directly** (no `@trycua/computer` dependency).
+
+**Protocol (from `libs/python/computer-server` source):** connect a WS to the VM's computer-server;
+messages are JSON `{ command, params }`, replies `{ success, ... }`. Commands used:
+`get_accessibility_tree` (→ tree of nodes `{ role, title?, value?, description?, bounds?{x,y,width,height}, children? }`),
+`left_click {x,y}`, `type_text {text}`, `press_key {key}`, `hotkey {keys:[]}`,
+`scroll_down {clicks,x,y}` / `scroll_up {clicks,x,y}`, `screenshot` (unused — ax only).
+Local lume VMs need no cloud auth (the `authenticate {container_name,api_key}` handshake is for Cua
+Cloud).
+
+**Files:** create `apps/bridge-cli/src/cua/computer-server-client.ts` (thin WS client:
+`connect(vmIp, port)`, `send(command, params)`), `apps/bridge-cli/src/cua/cua-handler.ts` + tests.
+- `createCuaHandler({ client })` exposing ax actions, each returning a **text** result:
+  - `observe()` → `get_accessibility_tree` → flatten the node tree to an indexed, numbered text
+    outline of actionable nodes (role/title/value), caching each index→`bounds` for clicks.
+  - `clickElement(index)` → look up the cached node's `bounds`, `left_click` its center.
+  - `typeText(text)` → `type_text {text}`; `pressKey(combo)` → `hotkey {keys: combo.split("+")}`
+    or `press_key`; `scroll(dir, amount)` → `scroll_down`/`scroll_up {clicks: amount}`.
+  - No screenshots. Unit-test the tree-flatten + index→bounds→coords mapping and each action→WS
+    message with a fake WS client.
+- No `@trycua/computer` dependency (drop it from A2). VM IP/port come from the lume client (A1).
 
 ### Task A3: computer-use ToolDefs (cloud side)
 **Files:** create `packages/agent/src/tool/computer-use-tools.ts` + `.test.ts`.
