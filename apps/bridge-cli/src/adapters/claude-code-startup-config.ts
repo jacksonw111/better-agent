@@ -1,5 +1,8 @@
-import type { PermissionMode } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentStartConfig } from "./types";
+import type {
+	McpServerConfig,
+	PermissionMode,
+} from "@anthropic-ai/claude-agent-sdk";
+import type { AgentStartConfig, ResolvedMcpServer } from "./types";
 
 // The SDK `query()` options claude-code.ts derives from the bridge token's
 // persisted startup config (Phase 4 + R2-b), split out of claude-code.ts to
@@ -48,6 +51,26 @@ export function startupPermissionMode(
 	return config?.permissionMode && isPermissionMode(config.permissionMode)
 		? config.permissionMode
 		: undefined;
+}
+
+/** Maps the CLI's resolved MCP servers (R5-b) to the SDK's `mcpServers`
+ * option/`setMcpServers` argument: a name→config record where each server is
+ * an HTTP transport (`type: "http"`) carrying its already-decrypted auth
+ * headers. Used both at start (`query({ options: { mcpServers } })`) and LIVE
+ * (`query.setMcpServers`). An empty input yields an empty record, which the
+ * SDK treats as "no SDK-provided servers." */
+export function claudeMcpServers(
+	servers: ResolvedMcpServer[] | undefined
+): Record<string, McpServerConfig> {
+	const record: Record<string, McpServerConfig> = {};
+	for (const server of servers ?? []) {
+		record[server.name] = {
+			type: "http",
+			url: server.url,
+			headers: server.headers,
+		};
+	}
+	return record;
 }
 
 /** The subset of the SDK's `query()` options this file derives from the

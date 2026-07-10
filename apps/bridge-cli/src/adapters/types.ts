@@ -154,6 +154,16 @@ export interface AgentHandle {
 	/** Feeds a user command (from the web UI, relayed through the server) to the agent. */
 	send(text: string): void;
 	/**
+	 * Replaces the session's MCP servers LIVE (R5-b), no restart. Only adapters
+	 * whose agent supports live MCP reconfiguration implement it — claude-code
+	 * (`query.setMcpServers`) and opencode-serve (`POST /mcp`); codex applies at
+	 * start and pi has no native MCP, so both omit it (a missing method is the
+	 * `CommandSink`'s normal no-op, like `interrupt`). The `mcpServers` a
+	 * session first launched with are applied by `Adapter.start` from
+	 * `StartOptions.mcpServers`, not here.
+	 */
+	setMcpServers?(servers: ResolvedMcpServer[]): void;
+	/**
 	 * Switches the model used for subsequent turns. Optional — see `interrupt`
 	 * for why not every adapter implements the control methods.
 	 */
@@ -174,10 +184,29 @@ export interface StartOptions {
 	 * (Phase 4): `appendSystemPrompt` (claude's SDK option), `maxTurns`, … Adapters
 	 * apply only the fields they support; unknown fields are ignored. */
 	config?: AgentStartConfig;
+	/** The MCP servers to launch this session with (R5-b), already resolved
+	 * server-side by `resolveMcpServers` (auth decrypted) and forwarded by the
+	 * CLI. Each adapter applies the subset it supports: claude-code and
+	 * opencode-serve at start (and again LIVE via `AgentHandle.setMcpServers`),
+	 * codex writes them into its per-turn config, pi has no native MCP and
+	 * ignores them. Empty/absent → the agent's own configured servers only. */
+	mcpServers?: ResolvedMcpServer[];
 	/** A prior conversation id to resume, from `--resume` (see args.ts). Only
 	 * claude-code's adapter honors this; every other adapter's `start` simply
 	 * doesn't declare the parameter, so it's a no-op for them by construction. */
 	resume?: string;
+}
+
+/** An MCP server resolved server-side (`resolveMcpServers` in
+ * `packages/api`), redeclared locally so the CLI takes no runtime dep on the
+ * API package — same reason `AgentStartConfig` is redeclared. `headers`
+ * already carries the decrypted `Authorization` (never the ciphertext); the
+ * transport is HTTP (`type: "http"` in the SDK/agent config the adapters
+ * build). */
+export interface ResolvedMcpServer {
+	headers: Record<string, string>;
+	name: string;
+	url: string;
 }
 
 /** Startup config the bridge CLI forwards to an adapter (a subset of the

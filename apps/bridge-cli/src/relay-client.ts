@@ -5,7 +5,7 @@
 // under the repo's max-lines-per-file gate; every existing import path
 // (`from "./relay-client"`) keeps working via these re-exports.
 
-import type { AgentStartConfig } from "./adapters/types";
+import type { AgentStartConfig, ResolvedMcpServer } from "./adapters/types";
 import type { RelayEvent } from "./commands";
 
 export type { AgentSessionIdRef } from "./capture-agent-session-id";
@@ -28,7 +28,10 @@ export interface RelayTransport {
 	 * CLI calls instead of `startSession` again, since minting a new session
 	 * would break the seamless reconnect a restart is for (see
 	 * `restart-loop.ts`). */
-	fetchConfig(): Promise<{ config: AgentStartConfig | null }>;
+	fetchConfig(): Promise<{
+		config: AgentStartConfig | null;
+		mcpServers: ResolvedMcpServer[];
+	}>;
 	pollCommands(input: {
 		afterId: number;
 		sessionId: string;
@@ -41,8 +44,9 @@ export interface RelayTransport {
 		 * the same batch, so the relay can dedup a resend whose ack was lost. */
 		idempotencyKeys?: string[];
 	}): Promise<void>;
-	startSession(input: {
-		agentKind: string;
-		label?: string;
-	}): Promise<{ config: AgentStartConfig | null; sessionId: string }>;
+	startSession(input: { agentKind: string; label?: string }): Promise<{
+		config: AgentStartConfig | null;
+		mcpServers: ResolvedMcpServer[];
+		sessionId: string;
+	}>;
 }

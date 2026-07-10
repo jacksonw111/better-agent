@@ -1,25 +1,21 @@
-import {
-	type CanUseTool,
-	type PermissionResult,
-	query,
-	type SDKUserMessage,
-} from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { normalizeClaudeCode } from "../normalize/claude-code";
-import type { ApprovalOption, NormalizedEvent } from "../normalize/types";
+import type { NormalizedEvent } from "../normalize/types";
 import { userMessageEvent } from "../normalize/types";
 import {
 	type ApprovalRegistry,
 	createApprovalRegistry,
-	presentApproval,
 	retractPendingApprovals,
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import { type EventSink, makeCanUseTool } from "./claude-code-approvals";
 import {
 	type ClaudeQuery,
 	fetchSupportedModels,
 	withReportedModels,
 } from "./claude-code-models";
 import {
+	claudeMcpServers,
 	configQueryOptions,
 	isPermissionMode,
 } from "./claude-code-startup-config";
@@ -36,7 +32,12 @@ import {
 	type TurnEpochRef,
 	turnStampingQueue,
 } from "./turn-epoch";
-import type { Adapter, AgentHandle, StartOptions } from "./types";
+import type {
+	Adapter,
+	AgentHandle,
+	ResolvedMcpServer,
+	StartOptions,
+} from "./types";
 
 // Drives the LOCAL claude via the official Claude Agent SDK rather than
 // hand-spawning `claude -p` and reverse-engineering its stream-json stdin
@@ -47,84 +48,11 @@ import type { Adapter, AgentHandle, StartOptions } from "./types";
 // normalize. Tool permission requests route through `canUseTool` back to the
 // web approval UI.
 
-const APPROVAL_OPTIONS: ApprovalOption[] = [
-	{ id: "allow", label: "Allow" },
-	{ id: "deny", label: "Deny" },
-];
-
-/** FIX2 (rc-final-review): the SDK's `PermissionResult` requires a `message`
- * on every `deny` — this is what an unanswered approval resolves to once the
- * shared RC-T4 timeout (`presentApproval`) gives up, same fail-closed
- * contract every other adapter's approvals already get. */
-const APPROVAL_TIMEOUT_DENY_MESSAGE =
-	"Timed out waiting for approval — denied.";
-
-function safeJson(value: unknown): string {
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return String(value);
-	}
-}
-
 function userTurn(text: string): SDKUserMessage {
 	return {
 		type: "user",
 		message: { role: "user", content: text },
 		parent_tool_use_id: null,
-	};
-}
-
-interface EventSink {
-	push(event: NormalizedEvent): void;
-}
-
-// Turns each SDK tool-permission request into an approval event and blocks on
-// the user's web decision (resolved via the handle's answerApproval). Backed
-// by the shared `ApprovalRegistry` (not a bare requestId->resolver map) so
-// `interrupt()`/`stop()` can retract every still-pending request through the
-// same `retractPendingApprovals` helper the other adapters use — see the
-// RC-T3 module doc on `handle.interrupt` below for why that matters.
-//
-// FIX2 (rc-final-review): routed through the shared RC-T4 fail-closed
-// contract (`presentApproval`) exactly like codex/opencode/pi's approvals —
-// this used to call `approvals.register` directly, with no timeout of its
-// own. Combined with the RC-T5 watchdog pausing while an approval card is
-// open (`session-watchdog.ts`'s `observeApprovalEvent`), an unanswered claude
-// approval could hang the session indefinitely; now it resolves a visible
-// DENY after `APPROVAL_TIMEOUT_MS`, same as every other adapter.
-function makeCanUseTool(
-	events: EventSink,
-	approvals: ApprovalRegistry
-): CanUseTool {
-	return (toolName, toolInput, options) => {
-		const requestId = options.toolUseID;
-		return new Promise<PermissionResult>((resolve) => {
-			presentApproval({
-				approvals,
-				event: {
-					kind: "approval",
-					requestId,
-					title: `Use ${toolName}?`,
-					detail: safeJson(toolInput),
-					options: APPROVAL_OPTIONS,
-				},
-				events,
-				onAnswer: (optionId) => {
-					resolve(
-						optionId === "allow"
-							? { behavior: "allow", updatedInput: toolInput }
-							: { behavior: "deny", message: "Denied from the bridge." }
-					);
-				},
-				onTimeout: () => {
-					resolve({
-						behavior: "deny",
-						message: APPROVAL_TIMEOUT_DENY_MESSAGE,
-					});
-				},
-			});
-		});
 	};
 }
 
@@ -179,6 +107,9 @@ function startClaudeQuery(deps: StartClaudeQueryDeps): ClaudeQuery {
 			// Phase 4 + R2-b: apply persisted startup config from the bridge token
 			// (systemPrompt/maxTurns/maxBudgetUsd/effort/model/permissionMode).
 			...configQueryOptions(opts?.config),
+			// R5-b: MCP servers this session launched with (LIVE-replaceable — see
+			// the handle's setMcpServers).
+			mcpServers: claudeMcpServers(opts?.mcpServers),
 			// Extended thinking's reasoning text only streams as `thinking_delta`
 			// frames under includePartialMessages — which also streams the
 			// response text as `text_delta` frames, duplicating what later
@@ -253,6 +184,11 @@ function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 				lastKnown.permissionMode = mode;
 				session.setPermissionMode(mode).catch(() => undefined);
 			}
+		},
+		setMcpServers(servers: ResolvedMcpServer[]): void {
+			// R5-b LIVE: replace the session's SDK MCP servers, no restart.
+			// Fire-and-forget like setModel (result surfaces via next getStatus).
+			session.setMcpServers(claudeMcpServers(servers)).catch(() => undefined);
 		},
 		stop(): void {
 			bumpTurnEpoch(epoch);

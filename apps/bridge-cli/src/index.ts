@@ -35,13 +35,14 @@ async function startAgentSession(
 	adapter: ReturnType<typeof selectAdapter>,
 	transport: ReturnType<typeof createRelayTransport>
 ) {
-	const { sessionId, config } = await transport.startSession({
+	const { sessionId, config, mcpServers } = await transport.startSession({
 		agentKind: args.agentKind,
 		label: args.label,
 	});
 	const handle = await adapter.start(args.dir, {
 		resume: args.resume,
 		config: config ?? undefined,
+		mcpServers,
 	});
 	return { sessionId, handle };
 }

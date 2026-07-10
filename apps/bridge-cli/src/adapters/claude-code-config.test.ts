@@ -64,3 +64,56 @@ it("omits permissionMode when the configured value isn't a recognized SDK mode",
 
 	expect(harness.options?.permissionMode).toBeUndefined();
 });
+
+// R5-b: resolved MCP servers are applied at start as the SDK `mcpServers`
+// option — a name→config record of HTTP transports carrying decrypted headers.
+it("applies resolved MCP servers at start as name→http-config records", async () => {
+	const { harness } = mockQuery();
+	await claudeCodeAdapter.start("/tmp/project", {
+		mcpServers: [
+			{
+				name: "weread",
+				url: "https://mcp.example/weread",
+				headers: { Authorization: "Bearer tok" },
+			},
+		],
+	});
+
+	expect(harness.options?.mcpServers).toEqual({
+		weread: {
+			type: "http",
+			url: "https://mcp.example/weread",
+			headers: { Authorization: "Bearer tok" },
+		},
+	});
+});
+
+it("passes an empty mcpServers record when none are configured", async () => {
+	const { harness } = mockQuery();
+	await claudeCodeAdapter.start("/tmp/project", { config: { maxTurns: 5 } });
+
+	expect(harness.options?.mcpServers).toEqual({});
+});
+
+// R5-b LIVE: setMcpServers replaces the session's servers with no restart,
+// mapping the resolved servers through the same name→http-config shape.
+it("setMcpServers applies servers LIVE via the SDK query", async () => {
+	const { harness } = mockQuery();
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+
+	handle.setMcpServers?.([
+		{
+			name: "finance",
+			url: "https://mcp.example/finance",
+			headers: { Authorization: "Bearer fin" },
+		},
+	]);
+
+	expect(harness.setMcpServers).toHaveBeenCalledWith({
+		finance: {
+			type: "http",
+			url: "https://mcp.example/finance",
+			headers: { Authorization: "Bearer fin" },
+		},
+	});
+});
