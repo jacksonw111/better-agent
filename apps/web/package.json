@@ -27,6 +27,7 @@
     "canvas-confetti": "catalog:",
     "dotenv": "catalog:",
     "evlog": "catalog:",
+    "html-to-image": "^1.11.11",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.8.0",
     "next-themes": "catalog:",

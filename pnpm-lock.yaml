@@ -525,6 +525,9 @@ importers:
       evlog:
         specifier: 'catalog:'
         version: 2.19.1(@orpc/server@1.14.6(@opentelemetry/api@1.9.1)(crossws@0.4.6(srvx@0.11.16))(ws@8.21.0))(@tanstack/start-client-core@1.170.12)(ai@6.0.205(zod@4.4.3))(express@5.2.1)(hono@4.12.25)(nitro@3.0.260429-beta(@electric-sql/pglite@0.5.2)(@upstash/redis@1.38.0)(aws4fetch@1.0.20)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@cloudflare/workers-types@4.20260625.1)(@electric-sql/pglite@0.5.2)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/pg@8.20.0)(@upstash/redis@1.38.0)(pg@8.21.0))(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.1)(miniflare@4.20260625.0)(rollup@4.62.2)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.105.0(@cloudflare/workers-types@4.20260625.1)))(ofetch@2.0.0-alpha.3)(react@19.2.7)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      html-to-image:
+        specifier: ^1.11.11
+        version: 1.11.13
       lightweight-charts:
         specifier: ^5.2.0
         version: 5.2.0
@@ -5487,6 +5490,9 @@ packages:
   html-encoding-sniffer@6.0.0:
     resolution: {integrity: sha512-CV9TW3Y3f8/wT0BRFc1/KAVQ3TUHiXmaAb6VW9vtiMFf7SLoMd1PdAc4W3KFOFETBJUb90KatHqlsZMWV+R9Gg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+
+  html-to-image@1.11.13:
+    resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
 
   html-url-attributes@3.0.1:
     resolution: {integrity: sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==}
@@ -12111,6 +12117,8 @@ snapshots:
       '@exodus/bytes': 1.15.1(@noble/hashes@1.8.0)
     transitivePeerDependencies:
       - '@noble/hashes'
+
+  html-to-image@1.11.13: {}
 
   html-url-attributes@3.0.1: {}
 

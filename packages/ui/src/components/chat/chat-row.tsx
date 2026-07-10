@@ -1,4 +1,3 @@
-import { CopyAction } from "@better-agent/ui/components/actions";
 import {
 	Avatar,
 	AvatarFallback,
@@ -18,11 +17,18 @@ import {
 import { Response } from "@better-agent/ui/components/response";
 import type { AgentClient } from "@jacksonw111/agent-client";
 import { BotIcon, TriangleAlertIcon, UserIcon } from "lucide-react";
+import { useRef } from "react";
 
+import {
+	AssistantActionsRow,
+	type SaveImageHandler,
+} from "./assistant-actions-row";
 import { AttachmentImage } from "./attachment-image";
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
 import type { RenderToolResult } from "./tool";
 import { ToolGroup } from "./tool";
+
+export type { SaveImageHandler } from "./assistant-actions-row";
 
 function BlockView({
 	block,
@@ -92,13 +98,18 @@ function isThinking(message: ChatMessage): boolean {
 function AssistantBody({
 	message,
 	renderToolResult,
+	onSaveImage,
 }: {
 	message: ChatMessage;
 	renderToolResult?: RenderToolResult;
+	onSaveImage?: SaveImageHandler;
 }) {
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
 	const showThinking = isThinking(message);
+	// Captures exactly the rendered answer (text + genui blocks) — excludes
+	// the "Thinking…" shimmer, error banner, and the actions row itself.
+	const contentRef = useRef<HTMLDivElement>(null);
 	return (
 		<div className="flex flex-col gap-2">
 			{showThinking ? (
@@ -108,11 +119,13 @@ function AssistantBody({
 					<span className="shimmer font-medium text-sm">Thinking…</span>
 				</div>
 			) : null}
-			<AssistantContent
-				message={message}
-				renderToolResult={renderToolResult}
-				streaming={streaming}
-			/>
+			<div ref={contentRef}>
+				<AssistantContent
+					message={message}
+					renderToolResult={renderToolResult}
+					streaming={streaming}
+				/>
+			</div>
 			{message.status === "stopped" ? (
 				<span className="text-muted-foreground text-sm">Stopped.</span>
 			) : null}
@@ -124,11 +137,12 @@ function AssistantBody({
 					</span>
 				</div>
 			) : null}
-			{message.status === "complete" && fullText !== "" ? (
-				<div className="flex items-center">
-					<CopyAction text={fullText} />
-				</div>
-			) : null}
+			<AssistantActionsRow
+				contentRef={contentRef}
+				fullText={fullText}
+				message={message}
+				onSaveImage={onSaveImage}
+			/>
 		</div>
 	);
 }
@@ -217,11 +231,13 @@ export function ChatRow({
 	agentClient,
 	avatars,
 	renderToolResult,
+	onSaveImage,
 }: {
 	message: ChatMessage;
 	agentClient?: AgentClient;
 	avatars?: ChatAvatars;
 	renderToolResult?: RenderToolResult;
+	onSaveImage?: SaveImageHandler;
 }) {
 	if (message.role === "user") {
 		return (
@@ -236,6 +252,7 @@ export function ChatRow({
 					<BubbleContent className="text-sm">
 						<AssistantBody
 							message={message}
+							onSaveImage={onSaveImage}
 							renderToolResult={renderToolResult}
 						/>
 					</BubbleContent>

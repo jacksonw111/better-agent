@@ -5,6 +5,7 @@ import type { AgentClient } from "@jacksonw111/agent-client";
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, XIcon } from "lucide-react";
 import { AgentToolsMenu } from "@/components/chat/agent-tools-menu";
+import { saveMessageAsImage } from "@/components/chat/save-message-image";
 import { renderToolResult } from "@/genui/tool-renderers";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { agentAvatar, userAvatar } from "@/utils/avatar";
@@ -113,6 +114,7 @@ export function ChatView({
 				composerTools={<AgentToolsMenu agent={agent} />}
 				initialText={initialText}
 				key={sessionId}
+				onSaveImage={saveMessageAsImage}
 				renderToolResult={renderToolResult}
 				sessionId={sessionId}
 				skills={toSkillPickerItems(skills.data)}

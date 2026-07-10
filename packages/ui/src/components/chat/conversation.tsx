@@ -12,7 +12,12 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 
 import type { ChatMessage } from "./chat-blocks";
 import { ChatComposer } from "./chat-composer";
-import { type ChatAvatars, ChatRow, type RenderToolResult } from "./chat-row";
+import {
+	type ChatAvatars,
+	ChatRow,
+	type RenderToolResult,
+	type SaveImageHandler,
+} from "./chat-row";
 import { RevealText } from "./reveal-text";
 import type { SkillPickerItem } from "./skill-picker";
 import { useChat } from "./use-chat";
@@ -39,11 +44,13 @@ function ChatScroller({
 	agentClient,
 	avatars,
 	renderToolResult,
+	onSaveImage,
 }: {
 	messages: ChatMessage[];
 	agentClient: AgentClient;
 	avatars?: ChatAvatars;
 	renderToolResult?: RenderToolResult;
+	onSaveImage?: SaveImageHandler;
 }) {
 	return (
 		<MessageScrollerProvider autoScroll defaultScrollPosition="end">
@@ -66,6 +73,7 @@ function ChatScroller({
 										agentClient={agentClient}
 										avatars={avatars}
 										message={message}
+										onSaveImage={onSaveImage}
 										renderToolResult={renderToolResult}
 									/>
 								</MessageScrollerItem>
@@ -110,6 +118,7 @@ export function Conversation({
 	avatars,
 	composerTools,
 	renderToolResult,
+	onSaveImage,
 	skills,
 }: {
 	sessionId: string;
@@ -118,6 +127,9 @@ export function Conversation({
 	avatars?: ChatAvatars;
 	composerTools?: ReactNode;
 	renderToolResult?: RenderToolResult;
+	/** App-supplied "save as image" export — see `SaveImageHandler` in
+	 * `chat-row.tsx`. Omitted, the action doesn't render. */
+	onSaveImage?: SaveImageHandler;
 	/** The agent's assigned skills — feeds the composer's "/" picker (see
 	 * `ChatComposer`'s `skills` prop). `undefined` until they've loaded, or
 	 * for an agent with none, in which case the picker never opens. */
@@ -131,6 +143,7 @@ export function Conversation({
 				agentClient={agentClient}
 				avatars={avatars}
 				messages={messages}
+				onSaveImage={onSaveImage}
 				renderToolResult={renderToolResult}
 			/>
 			<ChatComposer
