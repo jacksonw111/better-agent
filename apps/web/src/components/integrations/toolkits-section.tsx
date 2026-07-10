@@ -187,7 +187,7 @@ function ToolkitsTable({
 	onDisconnect: (connectionId: string) => void;
 }) {
 	return (
-		<div className="max-h-96 overflow-auto rounded-lg border">
+		<div className="max-h-96 overflow-auto">
 			<Table>
 				<TableHeader>
 					<TableRow>
