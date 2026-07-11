@@ -20,7 +20,6 @@ import {
 	useMaxSeenIdRef,
 	usePollFallback,
 	useResetOnSessionChange,
-	useSseConnection,
 } from "./use-bridge-connection-effects";
 import {
 	type FeedAction,
@@ -36,6 +35,7 @@ import {
 	buildResult,
 	useListSessionsWithTimeout,
 } from "./use-bridge-terminal-parts";
+import { useSseConnection } from "./use-sse-connection";
 
 export interface UseBridgeTerminalResult {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
@@ -143,7 +143,6 @@ function useLiveConnection({
 	const enabled = !ended && historyLoaded;
 	useSseConnection({
 		sessionId,
-		conn,
 		enabled,
 		maxSeenIdRef,
 		transport,

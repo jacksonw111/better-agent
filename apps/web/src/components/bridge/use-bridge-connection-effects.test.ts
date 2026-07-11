@@ -1,42 +1,34 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
+import { useReducer, useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { BridgeTransport, ConnectStreamArgs } from "./bridge-transport";
+import type { BridgeTransport } from "./bridge-transport";
+import {
+	degradeToPolling,
+	makeConnectTransport,
+	POLL_INTERVAL_MS,
+	RECOVERY_INTERVAL_MS,
+} from "./sse-connection-test-helpers";
+import {
+	connectionReducer,
+	initialConnectionState,
+} from "./terminal-connection";
 import {
 	type PollFallbackArgs,
 	usePollFallback,
 } from "./use-bridge-connection-effects";
+import { useSseConnection } from "./use-sse-connection";
 
-// R0-T3: the poll fallback's SSE-recovery timer. While degraded to polling it
-// retries an SSE upgrade every 30s via the same `connectStream` path, forever
-// — see terminal-connection.ts for why a recovery failure must never
-// accumulate toward MAX_SSE_FAILURES. Exercised at the effect level (rather
-// than through the full `Terminal` component, as terminal.test.tsx does for
-// the initial degrade) since the recovery timer is effect-owned state that a
-// full render doesn't let a test control precisely with fake timers.
+// R0-T3: `usePollFallback` went back to purely polling — the SSE-upgrade
+// probe it used to own moved into `useSseConnection` itself (see
+// use-sse-connection.ts / use-sse-connection.test.ts for that hook's own
+// recovery coverage). What's left here is the poll loop, plus a
+// composition-level regression test for the bug this file used to have: two
+// SSE connections briefly alive per recovery.
 
 vi.mock("sonner", () => ({
 	toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
-
-const RECOVERY_INTERVAL_MS = 30_000;
-
-function makeConnectTransport() {
-	const connectCalls: ConnectStreamArgs[] = [];
-	let latest: ConnectStreamArgs | null = null;
-	const observe = vi.fn().mockResolvedValue([]);
-	const transport: BridgeTransport = {
-		connectStream: (args) => {
-			latest = args;
-			connectCalls.push(args);
-			return vi.fn();
-		},
-		history: vi.fn().mockResolvedValue([]),
-		observe,
-		sendInput: vi.fn().mockResolvedValue(undefined),
-	};
-	return { connectCalls, current: () => latest, observe, transport };
-}
 
 function renderPollFallback(overrides: Partial<PollFallbackArgs> = {}) {
 	const dispatchConn = vi.fn();
@@ -56,7 +48,7 @@ function renderPollFallback(overrides: Partial<PollFallbackArgs> = {}) {
 	const view = renderHook((props: PollFallbackArgs) => usePollFallback(props), {
 		initialProps: baseProps,
 	});
-	return { ...view, baseProps, dispatchConn, dispatchFeed, fake, maxSeenIdRef };
+	return { ...view, baseProps, dispatchConn, fake };
 }
 
 beforeEach(() => {
@@ -68,136 +60,104 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-it("attempts an SSE upgrade only after 30s of polling, using the shared afterId cursor", async () => {
-	const { fake } = renderPollFallback();
-
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS - 1);
-	});
-	expect(fake.connectCalls.length).toBe(0);
-
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(1);
-	});
-	expect(fake.connectCalls.length).toBe(1);
-	expect(fake.connectCalls[0].afterId).toBe(5);
-});
-
-it("recovers to live on a successful upgrade: dispatches open and shows the recovery toast once", async () => {
-	const { dispatchConn, fake } = renderPollFallback();
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
-	});
-	expect(fake.connectCalls.length).toBe(1);
-
-	act(() => {
-		fake.current()?.onOpen();
-	});
-
-	expect(dispatchConn).toHaveBeenCalledWith({ type: "open" });
+it("polls observe(afterId) on a fixed interval while degraded, showing the degrade toast once", async () => {
 	const { toast } = await import("sonner");
-	expect(toast.success).toHaveBeenCalledTimes(1);
-	expect(toast.success).toHaveBeenCalledWith(
-		"已恢复实时连接",
-		expect.any(Object)
-	);
-});
-
-it("stops polling and retrying once the caller reflects the recovered live status", async () => {
 	const { baseProps, fake, rerender } = renderPollFallback();
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
-	});
-	act(() => {
-		fake.current()?.onOpen();
-	});
 
-	// Mirrors what the real connectionReducer does with the "open" action this
-	// hook just dispatched — the caller (useBridgeTerminal) would re-render
-	// usePollFallback with the new status, which must tear the effect down.
-	rerender({ ...baseProps, status: "live" });
-	fake.observe.mockClear();
-	fake.connectCalls.length = 0;
-
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS * 2);
-	});
-	expect(fake.connectCalls.length).toBe(0);
-	expect(fake.observe).not.toHaveBeenCalled();
-});
-
-it("a failed upgrade attempt leaves it polling, without accumulating a failure count, retried at the next tick", async () => {
-	const { dispatchConn, fake } = renderPollFallback();
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
-	});
-	expect(fake.connectCalls.length).toBe(1);
-
-	act(() => {
-		fake.current()?.onError();
-	});
-	expect(dispatchConn).not.toHaveBeenCalledWith({ type: "error" });
-
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
-	});
-	expect(fake.connectCalls.length).toBe(2);
-	expect(fake.connectCalls[1].afterId).toBe(5);
-});
-
-it("resumes the recovered SSE connection from the cursor polling has already advanced", async () => {
-	const { fake, maxSeenIdRef } = renderPollFallback();
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS - 5000);
-	});
-	// Simulates a poll tick's dispatchFeed advancing the shared cursor.
-	maxSeenIdRef.current = 42;
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(5000);
-	});
-
-	expect(fake.connectCalls.length).toBe(1);
-	expect(fake.connectCalls[0].afterId).toBe(42);
-});
-
-it("never attempts a poll or an SSE upgrade once disabled, e.g. an ended session", async () => {
-	const { fake } = renderPollFallback({ enabled: false });
-
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS * 3);
-	});
-	expect(fake.connectCalls.length).toBe(0);
-	expect(fake.observe).not.toHaveBeenCalled();
-});
-
-it("clears both the poll and the recovery timers on unmount", async () => {
-	const { fake, unmount } = renderPollFallback();
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS - 1000);
-	});
-	unmount();
-	fake.observe.mockClear();
-	fake.connectCalls.length = 0;
-
-	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS * 2);
-	});
-	expect(fake.connectCalls.length).toBe(0);
-	expect(fake.observe).not.toHaveBeenCalled();
-});
-
-it("shows the degrade toast once on entering polling, without duplicating on an unrelated rerender", async () => {
-	const { toast } = await import("sonner");
-	const { baseProps, rerender } = renderPollFallback();
-
+	expect(fake.observe).toHaveBeenCalledTimes(1);
 	expect(toast.warning).toHaveBeenCalledTimes(1);
 	expect(toast.warning).toHaveBeenCalledWith(
 		"实时连接中断，已切换为轮询",
 		expect.any(Object)
 	);
 
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+	});
+	expect(fake.observe).toHaveBeenCalledTimes(2);
+
 	// Same deps (status still "polling") — the effect must not rerun, so the
 	// toast must not fire again.
 	rerender({ ...baseProps });
 	expect(toast.warning).toHaveBeenCalledTimes(1);
+});
+
+it("never polls once disabled, e.g. an ended session, and stops on unmount", async () => {
+	const disabled = renderPollFallback({ enabled: false });
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+	});
+	expect(disabled.fake.observe).not.toHaveBeenCalled();
+
+	const live = renderPollFallback();
+	live.unmount();
+	live.fake.observe.mockClear();
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+	});
+	expect(live.fake.observe).not.toHaveBeenCalled();
+});
+
+// Composition: the real wiring (see `useLiveConnection` in
+// use-bridge-terminal.ts) runs `useSseConnection` and `usePollFallback` off
+// the SAME `ConnectionState` reducer — this is the shape the R0-T3 bug
+// actually broke, so it's the shape a regression has to be caught in.
+function useComposedConnection(props: {
+	enabled: boolean;
+	maxSeenIdRef: { current: number };
+	sessionId: string;
+	transport: BridgeTransport;
+}) {
+	const [dispatchFeed] = useState(() => vi.fn());
+	const [conn, dispatchConn] = useReducer(
+		connectionReducer,
+		initialConnectionState
+	);
+	useSseConnection({ ...props, dispatchConn, dispatchFeed });
+	usePollFallback({
+		...props,
+		status: conn.status,
+		dispatchConn,
+		dispatchFeed,
+	});
+	return conn;
+}
+
+it("degrade -> 30s tick -> exactly one connect attempt on recovery success, live, poll stopped", async () => {
+	const fake = makeConnectTransport();
+	const maxSeenIdRef = { current: 0 };
+	const { result } = renderHook(() =>
+		useComposedConnection({
+			enabled: true,
+			maxSeenIdRef,
+			sessionId: "session-1",
+			transport: fake.transport,
+		})
+	);
+
+	degradeToPolling(fake);
+	expect(result.current.status).toBe("polling");
+
+	fake.connectCalls.length = 0;
+	fake.observe.mockClear();
+
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
+	});
+	expect(fake.connectCalls.length).toBe(1);
+
+	act(() => {
+		fake.current()?.onOpen();
+	});
+	expect(result.current.status).toBe("live");
+
+	fake.connectCalls.length = 0;
+	fake.observe.mockClear();
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+	});
+	// The connection that just recovered is the one staying live — nothing
+	// reopened it, and the poll loop that was covering for it has stopped.
+	expect(fake.connectCalls.length).toBe(0);
+	expect(fake.observe).not.toHaveBeenCalled();
 });
