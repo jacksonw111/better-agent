@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createCommandBus } from "./command-bus";
 
+const SUBSCRIBER_COUNT = 2;
+
 describe("CommandBus", () => {
 	it("notify reaches every subscriber registered for that sessionId", () => {
 		const bus = createCommandBus();
@@ -14,7 +16,7 @@ describe("CommandBus", () => {
 
 		bus.notify("s1");
 
-		expect(calls).toBe(2);
+		expect(calls).toBe(SUBSCRIBER_COUNT);
 	});
 
 	it("notify does not reach subscribers of a different sessionId", () => {
