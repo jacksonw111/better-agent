@@ -115,10 +115,16 @@ function finalizeStreaming(
  * clone), an untouched-but-previously-cloned turn reuses whatever was last
  * published for it, and everything else passes through as-is. Skips the
  * whole pass (same array reference) when nothing rendering-relevant
- * happened this call. */
-function publish(cursor: FoldCursor, turnsCountChanged: boolean): BridgeTurn[] {
+ * happened this call.
+ *
+ * Gates on `state.structureChanged` (set by `pushTurn`/`removeTurns`, the
+ * only two places that add/remove array ELEMENTS) rather than a length
+ * comparison — a push and a retract in the SAME incremental call cancel out
+ * to a net-zero length delta even though the array's contents genuinely
+ * changed, which used to make this return the stale cached array. */
+function publish(cursor: FoldCursor): BridgeTurn[] {
 	const { state, published } = cursor;
-	if (!turnsCountChanged && state.touched.size === 0) {
+	if (!state.structureChanged && state.touched.size === 0) {
 		return cursor.lastOutput;
 	}
 	const output = state.turns.map((turn) => {
@@ -154,9 +160,9 @@ export function foldIncremental(
 		return cursor.lastOutput;
 	}
 	const { state } = cursor;
-	const turnsBefore = state.turns.length;
 	const previousCurrent = state.current;
 	state.touched.clear();
+	state.structureChanged = false;
 	for (const { id, event } of tail) {
 		foldEvent(state, id, event);
 		cursor.processedEvents += 1;
@@ -165,5 +171,5 @@ export function foldIncremental(
 	cursor.foldedCount = events.length;
 	cursor.lastFirstId = events[0]?.id;
 	cursor.lastBoundaryId = events.at(-1)?.id;
-	return publish(cursor, state.turns.length !== turnsBefore);
+	return publish(cursor);
 }

@@ -6,6 +6,8 @@ import {
 	type FoldState,
 	finalizeAssistantMessage,
 	openAssistant,
+	pushTurn,
+	removeTurns,
 } from "./bridge-assistant-merge";
 import type {
 	ApprovalEvent,
@@ -88,7 +90,7 @@ function foldPlan(state: FoldState, id: number, event: StatusEvent): void {
 	}
 	const turn: PlanTurn = { kind: "plan", id, items };
 	state.plan = turn;
-	state.turns.push(turn);
+	pushTurn(state, turn);
 }
 
 /** A task call never joins the assistant's block flow — it closes any open
@@ -107,7 +109,7 @@ function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
 	updateTaskInvocation(task, event);
 	const turn: TaskTurn = { kind: "task", id, task };
 	state.tasksByCallId.set(event.id, turn);
-	state.turns.push(turn);
+	pushTurn(state, turn);
 }
 
 /** A message is a turn boundary: it closes any open output accumulation. A
@@ -118,7 +120,7 @@ function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
 function foldMessage(state: FoldState, id: number, event: MessageEvent): void {
 	if (event.role === "user") {
 		state.current = null;
-		state.turns.push({ kind: "user", id, text: event.text });
+		pushTurn(state, { kind: "user", id, text: event.text });
 		return;
 	}
 	finalizeAssistantMessage(state, id, event);
@@ -181,7 +183,7 @@ function foldStatus(state: FoldState, id: number, event: StatusEvent): void {
 		return;
 	}
 	state.current = null;
-	state.turns.push({ kind: "status", id, event });
+	pushTurn(state, { kind: "status", id, event });
 }
 
 /** Folds ONE event into `state`, mutating it in place — the shared per-event
@@ -207,11 +209,11 @@ export function foldEvent(
 			return;
 		case "error":
 			state.current = null;
-			state.turns.push({ kind: "error", id, event });
+			pushTurn(state, { kind: "error", id, event });
 			return;
 		case "file":
 			state.current = null;
-			state.turns.push({ kind: "file", id, event });
+			pushTurn(state, { kind: "file", id, event });
 			return;
 		default:
 			foldApproval(state, id, event);
@@ -233,13 +235,14 @@ function foldApproval(
 ): void {
 	state.current = null;
 	if (event.cancelled) {
-		state.turns = state.turns.filter(
+		removeTurns(
+			state,
 			(turn) =>
-				!(turn.kind === "approval" && turn.event.requestId === event.requestId)
+				turn.kind === "approval" && turn.event.requestId === event.requestId
 		);
 		return;
 	}
-	state.turns.push({ kind: "approval", id, event });
+	pushTurn(state, { kind: "approval", id, event });
 }
 
 /**

@@ -48,6 +48,15 @@ export interface FoldState {
 	current: AssistantTurn | null;
 	/** The single plan/todo turn, updated in place as `plan` updates arrive. */
 	plan: PlanTurn | null;
+	/** Set whenever `turns` gained or lost an ELEMENT this pass (a push or a
+	 * retract) — as opposed to `touched`, which tracks in-place mutation of
+	 * existing elements. Consulted only by the incremental fold core
+	 * (fold-cursor.ts): it used to infer this from `turns.length` before vs.
+	 * after, which breaks the moment a push and a retract land in the SAME
+	 * pass (the net length delta cancels to zero even though the array's
+	 * CONTENTS changed) — see `pushTurn`/`removeTurns`, the only two places
+	 * that mutate `turns` and thus the only two places allowed to set this. */
+	structureChanged: boolean;
 	tasksByCallId: Map<string, TaskTurn>;
 	toolsByCallId: Map<string, ToolOwner>;
 	/** Turns mutated IN PLACE during the current incremental fold pass (a
@@ -68,11 +77,36 @@ export function createFoldState(): FoldState {
 		assistantByMessageId: new Map(),
 		current: null,
 		plan: null,
+		structureChanged: false,
 		tasksByCallId: new Map(),
 		toolsByCallId: new Map(),
 		touched: new Set(),
 		turns: [],
 	};
+}
+
+/** The ONLY place allowed to append to `state.turns` — every call site in
+ * this module and bridge-turns.ts routes through here (instead of calling
+ * `.push` directly) so `structureChanged` can never be forgotten at a new
+ * call site. */
+export function pushTurn(state: FoldState, turn: BridgeTurn): void {
+	state.turns.push(turn);
+	state.structureChanged = true;
+}
+
+/** The ONLY place allowed to remove elements from `state.turns` — mirrors
+ * `pushTurn`. Only marks `structureChanged` when something was actually
+ * removed, so a no-op retract (a requestId that's already gone) doesn't
+ * force an unnecessary rebuild. */
+export function removeTurns(
+	state: FoldState,
+	predicate: (turn: BridgeTurn) => boolean
+): void {
+	const before = state.turns.length;
+	state.turns = state.turns.filter((turn) => !predicate(turn));
+	if (state.turns.length !== before) {
+		state.structureChanged = true;
+	}
 }
 
 /** Reuse the open assistant turn, or start (and record) a fresh one. Either
@@ -90,7 +124,7 @@ export function openAssistant(state: FoldState, id: number): AssistantTurn {
 		blocks: [],
 		streaming: false,
 	};
-	state.turns.push(turn);
+	pushTurn(state, turn);
 	state.current = turn;
 	state.touched.add(turn);
 	return turn;
@@ -171,6 +205,6 @@ export function finalizeAssistantMessage(
 	if (event.id !== undefined) {
 		state.assistantByMessageId.set(event.id, { block, turn });
 	}
-	state.turns.push(turn);
+	pushTurn(state, turn);
 	state.current = null;
 }
