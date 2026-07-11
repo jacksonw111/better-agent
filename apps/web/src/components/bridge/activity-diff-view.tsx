@@ -11,14 +11,17 @@ export function ActivityDiffView({ lines }: { lines: DiffLine[] }) {
 				<div
 					className={cn(
 						"whitespace-pre-wrap break-words px-2",
-						line.sign === "+"
-							? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-							: "bg-destructive/10 text-destructive"
+						line.sign === "+" &&
+							"bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+						line.sign === "-" && "bg-destructive/10 text-destructive",
+						// R2-T3 review finding 3: the size-cap truncation marker — no
+						// +/- prefix, styled as plain muted text.
+						line.sign === "meta" && "text-muted-foreground italic"
 					)}
 					// biome-ignore lint/suspicious/noArrayIndexKey: a fixed snapshot for one completed call, never reordered
 					key={`${index}-${line.sign}`}
 				>
-					{line.sign}
+					{line.sign === "meta" ? "" : line.sign}
 					{line.text}
 				</div>
 			))}

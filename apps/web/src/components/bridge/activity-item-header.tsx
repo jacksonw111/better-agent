@@ -119,7 +119,7 @@ function DiffCounts({ lines }: { lines: DiffLine[] }) {
 	for (const line of lines) {
 		if (line.sign === "+") {
 			added++;
-		} else {
+		} else if (line.sign === "-") {
 			removed++;
 		}
 	}
@@ -191,7 +191,7 @@ export function ToolCardHeader({
 			{line.icon}
 			<HeaderLabel label={line.label} />
 			<span className="flex-1 truncate font-mono text-foreground">
-				{line.text || (
+				{line.text || tool.title || (
 					<span className="text-muted-foreground">{tool.toolName}</span>
 				)}
 			</span>

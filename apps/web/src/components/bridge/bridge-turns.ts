@@ -55,6 +55,10 @@ const HIDDEN_STATUS_KINDS = new Set<string>([
 	"turn_end",
 	"turn_started",
 	"turn_completed",
+	// R2-T3 review finding 1: pi's TRUE end-of-turn signal (agent_end can be
+	// followed by auto-retries — see bridge-cli's normalize/pi.ts) — a pure
+	// lifecycle heartbeat like the others above, not worth reading inline.
+	"agent_settled",
 	"queue_update",
 	"compaction_start",
 	"compaction_end",
@@ -72,6 +76,8 @@ const TURN_BOUNDARY_STATUS_KINDS = new Set<string>([
 	"turn_end",
 	"turn_started",
 	"turn_completed",
+	// pi's true turn boundary (see HIDDEN_STATUS_KINDS above).
+	"agent_settled",
 ]);
 
 /** Folds a `plan` status update into the ONE plan turn: creates it on the first

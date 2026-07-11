@@ -1,5 +1,12 @@
 import { expect, it } from "vitest";
-import { diffCounts, diffFor, diffFromEditArgs } from "./activity-diff";
+import {
+	capDiffLines,
+	type DiffLine,
+	diffCounts,
+	diffFor,
+	diffFromEditArgs,
+	MAX_DIFF_LINES,
+} from "./activity-diff";
 
 it("builds a minimal 2-hunk diff from claude Edit args (old_string/new_string)", () => {
 	const lines = diffFromEditArgs({
@@ -64,4 +71,37 @@ it("diffFor falls back to args parsing when the result carries no diff", () => {
 
 it("diffFor returns null when neither source has a diff", () => {
 	expect(diffFor({ args: { file_path: "a.ts" }, result: "ok" })).toBeNull();
+});
+
+// Reviewer finding 3 (minor): an inline diff has no size cap, so a huge Edit
+// can blow up the DOM — cap total diff lines and mark the truncation.
+it("capDiffLines leaves a diff at or under the cap untouched", () => {
+	const lines: DiffLine[] = [{ sign: "+", text: "a" }];
+	expect(capDiffLines(lines)).toBe(lines);
+});
+
+it("capDiffLines truncates a diff over the cap and appends a trailing marker line", () => {
+	const lines: DiffLine[] = Array.from(
+		{ length: MAX_DIFF_LINES + 50 },
+		(_, i) => ({
+			sign: "+" as const,
+			text: `line ${i}`,
+		})
+	);
+	const capped = capDiffLines(lines);
+	expect(capped).toHaveLength(MAX_DIFF_LINES + 1);
+	expect(capped.slice(0, MAX_DIFF_LINES)).toEqual(
+		lines.slice(0, MAX_DIFF_LINES)
+	);
+	expect(capped.at(-1)).toEqual({ sign: "meta", text: "…(truncated)" });
+});
+
+it("diffFor applies the cap to a huge Edit-args diff", () => {
+	const newText = Array.from(
+		{ length: MAX_DIFF_LINES + 50 },
+		(_, i) => `line ${i}`
+	).join("\n");
+	const result = diffFor({ args: { old_string: "", new_string: newText } });
+	expect(result).toHaveLength(MAX_DIFF_LINES + 1);
+	expect(result?.at(-1)).toEqual({ sign: "meta", text: "…(truncated)" });
 });

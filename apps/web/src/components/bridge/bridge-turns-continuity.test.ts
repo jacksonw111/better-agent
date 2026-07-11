@@ -90,6 +90,24 @@ it("still splits on a user message even mid text→tool→text", () => {
 	]);
 });
 
+// R2-T3 review finding 1 (critical): pi's `agent_settled` is its TRUE turn
+// boundary (see normalize/pi.ts) — it must be hidden from the feed like
+// `turn_completed` above, while still closing the open assistant bubble.
+it("hides pi's agent_settled status line but still splits into two turns (its true turn boundary)", () => {
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "message", role: "assistant", text: "First reply." }),
+		ev(2, { kind: "status", status: "agent_settled" }),
+		ev(3, { kind: "message", role: "assistant", text: "Second reply." }),
+	]);
+	expect(turns.map((t) => t.kind)).toEqual(["assistant", "assistant"]);
+	expect(asAssistant(turns[0]).blocks).toEqual([
+		{ kind: "text", text: "First reply." },
+	]);
+	expect(asAssistant(turns[1]).blocks).toEqual([
+		{ kind: "text", text: "Second reply." },
+	]);
+});
+
 it("still splits a subagent Task call into its own task turn, not merged into the surrounding text", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "message", role: "assistant", text: "Delegating." }),

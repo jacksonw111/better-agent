@@ -12,8 +12,24 @@
 // compatibility rather than dead code.
 
 export interface DiffLine {
-	sign: "+" | "-";
+	sign: "+" | "-" | "meta";
 	text: string;
+}
+
+// Reviewer finding 3 (minor): an inline diff had no size cap, so a huge Edit
+// (e.g. a generated file rewrite) could render thousands of DOM rows. Cap the
+// total line count and mark the cut with a `meta` line (rendered plain, no
+// +/- prefix — see activity-diff-view.tsx).
+export const MAX_DIFF_LINES = 200;
+const TRUNCATION_MARKER: DiffLine = { sign: "meta", text: "…(truncated)" };
+
+/** Caps `lines` at `MAX_DIFF_LINES`, appending a trailing marker line when it
+ * truncates. Returns `lines` itself (no copy) when already within the cap. */
+export function capDiffLines(lines: DiffLine[]): DiffLine[] {
+	if (lines.length <= MAX_DIFF_LINES) {
+		return lines;
+	}
+	return [...lines.slice(0, MAX_DIFF_LINES), TRUNCATION_MARKER];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -91,7 +107,8 @@ export function diffFor(tool: {
 	args: unknown;
 	result?: unknown;
 }): DiffLine[] | null {
-	return diffFromResult(tool.result) ?? diffFromEditArgs(tool.args);
+	const lines = diffFromResult(tool.result) ?? diffFromEditArgs(tool.args);
+	return lines ? capDiffLines(lines) : null;
 }
 
 export function diffCounts(lines: DiffLine[]): {
@@ -103,7 +120,7 @@ export function diffCounts(lines: DiffLine[]): {
 	for (const line of lines) {
 		if (line.sign === "+") {
 			added++;
-		} else {
+		} else if (line.sign === "-") {
 			removed++;
 		}
 	}
