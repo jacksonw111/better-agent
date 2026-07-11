@@ -24,11 +24,12 @@ interface EventSink {
  * than answering on demand (see the module doc) — filled in by
  * `updateCodexStatusCache`, read by `makeCodexGetStatus`.
  *
- * ASSUMPTION (unverified, no `codex` binary available in this sandbox): no
- * notification in the stream carries the session's model id, so `model`
- * never gets set today — the field stays here (and on
- * `StatusSnapshotDetail`) for parity with pi/claude and in case a future
- * notification (or `thread/started`) turns out to carry it. */
+ * `model` is no longer purely aspirational (R2-T2): no notification in the
+ * stream itself carries it, but `codex.ts` now seeds it from the session's
+ * persisted startup config at start and keeps it current via `setModel`
+ * (see `makeCodexSetModel` in codex-controls.ts) — so by the time a
+ * `getStatus` snapshot is taken it reflects the LAST id this session was
+ * told to use, not necessarily a value codex itself has echoed back. */
 export type CodexStatusCache = Pick<
 	StatusSnapshotDetail,
 	"contextUsage" | "model" | "running" | "tokens"
@@ -64,6 +65,31 @@ export function updateCodexStatusCache(
 			cache.running = running;
 		}
 	}
+}
+
+/**
+ * R2-T2 item 4: maps a `thread/tokenUsage/updated` notification onto the
+ * same `usage_update` status event opencode streams (`UsageUpdateDetail` in
+ * `apps/web/src/components/bridge/bridge-session-status.ts`) so the web's
+ * usage chip renders for codex too, not just via the on-demand
+ * `status_snapshot`. Reuses `parseCodexTokenUsage`'s already-computed
+ * `contextUsage` (used/size) — codex's wire carries no cost figure, so
+ * `UsageUpdateDetail.cost` is simply omitted rather than guessed (per the
+ * brief: "omit unknowables"). `null` for any other method, or one whose
+ * params don't parse. */
+export function codexUsageUpdateEvent(
+	method: string,
+	params: unknown
+): NormalizedEvent | null {
+	if (method !== CODEX_TOKEN_USAGE_METHOD) {
+		return null;
+	}
+	const usage = parseCodexTokenUsage(params);
+	if (!usage?.contextUsage) {
+		return null;
+	}
+	const { used, size } = usage.contextUsage;
+	return { kind: "status", status: "usage_update", detail: { used, size } };
 }
 
 /** Builds the `AgentHandle.getStatus` implementation: pushes ONE

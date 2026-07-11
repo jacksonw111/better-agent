@@ -61,6 +61,7 @@ describe("codexAdapter", () => {
 
 		const handle = await codexAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready, pushed before start() returns
 
 		triggerExit({ code: 1, signal: null });
 
@@ -208,6 +209,7 @@ describe("codexAdapter - getStatus", () => {
 
 		const handle = await codexAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		triggerNotification("thread/tokenUsage/updated", {
 			tokenUsage: {
@@ -220,6 +222,7 @@ describe("codexAdapter - getStatus", () => {
 				modelContextWindow: 1000,
 			},
 		});
+		await iterator.next(); // R2-T2: usage_update, pushed alongside the cache update
 		triggerNotification("thread/status/changed", { status: "active" });
 
 		handle.getStatus?.();
@@ -246,6 +249,7 @@ describe("codexAdapter - getStatus - empty snapshot", () => {
 
 		const handle = await codexAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		expect(() => handle.getStatus?.()).not.toThrow();
 

@@ -14,14 +14,24 @@ import {
 	retractPendingApprovals,
 } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
+import {
+	type CodexControlState,
+	codexTurnStartParams,
+	createCodexControlState,
+	makeCodexSetModel,
+	makeCodexSetPermissionMode,
+} from "./codex-controls";
 import { logRawCodexNotification } from "./codex-debug";
+import { fetchCodexModelList } from "./codex-models";
 import {
 	type CodexStatusCache,
+	codexUsageUpdateEvent,
 	createCodexStatusCache,
 	makeCodexGetStatus,
 	updateCodexStatusCache,
 } from "./codex-status";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
+import { CODEX_SESSION_CAPABILITIES } from "./session-capabilities";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -110,58 +120,14 @@ function wireCodexApprovals(
  */
 const CODEX_ARGS = ["app-server"];
 
-/**
- * RC-T4: gates codex's shell/patch execution — without these, `turn/start`
- * left codex on its config.toml defaults, which (unset) run genuinely
- * unsupervised. Verified against `codex-rs/protocol/src/protocol.rs`'s serde
- * renames (see docs/research/agent-config-codex.md) — the wire VALUES below
- * are confirmed from source, not guessed. `approval_policy: "untrusted"` is
- * the SAFEST of the three simple policies: only "known safe" read-only
- * commands auto-approve, everything else asks (`"on-request"` instead lets
- * the MODEL decide when to ask, which is less safe; `"never"` never asks at
- * all). `sandbox_policy: workspace-write` + `network_access: false` is the
- * SAFEST sandbox that still lets codex do real work: writes are confined to
- * the workspace and outbound network is off (`read-only` would block codex
- * from editing anything at all; `danger-full-access` has no restrictions).
- *
- * ASSUMPTION (unverified — no `codex` binary in this sandbox): the exact JSON
- * key CASING for these two top-level request fields. The doc confirms both
- * fields ride on `turn/start` (and `thread/start`) and quotes the Rust struct
- * field names verbatim as `approval_policy`/`sandbox_policy` (snake_case,
- * with no `#[serde(rename_all)]` noted on the enclosing request struct
- * itself, unlike the kebab-case enum VALUES which ARE explicitly renamed) —
- * so snake_case is used as-is here, but only a real binary run can rule out
- * an additional request-envelope-level camelCase rename layered on top.
- */
-const CODEX_APPROVAL_POLICY = "untrusted";
-const CODEX_SANDBOX_POLICY = {
-	type: "workspace-write",
-	network_access: false,
-} as const;
-
-/** The two safety-knob fields spread onto `turn/start`'s params — see the
- * `CODEX_APPROVAL_POLICY`/`CODEX_SANDBOX_POLICY` doc above for the exact
- * values chosen and their verification status. */
-function codexPolicyParams(): {
-	approval_policy: string;
-	sandbox_policy: typeof CODEX_SANDBOX_POLICY;
-} {
-	return {
-		approval_policy: CODEX_APPROVAL_POLICY,
-		sandbox_policy: CODEX_SANDBOX_POLICY,
-	};
-}
-
 /** Builds `thread/start`'s params: `cwd` plus, when persisted, `model` —
  * verified against `codex-rs/protocol/src/protocol.rs` (`pub model: String`
  * on the thread/turn start request), not guessed; see
- * docs/research/agent-config-codex.md. `permissionMode` isn't threaded here:
- * codex's nearest concept is `approval_policy`
- * (untrusted/on-request/never), a different value space than the
- * generic `permissionMode` string, and the web's capability matrix
- * (`CODEX_CAPABILITIES.permissionModes`) is still empty — no UI ever
- * populates it yet, so there's nothing to wire up without guessing a
- * mapping. */
+ * docs/research/agent-config-codex.md. `permissionMode` isn't threaded here
+ * either: codex's nearest concept, `approval_policy`
+ * (untrusted/on-request/never), is applied per-TURN instead (R2-T2's
+ * `codexTurnStartParams`, sourced from the session's `CodexControlState`),
+ * not at thread creation. */
 function threadStartParams(
 	dir: string,
 	config: { model?: string } | undefined
@@ -173,6 +139,10 @@ function threadStartParams(
  * one object so `makeCodexHandle` stays under the repo's max-params gate. */
 interface CodexHandleDeps {
 	approvals: ReturnType<typeof createApprovalRegistry>;
+	// R2-T2: the mutable per-session model/approval-policy state `setModel`/
+	// `setPermissionMode` write into and `send`'s `turn/start` reads back out
+	// of (see codex-controls.ts).
+	controlState: CodexControlState;
 	epoch: TurnEpochRef;
 	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>;
 	rpc: JsonRpcIo;
@@ -182,7 +152,7 @@ interface CodexHandleDeps {
 /** Builds the codex `AgentHandle` — the send/interrupt/stop/approval controls
  * over the app-server thread. Extracted so `start` stays under the line gate. */
 function makeCodexHandle(
-	{ approvals, epoch, events, rpc, statusCache }: CodexHandleDeps,
+	{ approvals, controlState, epoch, events, rpc, statusCache }: CodexHandleDeps,
 	threadId: unknown
 ): AgentHandle {
 	return {
@@ -200,7 +170,9 @@ function makeCodexHandle(
 				.request("turn/start", {
 					threadId,
 					input: [{ type: "text", text }],
-					...codexPolicyParams(),
+					// R2-T2: reads the LATEST approval_policy/model — every
+					// setModel/setPermissionMode call before this turn is reflected.
+					...codexTurnStartParams(controlState),
 				})
 				.catch((error: unknown) => {
 					events.push({
@@ -225,6 +197,8 @@ function makeCodexHandle(
 			retractPendingApprovals(approvals, events);
 			rpc.request("turn/interrupt", { threadId }).catch(() => undefined);
 		},
+		setModel: makeCodexSetModel(controlState, statusCache),
+		setPermissionMode: makeCodexSetPermissionMode(controlState),
 		stop(): void {
 			bumpTurnEpoch(epoch);
 			// Retract before close(): a push after the queue is closed is a
@@ -234,6 +208,31 @@ function makeCodexHandle(
 			rpc.stop();
 			events.close();
 			approvals.clear();
+		},
+	};
+}
+
+/** R2-T2 item 1: the one-time `session_ready` status event, pushed once
+ * `thread/start` and the `model/list` fetch (or its static fallback — see
+ * codex-models.ts) have both settled — mirrors the shape every other adapter
+ * emits (`opencode.ts`'s `enrichOpencodeSessionReady`, `pi.ts`'s
+ * `makePiSessionReadyTracker`): `sessionId` off the resolved thread id,
+ * `model` from the session's persisted startup config (if any — codex's wire
+ * itself never echoes back a "current model"), `models` off the fetch, and
+ * the static `CODEX_SESSION_CAPABILITIES` handshake. */
+function buildCodexSessionReadyEvent(
+	threadId: unknown,
+	model: string | undefined,
+	models: string[]
+): NormalizedEvent {
+	return {
+		kind: "status",
+		status: "session_ready",
+		detail: {
+			sessionId: asString(threadId),
+			model,
+			models,
+			capabilities: CODEX_SESSION_CAPABILITIES,
 		},
 	};
 }
@@ -254,6 +253,10 @@ export const codexAdapter: Adapter = {
 		});
 
 		const statusCache = createCodexStatusCache();
+		// R2-T2: seeded from the persisted startup config (if any) so a turn
+		// sent right after start already carries it — see codex-controls.ts.
+		const controlState = createCodexControlState(opts?.config?.model);
+		statusCache.model = controlState.model;
 		// R1-T2: one duration-tracking normalizer per session — codex's wire
 		// never reports how long a commandExecution/mcpToolCall ran, only a
 		// started/completed pair keyed by item id (see normalize/tool-timing.ts).
@@ -261,6 +264,12 @@ export const codexAdapter: Adapter = {
 		rpc.onNotification((method, params) => {
 			logRawCodexNotification(method, params);
 			updateCodexStatusCache(statusCache, method, params);
+			// R2-T2 item 4: streams the same usage_update the web already renders
+			// for opencode, alongside the existing status-cache update above.
+			const usageEvent = codexUsageUpdateEvent(method, params);
+			if (usageEvent) {
+				events.push(usageEvent);
+			}
 			for (const event of normalize({ method, params })) {
 				events.push(event);
 			}
@@ -275,9 +284,16 @@ export const codexAdapter: Adapter = {
 			"thread/start",
 			threadStartParams(dir, opts?.config)
 		);
+		const threadId = threadIdFrom(started);
+		// R2-T2 item 1: guarded by CODEX_MODEL_LIST_TIMEOUT_MS — never hangs
+		// `start()`, and always resolves to at least the static fallback list.
+		const models = await fetchCodexModelList(rpc);
+		events.push(
+			buildCodexSessionReadyEvent(threadId, controlState.model, models)
+		);
 		return makeCodexHandle(
-			{ approvals, epoch, events, rpc, statusCache },
-			threadIdFrom(started)
+			{ approvals, controlState, epoch, events, rpc, statusCache },
+			threadId
 		);
 	},
 };

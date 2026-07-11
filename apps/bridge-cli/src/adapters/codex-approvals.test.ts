@@ -69,6 +69,7 @@ describe("codexAdapter - interrupt retracts approvals (RC-T3)", () => {
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
 		const handle = await codexAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		triggerRequest(
 			APPROVAL_REQUEST_ID,
@@ -100,6 +101,7 @@ describe("codexAdapter - approvals", () => {
 
 		const handle = await codexAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		triggerRequest(
 			APPROVAL_REQUEST_ID,
@@ -133,10 +135,12 @@ describe("codexAdapter - approvals", () => {
 		const { rpc } = createFakeRpc();
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
 		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		handle.answerApproval("does-not-exist", "accept");
 
-		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
+		const { value: event } = await iterator.next();
 		expect(event).toEqual({
 			detail: { requestId: "does-not-exist" },
 			kind: "status",
@@ -153,6 +157,7 @@ describe("codexAdapter - approvals - repeated or post-exit answers", () => {
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
 		const handle = await codexAdapter.start("/tmp/project");
 		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		triggerRequest(
 			APPROVAL_REQUEST_ID,
@@ -180,13 +185,15 @@ describe("codexAdapter - approvals - repeated or post-exit answers", () => {
 		const { rpc, triggerRequest, triggerExit } = createFakeRpc();
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
 		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
 
 		triggerRequest(
 			APPROVAL_REQUEST_ID,
 			"item/commandExecution/requestApproval",
 			{ itemId: "item_1", command: ["ls"] }
 		);
-		await handle.events[Symbol.asyncIterator]().next();
+		await iterator.next();
 
 		triggerExit({ code: 0, signal: null });
 

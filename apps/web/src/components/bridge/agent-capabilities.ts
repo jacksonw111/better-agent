@@ -90,6 +90,14 @@ const OPENCODE_PERMISSION_MODES = ["build", "plan"];
  * default/plan pair. */
 const NO_PERMISSION_MODES: string[] = [];
 
+/** codex's `approval_policy` values (R2-T2) — kept in sync with
+ * `CODEX_APPROVAL_POLICIES` in `apps/bridge-cli/src/adapters/codex-controls.ts`
+ * and `CODEX_SESSION_CAPABILITIES.permissionModes` in
+ * `apps/bridge-cli/src/adapters/session-capabilities.ts`. Unlike the earlier
+ * assumption, this is now a PER-TURN control (`codexTurnStartParams`), not a
+ * launch-only flag, so the menu can render live. */
+const CODEX_PERMISSION_MODES = ["untrusted", "on-request", "never"];
+
 const CLAUDE_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
 	sessionList: true,
@@ -153,19 +161,18 @@ const OPENCODE_CAPABILITIES: AgentCapabilities = {
 	permissionModes: OPENCODE_PERMISSION_MODES,
 };
 
-/** codex isn't installed/verified yet — conservative until confirmed:
- * everything off except reasoning (the normalize layer already treats
- * thinking-shaped output generically), interrupt (cancelling a subprocess
- * turn is assumed universal), and now contextUsage (R1-a: the CLI adapter
- * caches `thread/tokenUsage/updated` and answers a `control: getStatus` with
- * a `status_snapshot` carrying it — see `apps/bridge-cli/src/adapters/
- * codex-status.ts` — even though, unlike claude's on-demand
- * `getContextUsage()`, it's a cached last-seen value rather than a fresh
- * read). §2 documents three `approval_policy` values (untrusted / on-request
- * / never), but codex applies them at LAUNCH via `-a`/`-s` flags — there's no
- * verified real-time control — so the menu stays hidden rather than offering
- * a mode it can't actually switch. TODO: surface them once codex's control
- * surface is verified against the running CLI. */
+/** codex (R2-T2): still no session-list/resume/skills/slash-commands surface
+ * and no `canUseTool`-style approval CARD (codex answers approval_policy/
+ * sandbox_policy gate outcomes without a per-call approve/deny round trip
+ * through this adapter — see `wireCodexApprovals` in codex.ts for the
+ * requests it DOES surface), but `modelSwitch`, `permissionModes`, and
+ * `usageMode` are now live: `setModel`/`setPermissionMode` apply PER-TURN
+ * (`codexTurnStartParams`, sourced from `CodexControlState`), not at launch,
+ * and `thread/tokenUsage/updated` streams into the same `usage_update` event
+ * opencode uses (see `codexUsageUpdateEvent` in codex-status.ts). This is the
+ * static fallback matrix only — `resolveCapabilities` prefers the LIVE
+ * `CODEX_SESSION_CAPABILITIES` handshake off `session_ready` once emitted,
+ * kept aligned with these three fields by hand. */
 const CODEX_CAPABILITIES: AgentCapabilities = {
 	reasoning: true,
 	sessionList: false,
@@ -175,10 +182,10 @@ const CODEX_CAPABILITIES: AgentCapabilities = {
 	contextUsage: true,
 	toolApproval: false,
 	noApprovalGate: false,
-	modelSwitch: false,
+	modelSwitch: true,
 	interrupt: true,
-	usageMode: "none",
-	permissionModes: NO_PERMISSION_MODES,
+	usageMode: "stream",
+	permissionModes: CODEX_PERMISSION_MODES,
 };
 
 /** The capability matrix from the pi/opencode research (see plan Phase 0.5) —

@@ -65,3 +65,30 @@ export const PI_SESSION_CAPABILITIES: SessionCapabilities = {
 	thinkingLevels: [...PI_THINKING_LEVELS],
 	usage: "poll",
 };
+
+/** codex (R2-T2): `turn/start`'s approval_policy/sandbox_policy gate every
+ * tool call ("gated"), interrupt is `turn/interrupt` (no steer — codex has no
+ * mid-turn steering RPC), and MCP servers only apply at `thread/start` (no
+ * live reconfigure call, unlike claude-code's `setMcpServers` — "restart").
+ * `permissionModes` mirrors `CODEX_APPROVAL_POLICIES` in codex-controls.ts
+ * (keep the two in sync). No session-list/fork/tree/compact op, no
+ * skills/slash-commands surface, no thinking-level concept. `quota: true` —
+ * ASSUMPTION (unverified, no `codex` binary in this sandbox): codex's
+ * app-server is assumed to expose an account quota/rate-limit read the way
+ * claude's SDK does, though no adapter code calls it yet (R2-T2 only wires
+ * the token-usage stream, not a quota RPC). `usage: "stream"` — R2-T2 maps
+ * `thread/tokenUsage/updated` onto the same `usage_update` status event
+ * opencode streams (see codex-status.ts's `codexUsageUpdateEvent`). */
+export const CODEX_SESSION_CAPABILITIES: SessionCapabilities = {
+	approval: "gated",
+	busyModes: ["queue", "interrupt"],
+	mcp: "restart",
+	modelSwitch: true,
+	permissionModes: ["untrusted", "on-request", "never"],
+	quota: true,
+	sessionOps: [],
+	skills: false,
+	slashCommands: false,
+	thinkingLevels: [],
+	usage: "stream",
+};

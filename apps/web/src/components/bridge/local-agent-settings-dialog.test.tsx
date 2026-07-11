@@ -142,14 +142,18 @@ it("shows the startup-config fields for claude-code (its adapter applies them)",
 	expect(view.getByLabelText("Max turns")).toBeDefined();
 });
 
-it("shows no startup-only or model/permission fields for an agent whose adapter ignores config and has no such capabilities, but still shows the MCP servers picker (R5-a)", async () => {
-	// codex: agentAppliesConfig=false, modelSwitch=false, permissionModes=[] —
-	// but the MCP-servers picker (R5-a) shows for every agent kind, so this is
-	// no longer the "zero fields" case the old 'not configurable' note covered.
+it("hides startup-only fields but shows model/permission fields (R2-T2) and the MCP servers picker (R5-a) for codex", async () => {
+	// codex: agentAppliesConfig=false (its adapter still ignores
+	// appendSystemPrompt/maxTurns/etc.), but modelSwitch=true and
+	// permissionModes is non-empty as of R2-T2 (setModel/setPermissionMode
+	// are real per-turn controls now) — so those two fields DO show, unlike
+	// the startup-only ones. The MCP-servers picker (R5-a) shows for every
+	// agent kind regardless.
 	const view = renderDialog(makeToken({ agentKind: "codex" }));
 	fireEvent.click(view.getByRole("tab", { name: "Config" }));
 	expect(view.queryByLabelText("Append system prompt")).toBeNull();
-	expect(view.queryByLabelText("Model")).toBeNull();
+	expect(view.getByLabelText("Model")).toBeDefined();
+	expect(view.getByLabelText("Permission mode")).toBeDefined();
 	expect(view.getByText("MCP servers")).toBeDefined();
 	await waitFor(() => {
 		expect(view.getByText("Notion")).toBeDefined();

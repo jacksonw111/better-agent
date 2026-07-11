@@ -22,8 +22,8 @@ import {
 // agentKind-derived capability matrix (see agent-capabilities.ts) instead of
 // always assuming claude. `terminal.test.tsx`/`terminal-controls.test.tsx`
 // already cover claude's full surface; this file covers pi (a reduced
-// surface) and codex (the conservative fallback) not regressing back to
-// "show everything".
+// surface) and codex (session-list still off, model/permission live as of
+// R2-T2) not regressing back to "show everything".
 
 const COST_TEXT_PATTERN = /\$0\.05/;
 
@@ -110,7 +110,7 @@ it("keeps the claude session's turn-usage chip rendering (usageMode is stream)",
 	});
 });
 
-it("hides Past conversations and the permission-mode dropdown but keeps a disabled Model affordance for a conservative codex session", async () => {
+it("hides Past conversations but shows the permission-mode dropdown (R2-T2) and keeps a disabled Model affordance for a codex session with no live session_ready", async () => {
 	const fake = makeControllableTransport();
 	const { container } = render(
 		<Terminal session={CODEX_SESSION} transport={fake.transport} />
@@ -122,9 +122,14 @@ it("hides Past conversations and the permission-mode dropdown but keeps a disabl
 
 	const view = within(container);
 	expect(view.queryByRole("button", { name: "Past conversations" })).toBeNull();
-	expect(view.queryByRole("combobox", { name: "Permission mode" })).toBeNull();
-	// The model control is always present — disabled here since codex reports no
-	// switchable list.
+	// R2-T2: codex's static matrix now reports real permissionModes
+	// (untrusted/on-request/never) — the menu renders even before any
+	// session_ready handshake arrives.
+	expect(
+		view.queryByRole("combobox", { name: "Permission mode" })
+	).not.toBeNull();
+	// The model control is always present — disabled here since no
+	// session_ready has reported a switchable `models` list in this test.
 	const model = view.getByRole("combobox", {
 		name: "Model",
 	}) as HTMLButtonElement;

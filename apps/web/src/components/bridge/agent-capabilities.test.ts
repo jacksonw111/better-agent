@@ -77,7 +77,7 @@ it("gives opencode tool-approval and a stream usage mode, with build/plan permis
 	expect(opencode.permissionModes).toEqual(["build", "plan"]);
 });
 
-it("keeps codex conservative — everything off except reasoning, interrupt, and (R1-a) contextUsage; permission menu hidden (§2 approval_policy is launch-only)", () => {
+it("keeps codex's static matrix conservative on the session/tool-approval surface, but live on model/permission/usage (R2-T2)", () => {
 	const codex = capabilities("codex");
 	expect(codex.reasoning).toBe(true);
 	expect(codex.interrupt).toBe(true);
@@ -89,11 +89,12 @@ it("keeps codex conservative — everything off except reasoning, interrupt, and
 	// updated` and answers `getStatus` with it — see codex-status.ts.
 	expect(codex.contextUsage).toBe(true);
 	expect(codex.toolApproval).toBe(false);
-	expect(codex.modelSwitch).toBe(false);
-	expect(codex.usageMode).toBe("none");
-	// §2 lists three approval_policy values, but codex sets them at launch —
-	// no verified real-time switch, so the menu stays hidden for now.
-	expect(codex.permissionModes).toEqual([]);
+	// R2-T2: setModel/setPermissionMode apply PER-TURN (codexTurnStartParams),
+	// and thread/tokenUsage/updated streams into usage_update — see
+	// codex-controls.ts / codex-status.ts.
+	expect(codex.modelSwitch).toBe(true);
+	expect(codex.usageMode).toBe("stream");
+	expect(codex.permissionModes).toEqual(["untrusted", "on-request", "never"]);
 });
 
 it("defines every known agent kind", () => {
