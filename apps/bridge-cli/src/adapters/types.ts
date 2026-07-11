@@ -25,42 +25,23 @@ export const OPENCODE_TRANSPORTS: readonly OpencodeTransport[] = [
  * a shared import; keep the two in sync. */
 export type UsageMode = "stream" | "poll" | "none";
 
-/**
- * What one adapter's underlying agent actually supports, independent of the
- * normalized event model every adapter maps onto (message/output/tool/file/
- * status/error/approval always applies). The web gates every OPTIONAL
- * surface — session controls, "Past conversations", the slash/skills picker,
- * the usage chip — on this, keyed by `AgentKind`, so no agent is special-cased
- * in the UI. This type isn't currently read by anything server-side (the web
- * looks its copy up client-side, keyed by the session's already-known
- * `agentKind`, rather than round-tripping a capabilities event) — kept here
- * so both sides have one canonical shape to keep in sync against.
- */
-export interface AgentCapabilities {
-	/** `getContextUsage()`-style on-demand context percentage. */
-	contextUsage: boolean;
-	/** Cancels the in-flight turn without ending the session. */
-	interrupt: boolean;
-	/** Switching models mid-session. */
-	modelSwitch: boolean;
-	/** The permission-mode values this agent actually accepts; empty means the
-	 * agent has no such concept at all. */
-	permissionModes: string[];
-	/** Extended-thinking/reasoning blocks are streamed. */
-	reasoning: boolean;
-	/** The agent can enumerate the user's past local conversations. */
-	sessionList: boolean;
-	/** The agent supports reopening a prior conversation with full context. */
-	sessionResume: boolean;
-	/** The agent exposes a skills list. */
-	skills: boolean;
-	/** The agent exposes a slash-command list. */
-	slashCommands: boolean;
-	/** The agent can pause a turn for the user to approve/deny a tool call. */
-	toolApproval: boolean;
-	/** See `UsageMode`. */
-	usageMode: UsageMode;
-}
+/** R3-T1: how a text command should be applied while the agent is mid-turn —
+ * "queue" (ordinary `send`, always safe, and the default `parseCommandText`
+ * assumes for a bare string/`{text}`/absent-or-unrecognized `when`), "steer"
+ * (pi only — live-redirects the in-flight turn without ending it), or
+ * "interrupt" (abort the in-flight turn, then send fresh, as a new turn).
+ * Only the modes listed in the session's `SessionCapabilities.busyModes`
+ * below are ever offered to the user; `AgentHandle.sendWith` for a mode an
+ * adapter doesn't implement degrades the same way every other optional
+ * control method does — see `interrupt`. */
+export type TextWhen = "queue" | "steer" | "interrupt";
+
+// `AgentCapabilities` — the older, now-superseded-by-`SessionCapabilities`
+// shape — lives in agent-capabilities.ts, split out purely to keep this file
+// under the repo's 300-line cap; re-exported here so existing imports of it
+// from "./types" keep working (mirrors normalize/pi.ts's re-export of
+// `normalizePiExtensionUiRequest`).
+export type { AgentCapabilities } from "./agent-capabilities";
 
 /** R2-T1: what one adapter's underlying agent ACTUALLY supports, reported
  * live on `session_ready`'s `detail.capabilities` — the wire counterpart of
@@ -196,6 +177,14 @@ export interface AgentHandle {
 	reloadSkills?(): void;
 	/** Feeds a user command (from the web UI, relayed through the server) to the agent. */
 	send(text: string): void;
+	/** R3-T1: sends `text` under a specific busy-turn policy — see `TextWhen`.
+	 * Optional, same degrade-safely contract as `interrupt`: pi implements all
+	 * three modes, claude-code/codex/opencode implement "interrupt" (abort
+	 * then `send`) and fall through to `send` for "queue"; none implement
+	 * "steer" — hidden from the user by their `SessionCapabilities.busyModes`
+	 * not listing it, so `CommandSink`'s dispatch never calls it with "steer"
+	 * for them. */
+	sendWith?(text: string, when: TextWhen): void;
 	/**
 	 * Replaces the session's MCP servers LIVE (R5-b), no restart. Only adapters
 	 * whose agent supports live MCP reconfiguration implement it — claude-code

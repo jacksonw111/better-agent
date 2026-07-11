@@ -27,6 +27,7 @@ import {
 	makeListSessions,
 	recordSessionInfo,
 } from "./claude-code-status";
+import { makeInterruptThenSend } from "./interrupt-then-send";
 import { findOnPath } from "./process-io";
 import {
 	bumpTurnEpoch,
@@ -173,30 +174,37 @@ interface ClaudeHandleDeps {
  * pushing a cancelled `ApprovalEvent` so the web removes the open card. */
 function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 	const { approvals, dir, epoch, events, input, lastKnown, session } = deps;
+	// Cancels the in-flight turn only — unlike `stop`, the input/events queues
+	// stay open so the user can keep chatting in the same session. Named (not
+	// inline) so R3-T1's `sendWith("interrupt")` can call it before `doSend`.
+	function doInterrupt(): void {
+		bumpTurnEpoch(epoch);
+		retractPendingApprovals(approvals, events);
+		session.interrupt().catch(() => undefined);
+	}
+	function doSend(text: string): void {
+		// A new turn begins — bump the epoch BEFORE pushing the user's own
+		// turn-start event, so everything from here on (including this event)
+		// carries the new epoch.
+		bumpTurnEpoch(epoch);
+		// Persist the user's own turn (see userMessageEvent) so it survives
+		// a page reload, THEN forward it to the agent.
+		events.push(userMessageEvent(text));
+		input.push(userTurn(text));
+	}
 	return {
 		events,
 		getStatus: makeClaudeGetStatus(session, events, lastKnown),
 		answerApproval(requestId: string, optionId: string): void {
 			approvals.answer(requestId, optionId);
 		},
-		// Cancels the in-flight turn only — unlike `stop`, the input/events
-		// queues stay open so the user can keep chatting in the same session.
-		interrupt(): void {
-			bumpTurnEpoch(epoch);
-			retractPendingApprovals(approvals, events);
-			session.interrupt().catch(() => undefined);
-		},
+		interrupt: doInterrupt,
 		listSessions: makeListSessions(dir, events),
-		send(text: string): void {
-			// A new turn begins — bump the epoch BEFORE pushing the user's own
-			// turn-start event, so everything from here on (including this event)
-			// carries the new epoch.
-			bumpTurnEpoch(epoch);
-			// Persist the user's own turn (see userMessageEvent) so it survives
-			// a page reload, THEN forward it to the agent.
-			events.push(userMessageEvent(text));
-			input.push(userTurn(text));
-		},
+		send: doSend,
+		// R3-T1: "steer" isn't in claude-code's busyModes (session-capabilities.ts)
+		// so it never reaches here — "interrupt" aborts then sends fresh; "queue"
+		// falls through to plain doSend.
+		sendWith: makeInterruptThenSend({ doInterrupt, doSend }),
 		setModel(model: string): void {
 			lastKnown.model = model;
 			session.setModel(model).catch(() => undefined);

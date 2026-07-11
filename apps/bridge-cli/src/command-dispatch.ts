@@ -3,6 +3,7 @@
 // file already sat at the cap before R2-T3 item 2's `setThinking` control
 // needed a new branch here).
 
+import type { TextWhen } from "./adapters/types";
 import type { CommandSink, ControlCommand } from "./commands";
 
 // Each of these one-liners exists purely so `dispatchControlCommand`'s own
@@ -36,6 +37,25 @@ function callAnswerQuestion(
 	answers: string[][]
 ): void {
 	sink.answerQuestion?.(requestId, answers);
+}
+
+/** R3-T1: routes one parsed text command to `sink` — `sink.sendWith` when
+ * `when` requests non-default busy handling AND the sink actually implements
+ * it, otherwise the ordinary `sink.send` (never both, unlike a naive
+ * `sink.sendWith?.(text, when) ?? sink.send(text)`, which would double-send
+ * since both calls return `undefined`). "queue"/absent always takes the
+ * plain `send` path even when `sendWith` exists — every adapter's `send`
+ * already IS its queue behavior (pi's followUp-when-streaming included). */
+export function dispatchTextCommand(
+	sink: CommandSink,
+	text: string,
+	when?: TextWhen
+): void {
+	if (when && when !== "queue" && sink.sendWith) {
+		sink.sendWith(text, when);
+		return;
+	}
+	sink.send(text);
 }
 
 /** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`

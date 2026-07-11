@@ -28,6 +28,7 @@ import {
 	makeCodexGetStatus,
 	updateCodexStatusCache,
 } from "./codex-status";
+import { makeInterruptThenSend } from "./interrupt-then-send";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
 import { CODEX_SESSION_CAPABILITIES } from "./session-capabilities";
 import {
@@ -115,48 +116,54 @@ function makeCodexHandle(
 	{ approvals, controlState, epoch, events, rpc, statusCache }: CodexHandleDeps,
 	threadId: unknown
 ): AgentHandle {
+	function doSend(text: string): void {
+		// A new turn begins — bump the epoch BEFORE pushing the user's own
+		// turn-start event (see the RC-T3 note on `codexAdapter.start`).
+		bumpTurnEpoch(epoch);
+		events.push(userMessageEvent(text));
+		rpc
+			.request("turn/start", {
+				threadId,
+				input: [{ type: "text", text }],
+				// R2-T2: reads the LATEST approval_policy/model — every
+				// setModel/setPermissionMode call before this turn is reflected.
+				...codexTurnStartParams(controlState),
+			})
+			.catch((error: unknown) => {
+				events.push({
+					kind: "error",
+					message: "codex turn/start failed",
+					detail: error,
+				});
+			});
+	}
+	// Cancel the active turn WITHOUT tearing down the thread — the detail
+	// page's Stop/Interrupt button. Previously codex had no interrupt at all,
+	// so that button did nothing; `stop()` only killed the process.
+	// ASSUMPTION (unverified, no codex binary): `turn/interrupt` cancels the
+	// running turn on the thread.
+	//
+	// RC-T3: supersede the current turn and retract any pending approval
+	// BEFORE requesting the interrupt, so a straggler notification or a late
+	// approval answer can never land against a turn context that's already
+	// moved on — mirrors claude-code.ts's `interrupt()`. Named (not inline) so
+	// R3-T1's `sendWith("interrupt")` can call it before `doSend`.
+	function doInterrupt(): void {
+		bumpTurnEpoch(epoch);
+		retractPendingApprovals(approvals, events);
+		rpc.request("turn/interrupt", { threadId }).catch(() => undefined);
+	}
 	return {
 		answerApproval(requestId: string, optionId: string): void {
 			approvals.answer(requestId, optionId);
 		},
 		events,
 		getStatus: makeCodexGetStatus(statusCache, events),
-		send(text: string): void {
-			// A new turn begins — bump the epoch BEFORE pushing the user's own
-			// turn-start event (see the RC-T3 note on `codexAdapter.start`).
-			bumpTurnEpoch(epoch);
-			events.push(userMessageEvent(text));
-			rpc
-				.request("turn/start", {
-					threadId,
-					input: [{ type: "text", text }],
-					// R2-T2: reads the LATEST approval_policy/model — every
-					// setModel/setPermissionMode call before this turn is reflected.
-					...codexTurnStartParams(controlState),
-				})
-				.catch((error: unknown) => {
-					events.push({
-						kind: "error",
-						message: "codex turn/start failed",
-						detail: error,
-					});
-				});
-		},
-		// Cancel the active turn WITHOUT tearing down the thread — the detail
-		// page's Stop/Interrupt button. Previously codex had no interrupt at all,
-		// so that button did nothing; `stop()` only killed the process.
-		// ASSUMPTION (unverified, no codex binary): `turn/interrupt` cancels the
-		// running turn on the thread.
-		//
-		// RC-T3: supersede the current turn and retract any pending approval
-		// BEFORE requesting the interrupt, so a straggler notification or a late
-		// approval answer can never land against a turn context that's already
-		// moved on — mirrors claude-code.ts's `interrupt()`.
-		interrupt(): void {
-			bumpTurnEpoch(epoch);
-			retractPendingApprovals(approvals, events);
-			rpc.request("turn/interrupt", { threadId }).catch(() => undefined);
-		},
+		send: doSend,
+		interrupt: doInterrupt,
+		// R3-T1: "steer" isn't in codex's busyModes — "interrupt" cancels the
+		// turn then starts fresh; "queue" falls through to plain doSend.
+		sendWith: makeInterruptThenSend({ doInterrupt, doSend }),
 		setModel: makeCodexSetModel(controlState, statusCache),
 		setPermissionMode: makeCodexSetPermissionMode(controlState),
 		stop(): void {

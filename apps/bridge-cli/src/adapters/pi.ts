@@ -18,6 +18,7 @@ import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { wirePiExtensionUiRequest } from "./pi-approvals";
 import { makePiSetModel, makePiSetThinking } from "./pi-controls";
+import { makePiSendWith } from "./pi-send-with";
 import { makePiStatusTracker } from "./pi-status";
 import { makePiStreamingTracker } from "./pi-streaming";
 import { spawnProcessIo } from "./process-io";
@@ -220,6 +221,7 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 				)
 			);
 		},
+		sendWith: makePiSendWith({ epoch, events, io, streaming }),
 		setModel: makePiSetModel(io, events, modelProviders),
 		setThinking: makePiSetThinking(io, events),
 		stop(): void {

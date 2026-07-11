@@ -3,23 +3,22 @@
 // dispatches it to a `CommandSink` — split out of relay-client.ts to keep
 // that file under the project's file-size limit.
 
-import { dispatchControlCommand } from "./command-dispatch";
+import type { TextWhen } from "./adapters/types";
+import {
+	dispatchControlCommand,
+	dispatchTextCommand,
+} from "./command-dispatch";
 import {
 	type ControlAnswerQuestionCommand,
 	parseAnswerQuestionCommand,
 } from "./commands-question";
+import { parseTextCommand, type TextCommand } from "./commands-text-when";
 import { isRecord } from "./normalize/types";
 
 /** One relayed command/event; mirrors `RelayEvent` from `@better-agent/agent/ports`. */
 export interface RelayEvent {
 	data: unknown;
 	id: number;
-}
-
-/** A plain-text command to feed to the agent via `send`. */
-export interface TextCommand {
-	text: string;
-	type: "text";
 }
 
 /** The user's answer to a previously-emitted `ApprovalEvent`, to feed to the
@@ -191,7 +190,7 @@ function parseControlCommand(
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
-		return { text: data, type: "text" };
+		return parseTextCommand(data, undefined);
 	}
 	if (isApprovalCommand(data)) {
 		return data;
@@ -200,7 +199,7 @@ export function parseCommandText(data: unknown): ParsedCommand | null {
 		return parseControlCommand(data);
 	}
 	if (isRecord(data) && typeof data.text === "string") {
-		return { text: data.text, type: "text" };
+		return parseTextCommand(data.text, data.when);
 	}
 	return null;
 }
@@ -238,6 +237,8 @@ export interface CommandSink {
 	 * conversations" button. */
 	listSessions?(): void;
 	send(text: string): void;
+	/** R3-T1: sends under a specific busy-turn `TextWhen`; see `dispatchTextCommand`. */
+	sendWith?(text: string, when: TextWhen): void;
 	/** Changes the model used for subsequent turns. Called for a
 	 * `control: setModel` command. */
 	setModel?(model: string): void;
@@ -270,11 +271,10 @@ export interface DispatchResult {
 	wasActive: boolean;
 }
 
-/** Parses and dispatches each command to `sink` — a text command calls
- * `sink.send`, an approval command calls `sink.answerApproval`, a control
- * command calls the matching `sink.stop`/`interrupt`/`setModel`/
- * `setPermissionMode` (nothing, for `restart` — see `dispatchControlCommand`)
- * — advancing `afterIdRef` past every command seen either way. */
+/** Parses and dispatches each command to `sink` — text via
+ * `dispatchTextCommand`, approval via `sink.answerApproval`, control via
+ * `dispatchControlCommand` — advancing `afterIdRef` past every command seen
+ * either way. */
 export function dispatchCommands(
 	commands: RelayEvent[],
 	sink: CommandSink,
@@ -285,7 +285,7 @@ export function dispatchCommands(
 	for (const command of commands) {
 		const parsed = parseCommandText(command.data);
 		if (parsed?.type === "text") {
-			sink.send(parsed.text);
+			dispatchTextCommand(sink, parsed.text, parsed.when);
 		} else if (parsed?.type === "approval") {
 			sink.answerApproval(parsed.requestId, parsed.optionId);
 		} else if (parsed?.type === "control") {

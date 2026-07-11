@@ -11,6 +11,7 @@ import {
 	retractPendingApprovals,
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import { makeInterruptThenSend } from "./interrupt-then-send";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
 import { opencodeSend } from "./opencode-send";
 import {
@@ -233,26 +234,34 @@ export const opencodeAdapter: Adapter = {
 		const modeControls = opencodeModeControls(rpc, () => sessionId);
 		applyOpencodeStartupConfig(modeControls, opts?.config);
 
+		// Cancels the in-flight turn without ending the session — the web Stop
+		// button. Fire-and-forget notification (ACP's `session/cancel` has no
+		// reply), matching the plan's §2/T0 GUESS on the method name — see
+		// docs/research/agent-config-opencode.md's ACP wire-surface table. Named
+		// (not inline) so R3-T1's `sendWith("interrupt")` can call it before
+		// `doSend`.
+		function doInterrupt(): void {
+			// RC-T3: supersede the current turn and retract any pending
+			// approval BEFORE notifying opencode, so a straggler `session/update`
+			// or a late approval answer can never land against a turn context
+			// that's already moved on — mirrors claude-code.ts's `interrupt()`.
+			bumpTurnEpoch(epoch);
+			retractPendingApprovals(approvals, events);
+			rpc.notify("session/cancel", { sessionId });
+		}
+		const doSend = opencodeSend(rpc, events, () => sessionId, epoch);
+
 		return {
 			answerApproval(requestId: string, optionId: string): void {
 				approvals.answer(requestId, optionId);
 			},
 			events,
 			getStatus: makeOpencodeGetStatus(statusCache, events),
-			// Cancels the in-flight turn without ending the session — the web Stop
-			// button. Fire-and-forget notification (ACP's `session/cancel` has no
-			// reply), matching the plan's §2/T0 GUESS on the method name — see
-			// docs/research/agent-config-opencode.md's ACP wire-surface table.
-			interrupt(): void {
-				// RC-T3: supersede the current turn and retract any pending
-				// approval BEFORE notifying opencode, so a straggler `session/update`
-				// or a late approval answer can never land against a turn context
-				// that's already moved on — mirrors claude-code.ts's `interrupt()`.
-				bumpTurnEpoch(epoch);
-				retractPendingApprovals(approvals, events);
-				rpc.notify("session/cancel", { sessionId });
-			},
-			send: opencodeSend(rpc, events, () => sessionId, epoch),
+			interrupt: doInterrupt,
+			send: doSend,
+			// R3-T1: "steer" isn't in opencode's busyModes — "interrupt" cancels
+			// the turn then sends fresh; "queue" falls through to plain doSend.
+			sendWith: makeInterruptThenSend({ doInterrupt, doSend }),
 			...modeControls,
 			stop(): void {
 				bumpTurnEpoch(epoch);
