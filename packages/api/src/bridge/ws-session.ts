@@ -149,18 +149,22 @@ interface ConnectionState {
 	unsubscribe: (() => void) | null;
 }
 
+/** Everything a frame handler needs, bundled into one param (instead of 4-5
+ * separate ones) to stay under eslint's max-params gate. */
+interface Conn {
+	context: Context;
+	deps: BridgeWsDeps;
+	socket: BridgeWsSocket;
+	state: ConnectionState;
+}
+
 function fail(socket: BridgeWsSocket, message: string): void {
 	socket.send({ t: "error", message });
 	socket.close();
 }
 
-async function handleHello(
-	context: Context,
-	deps: BridgeWsDeps,
-	socket: BridgeWsSocket,
-	state: ConnectionState,
-	frame: HelloFrame
-): Promise<void> {
+async function handleHello(conn: Conn, frame: HelloFrame): Promise<void> {
+	const { context, deps, socket, state } = conn;
 	const token = context.authedBridgeToken;
 	if (!token) {
 		fail(socket, "unauthorized");
@@ -187,20 +191,16 @@ async function handleHello(
 	await commandPump.pump();
 }
 
-async function handleEvents(
-	context: Context,
-	socket: BridgeWsSocket,
-	sessionId: string,
-	frame: EventsFrame
-): Promise<void> {
+async function handleEvents(conn: Conn, frame: EventsFrame): Promise<void> {
+	const { context, socket, state } = conn;
 	const token = context.authedBridgeToken;
-	if (!token) {
+	if (!(token && state.sessionId)) {
 		fail(socket, "hello required");
 		return;
 	}
 	try {
 		await ingestEvents(context, {
-			sessionId,
+			sessionId: state.sessionId,
 			userId: token.userId,
 			events: frame.events,
 			idempotencyKeys: frame.idempotencyKeys,
@@ -212,13 +212,8 @@ async function handleEvents(
 	socket.send({ t: "events_ack", batchId: frame.batchId });
 }
 
-async function handleFrame(
-	context: Context,
-	deps: BridgeWsDeps,
-	socket: BridgeWsSocket,
-	state: ConnectionState,
-	raw: string
-): Promise<void> {
+async function handleFrame(conn: Conn, raw: string): Promise<void> {
+	const { socket, state } = conn;
 	const frame = parseClientFrame(raw);
 	if (!frame) {
 		fail(socket, "malformed frame");
@@ -229,11 +224,11 @@ async function handleFrame(
 			fail(socket, "expected hello");
 			return;
 		}
-		await handleHello(context, deps, socket, state, frame);
+		await handleHello(conn, frame);
 		return;
 	}
 	if (frame.t === "events") {
-		await handleEvents(context, socket, state.sessionId, frame);
+		await handleEvents(conn, frame);
 		return;
 	}
 	fail(socket, "unexpected frame");
@@ -247,17 +242,22 @@ export function createBridgeWsConnection(
 	deps: BridgeWsDeps,
 	socket: BridgeWsSocket
 ): BridgeWsConnection {
-	const state: ConnectionState = { sessionId: null, unsubscribe: null };
+	const conn: Conn = {
+		context,
+		deps,
+		socket,
+		state: { sessionId: null, unsubscribe: null },
+	};
 
 	return {
-		handleMessage: (raw) => handleFrame(context, deps, socket, state, raw),
+		handleMessage: (raw) => handleFrame(conn, raw),
 		async handlePong() {
-			if (state.sessionId) {
-				await context.services.stores.bridgeSession.touch(state.sessionId);
+			if (conn.state.sessionId) {
+				await context.services.stores.bridgeSession.touch(conn.state.sessionId);
 			}
 		},
 		handleClose() {
-			state.unsubscribe?.();
+			conn.state.unsubscribe?.();
 		},
 	};
 }
