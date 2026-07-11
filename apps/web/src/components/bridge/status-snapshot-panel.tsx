@@ -17,11 +17,13 @@ import {
 import { useState } from "react";
 import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import {
+	clampPct,
 	formatCostUsd,
 	formatStatusContextUsage,
 	formatTokenCount,
 } from "./bridge-usage-format";
 import { McpServerBadge } from "./session-status-header";
+import { QuotaSection, StatusSectionHeader } from "./status-quota-section";
 
 // The detail page's on-demand status panel: a "Status" trigger next to "Past
 // conversations" (see terminal-header.tsx) that asks the CLI adapter for its
@@ -62,16 +64,6 @@ function statusStats(detail: StatusSnapshotDetail): StatusStat[] {
 		}
 	}
 	return stats;
-}
-
-const PERCENT_MIN = 0;
-const PERCENT_MAX = 100;
-
-/** Clamps a reported percentage into [0, 100] before using it as a bar width
- * — a slightly-off adapter figure (rounding, a stale cache) should never
- * overflow or invert the bar. */
-function clampPct(pct: number): number {
-	return Math.min(PERCENT_MAX, Math.max(PERCENT_MIN, pct));
 }
 
 function ContextUsageRow({
@@ -145,6 +137,65 @@ function StatusMetaRow({ detail }: { detail: StatusSnapshotDetail }) {
 	);
 }
 
+/** "This session" section: the context-window bar (when reported) plus the
+ * cost/token stat grid — everything scoped to THIS run, as opposed to the
+ * account-wide `QuotaSection` above it. Renders nothing when neither has
+ * anything to show, so a bare meta-only snapshot doesn't leave a dangling
+ * empty-titled section. */
+function SessionSection({ detail }: { detail: StatusSnapshotDetail }) {
+	const stats = statusStats(detail);
+	const hasContext =
+		detail.contextUsage !== undefined &&
+		formatStatusContextUsage(detail.contextUsage) !== null;
+	if (!hasContext && stats.length === 0) {
+		return null;
+	}
+	return (
+		<div className="flex flex-col gap-2">
+			<StatusSectionHeader title="This session" />
+			<ContextUsageRow usage={detail.contextUsage} />
+			{stats.length > 0 && (
+				<div className="flex flex-wrap gap-x-4 gap-y-2">
+					{stats.map((stat) => (
+						<div className="flex flex-col" key={stat.label}>
+							<span className="text-muted-foreground text-xs uppercase tracking-wide">
+								{stat.label}
+							</span>
+							<span className="font-medium text-sm tabular-nums">
+								{stat.value}
+							</span>
+						</div>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
+function McpSection({
+	servers,
+}: {
+	servers: StatusSnapshotDetail["mcpServers"];
+}) {
+	if (!servers || servers.length === 0) {
+		return null;
+	}
+	return (
+		<div className="flex flex-col gap-1.5">
+			<StatusSectionHeader title="MCP" />
+			<div className="flex flex-wrap items-center gap-1">
+				{servers.map((server) => (
+					<McpServerBadge
+						key={server.name}
+						name={server.name}
+						status={server.status}
+					/>
+				))}
+			</div>
+		</div>
+	);
+}
+
 function StatusSnapshotBody({
 	detail,
 	pending,
@@ -161,36 +212,12 @@ function StatusSnapshotBody({
 			</p>
 		);
 	}
-	const stats = statusStats(detail);
 	return (
-		<div className="flex flex-col gap-2.5">
+		<div className="flex flex-col gap-3">
 			<StatusMetaRow detail={detail} />
-			<ContextUsageRow usage={detail.contextUsage} />
-			{stats.length > 0 && (
-				<div className="flex flex-wrap gap-x-4 gap-y-2">
-					{stats.map((stat) => (
-						<div className="flex flex-col" key={stat.label}>
-							<span className="text-muted-foreground text-xs uppercase tracking-wide">
-								{stat.label}
-							</span>
-							<span className="font-medium text-sm tabular-nums">
-								{stat.value}
-							</span>
-						</div>
-					))}
-				</div>
-			)}
-			{detail.mcpServers && detail.mcpServers.length > 0 && (
-				<div className="flex flex-wrap items-center gap-1">
-					{detail.mcpServers.map((server) => (
-						<McpServerBadge
-							key={server.name}
-							name={server.name}
-							status={server.status}
-						/>
-					))}
-				</div>
-			)}
+			<QuotaSection quota={detail.quota} />
+			<SessionSection detail={detail} />
+			<McpSection servers={detail.mcpServers} />
 		</div>
 	);
 }
@@ -242,7 +269,7 @@ export function StatusSnapshotPanel({
 				<GaugeIcon />
 				Status
 			</PopoverTrigger>
-			<PopoverContent className="w-80">
+			<PopoverContent className="w-72 sm:w-80">
 				<PopoverHeader className="flex-row items-center justify-between">
 					<PopoverTitle>Status</PopoverTitle>
 					<Button

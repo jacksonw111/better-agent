@@ -15,6 +15,10 @@ import {
 	waitForConnect,
 } from "./terminal-test-helpers";
 
+const REMAINING_62_PATTERN = /62% left/;
+const RESETS_2H_PATTERN = /resets in 2 hours/;
+const UPDATED_PATTERN = /Updated/;
+
 // R1-c: the "Status" button asks the CLI adapter for its current on-demand
 // status (`{ control: getStatus }`) and renders whatever `status_snapshot`
 // status event comes back — see use-bridge-terminal.ts and
@@ -94,4 +98,124 @@ it("shows an empty state when no status_snapshot has arrived yet", async () => {
 			screen.getByText("No status yet — refresh to ask the agent.")
 		).toBeDefined();
 	});
+});
+
+// R4-T2: the account-quota section (R4-T1's `quota` field) — remaining%
+// inversion (the bar fills by `usedPercent`, but the text reads how much is
+// LEFT, not how much is used), a relative reset time, and a tiny "Updated…"
+// timestamp off `fetchedAt`.
+it("renders quota windows with the remaining% inversion and a relative reset time", async () => {
+	const fake = makeControllableTransport();
+	const resetsAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+	const fetchedAt = new Date(Date.now() - 60 * 1000).toISOString();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				kind: "status",
+				status: "status_snapshot",
+				detail: {
+					quota: {
+						provider: "codex",
+						fetchedAt,
+						windows: [
+							{ label: "5h window", usedPercent: 38, resetsAt },
+							{ label: "Weekly", usedPercent: 90 },
+						],
+					},
+				},
+			},
+		},
+	]);
+	render(<Terminal session={SESSION} transport={fake.transport} />);
+	await act(() => {
+		fireEvent.click(screen.getByRole("button", { name: "Status" }));
+	});
+
+	await waitFor(() => {
+		expect(screen.getByText("Account quota")).toBeDefined();
+	});
+	expect(screen.getByText("5h window")).toBeDefined();
+	expect(screen.getByText(REMAINING_62_PATTERN)).toBeDefined();
+	expect(screen.getByText(RESETS_2H_PATTERN)).toBeDefined();
+	expect(screen.getByText("Weekly")).toBeDefined();
+	expect(screen.getByText("10% left")).toBeDefined();
+	expect(screen.getByText(UPDATED_PATTERN)).toBeDefined();
+});
+
+it("shows a muted unavailable line when the quota fetch failed", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				kind: "status",
+				status: "status_snapshot",
+				detail: {
+					quota: {
+						provider: "codex",
+						fetchedAt: new Date().toISOString(),
+						unavailableReason: "codex credentials not found",
+						windows: [],
+					},
+				},
+			},
+		},
+	]);
+	render(<Terminal session={SESSION} transport={fake.transport} />);
+	await act(() => {
+		fireEvent.click(screen.getByRole("button", { name: "Status" }));
+	});
+
+	await waitFor(() => {
+		expect(
+			screen.getByText("Quota unavailable (codex credentials not found)")
+		).toBeDefined();
+	});
+});
+
+it("renders a stats-only detail (pi's shape) gracefully — no quota, no context, no mcp", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				kind: "status",
+				status: "status_snapshot",
+				detail: { costUsd: 0.02, tokens: { input: 500, output: 200 } },
+			},
+		},
+	]);
+	render(<Terminal session={SESSION} transport={fake.transport} />);
+	await act(() => {
+		fireEvent.click(screen.getByRole("button", { name: "Status" }));
+	});
+
+	await waitFor(() => {
+		expect(screen.getByText("This session")).toBeDefined();
+	});
+	expect(screen.getByText("$0.0200")).toBeDefined();
+	expect(screen.queryByText("Account quota")).toBeNull();
+});
+
+it("degrades to nothing but the empty state's absence when every status_snapshot field is empty", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: { kind: "status", status: "status_snapshot", detail: {} },
+		},
+	]);
+	render(<Terminal session={SESSION} transport={fake.transport} />);
+	await act(() => {
+		fireEvent.click(screen.getByRole("button", { name: "Status" }));
+	});
+
+	await waitFor(() => {
+		expect(
+			screen.getByRole("button", { name: "Refresh status" })
+		).toBeDefined();
+	});
+	expect(screen.queryByText("Account quota")).toBeNull();
+	expect(screen.queryByText("This session")).toBeNull();
 });

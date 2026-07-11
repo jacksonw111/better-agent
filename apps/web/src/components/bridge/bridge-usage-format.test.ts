@@ -1,5 +1,7 @@
 import { expect, it } from "vitest";
 import {
+	clampPct,
+	deriveContextPct,
 	formatContextUsage,
 	formatCostCompact,
 	formatCostUsd,
@@ -83,4 +85,45 @@ it("formats a status_snapshot's context usage from just a pct, with no token cou
 
 it("returns null when a status_snapshot reports no context usage at all", () => {
 	expect(formatStatusContextUsage({})).toBeNull();
+});
+
+it("compacts a million-plus token count to one decimal 'M'", () => {
+	expect(formatTokensCompact(1_000_000)).toBe("1.0M");
+	expect(formatTokensCompact(1_500_000)).toBe("1.5M");
+});
+
+it("derives the context pct from a usage_update's used/size when present", () => {
+	expect(deriveContextPct({ used: 48_213, size: 200_000 }, null)).toBe(24);
+});
+
+it("prefers usage_update over a status_snapshot's context usage", () => {
+	expect(
+		deriveContextPct(
+			{ used: 100_000, size: 200_000 },
+			{ contextUsage: { pct: 10 } }
+		)
+	).toBe(50);
+});
+
+it("falls back to a status_snapshot's reported pct when no usage_update exists", () => {
+	expect(deriveContextPct(null, { contextUsage: { pct: 24 } })).toBe(24);
+});
+
+it("derives the status_snapshot pct from used/size when pct is absent", () => {
+	expect(
+		deriveContextPct(null, {
+			contextUsage: { used: 48_213, size: 200_000 },
+		})
+	).toBe(24);
+});
+
+it("returns null when neither source reports any context usage", () => {
+	expect(deriveContextPct(null, null)).toBeNull();
+	expect(deriveContextPct({}, { contextUsage: {} })).toBeNull();
+});
+
+it("clamps a percentage into [0, 100]", () => {
+	expect(clampPct(-5)).toBe(0);
+	expect(clampPct(50)).toBe(50);
+	expect(clampPct(150)).toBe(100);
 });

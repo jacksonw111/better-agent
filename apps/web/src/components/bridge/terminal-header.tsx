@@ -1,74 +1,25 @@
-import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
-import { PowerIcon, SettingsIcon, ShieldOffIcon } from "lucide-react";
+import { PowerIcon, SettingsIcon } from "lucide-react";
 import { useState } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import type { AgentCapabilities } from "./agent-capabilities";
 import type { SessionListDetail } from "./bridge-session-list";
-import type { SessionReadyDetail } from "./bridge-session-status";
+import type {
+	SessionReadyDetail,
+	UsageUpdateDetail,
+} from "./bridge-session-status";
 import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
-import { AgentKindIcon } from "./local-agent-kind-icon";
+import { deriveContextPct } from "./bridge-usage-format";
+import { ContextMiniBar } from "./context-mini-bar";
 import { LocalAgentSessionPicker } from "./local-agent-session-picker";
 import { LocalAgentSettingsDialog } from "./local-agent-settings-dialog";
 import { PastConversations } from "./past-conversations";
 import { RestartSessionButton } from "./restart-session-button";
+import { SessionIdLabel } from "./session-id-label";
 import { SessionStatusHeader } from "./session-status-header";
 import { StatusSnapshotPanel } from "./status-snapshot-panel";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import { TerminalStatus } from "./terminal-status";
-
-/** Short enough to identify a session at a glance without dominating the row
- * — matches how git short-SHAs are conventionally truncated. */
-const SESSION_ID_SHORT_LENGTH = 8;
-
-function shortSessionId(id: string): string {
-	return id.length > SESSION_ID_SHORT_LENGTH
-		? `${id.slice(0, SESSION_ID_SHORT_LENGTH)}…`
-		: id;
-}
-
-/** RC-T4: pi runs shell/tool calls with NO approval gate at all (see
- * `noApprovalGate`'s doc comment in agent-capabilities.ts) — this is the only
- * user-visible signal of that, so a user doesn't mistake pi for pausing on
- * tool calls the way claude/opencode do. */
-function NoApprovalGateBadge() {
-	return (
-		<Badge
-			title="pi runs shell and other tool calls without an approval prompt — nothing here will pause for your review."
-			variant="destructive"
-		>
-			<ShieldOffIcon className="size-3" />
-			Ungated
-		</Badge>
-	);
-}
-
-/** `Session: 11c186d9…` — the ONE prominent identifier for the session, the
- * agent/claude session id when the CLI has reported one, else the bridge
- * session id. Full id in the tooltip. Deliberately not the session `label`,
- * which is routinely "untitled". */
-function SessionIdLabel({
-	agentKind,
-	caps,
-	sessionId,
-}: {
-	agentKind: BridgeSessionRow["agentKind"];
-	caps: AgentCapabilities;
-	sessionId: string;
-}) {
-	return (
-		<span className="flex min-w-0 items-center gap-2">
-			<AgentKindIcon
-				className="size-4 shrink-0 text-muted-foreground"
-				kind={agentKind}
-			/>
-			<span className="truncate font-medium text-sm" title={sessionId}>
-				Session: {shortSessionId(sessionId)}
-			</span>
-			{caps.noApprovalGate && <NoApprovalGateBadge />}
-		</span>
-	);
-}
 
 interface TerminalHeaderActionsProps {
 	activeSessionId?: string | null;
@@ -97,6 +48,10 @@ interface TerminalHeaderActionsProps {
 	/** The bridge token this session belongs to — drives the Settings dialog
 	 * (edits the token's persisted config). */
 	token?: BridgeTokenRow;
+	/** The latest streamed `usage_update` detail (opencode's context/cost) — the
+	 * mini bar's primary source, ahead of `statusSnapshot`'s own context usage
+	 * (see `deriveContextPct`). */
+	usageUpdate: UsageUpdateDetail | null;
 }
 
 /** The session picker + Settings entry — the detail-page-level controls that
@@ -157,6 +112,7 @@ function SessionDataActions({
 	listSessions,
 	sessionList,
 	statusSnapshot,
+	usageUpdate,
 }: {
 	canSend: boolean;
 	caps: AgentCapabilities;
@@ -164,7 +120,9 @@ function SessionDataActions({
 	listSessions: () => void;
 	sessionList: SessionListDetail | null;
 	statusSnapshot: StatusSnapshotDetail | null;
+	usageUpdate: UsageUpdateDetail | null;
 }) {
+	const contextPct = deriveContextPct(usageUpdate, statusSnapshot);
 	return (
 		<>
 			{caps.sessionList && (
@@ -175,10 +133,13 @@ function SessionDataActions({
 				/>
 			)}
 			{caps.contextUsage && (
-				<StatusSnapshotPanel
-					detail={statusSnapshot}
-					onRequestStatus={getStatus}
-				/>
+				<>
+					{contextPct !== null && <ContextMiniBar pct={contextPct} />}
+					<StatusSnapshotPanel
+						detail={statusSnapshot}
+						onRequestStatus={getStatus}
+					/>
+				</>
 			)}
 		</>
 	);
@@ -225,6 +186,7 @@ function TerminalHeaderActions({
 	status,
 	statusSnapshot,
 	token,
+	usageUpdate,
 }: TerminalHeaderActionsProps) {
 	return (
 		<div className="flex flex-wrap items-center gap-1.5">
@@ -241,6 +203,7 @@ function TerminalHeaderActions({
 				listSessions={listSessions}
 				sessionList={sessionList}
 				statusSnapshot={statusSnapshot}
+				usageUpdate={usageUpdate}
 			/>
 			{status !== "ended" && <RestartSessionButton restart={restart} />}
 			{status !== "ended" && onEnd !== undefined && (

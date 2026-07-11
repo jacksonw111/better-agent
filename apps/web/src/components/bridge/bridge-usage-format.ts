@@ -1,6 +1,8 @@
 // Pure display formatters for the `turn_usage` chip and `session_ready`
 // header — kept out of the components so the rounding/threshold choices are
 // unit-testable without rendering anything.
+import type { UsageUpdateDetail } from "./bridge-session-status";
+import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 
 const COST_DECIMAL_PLACES = 4;
 
@@ -38,15 +40,25 @@ export function formatDurationMs(durationMs: number): string {
 	return `${minutes}m ${seconds}s`;
 }
 
+const TOKEN_COMPACT_M_THRESHOLD = 1_000_000;
+const TOKEN_COMPACT_M_DIVISOR = 1_000_000;
+const TOKEN_COMPACT_M_DECIMALS = 1;
+
 /** Whole-`k` token count for the minimal `usage_update` line: `847` stays,
- * `48213` becomes `48k` (no decimal). Distinct from `formatTokenCount`'s
- * one-decimal form, which the denser turn_usage grid uses — this line is meant
- * to be glanceable, so `48k/200k` reads better than `48.2k/200.0k`. */
+ * `48213` becomes `48k` (no decimal), and a million-token-plus context window
+ * (some codex/opencode models report these) becomes one-decimal `M` — `48k`
+ * stays readable while a bare `1000k` wouldn't be. Distinct from
+ * `formatTokenCount`'s one-decimal-`k`-only form, which the denser turn_usage
+ * grid uses — this line is meant to be glanceable, so `48k/200k` reads better
+ * than `48.2k/200.0k`. */
 export function formatTokensCompact(count: number): string {
 	if (count < TOKEN_COMPACT_THRESHOLD) {
 		return String(count);
 	}
-	return `${Math.round(count / TOKEN_COMPACT_DIVISOR)}k`;
+	if (count < TOKEN_COMPACT_M_THRESHOLD) {
+		return `${Math.round(count / TOKEN_COMPACT_DIVISOR)}k`;
+	}
+	return `${(count / TOKEN_COMPACT_M_DIVISOR).toFixed(TOKEN_COMPACT_M_DECIMALS)}M`;
 }
 
 const TRAILING_ZEROS_RE = /0+$/;
@@ -102,6 +114,17 @@ export function formatStatusContextUsage(usage: {
 	return parts.length > 0 ? parts.join(" · ") : null;
 }
 
+const PERCENT_MIN = 0;
+const PERCENT_MAX = 100;
+
+/** Clamps a reported percentage into [0, 100] before using it as a bar width
+ * — a slightly-off adapter figure (rounding, a stale cache) should never
+ * overflow or invert a progress bar. Shared by every context/quota bar
+ * (status-snapshot-panel.tsx, status-quota-section.tsx). */
+export function clampPct(pct: number): number {
+	return Math.min(PERCENT_MAX, Math.max(PERCENT_MIN, pct));
+}
+
 /** Truncates a long cwd path from the front (keeping the tail — the part
  * that actually distinguishes one project directory from another) so the
  * header never wraps or overflows the pill row. Callers should also set
@@ -111,4 +134,36 @@ export function truncateCwd(cwd: string): string {
 		return cwd;
 	}
 	return `…${cwd.slice(cwd.length - CWD_MAX_LENGTH)}`;
+}
+
+function pctFromUsedSize(
+	used: number | undefined,
+	size: number | undefined
+): number | undefined {
+	return used !== undefined && size !== undefined && size > 0
+		? Math.round((used / size) * PERCENT_MULTIPLIER)
+		: undefined;
+}
+
+/** Derives the ONE context-fill percentage the header's mini progress bar
+ * shows (R4-T2), from whichever of the two live sources most recently
+ * reported one: opencode's streamed `usage_update` (used/size only, no `pct`
+ * field) takes priority since it's the freshest live signal, falling back to
+ * the last `status_snapshot`'s `contextUsage` (its own `pct` if reported,
+ * else derived from its used/size) when no `usage_update` has arrived. `null`
+ * when neither source has anything usable — the caller hides the bar rather
+ * than showing a misleading 0%. */
+export function deriveContextPct(
+	usageUpdate: Pick<UsageUpdateDetail, "size" | "used"> | null,
+	statusSnapshot: Pick<StatusSnapshotDetail, "contextUsage"> | null
+): number | null {
+	const fromUsageUpdate = pctFromUsedSize(usageUpdate?.used, usageUpdate?.size);
+	if (fromUsageUpdate !== undefined) {
+		return fromUsageUpdate;
+	}
+	const contextUsage = statusSnapshot?.contextUsage;
+	const fromSnapshot =
+		contextUsage?.pct ??
+		pctFromUsedSize(contextUsage?.used, contextUsage?.size);
+	return fromSnapshot ?? null;
 }

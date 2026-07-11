@@ -147,6 +147,7 @@ export function Terminal({
 				status={view.status}
 				statusSnapshot={view.statusSnapshot}
 				token={token}
+				usageUpdate={view.usageUpdate}
 			/>
 			<BodyFromView
 				caps={caps}
