@@ -1,10 +1,21 @@
 import type { Dispatch, MutableRefObject } from "react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import type { BridgeTransport } from "./bridge-transport";
 import type { ConnectionAction, ConnectionState } from "./terminal-connection";
 import type { FeedAction } from "./use-bridge-feed";
 
 const POLL_INTERVAL_MS = 2000;
+// How often the poll fallback retries an SSE upgrade while degraded (see
+// `attemptSseRecovery`) — failures here never accumulate toward
+// MAX_SSE_FAILURES (terminal-connection.ts), so it just retries forever.
+const SSE_RECOVERY_INTERVAL_MS = 30_000;
+// Stable sonner ids: a rerun of the degrade/recovery effect updates the
+// existing toast in place instead of stacking a duplicate.
+const DEGRADED_TOAST_ID = "bridge-connection-degraded";
+const RECOVERED_TOAST_ID = "bridge-connection-recovered";
+const DEGRADED_TOAST_MESSAGE = "实时连接中断，已切换为轮询";
+const RECOVERED_TOAST_MESSAGE = "已恢复实时连接";
 
 // A useEffect callback must return consistently (always a cleanup function or
 // never); biome's formatter also collapses `return undefined;` to a bare
@@ -162,9 +173,96 @@ export interface PollFallbackArgs {
 	transport: BridgeTransport;
 }
 
+interface PollOnceArgs {
+	dispatchConn: Dispatch<ConnectionAction>;
+	dispatchFeed: Dispatch<FeedAction>;
+	isCancelled: () => boolean;
+	maxSeenIdRef: MutableRefObject<number>;
+	sessionId: string;
+	transport: BridgeTransport;
+}
+
+/** One `observe(afterId)` round trip, folded into the feed/connection state.
+ * Split out of `usePollFallback` purely to keep that effect body short. */
+async function pollOnce(args: PollOnceArgs): Promise<void> {
+	const {
+		sessionId,
+		maxSeenIdRef,
+		transport,
+		dispatchFeed,
+		dispatchConn,
+		isCancelled,
+	} = args;
+	try {
+		const events = await transport.observe({
+			sessionId,
+			afterId: maxSeenIdRef.current,
+		});
+		if (isCancelled()) {
+			return;
+		}
+		dispatchFeed({ type: "events", events });
+		dispatchConn({ type: "polled" });
+	} catch {
+		// transient poll failure: silently retried on the next tick
+	}
+}
+
+type SseRecoveryArgs = Omit<PollOnceArgs, "isCancelled">;
+
+/** One SSE upgrade attempt while degraded to polling: reuses the same
+ * `maxSeenIdRef` cursor the poll loop has been advancing, so a recovered
+ * stream resumes where polling left off instead of replaying from scratch. On
+ * success, flips status back to live and shows the recovery toast; on failure
+ * it does nothing (no dispatch, no failure count) — the caller's interval
+ * just tries again next tick, forever. */
+function attemptSseRecovery(args: SseRecoveryArgs): () => void {
+	const { sessionId, maxSeenIdRef, transport, dispatchFeed, dispatchConn } =
+		args;
+	return transport.connectStream({
+		sessionId,
+		afterId: maxSeenIdRef.current,
+		onOpen: () => {
+			toast.success(RECOVERED_TOAST_MESSAGE, { id: RECOVERED_TOAST_ID });
+			dispatchConn({ type: "open" });
+		},
+		onEvent: (raw) => dispatchFeed({ type: "events", events: [raw] }),
+		onError: () => {
+			// stay polling: retried on the next SSE_RECOVERY_INTERVAL_MS tick
+		},
+	});
+}
+
+/** Starts the poll loop and the SSE-recovery timer together, returning a
+ * cleanup that stops both plus any in-flight recovery connection. Split out
+ * of `usePollFallback`'s effect so that function stays under the repo's
+ * max-lines-per-function gate. */
+function runPollingSteadyState(args: SseRecoveryArgs): () => void {
+	let cancelled = false;
+	const poll = () => pollOnce({ ...args, isCancelled: () => cancelled });
+	let unsubscribeRecovery: (() => void) | undefined;
+	const tryRecovery = () => {
+		unsubscribeRecovery?.();
+		unsubscribeRecovery = attemptSseRecovery(args);
+	};
+	poll();
+	const pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+	const recoveryTimer = setInterval(tryRecovery, SSE_RECOVERY_INTERVAL_MS);
+	return () => {
+		cancelled = true;
+		clearInterval(pollTimer);
+		clearInterval(recoveryTimer);
+		unsubscribeRecovery?.();
+	};
+}
+
 /** Degraded steady-state: polls `observe(afterId)` on a fixed interval while
- * status is "polling". Runs one poll immediately so the fallback doesn't wait
- * a full interval before showing anything. */
+ * status is "polling", plus retries an SSE upgrade every
+ * `SSE_RECOVERY_INTERVAL_MS` (see `runPollingSteadyState`). One effect/
+ * cleanup owns both, so a status flip to "live" tears down the poll interval,
+ * the recovery timer, and any in-flight recovery connection together —
+ * `useSseConnection` then opens the live stream fresh, so two SSE connections
+ * are never open at once. */
 export function usePollFallback(args: PollFallbackArgs): void {
 	const {
 		sessionId,
@@ -179,28 +277,14 @@ export function usePollFallback(args: PollFallbackArgs): void {
 		if (!enabled || status !== "polling") {
 			return noCleanup;
 		}
-		let cancelled = false;
-		const poll = async () => {
-			try {
-				const events = await transport.observe({
-					sessionId,
-					afterId: maxSeenIdRef.current,
-				});
-				if (cancelled) {
-					return;
-				}
-				dispatchFeed({ type: "events", events });
-				dispatchConn({ type: "polled" });
-			} catch {
-				// transient poll failure: silently retried on the next tick
-			}
-		};
-		poll();
-		const interval = setInterval(poll, POLL_INTERVAL_MS);
-		return () => {
-			cancelled = true;
-			clearInterval(interval);
-		};
+		toast.warning(DEGRADED_TOAST_MESSAGE, { id: DEGRADED_TOAST_ID });
+		return runPollingSteadyState({
+			sessionId,
+			maxSeenIdRef,
+			transport,
+			dispatchFeed,
+			dispatchConn,
+		});
 	}, [
 		sessionId,
 		status,
