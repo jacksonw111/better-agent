@@ -16,7 +16,10 @@ const MAX_DAILY_ACTIVITY_DAYS = 180;
  * unbounded range means unbounded rows over the wire. */
 const MAX_AGGREGATE_RANGE_DAYS = 366;
 
-interface Totals {
+/** Exported (not just declared) because the routers' inferred types surface
+ * it — an unexported name here fails TS4023 ("cannot be named") when
+ * downstream packages (agent-client) emit declarations against AppRouter. */
+export interface Totals {
 	costCents: number;
 	inputTokens: number;
 	outputTokens: number;
