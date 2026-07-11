@@ -14,11 +14,20 @@ import {
 	parseCodexTokenUsage,
 } from "../normalize/codex-status";
 import type { NormalizedEvent } from "../normalize/types";
+import { fetchCodexQuota } from "./quota/codex-quota";
+import { createQuotaCache, type QuotaCache } from "./quota/quota-cache";
+import { withTimeout } from "./quota/quota-shared";
 import { STATUS_SNAPSHOT_STATUS, type StatusSnapshotDetail } from "./types";
 
 interface EventSink {
 	push(event: NormalizedEvent): void;
 }
+
+/** R4-T1: mirrors claude-code-status.ts's own `QUOTA_TIMEOUT_MS`/
+ * `defaultClaudeQuotaCache` — see those doc comments for the fail-open/
+ * caching rationale, identical here. */
+const QUOTA_TIMEOUT_MS = 5000;
+const defaultCodexQuotaCache: QuotaCache = createQuotaCache(fetchCodexQuota);
 
 /** Mutable cache of the fields codex streams as loose notifications rather
  * than answering on demand (see the module doc) — filled in by
@@ -93,23 +102,30 @@ export function codexUsageUpdateEvent(
 }
 
 /** Builds the `AgentHandle.getStatus` implementation: pushes ONE
- * `status_snapshot` event carrying whatever's in `cache` right now —
- * fire-and-forget and synchronous (no RPC round trip, unlike pi/claude),
- * matching the `AgentHandle.getStatus` contract in ./types.ts. */
+ * `status_snapshot` event carrying whatever's in `cache` right now — no RPC
+ * round trip, unlike pi/claude — plus the account's quota (R4-T1), guarded
+ * by `QUOTA_TIMEOUT_MS` via the shared `quotaCache`. Fire-and-forget (the
+ * method itself returns synchronously; the push happens once the quota race
+ * settles). `quotaCache` defaults to the process-wide cache; tests pass a
+ * fake so no real fs/network call happens. */
 export function makeCodexGetStatus(
 	cache: CodexStatusCache,
-	events: EventSink
+	events: EventSink,
+	quotaCache: QuotaCache = defaultCodexQuotaCache
 ): () => void {
 	return () => {
-		events.push({
-			kind: "status",
-			status: STATUS_SNAPSHOT_STATUS,
-			detail: {
-				model: cache.model,
-				running: cache.running,
-				tokens: cache.tokens,
-				contextUsage: cache.contextUsage,
-			},
+		withTimeout(quotaCache.get(), QUOTA_TIMEOUT_MS, undefined).then((quota) => {
+			events.push({
+				kind: "status",
+				status: STATUS_SNAPSHOT_STATUS,
+				detail: {
+					model: cache.model,
+					running: cache.running,
+					tokens: cache.tokens,
+					contextUsage: cache.contextUsage,
+					quota,
+				},
+			});
 		});
 	};
 }

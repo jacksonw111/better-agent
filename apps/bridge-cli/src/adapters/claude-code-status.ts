@@ -14,7 +14,14 @@ import type {
 import { listSessions as sdkListSessions } from "@anthropic-ai/claude-agent-sdk";
 import type { NormalizedEvent } from "../normalize/types";
 import { isRecord } from "../normalize/types";
-import { STATUS_SNAPSHOT_STATUS, type StatusSnapshotDetail } from "./types";
+import { fetchClaudeQuota } from "./quota/claude-quota";
+import { createQuotaCache, type QuotaCache } from "./quota/quota-cache";
+import { withTimeout } from "./quota/quota-shared";
+import {
+	type QuotaSnapshot,
+	STATUS_SNAPSHOT_STATUS,
+	type StatusSnapshotDetail,
+} from "./types";
 
 /** How long each SDK control-channel call (`supportedModels`,
  * `getContextUsage`, `mcpServerStatus`) may take before its caller proceeds
@@ -116,12 +123,27 @@ export async function withReportedModels(
 	};
 }
 
+/** R4-T1: how long `getStatus` waits on the (cached) claude quota fetch
+ * before proceeding without it — the brief's "race 5s", independent of the
+ * quota fetcher's own internal HTTP timeout (see quota/claude-quota.ts). A
+ * cache hit resolves near-instantly; only a cold/expired lookup ever gets
+ * close to this. */
+const QUOTA_TIMEOUT_MS = 5000;
+
+/** One cache per CLI process — quota barely changes between a session's
+ * successive `getStatus` polls, so this is shared across every claude-code
+ * session the process drives (see quota/quota-cache.ts's own doc comment).
+ * Tests inject their own `QuotaCache` into `makeClaudeGetStatus` instead of
+ * hitting this one, so it's never exercised outside a real run. */
+const defaultClaudeQuotaCache: QuotaCache = createQuotaCache(fetchClaudeQuota);
+
 /** Assembles the snapshot from whatever resolved: a piece that failed or
  * timed out is simply absent, never an error — the web renders what arrived. */
 function buildSnapshotDetail(
 	usage: SDKControlGetContextUsageResponse | undefined,
 	servers: McpServerStatus[] | undefined,
-	lastKnown: LastKnownSessionInfo
+	lastKnown: LastKnownSessionInfo,
+	quota: QuotaSnapshot | undefined
 ): StatusSnapshotDetail {
 	return {
 		model: usage?.model ?? lastKnown.model,
@@ -135,27 +157,33 @@ function buildSnapshotDetail(
 			name: server.name,
 			status: server.status,
 		})),
+		quota,
 	};
 }
 
 /** Builds the `AgentHandle.getStatus` implementation: fetches context usage +
  * MCP statuses off the SDK control channel (each guarded — see
- * `resolveGuarded`) and pushes one `status_snapshot` event with whatever
- * resolved. Fire-and-forget, matching `makeListSessions`'s shape. */
+ * `resolveGuarded`) plus the account's quota (R4-T1, guarded by
+ * `QUOTA_TIMEOUT_MS` via the shared `quotaCache`) and pushes one
+ * `status_snapshot` event with whatever resolved. Fire-and-forget, matching
+ * `makeListSessions`'s shape. `quotaCache` defaults to the process-wide
+ * cache; tests pass a fake so no real fs/network call happens. */
 export function makeClaudeGetStatus(
 	session: StatusQuery,
 	events: EventSink,
-	lastKnown: LastKnownSessionInfo
+	lastKnown: LastKnownSessionInfo,
+	quotaCache: QuotaCache = defaultClaudeQuotaCache
 ): () => void {
 	return () => {
 		Promise.all([
 			resolveGuarded(() => session.getContextUsage()),
 			resolveGuarded(() => session.mcpServerStatus()),
-		]).then(([usage, servers]) => {
+			withTimeout(quotaCache.get(), QUOTA_TIMEOUT_MS, undefined),
+		]).then(([usage, servers, quota]) => {
 			events.push({
 				kind: "status",
 				status: STATUS_SNAPSHOT_STATUS,
-				detail: buildSnapshotDetail(usage, servers, lastKnown),
+				detail: buildSnapshotDetail(usage, servers, lastKnown, quota),
 			});
 		});
 	};

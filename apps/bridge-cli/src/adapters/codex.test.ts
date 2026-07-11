@@ -3,8 +3,24 @@ import { codexAdapter } from "./codex";
 import type { JsonRpcIo } from "./jsonrpc-io";
 import { connectJsonRpc } from "./jsonrpc-io";
 import type { ProcessExitInfo } from "./process-io";
+import type { QuotaSnapshot } from "./types";
 
 vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
+
+// R4-T1: codex.ts's real getStatus wiring now also races the account-quota
+// cache (see codex-status.ts's `defaultCodexQuotaCache`) — mocked here so
+// this suite (which drives the REAL `codexAdapter`, unlike the quota
+// fetcher's own unit tests) never touches the real ~/.codex/auth.json or
+// makes a real network call.
+const FAKE_QUOTA: QuotaSnapshot = {
+	provider: "codex",
+	windows: [],
+	fetchedAt: "2026-07-11T00:00:00Z",
+	unavailableReason: "test double — no real fetch",
+};
+vi.mock("./quota/codex-quota", () => ({
+	fetchCodexQuota: vi.fn(() => Promise.resolve(FAKE_QUOTA)),
+}));
 
 type RequestHandler = (id: number, method: string, params: unknown) => void;
 type NotificationHandler = (method: string, params: unknown) => void;
@@ -236,6 +252,7 @@ describe("codexAdapter - getStatus", () => {
 				running: true,
 				tokens: { input: 100, output: 20, cacheRead: 5 },
 				contextUsage: { used: 120, size: 1000, pct: 12 },
+				quota: FAKE_QUOTA,
 			},
 			turnEpoch: 0,
 		});
@@ -262,6 +279,7 @@ describe("codexAdapter - getStatus - empty snapshot", () => {
 				running: undefined,
 				tokens: undefined,
 				contextUsage: undefined,
+				quota: FAKE_QUOTA,
 			},
 			turnEpoch: 0,
 		});

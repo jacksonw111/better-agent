@@ -98,3 +98,72 @@ it("parses a partial detail, leaving unreported fields undefined", () => {
 		mcpServers: undefined,
 	});
 });
+
+// R4-T1: the account-quota half of a status_snapshot.
+it("parses a well-formed quota snapshot with its windows", () => {
+	const detail = parseStatusSnapshotDetail({
+		model: "codex-mini",
+		quota: {
+			provider: "codex",
+			fetchedAt: "2026-07-11T12:00:00Z",
+			windows: [
+				{
+					label: "5小时窗口",
+					usedPercent: 42,
+					resetsAt: "2026-07-11T18:00:00Z",
+				},
+				{ label: "Credits", usedPercent: 0, detail: "Balance: 12.5" },
+			],
+		},
+	});
+	expect(detail?.quota).toEqual({
+		provider: "codex",
+		fetchedAt: "2026-07-11T12:00:00Z",
+		plan: undefined,
+		unavailableReason: undefined,
+		windows: [
+			{
+				label: "5小时窗口",
+				usedPercent: 42,
+				resetsAt: "2026-07-11T18:00:00Z",
+				detail: undefined,
+			},
+			{
+				label: "Credits",
+				usedPercent: 0,
+				resetsAt: undefined,
+				detail: "Balance: 12.5",
+			},
+		],
+	});
+});
+
+it("parses a fail-open quota snapshot (empty windows + unavailableReason)", () => {
+	const detail = parseStatusSnapshotDetail({
+		quota: {
+			provider: "claude",
+			fetchedAt: "2026-07-11T12:00:00Z",
+			windows: [],
+			unavailableReason: "credentials not accessible",
+		},
+	});
+	expect(detail?.quota).toEqual({
+		provider: "claude",
+		fetchedAt: "2026-07-11T12:00:00Z",
+		plan: undefined,
+		windows: [],
+		unavailableReason: "credentials not accessible",
+	});
+});
+
+it("drops a malformed quota value instead of throwing", () => {
+	expect(parseStatusSnapshotDetail({ quota: "nope" })?.quota).toBeUndefined();
+	expect(
+		parseStatusSnapshotDetail({ quota: { provider: "codex" } })?.quota
+	).toBeUndefined();
+	expect(
+		parseStatusSnapshotDetail({
+			quota: { provider: "codex", fetchedAt: "t", windows: [{ label: "x" }] },
+		})?.quota?.windows
+	).toEqual([]);
+});

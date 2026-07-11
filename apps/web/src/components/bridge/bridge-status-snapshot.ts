@@ -53,10 +53,34 @@ export interface StatusSnapshotDetail {
 	mcpServers?: McpServerStatus[];
 	model?: string;
 	permissionMode?: string;
+	/** R4-T1: the account's plan/rate-limit quota (claude-code/codex only) —
+	 * see `QuotaSnapshot` below. */
+	quota?: QuotaSnapshot;
 	/** True while the agent is actively generating; absent when the agent
 	 * doesn't report it. */
 	running?: boolean;
 	tokens?: StatusSnapshotTokens;
+}
+
+/** One rate-limit window on a `QuotaSnapshot`. Mirrors `QuotaWindow` in
+ * `apps/bridge-cli/src/adapters/types.ts`. */
+export interface QuotaWindow {
+	detail?: string;
+	label: string;
+	resetsAt?: string;
+	usedPercent: number;
+}
+
+/** R4-T1: the account-quota half of a `status_snapshot`, fetched CLI-side
+ * with the user's local OAuth credentials — the server never sees them.
+ * Mirrors `QuotaSnapshot` in `apps/bridge-cli/src/adapters/types.ts`
+ * field-for-field — keep the two in sync. */
+export interface QuotaSnapshot {
+	fetchedAt: string;
+	plan?: string;
+	provider: string;
+	unavailableReason?: string;
+	windows: QuotaWindow[];
 }
 
 function asOptionalStatusContextUsage(
@@ -88,6 +112,48 @@ function asOptionalStatusTokens(
 	};
 }
 
+function asOptionalQuotaWindow(value: unknown): QuotaWindow | undefined {
+	if (!isRecord(value) || typeof value.usedPercent !== "number") {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const label = asOptionalString(value.label);
+	if (label === undefined) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	return {
+		label,
+		usedPercent: value.usedPercent,
+		resetsAt: asOptionalString(value.resetsAt),
+		detail: asOptionalString(value.detail),
+	};
+}
+
+function asOptionalQuotaSnapshot(value: unknown): QuotaSnapshot | undefined {
+	if (!isRecord(value) || typeof value.provider !== "string") {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const fetchedAt = asOptionalString(value.fetchedAt);
+	if (fetchedAt === undefined) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const windows = Array.isArray(value.windows)
+		? value.windows
+				.map(asOptionalQuotaWindow)
+				.filter((window): window is QuotaWindow => window !== undefined)
+		: [];
+	return {
+		provider: value.provider,
+		fetchedAt,
+		windows,
+		plan: asOptionalString(value.plan),
+		unavailableReason: asOptionalString(value.unavailableReason),
+	};
+}
+
 /** Parses a `status_snapshot` detail defensively — same "trust nothing"
  * posture as `parseSessionReadyDetail`/`parseUsageUpdateDetail`: every field
  * that doesn't match its expected shape becomes `undefined` rather than
@@ -103,6 +169,7 @@ export function parseStatusSnapshotDetail(
 		model: asOptionalString(detail.model),
 		permissionMode: asOptionalString(detail.permissionMode),
 		running: typeof detail.running === "boolean" ? detail.running : undefined,
+		quota: asOptionalQuotaSnapshot(detail.quota),
 		costUsd: asOptionalNumber(detail.costUsd),
 		contextUsage: asOptionalStatusContextUsage(detail.contextUsage),
 		tokens: asOptionalStatusTokens(detail.tokens),

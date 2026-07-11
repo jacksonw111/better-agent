@@ -1,4 +1,5 @@
 import type { NormalizedEvent } from "../normalize/types";
+import type { QuotaSnapshot } from "./quota/types";
 
 /** Which local coding agent a bridge session drives. Mirrors `AGENT_KINDS`
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */
@@ -117,11 +118,22 @@ export interface StatusSnapshotDetail {
 	mcpServers?: { name: string; status: string }[];
 	model?: string;
 	permissionMode?: string;
+	/** R4-T1: the account's plan/rate-limit quota, fetched client-side (see
+	 * `./quota/codex-quota.ts` / `./quota/claude-quota.ts`) with the user's
+	 * LOCAL OAuth credentials — the server never sees them. Only claude-code
+	 * and codex attach this (pi/opencode have no equivalent account-quota
+	 * concept); absent while the fetch is still cold and hasn't resolved
+	 * within its own timeout. */
+	quota?: QuotaSnapshot;
 	/** True while the agent is actively generating (pi's `isStreaming`, codex's
 	 * thread status); absent when the agent doesn't report it. */
 	running?: boolean;
 	tokens?: StatusSnapshotTokens;
 }
+
+// `QuotaWindow`/`QuotaSnapshot` (R4-T1) live in ./quota/types.ts — split out
+// for the 300-line cap, re-exported here (mirrors `AgentCapabilities` above).
+export type { QuotaSnapshot, QuotaWindow } from "./quota/types";
 
 /** A running agent process, already normalizing its own output. */
 export interface AgentHandle {
