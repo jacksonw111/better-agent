@@ -4,10 +4,7 @@ import {
 	buildPiGetCommandsCommand,
 	buildPiGetStateCommand,
 	buildPiPromptCommand,
-	normalizePiAvailableModels,
-	normalizePiCommandsResponse,
 	normalizePiModelProviders,
-	normalizePiStateModel,
 } from "../normalize/pi-commands";
 import {
 	isRecord,
@@ -19,10 +16,11 @@ import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { wirePiExtensionUiRequest } from "./pi-approvals";
 import { makePiSetModel, makePiSetThinking } from "./pi-controls";
 import { makePiSendWith } from "./pi-send-with";
+import { makePiSessionReadyTracker, tryParseJson } from "./pi-session-ready";
 import { makePiStatusTracker } from "./pi-status";
 import { makePiStreamingTracker } from "./pi-streaming";
 import { spawnProcessIo } from "./process-io";
-import { PI_SESSION_CAPABILITIES } from "./session-capabilities";
+import { createQuestionRegistry, type QuestionRegistry } from "./questions";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -38,60 +36,6 @@ import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
  * See the ASSUMPTION note in normalize/pi.ts for the protocol shapes. */
 const PI_ARGS = ["--mode", "rpc"];
 
-function tryParseJson(line: string): unknown {
-	try {
-		return JSON.parse(line);
-	} catch {
-		return null;
-	}
-}
-
-/**
- * Tracks the three pieces `session_ready` is assembled from — `get_state`'s
- * model, `get_available_models`' list, and `get_commands`' slash commands/skills
- * — and pushes exactly one `session_ready` event, the moment the commands list
- * is known (using whatever model/models have arrived by then, if any).
- */
-function makePiSessionReadyTracker(events: {
-	push(event: NormalizedEvent): void;
-}): {
-	onLine(raw: unknown): void;
-} {
-	let emitted = false;
-	let model: string | undefined;
-	let models: string[] | undefined;
-	return {
-		onLine(raw: unknown): void {
-			const nextModel = normalizePiStateModel(raw);
-			if (nextModel !== undefined) {
-				model = nextModel;
-			}
-			const nextModels = normalizePiAvailableModels(raw);
-			if (nextModels !== undefined) {
-				models = nextModels;
-			}
-			if (emitted) {
-				return;
-			}
-			const commands = normalizePiCommandsResponse(raw);
-			if (!commands) {
-				return;
-			}
-			emitted = true;
-			events.push({
-				kind: "status",
-				status: "session_ready",
-				detail: {
-					model,
-					models,
-					...commands,
-					capabilities: PI_SESSION_CAPABILITIES,
-				},
-			});
-		},
-	};
-}
-
 /** The shared plumbing `drainPiStdout` closes over — bundled into one object
  * so it stays under the repo's max-params gate. */
 interface PiStdoutDeps {
@@ -103,6 +47,8 @@ interface PiStdoutDeps {
 	// lines (tool_execution_update's running preview, durationMs) — one
 	// instance per session, so state doesn't leak across sessions.
 	normalize: (raw: unknown) => NormalizedEvent[];
+	// R3-T1 Part B: a `select` extension_ui_request's QuestionCard reply path.
+	questions: QuestionRegistry;
 	sessionReady: { onLine(raw: unknown): void };
 	statusTracker: { onLine(raw: unknown): void };
 	// R2-T3 item 1 (CRITICAL): tracks whether pi is mid-turn so `send()` can
@@ -122,6 +68,7 @@ async function drainPiStdout(deps: PiStdoutDeps): Promise<void> {
 		io,
 		modelProviders,
 		normalize,
+		questions,
 		sessionReady,
 		statusTracker,
 		streaming,
@@ -132,7 +79,7 @@ async function drainPiStdout(deps: PiStdoutDeps): Promise<void> {
 		statusTracker.onLine(raw);
 		streaming.onLine(raw);
 		if (isRecord(raw)) {
-			wirePiExtensionUiRequest(raw, io, events, approvals);
+			wirePiExtensionUiRequest(raw, { approvals, events, io, questions });
 		}
 		const nextProviders = normalizePiModelProviders(raw);
 		if (nextProviders) {
@@ -166,6 +113,8 @@ interface PiAgentHandleDeps {
 		writeLine(line: string): void;
 	};
 	modelProviders: Record<string, string>;
+	// R3-T1 Part B: a `select` extension_ui_request's QuestionCard reply path.
+	questions: QuestionRegistry;
 	statusTracker: { request(): void };
 	// R2-T3 item 1 (CRITICAL): `send()` consults this to decide whether the
 	// prompt frame needs `streamingBehavior: "followUp"` — see pi-streaming.ts.
@@ -183,12 +132,17 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		events,
 		io,
 		modelProviders,
+		questions,
 		statusTracker,
 		streaming,
 	} = deps;
 	return {
 		answerApproval(requestId: string, optionId: string): void {
 			approvals.answer(requestId, optionId);
+		},
+		// R3-T1 Part B: the web's reply to a `select` request's QuestionCard.
+		answerQuestion(requestId: string, answers: string[][]): void {
+			questions.answer(requestId, answers);
 		},
 		events,
 		getStatus: statusTracker.request,
@@ -230,6 +184,7 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 			io.stop();
 			events.close();
 			approvals.clear();
+			questions.clear();
 		},
 	};
 }
@@ -253,10 +208,14 @@ export const piAdapter: Adapter = {
 			epoch
 		);
 		const approvals = createApprovalRegistry(events);
+		// R3-T1 Part B: a `select` extension_ui_request's QuestionCard reply
+		// path — parallel to `approvals`, cleared the same way on exit/stop.
+		const questions = createQuestionRegistry(events);
 		io.onExit(() => {
 			events.push({ kind: "status", status: AGENT_EXITED_STATUS });
 			events.close();
 			approvals.clear();
+			questions.clear();
 		});
 
 		const sessionReady = makePiSessionReadyTracker(events);
@@ -271,6 +230,7 @@ export const piAdapter: Adapter = {
 			io,
 			modelProviders,
 			normalize: createPiNormalizer(),
+			questions,
 			sessionReady,
 			statusTracker,
 			streaming,
@@ -291,6 +251,7 @@ export const piAdapter: Adapter = {
 			events,
 			io,
 			modelProviders,
+			questions,
 			statusTracker,
 			streaming,
 		});

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { normalizePiExtensionUiRequest } from "./pi-extension-ui";
 
-describe("normalizePiExtensionUiRequest (RC-T4) - select/confirm map to a card", () => {
-	it("maps a select request to an ApprovalEvent whose option ids are the option labels", () => {
+describe("normalizePiExtensionUiRequest (RC-T4 / R3-T1 Part B) - select/confirm map to a card", () => {
+	it("maps a select request to a QuestionEvent — one question, its raw option labels", () => {
 		const events = normalizePiExtensionUiRequest({
 			type: "extension_ui_request",
 			id: "req-1",
@@ -12,11 +12,9 @@ describe("normalizePiExtensionUiRequest (RC-T4) - select/confirm map to a card",
 		});
 		expect(events).toEqual([
 			{
-				detail: undefined,
-				kind: "approval",
-				options: [
-					{ id: "Allow", label: "Allow" },
-					{ id: "Block", label: "Block" },
+				kind: "question",
+				questions: [
+					{ options: ["Allow", "Block"], text: "Allow dangerous command?" },
 				],
 				requestId: "req-1",
 				title: "Allow dangerous command?",
@@ -24,7 +22,7 @@ describe("normalizePiExtensionUiRequest (RC-T4) - select/confirm map to a card",
 		]);
 	});
 
-	it("maps a confirm request to an ApprovalEvent with fixed confirmed/declined options", () => {
+	it("maps a confirm request to an ApprovalEvent with fixed 确认/取消 options", () => {
 		const events = normalizePiExtensionUiRequest({
 			type: "extension_ui_request",
 			id: "req-2",
@@ -37,8 +35,8 @@ describe("normalizePiExtensionUiRequest (RC-T4) - select/confirm map to a card",
 				detail: "All messages will be lost.",
 				kind: "approval",
 				options: [
-					{ id: "confirmed", label: "Confirm" },
-					{ id: "declined", label: "Decline" },
+					{ id: "confirm", label: "确认" },
+					{ id: "cancel", label: "取消" },
 				],
 				requestId: "req-2",
 				title: "Clear session?",

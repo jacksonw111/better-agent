@@ -199,13 +199,13 @@ describe("normalizePiStateModel", () => {
 	});
 });
 
-describe("buildPiExtensionUiResponse (RC-T4)", () => {
-	it("replies a confirm method with a confirmed boolean, true only for the confirmed option id", () => {
+describe("buildPiExtensionUiResponse (RC-T4 / R3-T1 Part B)", () => {
+	it("replies a confirm method with a confirmed boolean, true only for the 'confirm' option id", () => {
 		expect(
-			JSON.parse(buildPiExtensionUiResponse("confirm", "req-1", "confirmed"))
+			JSON.parse(buildPiExtensionUiResponse("confirm", "req-1", "confirm"))
 		).toEqual({ type: "extension_ui_response", id: "req-1", confirmed: true });
 		expect(
-			JSON.parse(buildPiExtensionUiResponse("confirm", "req-1", "declined"))
+			JSON.parse(buildPiExtensionUiResponse("confirm", "req-1", "cancel"))
 		).toEqual({ type: "extension_ui_response", id: "req-1", confirmed: false });
 	});
 

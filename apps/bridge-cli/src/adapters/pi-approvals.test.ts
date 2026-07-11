@@ -74,8 +74,8 @@ describe("piAdapter - extension_ui_request auto-cancel (RC-T4)", () => {
 	});
 });
 
-describe("piAdapter - extension_ui_request select presents a card (RC-T4)", () => {
-	it("surfaces a select request as an approval card, and answering it writes the picked value back on stdin", async () => {
+describe("piAdapter - extension_ui_request select presents a card (RC-T4 / R3-T1 Part B)", () => {
+	it("surfaces a select request as a QuestionCard, and answering it writes the picked value back on stdin", async () => {
 		const { io, pushLine } = createFakeProcessIo();
 		vi.mocked(spawnProcessIo).mockResolvedValue(io);
 
@@ -94,20 +94,58 @@ describe("piAdapter - extension_ui_request select presents a card (RC-T4)", () =
 
 		const { value: card } = await iterator.next();
 		expect(card).toMatchObject({
-			kind: "approval",
+			kind: "question",
 			requestId: "req-2",
-			options: [
-				{ id: "Allow", label: "Allow" },
-				{ id: "Block", label: "Block" },
+			questions: [
+				{ options: ["Allow", "Block"], text: "Allow dangerous command?" },
 			],
 		});
 
-		handle.answerApproval("req-2", "Allow");
+		handle.answerQuestion?.("req-2", [["Allow"]]);
 		expect(io.writeLine).toHaveBeenCalledWith(
 			JSON.stringify({
 				type: "extension_ui_response",
 				id: "req-2",
 				value: "Allow",
+			})
+		);
+	});
+});
+
+describe("piAdapter - extension_ui_request confirm presents a card (R3-T1 Part B)", () => {
+	it("surfaces a confirm request as an approval card with 确认/取消 options, and answering '确认' writes confirmed: true back on stdin", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+
+		pushLine(
+			JSON.stringify({
+				type: "extension_ui_request",
+				id: "req-4",
+				method: "confirm",
+				title: "Clear session?",
+				message: "All messages will be lost.",
+			})
+		);
+
+		const { value: card } = await iterator.next();
+		expect(card).toMatchObject({
+			kind: "approval",
+			requestId: "req-4",
+			options: [
+				{ id: "confirm", label: "确认" },
+				{ id: "cancel", label: "取消" },
+			],
+		});
+
+		handle.answerApproval("req-4", "confirm");
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({
+				type: "extension_ui_response",
+				id: "req-4",
+				confirmed: true,
 			})
 		);
 	});

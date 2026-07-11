@@ -123,7 +123,8 @@ export function buildPiSetModelCommand(
 const PI_CONFIRM_METHOD = "confirm";
 
 /** Builds the stdin reply for a `select`/`confirm` extension_ui_request whose
- * `optionId` (an `ApprovalEvent` option id from `normalizePiExtensionUiRequest`)
+ * `optionId` (a `select`'s chosen option string, or one of `confirm`'s
+ * 确认/取消 `ApprovalEvent` option ids — see `normalizePiExtensionUiRequest`)
  * was actually answered by the user — never called for the cancel/timeout
  * path, see `buildPiExtensionUiCancelResponse`. */
 export function buildPiExtensionUiResponse(
@@ -135,7 +136,7 @@ export function buildPiExtensionUiResponse(
 		? JSON.stringify({
 				type: "extension_ui_response",
 				id,
-				confirmed: optionId === "confirmed",
+				confirmed: optionId === "confirm",
 			})
 		: JSON.stringify({ type: "extension_ui_response", id, value: optionId });
 }
