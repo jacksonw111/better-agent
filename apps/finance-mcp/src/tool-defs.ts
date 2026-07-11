@@ -14,7 +14,8 @@ TOOLS.push({
 	description:
 		"Realtime market quote snapshot for a US, HK, or A-share symbol. Returns last " +
 		"price, change %, OHLC, volume, and up to 5 levels of bid/ask depth (五档; US/HK " +
-		"expose only level 1). Symbol formats: 600000.SH, 000001.SZ, 00700.HK, AAPL.",
+		"expose only level 1). Symbol formats: 600000.SH, 000001.SZ, 00700.HK, AAPL. " +
+		"关键词: 股票 行情 实时 股价 报价 涨跌幅 五档 查询 A股 港股 美股.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -34,7 +35,8 @@ TOOLS.push({
 	description:
 		"Historical OHLCV candles for a US/HK/A-share symbol. period is day, week, month, " +
 		"or an intraday minute interval (1m/5m/15m/30m/60m); limit caps the number of " +
-		"most-recent candles (default 240).",
+		"most-recent candles (default 240). " +
+		"关键词: K线 走势 历史行情 蜡烛图 分时 日线 周线 月线 查询.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -65,7 +67,8 @@ TOOLS.push({
 	description:
 		"List an A-share company's periodic financial reports (annual / H1 / Q1 / Q3) from " +
 		"EastMoney, newest first. Each item includes artCode, title, reportType, noticeDate, " +
-		"and pdfUrl (a proxied link to the full PDF).",
+		"and pdfUrl (a proxied link to the full PDF). " +
+		"关键词: 财报 财务报告 年报 中报 季报 定期报告 公告 披露 查询.",
 	inputSchema: {
 		type: "object",
 		properties: {

@@ -9,7 +9,8 @@ TOOLS.push({
 	name: "finance_index_quote",
 	description:
 		"Real-time quotes for major stock indices (region=cn/us/hk/all): " +
-		"level, change%, high, low.",
+		"level, change%, high, low. " +
+		"关键词: 指数 行情 大盘 上证 深证 沪深 恒生 纳斯达克 道琼斯 查询.",
 	inputSchema: {
 		type: "object",
 		properties: {

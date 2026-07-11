@@ -40,6 +40,25 @@ describe("rankTools", () => {
 		const tools = [def("GMAIL_SEND_EMAIL", "Send an email")];
 		expect(rankTools(tools, "weather forecast")).toEqual([]);
 	});
+
+	it("matches Chinese queries against Chinese in descriptions", () => {
+		const tools = [
+			def("finance_quote", "股票实时行情报价 realtime stock quote"),
+			def("finance_ipo", "新股申购日历 IPO calendar"),
+		];
+		const ranked = rankTools(tools, "股票行情数据查询");
+		expect(ranked[0]?.name).toBe("finance_quote");
+	});
+
+	it("scores precise multi-char CJK terms above incidental single chars", () => {
+		const tools = [
+			def("finance_quote", "股票行情报价"),
+			def("finance_index_weights", "指数成分股权重"),
+		];
+		// Both share the char 股, but only finance_quote carries the term 股票.
+		const ranked = rankTools(tools, "股票行情");
+		expect(ranked[0]?.name).toBe("finance_quote");
+	});
 });
 
 describe("shouldDefer", () => {

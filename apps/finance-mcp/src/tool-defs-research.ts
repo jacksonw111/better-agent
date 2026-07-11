@@ -8,7 +8,8 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_search",
 	description:
-		"Search A-share stocks by name or code; returns matching {code, name, exchange}.",
+		"Search A-share stocks by name or code; returns matching {code, name, exchange}. " +
+		"关键词: 股票 搜索 查询 代码 名称 上市公司 A股 港股.",
 	inputSchema: {
 		type: "object",
 		properties: {

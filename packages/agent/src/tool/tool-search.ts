@@ -6,7 +6,12 @@ export const DEFER_THRESHOLD = 12;
 const SEARCH_TOP_K = 8;
 const NAME_WEIGHT = 3;
 const MIN_TOKEN_LEN = 2;
-const NON_ALNUM_RE = /[^a-z0-9]+/;
+// Keep ASCII alphanumerics and CJK ideographs; everything else separates tokens.
+// Without the CJK ranges here, Chinese queries tokenize to nothing and can never
+// match — the original cause of "No matches" on 中文 searches.
+const CJK_RANGES = "\\u3400-\\u9fff\\uf900-\\ufaff";
+const TOKEN_SPLIT_RE = new RegExp(`[^a-z0-9${CJK_RANGES}]+`);
+const CJK_CHAR_RE = new RegExp(`[${CJK_RANGES}]`);
 
 export const SEARCH_TOOL_NAME = "search_tools";
 
@@ -18,11 +23,57 @@ export interface DeferredBinding {
 	defs: ToolDef[];
 }
 
+// CJK text has no spaces, so plain token-overlap would never fire on it. Emit
+// unigrams plus adjacent bigrams: unigrams guarantee a hit, while bigrams give
+// precise multi-char terms (股票) more weight than incidental single chars (股).
+function cjkGrams(run: string): string[] {
+	const chars = [...run];
+	const grams: string[] = [...chars];
+	for (const [i, char] of chars.entries()) {
+		const next = chars[i + 1];
+		if (next) {
+			grams.push(char + next);
+		}
+	}
+	return grams;
+}
+
+// A segment may still mix scripts (e.g. "a股", "沪深300"); break it into runs of
+// same-script chars so CJK is n-grammed and ASCII stays whole.
+function splitScriptRuns(segment: string): string[] {
+	const runs: string[] = [];
+	let current = "";
+	let currentIsCjk: boolean | null = null;
+	for (const char of segment) {
+		const isCjk = CJK_CHAR_RE.test(char);
+		if (currentIsCjk !== null && isCjk !== currentIsCjk) {
+			runs.push(current);
+			current = "";
+		}
+		current += char;
+		currentIsCjk = isCjk;
+	}
+	if (current) {
+		runs.push(current);
+	}
+	return runs;
+}
+
 function tokenize(text: string): string[] {
-	return text
-		.toLowerCase()
-		.split(NON_ALNUM_RE)
-		.filter((token) => token.length >= MIN_TOKEN_LEN);
+	const tokens: string[] = [];
+	for (const segment of text.toLowerCase().split(TOKEN_SPLIT_RE)) {
+		if (!segment) {
+			continue;
+		}
+		for (const run of splitScriptRuns(segment)) {
+			if (CJK_CHAR_RE.test(run)) {
+				tokens.push(...cjkGrams(run));
+			} else if (run.length >= MIN_TOKEN_LEN) {
+				tokens.push(run);
+			}
+		}
+	}
+	return tokens;
 }
 
 function scoreDef(def: ToolDef, queryTokens: string[]): number {
