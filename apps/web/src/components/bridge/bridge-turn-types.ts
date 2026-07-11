@@ -3,6 +3,7 @@ import type {
 	ApprovalEvent,
 	ErrorEvent,
 	FileEvent,
+	QuestionEvent,
 	StatusEvent,
 } from "./bridge-events";
 import type { TaskInvocation } from "./task-card";
@@ -54,6 +55,15 @@ export interface ApprovalTurn {
 	kind: "approval";
 }
 
+/** R3-T3: mirrors `ApprovalTurn` for opencode's `question.asked` — a separate
+ * request family that folds/retracts the same way (see `bridge-turns.ts`'s
+ * `foldQuestion`). */
+export interface QuestionTurn {
+	event: QuestionEvent;
+	id: number;
+	kind: "question";
+}
+
 /** A subagent "Task" tool call, folded out of the ordinary tool-block flow
  * into its own turn (like status/error/file lines) so it renders as a task
  * card instead of a generic tool row — see `isTaskToolInput`. */
@@ -79,5 +89,6 @@ export type BridgeTurn =
 	| ErrorTurn
 	| FileTurn
 	| ApprovalTurn
+	| QuestionTurn
 	| TaskTurn
 	| PlanTurn;

@@ -45,6 +45,38 @@ export function makeAnswerApproval(
 	};
 }
 
+const QUESTION_SEND_FAILURE_MESSAGE = "Couldn't send that answer — try again.";
+
+/**
+ * R3-T3: mirrors `makeAnswerApproval` for a `question` turn — marks it
+ * answered in the feed store immediately (optimistic disable), then relays
+ * `{ type: "control", action: "answerQuestion", requestId, answers }`, the
+ * shape `apps/bridge-cli/src/commands-question.ts`'s
+ * `parseAnswerQuestionCommand` parses back out. Rolled back on send failure,
+ * same fail-safe reasoning as `makeAnswerApproval`.
+ */
+export function makeAnswerQuestion(
+	dispatchFeed: Dispatch<FeedAction>,
+	sendRaw: (data: unknown) => Promise<void>
+) {
+	return async (requestId: string, answers: string[][]): Promise<void> => {
+		dispatchFeed({ type: "answerQuestion", requestId, answers });
+		try {
+			await sendRaw({
+				type: "control",
+				action: "answerQuestion",
+				requestId,
+				answers,
+			});
+		} catch (error) {
+			dispatchFeed({ type: "unanswerQuestion", requestId });
+			const message =
+				error instanceof Error ? error.message : QUESTION_SEND_FAILURE_MESSAGE;
+			toast.error(message);
+		}
+	};
+}
+
 const CONTROL_SEND_FAILURE_MESSAGE = "Couldn't send that — try again.";
 
 /** One send for the detail page's session controls (interrupt/setModel/

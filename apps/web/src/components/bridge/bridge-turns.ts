@@ -13,6 +13,7 @@ import type {
 	ApprovalEvent,
 	MessageEvent,
 	NormalizedEvent,
+	QuestionEvent,
 	StatusEvent,
 	StreamEvent,
 	ToolEvent,
@@ -221,8 +222,11 @@ export function foldEvent(
 			state.current = null;
 			pushTurn(state, { kind: "file", id, event });
 			return;
-		default:
+		case "approval":
 			foldApproval(state, id, event);
+			return;
+		default:
+			foldQuestion(state, id, event);
 	}
 }
 
@@ -249,6 +253,28 @@ function foldApproval(
 		return;
 	}
 	pushTurn(state, { kind: "approval", id, event });
+}
+
+/**
+ * R3-T3: mirrors `foldApproval` for opencode's `question.asked` — a
+ * `cancelled: true` event retracts a still-open question card (by
+ * `requestId`) instead of rendering as a new turn.
+ */
+function foldQuestion(
+	state: FoldState,
+	id: number,
+	event: QuestionEvent
+): void {
+	state.current = null;
+	if (event.cancelled) {
+		removeTurns(
+			state,
+			(turn) =>
+				turn.kind === "question" && turn.event.requestId === event.requestId
+		);
+		return;
+	}
+	pushTurn(state, { kind: "question", id, event });
 }
 
 /**

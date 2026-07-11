@@ -18,6 +18,9 @@ import { UsageUpdateLine } from "./usage-update-line";
 export interface TerminalBodyProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
+	answeredQuestions: Record<string, string[][]>;
+	/** R3-T3: mirrors `answerApproval`/`answered` for a `question` turn. */
+	answerQuestion: (requestId: string, answers: string[][]) => Promise<void>;
 	avatars: ChatAvatars;
 	caps: ResolvedCapabilities;
 	disabled: boolean;
@@ -102,6 +105,8 @@ export function TerminalBody(props: TerminalBodyProps) {
 			<TerminalFeed
 				answerApproval={props.answerApproval}
 				answered={props.answered}
+				answeredQuestions={props.answeredQuestions}
+				answerQuestion={props.answerQuestion}
 				avatars={props.avatars}
 				ended={props.ended}
 				turnInFlight={props.turnInFlight}

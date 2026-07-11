@@ -8,8 +8,12 @@ function renderTurn(turn: TaskTurn) {
 	const { container } = render(
 		<BridgeChatRow
 			answered={{}}
+			answeredQuestions={{}}
 			ended={false}
 			onAnswerApproval={() => {
+				// no-op for this test
+			}}
+			onAnswerQuestion={() => {
 				// no-op for this test
 			}}
 			turn={turn}

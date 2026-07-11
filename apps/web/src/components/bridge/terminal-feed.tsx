@@ -50,6 +50,9 @@ function WorkingSkeleton() {
 export interface TerminalFeedProps {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	answered: Record<string, string>;
+	answeredQuestions: Record<string, string[][]>;
+	/** R3-T3: mirrors `answerApproval`/`answered` for a `question` turn. */
+	answerQuestion: (requestId: string, answers: string[][]) => Promise<void>;
 	avatars: ChatAvatars;
 	ended: boolean;
 	/** True for the entire in-flight turn — keeps the working skeleton visible
@@ -58,34 +61,46 @@ export interface TerminalFeedProps {
 	turns: BridgeTurn[];
 }
 
+/** The trailing assistant turn that's still open (`state.current` at fold
+ * time) is the message currently being produced. When the turn is in flight,
+ * the shimmer skeleton attaches to THIS message (rendered inside the same
+ * scroller item, tucked under its text) instead of a disconnected row at the
+ * bottom of the feed — so the "still outputting" hint reads as part of the
+ * message itself. Only attaches when the message already has prose (text/
+ * reasoning); a turn that's only a running tool stays on the floating avatar
+ * skeleton (shimmer lines under a bare tool card would read wrong). Split out
+ * of `TerminalFeed` purely to keep that component under the repo's
+ * max-lines-per-function gate. */
+function attachSkeletonTurnId(turns: BridgeTurn[]): number | null {
+	const lastTurn = turns.at(-1);
+	if (
+		lastTurn === undefined ||
+		lastTurn.kind !== "assistant" ||
+		!lastTurn.streaming
+	) {
+		return null;
+	}
+	const hasProse = lastTurn.blocks.some(
+		(block) => block.kind === "text" || block.kind === "reasoning"
+	);
+	return hasProse ? lastTurn.id : null;
+}
+
 /** The scrolling conversation: bridge turns rendered as chat bubbles/lines. */
 export function TerminalFeed({
 	answerApproval,
 	answered,
+	answerQuestion,
+	answeredQuestions,
 	avatars,
 	ended,
 	turnInFlight,
 	turns,
 }: TerminalFeedProps) {
-	// The trailing assistant turn that's still open (`state.current` at fold
-	// time) is the message currently being produced. When the turn is in flight,
-	// we attach the shimmer skeleton to THIS message (rendered inside the same
-	// scroller item, tucked under its text) instead of a disconnected row at the
-	// bottom of the feed — so the "still outputting" hint衔接 the message itself.
-	// Only attach when the message already has prose (text/reasoning); a turn
-	// that's only a running tool stays on the floating avatar skeleton (shimmer
-	// lines under a bare tool card would read wrong). The floating skeleton also
-	// covers pure waiting, before any assistant message exists.
-	const lastTurn = turns.at(-1);
-	const attachToId =
-		lastTurn !== undefined &&
-		lastTurn.kind === "assistant" &&
-		lastTurn.streaming &&
-		lastTurn.blocks.some(
-			(block) => block.kind === "text" || block.kind === "reasoning"
-		)
-			? lastTurn.id
-			: null;
+	// The floating avatar skeleton covers pure waiting (before any assistant
+	// message exists) and a turn that's only a running tool; see
+	// `attachSkeletonTurnId` for when it attaches to a message instead.
+	const attachToId = attachSkeletonTurnId(turns);
 	const showFloatingSkeleton = turnInFlight && attachToId === null;
 
 	return (
@@ -100,10 +115,12 @@ export function TerminalFeed({
 								<MessageScrollerItem key={turn.id}>
 									<BridgeChatRow
 										answered={answered}
+										answeredQuestions={answeredQuestions}
 										attachSkeleton={turnInFlight && turn.id === attachToId}
 										avatars={avatars}
 										ended={ended}
 										onAnswerApproval={answerApproval}
+										onAnswerQuestion={answerQuestion}
 										turn={turn}
 									/>
 								</MessageScrollerItem>

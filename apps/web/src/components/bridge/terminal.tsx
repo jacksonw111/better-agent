@@ -177,6 +177,8 @@ function BodyFromView({
 		<TerminalBody
 			answerApproval={view.answerApproval}
 			answered={view.answered}
+			answeredQuestions={view.answeredQuestions}
+			answerQuestion={view.answerQuestion}
 			avatars={view.avatars}
 			caps={caps}
 			disabled={!view.canSend}

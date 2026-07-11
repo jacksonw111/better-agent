@@ -1,12 +1,5 @@
 import { type Dispatch, useReducer, useState } from "react";
-import type { StreamEvent } from "./bridge-events";
 import type { SessionListDetail } from "./bridge-session-list";
-import type {
-	SessionReadyDetail,
-	TurnUsageDetail,
-	UsageUpdateDetail,
-} from "./bridge-session-status";
-import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import type { BridgeTransport } from "./bridge-transport";
 import {
 	type ConnectionAction,
@@ -14,7 +7,6 @@ import {
 	connectionReducer,
 	initialConnectionState,
 } from "./terminal-connection";
-import type { TerminalConnectionStatus } from "./terminal-status";
 import {
 	useHistorySeed,
 	useMaxSeenIdRef,
@@ -29,69 +21,17 @@ import {
 } from "./use-bridge-feed";
 import {
 	makeAnswerApproval,
+	makeAnswerQuestion,
 	useSessionControls,
 } from "./use-bridge-terminal-actions";
 import {
 	buildResult,
+	type UseBridgeTerminalResult,
 	useListSessionsWithTimeout,
 } from "./use-bridge-terminal-parts";
 import { useSseConnection } from "./use-sse-connection";
 
-export interface UseBridgeTerminalResult {
-	answerApproval: (requestId: string, optionId: string) => Promise<void>;
-	answered: Record<string, string>;
-	canSend: boolean;
-	events: StreamEvent[];
-	/** Requests a fresh `status_snapshot` — the detail page's status refresh
-	 * affordance. Routed as `{ type: "control", action: "getStatus" }`; the
-	 * reply arrives asynchronously as a `status_snapshot` status event,
-	 * reflected in `statusSnapshot` once it lands. */
-	getStatus: () => Promise<void>;
-	/** Cancels the in-flight turn without ending the session — the detail
-	 * page's Stop/Interrupt button. Routed as `{ type: "control", action:
-	 * "interrupt" }`; see `apps/bridge-cli/src/commands.ts`. */
-	interrupt: () => Promise<void>;
-	/** Requests the agent's past local conversations — the "Past
-	 * conversations" button. Routed as `{ type: "control", action:
-	 * "listSessions" }`; the reply arrives asynchronously as a `session_list`
-	 * status event, reflected in `sessionList` once it lands. */
-	listSessions: () => Promise<void>;
-	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
-	 * the detail page's Restart button. A distinct `bridge.restartSession`
-	 * server procedure, not a `sendRaw` control command (see
-	 * use-bridge-terminal-actions.ts). */
-	restart: () => Promise<void>;
-	sendInput: (text: string) => Promise<void>;
-	sending: boolean;
-	/** The latest `session_list` detail, or `null` before a `listSessions`
-	 * request has gotten a reply. */
-	sessionList: SessionListDetail | null;
-	/** The latest `session_ready` detail (model/cwd/capabilities/mcp), or
-	 * `null` before the CLI's session has initialized — see
-	 * bridge-session-status.ts. */
-	sessionReady: SessionReadyDetail | null;
-	/** Switches the model used for subsequent turns — the detail page's model
-	 * picker. Routed as `{ type: "control", action: "setModel", model }`. */
-	setModel: (model: string) => Promise<void>;
-	/** Switches the session's permission mode — the detail page's mode
-	 * dropdown. Routed as `{ type: "control", action: "setPermissionMode",
-	 * mode }`. */
-	setPermissionMode: (mode: string) => Promise<void>;
-	/** Switches the reasoning-effort level for subsequent turns — the
-	 * composer's Thinking picker. Routed as `{ type: "control", action:
-	 * "setThinking", level }`. */
-	setThinking: (level: string) => Promise<void>;
-	status: TerminalConnectionStatus;
-	/** The latest `status_snapshot` detail (model/context/cost/tokens/mcp/
-	 * running), or `null` before a `getStatus` request has gotten a reply. */
-	statusSnapshot: StatusSnapshotDetail | null;
-	/** The latest `turn_usage` detail (cost/tokens/turns), or `null` before
-	 * any turn has completed. */
-	turnUsage: TurnUsageDetail | null;
-	/** The latest `usage_update` detail (opencode's streamed context/cost), or
-	 * `null` before one has arrived. */
-	usageUpdate: UsageUpdateDetail | null;
-}
+export type { UseBridgeTerminalResult } from "./use-bridge-terminal-parts";
 
 function useSendInput(
 	sessionId: string,
@@ -259,6 +199,7 @@ export function useBridgeTerminal(
 		dispatchFeed
 	);
 	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
+	const answerQuestion = makeAnswerQuestion(dispatchFeed, sendRaw);
 	// Curated status details are now folded incrementally into the feed reducer
 	// (see use-bridge-feed.ts) rather than rescanned off `feed.events` on every
 	// render — the same latest-wins semantics, without the four full tail scans
@@ -277,6 +218,7 @@ export function useBridgeTerminal(
 
 	return buildResult({
 		answerApproval,
+		answerQuestion,
 		conn,
 		ended,
 		feed,

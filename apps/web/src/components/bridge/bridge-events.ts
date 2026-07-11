@@ -118,6 +118,34 @@ export interface ApprovalEvent extends TurnScoped {
 	title: string;
 }
 
+/** One question within a `QuestionEvent` — mirrors the CLI's `QuestionItem`
+ * (`apps/bridge-cli/src/normalize/types.ts`). */
+export interface QuestionItem {
+	options: string[];
+	text: string;
+}
+
+/**
+ * R3-T3: opencode's `question.asked` — a SEPARATE request family from
+ * `ApprovalEvent`/`permission.updated` (a question asks for information, an
+ * approval asks for permission to act), but round-trips through
+ * `onAnswerQuestion` the same shape-of-way `ApprovalEvent` does through
+ * `onAnswerApproval`. Mirrors the CLI's `QuestionEvent`.
+ */
+export interface QuestionEvent extends TurnScoped {
+	/** Mirrors `ApprovalEvent.cancelled` — set when a still-pending question is
+	 * retracted (interrupt/stop, or the CLI's fail-closed timeout) instead of
+	 * requesting a fresh answer. */
+	cancelled?: boolean;
+	kind: "question";
+	questions: QuestionItem[];
+	requestId: string;
+	/** Mirrors `ApprovalEvent.timeoutAt` — the epoch ms the CLI's
+	 * `presentQuestion` armed its fail-closed timer for. */
+	timeoutAt?: number;
+	title: string;
+}
+
 export type NormalizedEvent =
 	| MessageEvent
 	| ToolEvent
@@ -125,7 +153,8 @@ export type NormalizedEvent =
 	| OutputEvent
 	| StatusEvent
 	| ErrorEvent
-	| ApprovalEvent;
+	| ApprovalEvent
+	| QuestionEvent;
 
 /** One relayed event as it comes off the wire (SSE `data:`/`id:` pair, or a
  * row from `bridge.observe`) — `data` is `unknown` until validated. */
@@ -148,6 +177,7 @@ const EVENT_KINDS = new Set([
 	"status",
 	"error",
 	"approval",
+	"question",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

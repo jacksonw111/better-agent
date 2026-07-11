@@ -33,6 +33,9 @@ export interface FeedState {
 	 * client session — a replayed approval for an answered requestId still
 	 * renders disabled since this survives the event list being rebuilt. */
 	answered: Record<string, string>;
+	/** requestId -> submitted answers, for questions already answered this
+	 * client session (R3-T3). Mirrors `answered` above. */
+	answeredQuestions: Record<string, string[][]>;
 	events: StreamEvent[];
 	maxSeenId: number;
 	/** Next id for an optimistic local echo — decrements on each `localEcho`,
@@ -62,6 +65,7 @@ export const initialFeedState: FeedState = {
 	events: [],
 	maxSeenId: 0,
 	answered: {},
+	answeredQuestions: {},
 	nextLocalId: INITIAL_LOCAL_ID,
 	pendingEchoes: 0,
 	sessionList: null,
@@ -114,6 +118,9 @@ export type FeedAction =
 	| { text: string; type: "localEcho" }
 	| { optionId: string; requestId: string; type: "answer" }
 	| { requestId: string; type: "unanswer" }
+	/** R3-T3: mirrors "answer"/"unanswer" for a `question` turn. */
+	| { answers: string[][]; requestId: string; type: "answerQuestion" }
+	| { requestId: string; type: "unanswerQuestion" }
 	| { type: "reset" };
 
 function isUserMessage(entry: StreamEvent): entry is StreamEvent & {
@@ -180,6 +187,19 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 			const answered = { ...state.answered };
 			delete answered[action.requestId];
 			return { ...state, answered };
+		}
+		case "answerQuestion":
+			return {
+				...state,
+				answeredQuestions: {
+					...state.answeredQuestions,
+					[action.requestId]: action.answers,
+				},
+			};
+		case "unanswerQuestion": {
+			const answeredQuestions = { ...state.answeredQuestions };
+			delete answeredQuestions[action.requestId];
+			return { ...state, answeredQuestions };
 		}
 		case "localEcho": {
 			// Optimistic echo of the user's own line: appended directly (never

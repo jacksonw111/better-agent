@@ -7,6 +7,7 @@ import { memo } from "react";
 import { AssistantTurnBlock } from "./assistant-turn-block";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
 import { ApprovalLine, ErrorLine, FileLine, StatusLine } from "./event-line";
+import { QuestionCard } from "./question-card";
 import { TaskCard } from "./task-card";
 import { TodoList } from "./todo-list";
 
@@ -35,6 +36,9 @@ function userMessage(turn: UserTurn): ChatMessage {
 export interface BridgeChatRowProps {
 	/** requestId -> chosen optionId, for approvals already answered. */
 	answered: Record<string, string>;
+	/** requestId -> submitted answers, for questions already answered (R3-T3).
+	 * Mirrors `answered` above. */
+	answeredQuestions: Record<string, string[][]>;
 	/** When true, shimmer skeleton lines are appended right under this assistant
 	 * message — attached (indented to the text column) so it reads as "this
 	 * message is still being produced". Only set on the trailing in-flight
@@ -44,6 +48,8 @@ export interface BridgeChatRowProps {
 	/** True once the session has ended — suppresses the streaming caret. */
 	ended: boolean;
 	onAnswerApproval: (requestId: string, optionId: string) => void;
+	/** R3-T3: mirrors `onAnswerApproval` for a `question` turn. */
+	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
 	turn: BridgeTurn;
 }
 
@@ -75,12 +81,39 @@ function StreamingSkeleton() {
  * stable across those renders, so the shallow-prop guard skips re-rendering
  * every prior row — only the trailing, actually-changing turn re-renders.
  */
+/** The assistant bubble plus its optional attached "still producing" skeleton
+ * — split out of `BridgeChatRowImpl` purely to keep that switch under the
+ * repo's max-lines-per-function gate. */
+function AssistantWithSkeleton({
+	attachSkeleton,
+	avatars,
+	ended,
+	turn,
+}: {
+	attachSkeleton?: boolean;
+	avatars?: ChatAvatars;
+	ended: boolean;
+	turn: AssistantTurn;
+}) {
+	return (
+		<>
+			<AssistantTurnBlock
+				avatars={avatars}
+				message={assistantMessage(turn, ended)}
+			/>
+			{attachSkeleton && <StreamingSkeleton />}
+		</>
+	);
+}
+
 function BridgeChatRowImpl({
 	answered,
+	answeredQuestions,
 	attachSkeleton,
 	avatars,
 	ended,
 	onAnswerApproval,
+	onAnswerQuestion,
 	turn,
 }: BridgeChatRowProps) {
 	switch (turn.kind) {
@@ -88,13 +121,12 @@ function BridgeChatRowImpl({
 			return <ChatRow avatars={avatars} message={userMessage(turn)} />;
 		case "assistant":
 			return (
-				<>
-					<AssistantTurnBlock
-						avatars={avatars}
-						message={assistantMessage(turn, ended)}
-					/>
-					{attachSkeleton && <StreamingSkeleton />}
-				</>
+				<AssistantWithSkeleton
+					attachSkeleton={attachSkeleton}
+					avatars={avatars}
+					ended={ended}
+					turn={turn}
+				/>
 			);
 		case "status":
 			return <StatusLine event={turn.event} />;
@@ -106,12 +138,20 @@ function BridgeChatRowImpl({
 			return <TaskCard task={turn.task} />;
 		case "plan":
 			return <TodoList items={turn.items} />;
-		default:
+		case "approval":
 			return (
 				<ApprovalLine
 					answeredOptionId={answered[turn.event.requestId]}
 					event={turn.event}
 					onAnswer={onAnswerApproval}
+				/>
+			);
+		default:
+			return (
+				<QuestionCard
+					answered={answeredQuestions[turn.event.requestId]}
+					event={turn.event}
+					onAnswer={onAnswerQuestion}
 				/>
 			);
 	}
