@@ -21,8 +21,14 @@ export interface DuplexChannel {
 	 * (`onDown` already fired) or already closed. */
 	close(): void;
 	/** Registers the (single) handler for every `command` frame, in the
-	 * ascending order the server sends them. */
-	onCommand(fn: (cmd: { id: number; data: unknown }) => void): void;
+	 * ascending order the server sends them. May return a `Promise` — if it
+	 * rejects, `lastCommandId` (the channel-internal afterId a reconnect
+	 * handshake resumes from — see `ChannelState`) is deliberately left
+	 * un-advanced past that command, so it gets redelivered rather than
+	 * silently skipped (see ws-duplex-frames.ts's `handleCommandFrame`). */
+	onCommand(
+		fn: (cmd: { id: number; data: unknown }) => void | Promise<void>
+	): void;
 	/** Registers the (single) handler fired exactly once, when reconnecting
 	 * has been given up on for good — see ws-duplex-reconnect.ts. */
 	onDown(fn: (reason: string) => void): void;
@@ -61,12 +67,19 @@ export interface PendingBatch {
  * list. */
 export interface ChannelState {
 	closed: boolean;
-	commandHandler: ((cmd: { id: number; data: unknown }) => void) | null;
+	commandHandler:
+		| ((cmd: { id: number; data: unknown }) => void | Promise<void>)
+		| null;
 	config: OpenDuplexConfig;
 	downFired: boolean;
 	downHandler: ((reason: string) => void) | null;
-	/** The highest command id delivered to `commandHandler` so far — reused as
-	 * `afterId` on every reconnect handshake, per the pinned design. */
+	/** The highest command id `commandHandler` finished dispatching WITHOUT
+	 * throwing/rejecting so far — reused as `afterId` on every reconnect
+	 * handshake, per the pinned design. Deliberately advanced only on success
+	 * (see ws-duplex-frames.ts's `handleCommandFrame`) so a dispatch failure
+	 * (e.g. `sink.send` throwing) gets that command redelivered on the next
+	 * reconnect instead of silently skipped — idempotent-enough since
+	 * `send`/`answerApproval` are. */
 	lastCommandId: number;
 	nextBatchSeq: number;
 	pending: Map<string, PendingBatch>;

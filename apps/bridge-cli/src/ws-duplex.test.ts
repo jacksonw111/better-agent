@@ -111,7 +111,9 @@ describe("connectDuplexChannel - command delivery", () => {
 		completeHandshake(sockets[0] as FakeSocket);
 		const channel = await promise;
 		const received: Array<{ data: unknown; id: number }> = [];
-		channel?.onCommand((cmd) => received.push(cmd));
+		channel?.onCommand((cmd) => {
+			received.push(cmd);
+		});
 
 		sockets[0]?.emitMessage({ t: "command", id: 1, data: "first" });
 		sockets[0]?.emitMessage({ t: "command", id: 2, data: "second" });
@@ -120,6 +122,37 @@ describe("connectDuplexChannel - command delivery", () => {
 			{ id: 1, data: "first" },
 			{ id: 2, data: "second" },
 		]);
+	});
+});
+
+describe("connectDuplexChannel - command dispatch failure", () => {
+	it("does not advance the reconnect afterId past a command whose onCommand handler rejected", async () => {
+		const { factory, sockets } = createFakeWsFactory();
+		const promise = connectDuplexChannel(baseConfig(factory));
+		completeHandshake(sockets[0] as FakeSocket);
+		const channel = await promise;
+		channel?.onCommand((cmd) =>
+			cmd.id === 6 ? Promise.reject(new Error("dispatch failed")) : undefined
+		);
+
+		sockets[0]?.emitMessage({ t: "command", id: 5, data: "ok" });
+		await settle();
+		sockets[0]?.emitMessage({ t: "command", id: 6, data: "boom" });
+		await settle();
+
+		sockets[0]?.emitClose(1006, "socket reset");
+		await settle();
+		await settle();
+
+		const reconnected = sockets[1] as FakeSocket;
+		reconnected.emitOpen();
+		// afterId stays at 5 (the last SUCCESSFULLY dispatched command) — not 6,
+		// which threw and must be redelivered.
+		expect(reconnected.sent[0]).toEqual({
+			t: "hello",
+			sessionId: "sess_1",
+			afterId: 5,
+		});
 	});
 });
 
@@ -164,6 +197,54 @@ describe("connectDuplexChannel - reconnect", () => {
 
 		reconnected.emitMessage({ t: "events_ack", batchId: "b0" });
 		await expect(pending).resolves.toBeUndefined();
+	});
+});
+
+describe("connectDuplexChannel - close during in-flight reconnect", () => {
+	it("closes the freshly-handshaken socket and aborts the rebind if close() lands while the handshake is pending", async () => {
+		const { factory, sockets } = createFakeWsFactory();
+		const promise = connectDuplexChannel(baseConfig(factory));
+		completeHandshake(sockets[0] as FakeSocket);
+		const channel = await promise;
+		const received: Array<{ data: unknown; id: number }> = [];
+		channel?.onCommand((cmd) => {
+			received.push(cmd);
+		});
+
+		// An unacked batch, so we can prove it never gets resent.
+		const pending = channel?.sendEvents([
+			{ event: "unacked", idempotencyKey: "k1" },
+		]);
+		pending?.catch(() => undefined); // may never settle — not what this test checks
+
+		// Unexpected drop kicks off the reconnect loop.
+		sockets[0]?.emitClose(1006, "socket reset");
+		await settle();
+		await settle();
+
+		expect(sockets).toHaveLength(2);
+		const reconnecting = sockets[1] as FakeSocket;
+		reconnecting.emitOpen(); // sends `hello`; handshake still pending (no hello_ok yet)
+
+		// The channel is closed WHILE the handshake is in flight.
+		channel?.close();
+
+		// The handshake now resolves — this must NOT resurrect the channel.
+		reconnecting.emitMessage({ t: "hello_ok" });
+		await settle();
+		await settle();
+
+		expect(reconnecting.closedByClient).toBe(true);
+		// No resend of the pending batch on the freshly-handshaken socket.
+		expect(reconnecting.sent.filter((frame) => frame.t === "events")).toEqual(
+			[]
+		);
+
+		// The new socket was never bound as the channel's live socket — a
+		// command frame arriving on it goes nowhere.
+		reconnecting.emitMessage({ t: "command", id: 99, data: "late" });
+		await settle();
+		expect(received).toEqual([]);
 	});
 });
 

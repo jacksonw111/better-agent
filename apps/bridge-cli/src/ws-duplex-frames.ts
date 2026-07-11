@@ -31,12 +31,25 @@ export function parseServerFrame(raw: unknown): ServerFrame | null {
 	}
 }
 
-function handleCommandFrame(
+/** Dispatches one `command` frame to `state.commandHandler` and only then
+ * advances `state.lastCommandId` — deliberately AFTER, not before, so a
+ * handler that throws/rejects (e.g. `run-bridge-session-duplex.ts`'s
+ * `sink.send` failing) leaves `lastCommandId` at the command BEFORE this one,
+ * getting it redelivered on the next reconnect handshake instead of the
+ * server skipping straight past it. The handler itself is responsible for
+ * surfacing the error (mirrors poll-loop.ts's `onError`) — this function only
+ * owns the afterId bookkeeping, so it deliberately swallows the rejection
+ * after leaving `lastCommandId` alone. */
+async function handleCommandFrame(
 	state: ChannelState,
 	frame: Extract<ServerFrame, { t: "command" }>
-): void {
-	state.lastCommandId = frame.id;
-	state.commandHandler?.({ id: frame.id, data: frame.data });
+): Promise<void> {
+	try {
+		await state.commandHandler?.({ id: frame.id, data: frame.data });
+		state.lastCommandId = frame.id;
+	} catch {
+		// Dispatch failed — see doc comment above; nothing else to do here.
+	}
 }
 
 function handleEventsAckFrame(
@@ -63,6 +76,8 @@ export function handleServerMessage(state: ChannelState, raw: unknown): void {
 		return;
 	}
 	if (frame.t === "command") {
+		// Fire-and-forget: `handleCommandFrame`'s own try/catch swallows every
+		// failure internally (see its doc comment) — it never rejects.
 		handleCommandFrame(state, frame);
 	} else {
 		handleEventsAckFrame(state, frame);

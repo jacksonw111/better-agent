@@ -86,13 +86,31 @@ function buildHybridPush(
 /** One command frame off the channel: dispatches it through the SAME
  * `resolveControlOutcome` poll-loop.ts uses, so a `stop`/`restart` control
  * command produces an identical `PollOutcome`-worthy result regardless of
- * which transport delivered it. */
+ * which transport delivered it.
+ *
+ * Returns the dispatch promise (instead of swallowing it) so
+ * `ws-duplex-frames.ts`'s `handleCommandFrame` — which awaits whatever
+ * `onCommand`'s handler returns — knows whether dispatch succeeded, and only
+ * advances its own (channel-internal) `lastCommandId` past this command if it
+ * did. That's the ONLY thing a rejection here does on its own: any actual
+ * throw from `dispatchCommands` (e.g. `sink.send`/`answerApproval` throwing —
+ * NOT `resolveControlOutcome`'s own best-effort status push, which already
+ * swallows its own failure internally, see command-outcome.ts) is surfaced
+ * via `pollOptions.onError`, the exact same hook `pollLoop` reports an
+ * identical `sink.send` throw through (see poll-loop.ts's `pollStep`) —
+ * instead of a blanket `.catch(() => undefined)` silently dropping it. Since
+ * `dispatchCommands` never reached its `afterIdRef.current = command.id` line
+ * for a command that threw (see commands.ts), `afterIdRef` is left
+ * un-advanced too, same as `lastCommandId` above — both trackers move
+ * together, only on success. A command that throws gets redelivered next
+ * time (reconnect resumes from `lastCommandId`, the polling fallback from
+ * `afterIdRef`) — idempotent-enough since `send`/`answerApproval` are. */
 function handleDuplexCommand(
 	args: RunDuplexPhaseArgs,
 	cmd: { data: unknown; id: number },
 	finish: (outcome: PollOutcome) => void
-): void {
-	resolveControlOutcome({
+): Promise<void> {
+	return resolveControlOutcome({
 		afterIdRef: args.afterIdRef,
 		commands: [cmd],
 		sessionId: args.sessionId,
@@ -106,7 +124,10 @@ function handleDuplexCommand(
 				finish("restart");
 			}
 		})
-		.catch(() => undefined); // best-effort status push failed — not fatal.
+		.catch((error: unknown) => {
+			args.pollOptions?.onError?.(error);
+			throw error;
+		});
 }
 
 /** `channel.onDown` fired: the channel is irrecoverably gone for the rest of

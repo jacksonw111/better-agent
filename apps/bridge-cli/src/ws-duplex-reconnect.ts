@@ -140,6 +140,17 @@ async function reconnectOnce(
 			url: state.config.url,
 			wsFactory: state.config.wsFactory,
 		});
+		if (state.closed) {
+			// `close()` landed while the handshake above was in flight. It only
+			// closed the STALE `state.socket` reference (the one from before
+			// this reconnect attempt) — this freshly-handshaken socket is still
+			// open and was never rebound, so close it directly and bail out
+			// before rebinding/resending: rebinding here would resurrect a
+			// channel the caller already believes is closed (a live socket, a
+			// live reconnect-on-drop listener, and every pending batch resent).
+			socket.close();
+			return true;
+		}
 		state.socket = socket;
 		bindSocket(state, socket);
 		resendPending(state);

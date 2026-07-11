@@ -31,11 +31,12 @@ function fakeTransport(
  * socket/frame layer needed to exercise this module's own logic. */
 function fakeChannel(sendEvents: DuplexChannel["sendEvents"]): {
 	channel: DuplexChannel;
-	emitCommand(cmd: { data: unknown; id: number }): void;
+	emitCommand(cmd: { data: unknown; id: number }): void | Promise<void>;
 	emitDown(reason: string): void;
 } {
-	let commandHandler: ((cmd: { data: unknown; id: number }) => void) | null =
-		null;
+	let commandHandler:
+		| ((cmd: { data: unknown; id: number }) => void | Promise<void>)
+		| null = null;
 	let downHandler: ((reason: string) => void) | null = null;
 	const channel: DuplexChannel = {
 		close: vi.fn(),
@@ -162,6 +163,46 @@ describe("runDuplexPhase - commands (parity with poll-loop.ts)", () => {
 		pollController.abort();
 
 		await expect(phase.outcome).resolves.toBe("ended");
+	});
+});
+
+describe("runDuplexPhase - dispatch error (parity with poll-loop.ts's onError)", () => {
+	it("surfaces a throw from sink.send via pollOptions.onError instead of swallowing it, leaving afterIdRef un-advanced", async () => {
+		const { channel, emitCommand } = fakeChannel(vi.fn());
+		const dispatchError = new Error("send failed");
+		const send = vi.fn(() => {
+			throw dispatchError;
+		});
+		const onError = vi.fn();
+		const afterIdRef = { current: 0 };
+		const phase = runDuplexPhase(
+			baseArgs({
+				afterIdRef,
+				channel,
+				pollOptions: { onError },
+				sink: { ...fakeSink(), send },
+			})
+		);
+
+		await expect(emitCommand({ id: 3, data: "hello" })).rejects.toThrow(
+			dispatchError
+		);
+
+		expect(send).toHaveBeenCalledExactlyOnceWith("hello");
+		// Same hook, same error object, that pollLoop's own onError path
+		// reports for an identical `sink.send` throw (see poll-loop.test.ts's
+		// "pollLoop - reconnect" describe block).
+		expect(onError).toHaveBeenCalledExactlyOnceWith(dispatchError);
+		// `dispatchCommands` never reached its `afterIdRef.current = command.id`
+		// line for this command (see commands.ts) — left untouched so the
+		// command gets redelivered (WS reconnect or polling fallback alike),
+		// same as pollLoop leaves it untouched on a failed poll.
+		expect(afterIdRef.current).toBe(0);
+		// A failed dispatch is neither a stop nor a restart — the outcome
+		// promise must still be pending, not resolved/rejected by it.
+		await expect(
+			Promise.race([phase.outcome, Promise.resolve("pending")])
+		).resolves.toBe("pending");
 	});
 });
 
