@@ -14,12 +14,18 @@ async function* arrayEvents<T>(values: T[]): AsyncGenerator<T> {
 
 /** A `sleep` double whose promise only resolves when the test calls `resolve()`. */
 function createControllableSleep() {
+	const calls: number[] = [];
 	const resolvers: Array<() => void> = [];
-	const sleep: Sleep = (_ms) =>
+	const sleep: Sleep = (ms) =>
 		new Promise<void>((resolve) => {
+			calls.push(ms);
 			resolvers.push(resolve);
 		});
-	return { sleep, resolveCall: (index: number) => resolvers[index]?.() };
+	return {
+		calls,
+		sleep,
+		resolveCall: (index: number) => resolvers[index]?.(),
+	};
 }
 
 /** Extracted out of the `describe` block below (rather than inlined as an
@@ -33,6 +39,7 @@ async function flushesAsSoonAsMaxBatchSizeIsReached(): Promise<void> {
 	const neverSleep: Sleep = () => new Promise(() => undefined);
 
 	await forwardEvents(arrayEvents([1, 2, 3, 4, 5]), push, {
+		leadingEdgeFlush: false,
 		maxBatchSize: 2,
 		sleep: neverSleep,
 	});
@@ -67,7 +74,11 @@ describe("forwardEvents", () => {
 		const queue = createAsyncQueue<string>();
 		const { sleep, resolveCall } = createControllableSleep();
 
-		const done = forwardEvents(queue, push, { maxBatchSize: 100, sleep });
+		const done = forwardEvents(queue, push, {
+			leadingEdgeFlush: false,
+			maxBatchSize: 100,
+			sleep,
+		});
 
 		queue.push("a");
 		// Give the event loop a turn so "a" lands in the buffer ahead of the
@@ -111,6 +122,7 @@ describe("forwardEvents - straggler drop (RC-T3)", () => {
 		];
 
 		await forwardEvents(arrayEvents(events), push, {
+			leadingEdgeFlush: false,
 			maxBatchSize: 100,
 			sleep: () => new Promise(() => undefined),
 			onWarning,
@@ -129,6 +141,7 @@ describe("forwardEvents - straggler drop (RC-T3)", () => {
 		const push = vi.fn().mockResolvedValue(undefined);
 
 		await forwardEvents(arrayEvents([1, 2, 3]), push, {
+			leadingEdgeFlush: false,
 			maxBatchSize: 100,
 			sleep: () => new Promise(() => undefined),
 		});
@@ -138,6 +151,43 @@ describe("forwardEvents - straggler drop (RC-T3)", () => {
 			{ event: 2, idempotencyKey: "2" },
 			{ event: 3, idempotencyKey: "3" },
 		]);
+	});
+});
+
+describe("forwardEvents - HTTP fallback flush defaults (R0)", () => {
+	it("uses a 50ms default flush interval for HTTP fallback", async () => {
+		const push = vi.fn().mockResolvedValue(undefined);
+		const queue = createAsyncQueue<string>();
+		const { calls, sleep } = createControllableSleep();
+		const done = forwardEvents(queue, push, {
+			leadingEdgeFlush: false,
+			sleep,
+		});
+
+		await Promise.resolve();
+		expect(calls[0]).toBe(50);
+
+		queue.close();
+		await done;
+	});
+
+	it("flushes the first HTTP fallback event immediately by default", async () => {
+		const push = vi.fn().mockResolvedValue(undefined);
+		const queue = createAsyncQueue<string>();
+		const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+		const done = forwardEvents(queue, push, {
+			maxBatchSize: 100,
+			sleep: () => new Promise(() => undefined),
+		});
+
+		queue.push("first");
+		await settle();
+		expect(push).toHaveBeenCalledExactlyOnceWith([
+			{ event: "first", idempotencyKey: "1" },
+		]);
+
+		queue.close();
+		await done;
 	});
 });
 
@@ -185,7 +235,11 @@ it("forwards an event that only arrives after several idle flush ticks", async (
 	const push = vi.fn().mockResolvedValue(undefined);
 	const queue = createAsyncQueue<string>();
 	const { sleep, resolveCall } = createControllableSleep();
-	const done = forwardEvents(queue, push, { maxBatchSize: 100, sleep });
+	const done = forwardEvents(queue, push, {
+		leadingEdgeFlush: false,
+		maxBatchSize: 100,
+		sleep,
+	});
 	const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 	// Idle flush ticks fire before any event exists.

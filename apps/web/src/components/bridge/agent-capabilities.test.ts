@@ -52,6 +52,15 @@ it("gives pi no session-list or tool-approval, a poll usage mode, and no permiss
 	expect(pi.interrupt).toBe(true);
 });
 
+// RC-T4: pi runs shell/tool calls with NO approval gate at all — the badge
+// this drives on the session header is the only user-visible signal of that.
+it("flags pi (and only pi) as running with no approval gate at all (RC-T4)", () => {
+	expect(capabilities("pi").noApprovalGate).toBe(true);
+	expect(capabilities("claude-code").noApprovalGate).toBe(false);
+	expect(capabilities("opencode").noApprovalGate).toBe(false);
+	expect(capabilities("codex").noApprovalGate).toBe(false);
+});
+
 it("gives opencode tool-approval and a stream usage mode, with build/plan permission modes (§2)", () => {
 	const opencode = capabilities("opencode");
 	// The opencode CLI adapter doesn't push a `session_list` reply yet, so the

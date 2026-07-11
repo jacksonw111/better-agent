@@ -47,6 +47,9 @@ async function startsSessionPushesEventsAndPollsUnderOneSessionId(): Promise<voi
 			stop,
 		},
 		signal: controller.signal,
+		// Batch-shape assertion below — opt out of the leading-edge first flush
+		// (default true) so both events land in ONE batch.
+		forwardOptions: { leadingEdgeFlush: false },
 		pollOptions: { sleep },
 	});
 
@@ -101,6 +104,9 @@ async function retriesAFailedPushEventsBatchInsteadOfDroppingIt(): Promise<void>
 		},
 		signal: controller.signal,
 		forwardOptions: {
+			// Batch-shape assertion below — opt out of the leading-edge first
+			// flush (default true) so all three events land in ONE batch.
+			leadingEdgeFlush: false,
 			maxBatchSize: FORWARD_TEST_MAX_BATCH_SIZE,
 			sleep: neverSleep,
 			pushRetrySleep: () => Promise.resolve(),

@@ -10,7 +10,7 @@ import { isStaleTurnEvent } from "./turn-stale";
 export type Sleep = (ms: number) => Promise<void>;
 
 const DEFAULT_MAX_BATCH_SIZE = 25;
-const DEFAULT_FLUSH_INTERVAL_MS = 250;
+const DEFAULT_FLUSH_INTERVAL_MS = 50;
 // How many events `forwardEvents` will hold in `pushEvents` retry backlog
 // before dropping the oldest ones (see push-queue.ts) — generously above
 // DEFAULT_MAX_BATCH_SIZE so a handful of consecutive push failures don't
@@ -42,11 +42,11 @@ export interface ForwardEventsOptions {
 	/** R0-T2 (WS duplex mode): flush the FIRST event landing in an otherwise
 	 * empty/idle buffer immediately, instead of waiting for `flushIntervalMs`
 	 * or `maxBatchSize` — trimmed latency matters more than batching
-	 * efficiency once events go out over a live WS push instead of an HTTP
-	 * poll. A burst of events still batches normally: this only fires the
+	 * efficiency for either the primary WS path or its HTTP fallback. A burst
+	 * of events still batches normally: this only fires the
 	 * INSTANT a quiet period ends, not on every event — see `forwardEvents`'s
-	 * `leadingFlushArmed` bookkeeping. Left `false`/unset, behavior is
-	 * unchanged (the default HTTP path never sets it). */
+	 * `leadingFlushArmed` bookkeeping. Defaults to true; callers can set false
+	 * when they deliberately prefer a fully batched first event. */
 	leadingEdgeFlush?: boolean;
 	maxBatchSize?: number;
 	maxBufferedEvents?: number;
@@ -90,7 +90,7 @@ function flushToQueue<T>(
 }
 
 function resolveLeadingEdgeFlush(options: ForwardEventsOptions): boolean {
-	return options.leadingEdgeFlush ?? false;
+	return options.leadingEdgeFlush ?? true;
 }
 
 /** Mutable per-call bookkeeping `forwardEvents`'s loop mutates directly —
