@@ -39,6 +39,15 @@ export interface ForwardEventsOptions {
 	 * same key: `nextEventId` only advances when a NEW event is buffered, not
 	 * on a push-queue resend. */
 	generationId?: number;
+	/** R0-T2 (WS duplex mode): flush the FIRST event landing in an otherwise
+	 * empty/idle buffer immediately, instead of waiting for `flushIntervalMs`
+	 * or `maxBatchSize` — trimmed latency matters more than batching
+	 * efficiency once events go out over a live WS push instead of an HTTP
+	 * poll. A burst of events still batches normally: this only fires the
+	 * INSTANT a quiet period ends, not on every event — see `forwardEvents`'s
+	 * `leadingFlushArmed` bookkeeping. Left `false`/unset, behavior is
+	 * unchanged (the default HTTP path never sets it). */
+	leadingEdgeFlush?: boolean;
 	maxBatchSize?: number;
 	maxBufferedEvents?: number;
 	/** Debug hook: called for every event drained from the agent, before it's
@@ -78,6 +87,49 @@ function flushToQueue<T>(
 	}
 	queue.enqueue(buffer);
 	return [];
+}
+
+function resolveLeadingEdgeFlush(options: ForwardEventsOptions): boolean {
+	return options.leadingEdgeFlush ?? false;
+}
+
+/** Mutable per-call bookkeeping `forwardEvents`'s loop mutates directly —
+ * bundled into one object so the flush helpers below can be extracted
+ * without piling more parameters (or more branches inline in the loop body)
+ * onto `forwardEvents` itself, which is what pushed its cyclomatic complexity
+ * over the repo's gate once `leadingEdgeFlush` added its own branching. */
+interface ForwardState<T> {
+	buffer: QueuedEvent<T>[];
+	leadingFlushArmed: boolean;
+}
+
+/** The flush-interval timer fired: flush whatever's buffered and re-arm (or
+ * not) the leading-edge flush for the next quiet-period's first event. */
+function applyFlushTick<T>(
+	state: ForwardState<T>,
+	queue: { enqueue(batch: QueuedEvent<T>[]): void },
+	options: ForwardEventsOptions
+): void {
+	state.buffer = flushToQueue(state.buffer, queue);
+	state.leadingFlushArmed = resolveLeadingEdgeFlush(options);
+}
+
+/** Just after buffering a newly-arrived event: flush immediately if this is
+ * the leading edge of a quiet period, otherwise flush once `maxBatchSize` is
+ * reached same as before `leadingEdgeFlush` existed. */
+function flushAfterBuffering<T>(
+	state: ForwardState<T>,
+	queue: { enqueue(batch: QueuedEvent<T>[]): void },
+	maxBatchSize: number
+): void {
+	if (state.leadingFlushArmed && state.buffer.length === 1) {
+		state.buffer = flushToQueue(state.buffer, queue);
+		state.leadingFlushArmed = false;
+		return;
+	}
+	if (state.buffer.length >= maxBatchSize) {
+		state.buffer = flushToQueue(state.buffer, queue);
+	}
 }
 
 /** Applies `ForwardEventsOptions` defaults and builds the `pushEvents` retry
@@ -140,7 +192,13 @@ export async function forwardEvents<T>(
 	const { maxBatchSize, flushIntervalMs, queue, sleep } =
 		resolveForwardEventsConfig(options, push);
 	const iterator = events[Symbol.asyncIterator]();
-	let buffer: QueuedEvent<T>[] = [];
+	const state: ForwardState<T> = {
+		buffer: [],
+		// R0-T2: true whenever the NEXT event to land is the first one after a
+		// confirmed-idle quiet period (armed initially, and re-armed every time
+		// the flush timer actually fires) — see `leadingEdgeFlush`'s doc comment.
+		leadingFlushArmed: resolveLeadingEdgeFlush(options),
+	};
 	let nextEventId = 1;
 	// Hold ONE outstanding iterator.next() across flush ticks. Re-calling next()
 	// every loop iteration (racing it against the flush timer) orphaned the
@@ -159,7 +217,7 @@ export async function forwardEvents<T>(
 		const tick = sleep(flushIntervalMs).then(() => FLUSH_TICK);
 		const next = await Promise.race([pendingNext, tick, queue.fatal]);
 		if (next === FLUSH_TICK) {
-			buffer = flushToQueue(buffer, queue);
+			applyFlushTick(state, queue, options);
 			continue;
 		}
 		const result = next as IteratorResult<T>;
@@ -178,11 +236,9 @@ export async function forwardEvents<T>(
 			options.generationId === undefined
 				? String(nextEventId++)
 				: `${options.generationId}:${nextEventId++}`;
-		buffer.push({ event: result.value, idempotencyKey });
-		if (buffer.length >= maxBatchSize) {
-			buffer = flushToQueue(buffer, queue);
-		}
+		state.buffer.push({ event: result.value, idempotencyKey });
+		flushAfterBuffering(state, queue, maxBatchSize);
 	}
-	flushToQueue(buffer, queue);
+	flushToQueue(state.buffer, queue);
 	await queue.close();
 }

@@ -141,6 +141,42 @@ describe("forwardEvents - straggler drop (RC-T3)", () => {
 	});
 });
 
+describe("forwardEvents - leading edge flush (R0-T2)", () => {
+	it("flushes the first event into an idle buffer immediately, then batches a burst", async () => {
+		const push = vi.fn().mockResolvedValue(undefined);
+		const queue = createAsyncQueue<string>();
+		const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+		const done = forwardEvents(queue, push, {
+			maxBatchSize: 100,
+			sleep: () => new Promise(() => undefined), // no timer-based flush
+			leadingEdgeFlush: true,
+		});
+
+		queue.push("a");
+		await settle();
+		expect(push).toHaveBeenCalledExactlyOnceWith([
+			{ event: "a", idempotencyKey: "1" },
+		]);
+
+		// A burst landing right after the leading-edge flush must batch
+		// together, not each trigger their own immediate flush.
+		queue.push("b");
+		queue.push("c");
+		await settle();
+		await settle();
+		expect(push).toHaveBeenCalledTimes(1);
+
+		queue.close();
+		await done;
+		expect(push).toHaveBeenCalledTimes(2);
+		expect(push).toHaveBeenNthCalledWith(2, [
+			{ event: "b", idempotencyKey: "2" },
+			{ event: "c", idempotencyKey: "3" },
+		]);
+	});
+});
+
 it("forwards an event that only arrives after several idle flush ticks", async () => {
 	// Regression: a slow source (e.g. claude's ~4s first token) lets the flush
 	// timer fire repeatedly before any event arrives. The loop must keep the

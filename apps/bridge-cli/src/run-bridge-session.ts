@@ -12,6 +12,7 @@ import type { AfterIdRef, CommandSink } from "./commands";
 import { type ForwardEventsOptions, forwardEvents } from "./forward-events";
 import { type PollLoopOptions, type PollOutcome, pollLoop } from "./poll-loop";
 import type { RelayTransport } from "./relay-client";
+import { runDuplexPhase } from "./run-bridge-session-duplex";
 import {
 	createSessionWatchdog,
 	type SessionWatchdog,
@@ -22,6 +23,13 @@ import {
 	watchdogSink,
 } from "./session-watchdog-wiring";
 import { truncateEvents } from "./truncate-event";
+import type { DuplexChannel } from "./ws-duplex";
+
+// R0-T2: how fast `forwardEvents` flushes a lone leading event once it's
+// going out over a live WS push instead of an HTTP poll — see
+// `forward-events.ts`'s `leadingEdgeFlush` doc comment for why WS mode wants
+// this much lower than the HTTP path's `DEFAULT_FLUSH_INTERVAL_MS`.
+const WS_FLUSH_INTERVAL_MS = 25;
 
 export interface RunBridgeSessionOptions {
 	/** See `AgentSessionIdRef`. Optional: only the outer restart loop needs
@@ -90,8 +98,13 @@ interface RunLoopsArgs {
  * purely to keep that function under the line gate. Returns the RAW
  * `PollOutcome` — `runBridgeSession` overrides it with the watchdog's own
  * `outcomeRef.current` if a stall (not a natural end/server command) is what
- * actually stopped both loops. */
-async function runLoops(args: RunLoopsArgs): Promise<PollOutcome> {
+ * actually stopped both loops.
+ *
+ * R0-T2: this is the HTTP path, used verbatim (byte-for-byte unchanged) both
+ * when the transport has no `openDuplex` at all and when a live channel's
+ * FIRST handshake fails — see `runLoops`, the new entry point below, which
+ * decides which of this or `runLoopsOverDuplex` to call. */
+async function runLoopsOverPoll(args: RunLoopsArgs): Promise<PollOutcome> {
 	const {
 		options,
 		sessionId,
@@ -131,6 +144,89 @@ async function runLoops(args: RunLoopsArgs): Promise<PollOutcome> {
 		),
 	]);
 	return outcome;
+}
+
+/** R0-T2's WS-duplex counterpart to `runLoopsOverPoll` above: `forwardEvents`
+ * pushes through `runDuplexPhase`'s hybrid `push` (channel while it's live,
+ * HTTP the moment it isn't) instead of calling `pushEvents` directly, and the
+ * SECOND half of the `Promise.all` is `runDuplexPhase`'s `outcome` — driven
+ * by `channel.onCommand`/`onDown` — instead of `pollLoop` directly (though
+ * `pollLoop` still runs, internally, once the channel goes down — see
+ * run-bridge-session-duplex.ts). Uses a lower `flushIntervalMs` and leading-
+ * edge flush (see `WS_FLUSH_INTERVAL_MS`): trimmed latency matters more than
+ * batching efficiency once events go out over a live push instead of a poll. */
+async function runLoopsOverDuplex(
+	args: RunLoopsArgs,
+	channel: DuplexChannel
+): Promise<PollOutcome> {
+	const { options, sessionId, events, watchdog, afterIdRef, stopPolling } =
+		args;
+	const sink = watchdogSink(options.handle, watchdog);
+	const phase = runDuplexPhase({
+		afterIdRef,
+		channel,
+		pollController: args.pollController,
+		pollOptions: options.pollOptions,
+		sessionId,
+		sink,
+		transport: options.transport,
+	});
+	const [, outcome] = await Promise.all([
+		forwardEvents(events, phase.push, {
+			flushIntervalMs: WS_FLUSH_INTERVAL_MS,
+			leadingEdgeFlush: true,
+			...options.forwardOptions,
+			signal: options.signal,
+			onEvent: (event) => {
+				options.forwardOptions?.onEvent?.(event);
+				watchdog.observeEvent(event);
+			},
+		}).finally(() => {
+			stopPolling();
+			watchdog.dispose();
+			channel.close();
+		}),
+		phase.outcome,
+	]);
+	return outcome;
+}
+
+/** `transport.openDuplex`, made safe to call unconditionally: absent,
+ * resolving `null`, or (defensively — the real implementation never does)
+ * rejecting all mean the same thing to the caller — no WS channel, fall back
+ * to HTTP for this whole generation. */
+async function openDuplexChannel(
+	options: RunBridgeSessionOptions,
+	sessionId: string,
+	afterIdRef: AfterIdRef
+): Promise<DuplexChannel | null> {
+	if (!options.transport.openDuplex) {
+		return null;
+	}
+	try {
+		return await options.transport.openDuplex({
+			sessionId,
+			afterId: afterIdRef.current,
+		});
+	} catch {
+		return null;
+	}
+}
+
+/** Tries the WS duplex channel first (`openDuplexChannel`); a live one runs
+ * `runLoopsOverDuplex`, otherwise `runLoopsOverPoll` runs completely
+ * unmodified — see that function's own doc comment for the "byte-for-byte
+ * unchanged" guarantee R0-T2's brief requires of the HTTP path. */
+async function runLoops(args: RunLoopsArgs): Promise<PollOutcome> {
+	const channel = await openDuplexChannel(
+		args.options,
+		args.sessionId,
+		args.afterIdRef
+	);
+	if (channel) {
+		return runLoopsOverDuplex(args, channel);
+	}
+	return runLoopsOverPoll(args);
 }
 
 /**

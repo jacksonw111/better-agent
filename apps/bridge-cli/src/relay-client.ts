@@ -7,6 +7,7 @@
 
 import type { AgentStartConfig, ResolvedMcpServer } from "./adapters/types";
 import type { RelayEvent } from "./commands";
+import type { DuplexChannel } from "./ws-duplex";
 
 export type { AgentSessionIdRef } from "./capture-agent-session-id";
 export {
@@ -20,6 +21,7 @@ export {
 	type RunBridgeSessionOptions,
 	runBridgeSession,
 } from "./run-bridge-session";
+export type { DuplexChannel } from "./ws-duplex";
 
 /** The subset of the `bridge:` oRPC router this CLI calls. */
 export interface RelayTransport {
@@ -32,6 +34,15 @@ export interface RelayTransport {
 		config: AgentStartConfig | null;
 		mcpServers: ResolvedMcpServer[];
 	}>;
+	/** R0-T2: opens the WS duplex channel (see ws-duplex.ts) as an alternative
+	 * to `pollCommands`/`pushEvents` — optional so a transport (or a test
+	 * fake) that doesn't implement it behaves EXACTLY as it did before R0-T2:
+	 * `run-bridge-session.ts` falls back to the unmodified HTTP poll path
+	 * whenever this is absent, or resolves `null`, or rejects. */
+	openDuplex?(input: {
+		afterId: number;
+		sessionId: string;
+	}): Promise<DuplexChannel | null>;
 	pollCommands(input: {
 		afterId: number;
 		sessionId: string;

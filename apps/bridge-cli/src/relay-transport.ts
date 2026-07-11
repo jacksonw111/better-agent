@@ -11,13 +11,22 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { AgentKind } from "./adapters/types";
 import type { RelayTransport } from "./relay-client";
+import { connectDuplexChannel, type DuplexChannel } from "./ws-duplex";
+import { defaultWsFactory, type WsFactory } from "./ws-duplex-socket";
 
 export interface RelayTransportConfig {
 	serverUrl: string;
 	token: string;
+	/** R0-T2: overridable for tests — the real transport always defaults to
+	 * `defaultWsFactory` (the `ws` package). See `ws-duplex-socket.ts`. */
+	wsFactory?: WsFactory;
 }
 
 const TRAILING_SLASH = /\/$/;
+// http(s):// -> ws(s):// — matches both "http" and "https" in one go, since
+// replacing just the "http" prefix leaves an "s" (if any) in place: "https"
+// becomes "wss", not "wsss".
+const HTTP_SCHEME_PREFIX = /^http/;
 
 /**
  * `RelayTransport.startSession` deliberately types `agentKind` as a plain
@@ -29,6 +38,13 @@ function toAgentKind(agentKind: string): AgentKind {
 	return agentKind as AgentKind;
 }
 
+/** Derives the `GET /bridge/ws` URL (see `apps/server/src/bridge-ws.ts`) from
+ * the same `serverUrl` the HTTP oRPC link uses. */
+function toWsUrl(serverUrl: string): string {
+	const trimmed = serverUrl.replace(TRAILING_SLASH, "");
+	return `${trimmed.replace(HTTP_SCHEME_PREFIX, "ws")}/bridge/ws`;
+}
+
 export function createRelayTransport(
 	config: RelayTransportConfig
 ): RelayTransport {
@@ -37,6 +53,8 @@ export function createRelayTransport(
 		headers: { authorization: `Bearer ${config.token}` },
 	});
 	const client = createORPCClient(link) as AppRouterClient;
+	const wsUrl = toWsUrl(config.serverUrl);
+	const wsFactory = config.wsFactory ?? defaultWsFactory;
 
 	return {
 		startSession: (input) =>
@@ -49,5 +67,13 @@ export function createRelayTransport(
 		},
 		pollCommands: (input) => client.bridge.pollCommands(input),
 		fetchConfig: () => client.bridge.fetchConfig(),
+		openDuplex: (input): Promise<DuplexChannel | null> =>
+			connectDuplexChannel({
+				afterId: input.afterId,
+				headers: { authorization: `Bearer ${config.token}` },
+				sessionId: input.sessionId,
+				url: wsUrl,
+				wsFactory,
+			}),
 	};
 }
