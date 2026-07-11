@@ -5,6 +5,7 @@ import type { CancellationRegistry } from "@better-agent/agent/session/cancellat
 import { createModelSummarizer } from "@better-agent/agent/session/model-summarizer";
 import { createModelTitler } from "@better-agent/agent/session/model-titler";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
+import { createCommandBus } from "@better-agent/api/bridge/command-bus";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
 import { createBridgeMessageStore } from "@better-agent/db/repositories/bridge-message-store";
@@ -178,6 +179,11 @@ function assembleServices(
 		authz: buildAuthzClient(parts.authzBinding),
 		rateLimiter: buildRateLimiter(),
 		relayStore: buildRelayStore(),
+		// In-process pub/sub "bell" waking a live bridge WS connection to re-read
+		// the commands relay for its session — see command-bus.ts. Deliberately
+		// NOT persisted/shared across processes: a WS connection always lives on
+		// the same Node process as the CommandBus instance that can notify it.
+		commandBus: createCommandBus(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }

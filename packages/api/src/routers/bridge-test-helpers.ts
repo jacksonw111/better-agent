@@ -12,13 +12,22 @@ import type {
 } from "@better-agent/agent/ports";
 import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
+import { createCommandBus } from "../bridge/command-bus";
 import type { AuthedBridgeToken } from "../context";
 import { memoryMcpServerStore } from "./bridge-test-helpers-mcp";
+import {
+	cascadeDeleteSessions,
+	memoryBridgeMessageStore,
+	memoryBridgeSessionStore,
+	memoryBridgeTokenStore,
+} from "./bridge-test-helpers-stores";
 import { appRouter } from "./index";
 
 // Shared fixtures for the bridge router tests (bridge.test.ts and
 // bridge-limits.test.ts), kept in one place so both stay under the
-// per-file line cap without duplicating the in-memory store wiring.
+// per-file line cap without duplicating the in-memory store wiring. The
+// in-memory store fakes themselves live in bridge-test-helpers-stores.ts /
+// bridge-test-helpers-mcp.ts, split out for the same reason.
 
 export function fakeHonoRequest(authHeader?: string) {
 	const header = (name: string) =>
@@ -40,185 +49,8 @@ export const BOB = {
 };
 export const AGENT_KIND: BridgeAgentKind = "claude-code";
 
-type CreateTokenInput = Parameters<BridgeTokenStore["create"]>[0];
-
-function newTokenRow(input: CreateTokenInput): BridgeTokenRow {
-	return {
-		id: crypto.randomUUID(),
-		userId: input.userId,
-		name: input.name ?? null,
-		agentKind: input.agentKind,
-		token: input.token,
-		last4: input.last4 ?? null,
-		config: input.config ?? null,
-		createdAt: new Date(),
-		revokedAt: null,
-	};
-}
-
-function cascadeDeleteSessions(
-	sessionRows: Map<string, BridgeSessionRow>,
-	messageRowsBySession: Map<string, BridgeMessageRow[]>,
-	tokenId: string
-): void {
-	for (const [sessionId, session] of sessionRows) {
-		if (session.tokenId === tokenId) {
-			sessionRows.delete(sessionId);
-			messageRowsBySession.delete(sessionId);
-		}
-	}
-}
-
-function memoryBridgeTokenStore(
-	rows: Map<string, BridgeTokenRow>,
-	hashes: Map<string, string>,
-	onDeleteAgent: (tokenId: string) => void
-): BridgeTokenStore {
-	return {
-		create(input) {
-			const row = newTokenRow(input);
-			rows.set(row.id, row);
-			hashes.set(row.id, input.tokenHash);
-			return Promise.resolve(row);
-		},
-		listByUser(userId) {
-			return Promise.resolve(
-				[...rows.values()].filter((row) => row.userId === userId)
-			);
-		},
-		getById(id, userId) {
-			const row = rows.get(id);
-			return Promise.resolve(row && row.userId === userId ? row : null);
-		},
-		findByHash(tokenHash) {
-			const found = [...hashes.entries()].find(
-				([, hash]) => hash === tokenHash
-			);
-			const row = found && rows.get(found[0]);
-			return Promise.resolve(
-				row
-					? { id: row.id, userId: row.userId, revokedAt: row.revokedAt }
-					: null
-			);
-		},
-		deleteAgent(id, userId) {
-			const row = rows.get(id);
-			if (row && row.userId === userId) {
-				rows.delete(id);
-				hashes.delete(id);
-				onDeleteAgent(id);
-			}
-			return Promise.resolve();
-		},
-		updateConfig: (id, userId, config) =>
-			memoryUpdateConfig(rows, id, userId, config),
-	};
-}
-
-/** In-memory updateConfig, split out so `memoryBridgeTokenStore` stays under
- * the max-lines-per-function gate. */
-function memoryUpdateConfig(
-	rows: Map<string, BridgeTokenRow>,
-	id: string,
-	userId: string,
-	config: BridgeTokenRow["config"]
-): Promise<BridgeTokenRow | null> {
-	const row = rows.get(id);
-	if (!row || row.userId !== userId) {
-		return Promise.resolve(null);
-	}
-	const updated: BridgeTokenRow = { ...row, config };
-	rows.set(id, updated);
-	return Promise.resolve(updated);
-}
-
-function newSessionRow(
-	input: Parameters<BridgeSessionStore["create"]>[0]
-): BridgeSessionRow {
-	return {
-		id: crypto.randomUUID(),
-		userId: input.userId,
-		tokenId: input.tokenId,
-		agentKind: input.agentKind,
-		label: input.label ?? null,
-		agentSessionId: null,
-		status: "active",
-		createdAt: new Date(),
-		lastSeenAt: new Date(),
-		vncEndpoint: null,
-	};
-}
-
-function memoryBridgeSessionStore(
-	rows: Map<string, BridgeSessionRow>
-): BridgeSessionStore {
-	return {
-		create(input) {
-			const row = newSessionRow(input);
-			rows.set(row.id, row);
-			return Promise.resolve(row);
-		},
-		get(id) {
-			return Promise.resolve(rows.get(id) ?? null);
-		},
-		listByUser(userId) {
-			return Promise.resolve(
-				[...rows.values()].filter((row) => row.userId === userId)
-			);
-		},
-		touch(id) {
-			const row = rows.get(id);
-			if (row) {
-				rows.set(id, { ...row, lastSeenAt: new Date() });
-			}
-			return Promise.resolve();
-		},
-		end(id, userId) {
-			const row = rows.get(id);
-			if (row && row.userId === userId) {
-				rows.set(id, { ...row, status: "ended" });
-			}
-			return Promise.resolve();
-		},
-		setAgentSessionId(id, agentSessionId) {
-			const row = rows.get(id);
-			if (row) {
-				rows.set(id, { ...row, agentSessionId });
-			}
-			return Promise.resolve();
-		},
-	};
-}
-
-function memoryBridgeMessageStore(
-	rowsBySession: Map<string, BridgeMessageRow[]>
-): BridgeMessageStore {
-	return {
-		append(sessionId, seq, event) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			rows.push({ seq, event });
-			rowsBySession.set(sessionId, rows);
-			return Promise.resolve();
-		},
-		appendMany(sessionId, newRows) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			rows.push(...newRows);
-			rowsBySession.set(sessionId, rows);
-			return Promise.resolve();
-		},
-		list(sessionId, afterSeq, limit) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			return Promise.resolve(
-				rows
-					.filter((row) => row.seq > afterSeq)
-					.sort((a, b) => a.seq - b.seq)
-					.slice(0, limit)
-			);
-		},
-	};
-}
-
 interface TestServices {
+	commandBus: ReturnType<typeof createCommandBus>;
 	relayStore: ReturnType<typeof createInMemoryRelayStore>;
 	stores: {
 		bridgeToken: BridgeTokenStore;
@@ -273,8 +105,10 @@ export function build() {
 	);
 	const mcpServer = memoryMcpServerStore(mcpServerRows, mcpServerAuthHeaders);
 	const relayStore = createInMemoryRelayStore();
+	const commandBus = createCommandBus();
 	const usageRecord = createFakeUsageRecordStore();
 	const services: TestServices = {
+		commandBus,
 		relayStore,
 		stores: {
 			bridgeToken,

@@ -43,6 +43,7 @@ import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-stor
 import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
 import type { UsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
+import type { CommandBus } from "./bridge/command-bus";
 
 export interface AgentServices {
 	agentValidator: AgentValidator;
@@ -57,6 +58,9 @@ export interface AgentServices {
 	authz: AuthzClient;
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
+	/** In-process pub/sub notifying a live bridge WS connection that a new
+	 * relay command was appended for its session (see command-bus.ts). */
+	commandBus: CommandBus;
 	composio: (accountId: string) => Promise<ComposioService | null>;
 	emailSender: EmailSender;
 	/** Memory embeddings via Workers AI (decision D1); null when CF creds unset. */

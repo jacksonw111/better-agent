@@ -1,15 +1,10 @@
-import { log } from "evlog";
 import { z } from "zod";
+import { ingestEvents, MAX_PUSH_BATCH } from "../bridge/ingest-events";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
-import type { Context } from "../context";
 import { bridgeProcedure, userProcedure } from "../index";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
-import { appendPushedEvents } from "./bridge-push-events";
 import { fetchConfig, restartSession } from "./bridge-restart";
-import {
-	assertEventsWithinSizeLimit,
-	assertInputWithinSizeLimit,
-} from "./bridge-size-limits";
+import { assertInputWithinSizeLimit } from "./bridge-size-limits";
 import {
 	createToken,
 	deleteToken,
@@ -20,8 +15,6 @@ import {
 import { usageByAgentKind } from "./bridge-usage";
 
 const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
-/** Max events accepted in a single pushEvents call (spec §3.1: bounded window). */
-const MAX_PUSH_BATCH = 50;
 /** Appended to a session's `commands↓` by `endSession`, so the CLI's poll
  * loop (see `apps/bridge-cli/src/commands.ts`'s `parseCommandText`) tells the
  * local agent process to stop instead of the DB flip alone leaving it running
@@ -47,20 +40,6 @@ const historyInput = z.object({
 		.max(MAX_HISTORY_LIMIT)
 		.default(DEFAULT_HISTORY_LIMIT),
 });
-
-/** Best-effort persistence of a pushEvents batch as one multi-row insert —
- * logged and swallowed, since a failure must never break the live relay. */
-async function persistEventsBestEffort(
-	context: Context,
-	sessionId: string,
-	rows: { seq: number; event: unknown }[]
-): Promise<void> {
-	try {
-		await context.services.stores.bridgeMessage.appendMany(sessionId, rows);
-	} catch (err) {
-		log.error({ action: "bridge pushEvents persist", error: String(err) });
-	}
-}
 
 export const bridgeRouter = {
 	// --- user-facing bridge-token management (owner-scoped, bridge-token-mgmt.ts) ---
@@ -133,18 +112,12 @@ export const bridgeRouter = {
 				context.authedBridgeToken.userId,
 				input.sessionId
 			);
-			assertEventsWithinSizeLimit(input.events);
-			// Relay appends stay sequential (each assigns the next seq off the
-			// previous one); Postgres persistence doesn't, so it's batched below.
-			const persisted = await appendPushedEvents(
-				context,
-				input.sessionId,
-				context.authedBridgeToken.userId,
-				input.events,
-				input.idempotencyKeys
-			);
-			await persistEventsBestEffort(context, input.sessionId, persisted);
-			await context.services.stores.bridgeSession.touch(input.sessionId);
+			await ingestEvents(context, {
+				sessionId: input.sessionId,
+				userId: context.authedBridgeToken.userId,
+				events: input.events,
+				idempotencyKeys: input.idempotencyKeys,
+			});
 			return { ok: true };
 		}),
 
@@ -218,6 +191,7 @@ export const bridgeRouter = {
 				"commands",
 				input.data
 			);
+			context.services.commandBus.notify(input.sessionId);
 			return { ok: true };
 		}),
 
@@ -252,6 +226,7 @@ export const bridgeRouter = {
 					"commands",
 					STOP_CONTROL_COMMAND
 				);
+				context.services.commandBus.notify(input.sessionId);
 			} catch {
 				// swallow — see comment above.
 			}

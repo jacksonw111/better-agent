@@ -39,6 +39,7 @@ export const restartSession = userProcedure
 				"commands",
 				RESTART_CONTROL_COMMAND
 			);
+			context.services.commandBus.notify(input.sessionId);
 		} catch {
 			// swallow — see comment above.
 		}

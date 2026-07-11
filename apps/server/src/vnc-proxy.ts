@@ -227,6 +227,13 @@ export function registerVncRoutes(
 	deps: VncRouteDeps
 ): {
 	injectWebSocket: ReturnType<typeof createNodeWebSocket>["injectWebSocket"];
+	/** The same `createNodeWebSocket` instance's `upgradeWebSocket`, exposed so
+	 * the bridge WS route (bridge-ws.ts) can register on the SAME app/http
+	 * server without creating a second `createNodeWebSocket({app})` instance —
+	 * two independent instances each install their own 'upgrade' listener on
+	 * the http server, and both fire (and both call `app.request(...)`) for
+	 * every upgrade regardless of path, racing `wss.handleUpgrade()`. */
+	upgradeWebSocket: ReturnType<typeof createNodeWebSocket>["upgradeWebSocket"];
 } {
 	const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
@@ -272,5 +279,5 @@ export function registerVncRoutes(
 		})
 	);
 
-	return { injectWebSocket };
+	return { injectWebSocket, upgradeWebSocket };
 }

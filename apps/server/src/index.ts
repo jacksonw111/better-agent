@@ -3,6 +3,7 @@ import { env } from "@better-agent/env/server";
 import { serve } from "@hono/node-server";
 import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
+import { registerBridgeWsRoute } from "./bridge-ws";
 import { createS3Bucket } from "./s3-bucket";
 import { buildServices } from "./services";
 import { createVncRouteDeps, registerVncRoutes } from "./vnc-proxy";
@@ -32,10 +33,14 @@ const app = buildApp(services);
 // buildApp, because buildApp is shared with the Workers entry (worker.ts),
 // where long-lived WebSockets aren't supported — only this Node/Docker
 // deployment injects the WS upgrade handler onto the http server below.
-const { injectWebSocket } = registerVncRoutes(
+const { injectWebSocket, upgradeWebSocket } = registerVncRoutes(
 	app,
 	createVncRouteDeps(services)
 );
+// CLI<->server command/event duplex channel (R0-T1). Reuses the same
+// `upgradeWebSocket` instance as the VNC routes above — see bridge-ws.ts's
+// top comment for why a second `createNodeWebSocket({app})` isn't safe here.
+registerBridgeWsRoute(app, upgradeWebSocket, services);
 
 const server = serve(
 	{
