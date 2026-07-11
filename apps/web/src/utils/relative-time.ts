@@ -6,9 +6,20 @@ const SECS_PER_WEEK = 604_800;
 const SECS_PER_MONTH = 2_592_000;
 const SECS_PER_YEAR = 31_536_000;
 
-const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const FORMATTERS = {
+	en: new Intl.RelativeTimeFormat("en", { numeric: "auto" }),
+	// The quota section's copy is Chinese per the refactor plan
+	// (docs/local-agent-refactor-plan.md §4.4 "剩余x%·y后重置").
+	"zh-CN": new Intl.RelativeTimeFormat("zh-CN", { numeric: "auto" }),
+} as const;
 
-export function relativeTime(iso: string): string {
+export type RelativeTimeLocale = keyof typeof FORMATTERS;
+
+export function relativeTime(
+	iso: string,
+	locale: RelativeTimeLocale = "en"
+): string {
+	const rtf = FORMATTERS[locale];
 	const diffSec = Math.round(
 		(new Date(iso).getTime() - Date.now()) / MS_PER_SEC
 	);

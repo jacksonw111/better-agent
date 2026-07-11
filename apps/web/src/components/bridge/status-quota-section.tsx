@@ -21,17 +21,19 @@ export function StatusSectionHeader({ title }: { title: string }) {
 	);
 }
 
-/** "62% left · resets in 2 hours · Balance: 50" — the REMAINING-percent
+/** "剩余 62% · 2小时后重置 · Balance: 50" — the REMAINING-percent
  * inversion (hermes's own render style): a `QuotaWindow` carries
  * `usedPercent`, but "you've used 62%" buries the number a user actually
  * wants at a glance ("how much do I have left"), so the text reads the
  * complement while the bar underneath still fills by the raw `usedPercent`
- * (the same "fill = consumed" visual language as the context-usage bar). */
+ * (the same "fill = consumed" visual language as the context-usage bar).
+ * Chinese copy is mandated by docs/local-agent-refactor-plan.md §4.4
+ * ("剩余x%·y后重置") — matching R4-T1's zh window labels. */
 function windowRemainingText(window: QuotaWindow): string {
 	const remaining = Math.round(clampPct(PERCENT_MAX - window.usedPercent));
-	const parts = [`${remaining}% left`];
+	const parts = [`剩余 ${remaining}%`];
 	if (window.resetsAt) {
-		parts.push(`resets ${relativeTime(window.resetsAt)}`);
+		parts.push(`${relativeTime(window.resetsAt, "zh-CN")}重置`);
 	}
 	if (window.detail) {
 		parts.push(window.detail);
@@ -65,10 +67,10 @@ export function QuotaSection({ quota }: { quota: QuotaSnapshot | undefined }) {
 	}
 	return (
 		<div className="flex flex-col gap-2">
-			<StatusSectionHeader title="Account quota" />
+			<StatusSectionHeader title="账号配额" />
 			{quota.unavailableReason ? (
 				<p className="text-muted-foreground text-xs">
-					Quota unavailable ({quota.unavailableReason})
+					配额信息不可用（{quota.unavailableReason}）
 				</p>
 			) : (
 				<div className="flex flex-col gap-2.5">
@@ -78,7 +80,7 @@ export function QuotaSection({ quota }: { quota: QuotaSnapshot | undefined }) {
 				</div>
 			)}
 			<span className="text-muted-foreground text-xs">
-				Updated {relativeTime(quota.fetchedAt)}
+				更新于{relativeTime(quota.fetchedAt, "zh-CN")}
 			</span>
 		</div>
 	);

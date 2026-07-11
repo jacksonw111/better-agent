@@ -15,9 +15,9 @@ import {
 	waitForConnect,
 } from "./terminal-test-helpers";
 
-const REMAINING_62_PATTERN = /62% left/;
-const RESETS_2H_PATTERN = /resets in 2 hours/;
-const UPDATED_PATTERN = /Updated/;
+const REMAINING_62_PATTERN = /剩余 62%/;
+const RESETS_2H_PATTERN = /2 ?小时后重置/;
+const UPDATED_PATTERN = /更新于/;
 
 // R1-c: the "Status" button asks the CLI adapter for its current on-demand
 // status (`{ control: getStatus }`) and renders whatever `status_snapshot`
@@ -133,13 +133,13 @@ it("renders quota windows with the remaining% inversion and a relative reset tim
 	});
 
 	await waitFor(() => {
-		expect(screen.getByText("Account quota")).toBeDefined();
+		expect(screen.getByText("账号配额")).toBeDefined();
 	});
 	expect(screen.getByText("5h window")).toBeDefined();
 	expect(screen.getByText(REMAINING_62_PATTERN)).toBeDefined();
 	expect(screen.getByText(RESETS_2H_PATTERN)).toBeDefined();
 	expect(screen.getByText("Weekly")).toBeDefined();
-	expect(screen.getByText("10% left")).toBeDefined();
+	expect(screen.getByText("剩余 10%")).toBeDefined();
 	expect(screen.getByText(UPDATED_PATTERN)).toBeDefined();
 });
 
@@ -169,7 +169,7 @@ it("shows a muted unavailable line when the quota fetch failed", async () => {
 
 	await waitFor(() => {
 		expect(
-			screen.getByText("Quota unavailable (codex credentials not found)")
+			screen.getByText("配额信息不可用（codex credentials not found）")
 		).toBeDefined();
 	});
 });
@@ -195,7 +195,7 @@ it("renders a stats-only detail (pi's shape) gracefully — no quota, no context
 		expect(screen.getByText("This session")).toBeDefined();
 	});
 	expect(screen.getByText("$0.0200")).toBeDefined();
-	expect(screen.queryByText("Account quota")).toBeNull();
+	expect(screen.queryByText("账号配额")).toBeNull();
 });
 
 it("degrades to nothing but the empty state's absence when every status_snapshot field is empty", async () => {
@@ -216,6 +216,6 @@ it("degrades to nothing but the empty state's absence when every status_snapshot
 			screen.getByRole("button", { name: "Refresh status" })
 		).toBeDefined();
 	});
-	expect(screen.queryByText("Account quota")).toBeNull();
+	expect(screen.queryByText("账号配额")).toBeNull();
 	expect(screen.queryByText("This session")).toBeNull();
 });
