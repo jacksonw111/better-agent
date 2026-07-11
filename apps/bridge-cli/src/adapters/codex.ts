@@ -5,7 +5,6 @@ import {
 } from "../normalize/codex-file-change-cache";
 import {
 	asString,
-	isRecord,
 	type NormalizedEvent,
 	userMessageEvent,
 } from "../normalize/types";
@@ -21,6 +20,11 @@ import {
 } from "./codex-controls";
 import { logRawCodexNotification } from "./codex-debug";
 import { fetchCodexModelList } from "./codex-models";
+import {
+	resumeFailedEvent,
+	threadIdFrom,
+	tryCodexThreadResume,
+} from "./codex-resume";
 import {
 	type CodexStatusCache,
 	codexUsageUpdateEvent,
@@ -43,32 +47,6 @@ import {
 	type AgentHandle,
 	type StartOptions,
 } from "./types";
-
-/** codex's app-server response key for `thread/start`'s thread id has
- * drifted across versions — some builds nest it at `thread.id` or
- * `thread.sessionId`, others flatten it to a top-level `sessionId` or
- * `threadId`. Tries each in turn (first non-empty string wins) so a codex
- * version bump doesn't silently produce `threadId: undefined` on every
- * subsequent `turn/start`/`turn/interrupt` call.
- *
- * ASSUMPTION (unverified — no `codex` binary in this sandbox): the exact set
- * of alternate keys. Mirrors hermes's `codex_app_server_session.py`
- * (`thread.id` / `thread.sessionId` / `sessionId` / `threadId`), which
- * verified this cross-version drift against a real codex 0.130.0 binary.
- */
-function threadIdFrom(result: unknown): unknown {
-	if (!isRecord(result)) {
-		return null;
-	}
-	const thread = isRecord(result.thread) ? result.thread : undefined;
-	return (
-		asString(thread?.id) ??
-		asString(thread?.sessionId) ??
-		asString(result.sessionId) ??
-		asString(result.threadId) ??
-		null
-	);
-}
 
 /**
  * `codex app-server` — a long-lived JSON-RPC process, one thread per session.
@@ -214,6 +192,37 @@ function buildCodexSessionReadyEvent(
 	};
 }
 
+/**
+ * R5-T1: resolves the thread id `start()` proceeds with — the restart-chain
+ * context-preserving path. When `opts.resume` carries a prior thread id
+ * (captured off that session's own `session_ready`, see
+ * `capture-agent-session-id.ts`), tries `thread/resume` first
+ * (`tryCodexThreadResume`, guarded by `CODEX_THREAD_RESUME_TIMEOUT_MS`); on
+ * ANY failure (error response or timeout) pushes a visible `resume_failed`
+ * status (so the user knows context was lost, not just silently starts
+ * over) and falls back to a fresh `thread/start`. With no `resume` id, goes
+ * straight to `thread/start` — the pre-R5-T1 behavior, unchanged.
+ */
+async function resolveCodexThreadId(
+	rpc: JsonRpcIo,
+	dir: string,
+	opts: StartOptions | undefined,
+	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>
+): Promise<unknown> {
+	if (opts?.resume) {
+		const attempt = await tryCodexThreadResume(rpc, opts.resume);
+		if ("threadId" in attempt) {
+			return attempt.threadId;
+		}
+		events.push(resumeFailedEvent(attempt.reason));
+	}
+	const started = await rpc.request(
+		"thread/start",
+		threadStartParams(dir, opts?.config)
+	);
+	return threadIdFrom(started);
+}
+
 export const codexAdapter: Adapter = {
 	async start(dir: string, opts?: StartOptions): Promise<AgentHandle> {
 		const rpc = await connectJsonRpc("codex", CODEX_ARGS, dir);
@@ -261,11 +270,7 @@ export const codexAdapter: Adapter = {
 			clientInfo: { name: "better-agent-bridge", version: "0.0.0" },
 		});
 		rpc.notify("initialized", {});
-		const started = await rpc.request(
-			"thread/start",
-			threadStartParams(dir, opts?.config)
-		);
-		const threadId = threadIdFrom(started);
+		const threadId = await resolveCodexThreadId(rpc, dir, opts, events);
 		// R2-T2 item 1: guarded by CODEX_MODEL_LIST_TIMEOUT_MS — never hangs
 		// `start()`, and always resolves to at least the static fallback list.
 		const models = await fetchCodexModelList(rpc);

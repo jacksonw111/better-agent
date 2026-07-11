@@ -6,8 +6,9 @@ import {
 import { memo } from "react";
 import { AssistantTurnBlock } from "./assistant-turn-block";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
-import { ApprovalLine, ErrorLine, FileLine, StatusLine } from "./event-line";
+import { ApprovalLine, ErrorLine, FileLine } from "./event-line";
 import { QuestionCard } from "./question-card";
+import { StatusLine } from "./status-line";
 import { TaskCard } from "./task-card";
 import { TodoList } from "./todo-list";
 

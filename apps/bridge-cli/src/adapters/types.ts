@@ -229,9 +229,8 @@ export interface AgentHandle {
 
 /** Options that shape how `Adapter.start` begins a session. */
 export interface StartOptions {
-	/** Persisted startup config fetched from the server at session start
-	 * (Phase 4): `appendSystemPrompt` (claude's SDK option), `maxTurns`, … Adapters
-	 * apply only the fields they support; unknown fields are ignored. */
+	/** Persisted startup config from the server (Phase 4):
+	 * `appendSystemPrompt`, `maxTurns`, … — adapters apply only supported fields. */
 	config?: AgentStartConfig;
 	/** The MCP servers to launch this session with (R5-b), already resolved
 	 * server-side by `resolveMcpServers` (auth decrypted) and forwarded by the
@@ -240,9 +239,9 @@ export interface StartOptions {
 	 * codex writes them into its per-turn config, pi has no native MCP and
 	 * ignores them. Empty/absent → the agent's own configured servers only. */
 	mcpServers?: ResolvedMcpServer[];
-	/** A prior conversation id to resume, from `--resume` (see args.ts). Only
-	 * claude-code's adapter honors this; every other adapter's `start` simply
-	 * doesn't declare the parameter, so it's a no-op for them by construction. */
+	/** A prior conversation id to resume, from `--resume` or the restart
+	 * loop's captured `session_ready` id. claude-code and codex (R5-T1: via
+	 * `thread/resume`, see codex-resume.ts) honor this; others don't. */
 	resume?: string;
 	/** The skills to install for this session (R4), resolved server-side by
 	 * `resolveSkills` from the token's `config.skills`. The adapter writes each

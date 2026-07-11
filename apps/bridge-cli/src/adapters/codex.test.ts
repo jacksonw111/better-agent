@@ -218,6 +218,10 @@ describe("codexAdapter - startup config (R2-b)", () => {
 	});
 });
 
+// codexAdapter's thread/resume specs (R5-T1: the restart chain's context-
+// preserving path) live in codex-thread-resume.test.ts — split out purely to
+// keep this file under the repo's 300-line limit.
+
 describe("codexAdapter - getStatus", () => {
 	it("caches thread/tokenUsage/updated + thread/status/changed notifications and answers getStatus with exactly one status_snapshot", async () => {
 		const { rpc, triggerNotification } = createFakeRpc();
