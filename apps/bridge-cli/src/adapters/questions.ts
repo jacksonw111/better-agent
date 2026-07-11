@@ -115,6 +115,8 @@ export function retractPendingQuestions(
  * `events`, and arms a timer; if it fires before an answer arrives,
  * `questions.retract` (only succeeds if nothing already claimed this id)
  * pushes a visible "timed out — declined" event and calls `onTimeout`.
+ * R3-4 review finding 4: the pushed card is also stamped with `timeoutMs` —
+ * mirrors `presentApproval`'s own stamping, see that doc comment for why.
  */
 export interface PresentQuestionOptions {
 	event: QuestionEvent;
@@ -149,5 +151,5 @@ export function presentQuestion(options: PresentQuestionOptions): void {
 		},
 		timer
 	);
-	events.push({ ...event, timeoutAt });
+	events.push({ ...event, timeoutAt, timeoutMs: APPROVAL_TIMEOUT_MS });
 }

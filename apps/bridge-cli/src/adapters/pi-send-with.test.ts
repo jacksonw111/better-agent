@@ -125,6 +125,12 @@ describe("piAdapter - sendWith 'interrupt'", () => {
 			JSON.stringify({ type: "prompt", message: "after interrupt" })
 		);
 	});
+
+	// R3-1 review finding 1: sendInterrupted (this file's "interrupt" policy)
+	// aborts the turn exactly like AgentHandle.interrupt, so it must retract
+	// pending extension_ui cards the same way — covered in
+	// pi-interrupt-retract.test.ts, split out to keep this describe block
+	// under the repo's max-lines-per-function gate.
 });
 
 describe("piAdapter - sendWith 'queue'", () => {

@@ -195,3 +195,8 @@ describe("piAdapter - extension_ui_request never hangs forever (RC-T4)", () => {
 		});
 	});
 });
+
+// R3-1 review finding 1: pi's interrupt()/stop() retracting pending
+// extension_ui confirm/select cards is covered in
+// pi-interrupt-retract.test.ts — split out purely to keep this file (and
+// each test body) under the repo's line-count gates.

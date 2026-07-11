@@ -13,13 +13,20 @@
 
 import { buildPiPromptCommand } from "../normalize/pi-commands";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
+import { type ApprovalRegistry, retractPendingApprovals } from "./approvals";
+import { type QuestionRegistry, retractPendingQuestions } from "./questions";
 import { bumpTurnEpoch, type TurnEpochRef } from "./turn-epoch";
 import type { TextWhen } from "./types";
 
 interface PiSendWithDeps {
+	// R3-1 review finding 1: sendInterrupted below retracts pending
+	// extension_ui cards exactly like AgentHandle.interrupt does — it's the
+	// same "abort the in-flight turn" step, just followed by a fresh send.
+	approvals: ApprovalRegistry;
 	epoch: TurnEpochRef;
 	events: { push(event: NormalizedEvent): void };
 	io: { writeLine(line: string): void };
+	questions: QuestionRegistry;
 	streaming: { isStreaming(): boolean; reset(): void };
 }
 
@@ -42,6 +49,12 @@ function sendSteered(deps: PiSendWithDeps, text: string): void {
 function sendInterrupted(deps: PiSendWithDeps, text: string): void {
 	bumpTurnEpoch(deps.epoch);
 	deps.streaming.reset();
+	// R3-1 review finding 1: same retraction step as AgentHandle.interrupt —
+	// this policy aborts the in-flight turn exactly like it does, so a
+	// pending extension_ui card must not survive into the fresh turn started
+	// below.
+	retractPendingApprovals(deps.approvals, deps.events);
+	retractPendingQuestions(deps.questions, deps.events);
 	deps.io.writeLine(JSON.stringify({ type: "abort" }));
 	deps.events.push(userMessageEvent(text));
 	deps.io.writeLine(buildPiPromptCommand(text));

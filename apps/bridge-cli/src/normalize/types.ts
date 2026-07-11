@@ -129,6 +129,12 @@ export interface ApprovalEvent extends TurnScoped {
 	 * declined if nobody answers. Additive; lets the web render a countdown
 	 * toward the exact moment the CLI itself will time this card out. */
 	timeoutAt?: number;
+	/** R3-4 review finding 4: the total window (ms) `timeoutAt` was computed
+	 * from — always `APPROVAL_TIMEOUT_MS` today, stamped alongside `timeoutAt`
+	 * so a remounted `ApprovalCountdown` can initialize its bar from the
+	 * correct remaining fraction instead of restarting at 100%. Additive;
+	 * absent on an event pushed before this field existed. */
+	timeoutMs?: number;
 	title: string;
 }
 
@@ -159,6 +165,8 @@ export interface QuestionEvent extends TurnScoped {
 	/** Mirrors `ApprovalEvent.timeoutAt` — the epoch ms `adapters/questions.ts`'s
 	 * `presentQuestion` armed its fail-closed timer for. */
 	timeoutAt?: number;
+	/** Mirrors `ApprovalEvent.timeoutMs` (R3-4 review finding 4). */
+	timeoutMs?: number;
 	title: string;
 }
 

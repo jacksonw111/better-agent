@@ -148,10 +148,20 @@ function makeCodexHandle(
 	// approval answer can never land against a turn context that's already
 	// moved on — mirrors claude-code.ts's `interrupt()`. Named (not inline) so
 	// R3-T1's `sendWith("interrupt")` can call it before `doSend`.
-	function doInterrupt(): void {
+	//
+	// R3-1 review finding 2: returns the `turn/interrupt` request's own
+	// promise (settled either way — a rejection here must never propagate,
+	// since a plain Stop-button `interrupt()` call, with no follow-up send,
+	// never awaits this) so `makeInterruptThenSend` can wait for it before
+	// starting the new turn — sending `turn/start` immediately raced codex
+	// mid-abort and could reject/drop it. See interrupt-then-send.ts's doc.
+	function doInterrupt(): Promise<void> {
 		bumpTurnEpoch(epoch);
 		retractPendingApprovals(approvals, events);
-		rpc.request("turn/interrupt", { threadId }).catch(() => undefined);
+		return rpc.request("turn/interrupt", { threadId }).then(
+			() => undefined,
+			() => undefined
+		);
 	}
 	return {
 		answerApproval(requestId: string, optionId: string): void {

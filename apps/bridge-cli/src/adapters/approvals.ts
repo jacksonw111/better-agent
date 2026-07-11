@@ -213,6 +213,10 @@ export function retractPendingApprovals(
  * R3-T2: the pushed card is also stamped with `timeoutAt` — the epoch ms
  * this same timer will fire at — so the web can render a countdown toward
  * the exact instant this approval resolves declined if nobody answers.
+ * R3-4 review finding 4: also stamped with `timeoutMs` — the total window
+ * `timeoutAt` was computed from — so a remounted countdown bar can
+ * initialize from the correct remaining fraction instead of restarting at
+ * 100%.
  *
  * Params are bundled into one object (rather than five positional args) to
  * stay under this file's max-params lint gate.
@@ -256,5 +260,5 @@ export function presentApproval(options: PresentApprovalOptions): void {
 		},
 		timer
 	);
-	events.push({ ...event, timeoutAt });
+	events.push({ ...event, timeoutAt, timeoutMs: APPROVAL_TIMEOUT_MS });
 }

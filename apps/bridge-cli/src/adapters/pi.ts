@@ -11,7 +11,11 @@ import {
 	type NormalizedEvent,
 	userMessageEvent,
 } from "../normalize/types";
-import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
+import {
+	type ApprovalRegistry,
+	createApprovalRegistry,
+	retractPendingApprovals,
+} from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { wirePiExtensionUiRequest } from "./pi-approvals";
 import { makePiSetModel, makePiSetThinking } from "./pi-controls";
@@ -20,7 +24,11 @@ import { makePiSessionReadyTracker, tryParseJson } from "./pi-session-ready";
 import { makePiStatusTracker } from "./pi-status";
 import { makePiStreamingTracker } from "./pi-streaming";
 import { spawnProcessIo } from "./process-io";
-import { createQuestionRegistry, type QuestionRegistry } from "./questions";
+import {
+	createQuestionRegistry,
+	type QuestionRegistry,
+	retractPendingQuestions,
+} from "./questions";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -123,6 +131,45 @@ interface PiAgentHandleDeps {
 	streaming: { isStreaming(): boolean; reset(): void };
 }
 
+// Cancels the in-flight turn without ending the session — the web Stop
+// button. RC-T3: bumps the turn epoch so a stdout straggler is dropped as
+// stale at the relay boundary. R2-T3 finding 2: force-resets `streaming`
+// since pi's abort isn't guaranteed to emit agent_settled. R3-1 finding 1:
+// also retracts pending extension_ui confirm/select cards (approvals/
+// questions), exactly like codex/opencode's interrupt(), so a card can't
+// survive into the next turn and a late answer can't land for an
+// already-aborted request. Split out of `buildPiAgentHandle`'s object
+// literal purely to keep that function under the max-lines-per-function gate.
+function makePiInterrupt(deps: PiAgentHandleDeps): () => void {
+	const { approvals, epoch, events, io, questions, streaming } = deps;
+	return () => {
+		bumpTurnEpoch(epoch);
+		streaming.reset();
+		retractPendingApprovals(approvals, events);
+		retractPendingQuestions(questions, events);
+		io.writeLine(JSON.stringify({ type: "abort" }));
+	};
+}
+
+// Ends the session outright — closes the pi process and the event queue.
+// R3-1 finding 1/3: retracts before close() — a push after close is a
+// silent no-op (async-queue.ts), so the cancelled event must land first,
+// mirroring codex.ts/opencode.ts's stop(). Split out for the same reason as
+// `makePiInterrupt` above.
+function makePiStop(deps: PiAgentHandleDeps): () => void {
+	const { approvals, epoch, events, io, questions, streaming } = deps;
+	return () => {
+		bumpTurnEpoch(epoch);
+		streaming.reset();
+		retractPendingApprovals(approvals, events);
+		retractPendingQuestions(questions, events);
+		io.stop();
+		events.close();
+		approvals.clear();
+		questions.clear();
+	};
+}
+
 /** Builds the `AgentHandle` `start` returns. Extracted purely to keep `start`
  * itself under the line gate. */
 function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
@@ -146,20 +193,7 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		},
 		events,
 		getStatus: statusTracker.request,
-		// Cancels the in-flight turn without ending the session — the web Stop
-		// button. pi's stdio protocol supports an abort frame directly. RC-T3:
-		// bumps the turn epoch so a straggler event still in flight on stdout
-		// is dropped as stale at the relay-client boundary (turn-epoch.ts) —
-		// pi has no per-tool-call approval protocol, so nothing to retract.
-		interrupt(): void {
-			bumpTurnEpoch(epoch);
-			// R2-T3 review finding 2: pi's abort path isn't guaranteed to emit
-			// agent_settled, so the tracker is force-reset here rather than left
-			// to observe its own end-of-turn line — otherwise a send right after
-			// an interrupt would be wrongly tagged followUp forever.
-			streaming.reset();
-			io.writeLine(JSON.stringify({ type: "abort" }));
-		},
+		interrupt: makePiInterrupt(deps),
 		send(text: string): void {
 			// A new turn begins — bump BEFORE pushing (see `interrupt` above).
 			bumpTurnEpoch(epoch);
@@ -175,17 +209,17 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 				)
 			);
 		},
-		sendWith: makePiSendWith({ epoch, events, io, streaming }),
+		sendWith: makePiSendWith({
+			approvals,
+			epoch,
+			events,
+			io,
+			questions,
+			streaming,
+		}),
 		setModel: makePiSetModel(io, events, modelProviders),
 		setThinking: makePiSetThinking(io, events),
-		stop(): void {
-			bumpTurnEpoch(epoch);
-			streaming.reset();
-			io.stop();
-			events.close();
-			approvals.clear();
-			questions.clear();
-		},
+		stop: makePiStop(deps),
 	};
 }
 

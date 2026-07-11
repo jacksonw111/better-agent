@@ -130,6 +130,7 @@ describe("opencodeAdapter - approvals", () => {
 			],
 			requestId: String(APPROVAL_REQUEST_ID),
 			timeoutAt: expect.any(Number),
+			timeoutMs: expect.any(Number),
 			title: "Run `ls`",
 			turnEpoch: 0,
 		});

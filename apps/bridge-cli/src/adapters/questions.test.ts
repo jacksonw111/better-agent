@@ -131,7 +131,11 @@ describe("presentQuestion - answered on time (fail-closed + timeout contract)", 
 			questions: registry,
 		});
 		expect(pushed).toEqual([
-			{ ...QUESTION_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+			{
+				...QUESTION_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
 		]);
 
 		registry.answer("q_1", [["staging"]]);
@@ -172,7 +176,11 @@ describe("presentQuestion - unanswered times out (fail-closed + timeout contract
 		expect(onTimeout).toHaveBeenCalledOnce();
 		expect(onAnswer).not.toHaveBeenCalled();
 		expect(pushed).toEqual([
-			{ ...QUESTION_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+			{
+				...QUESTION_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
 			{
 				cancelled: true,
 				kind: "question",

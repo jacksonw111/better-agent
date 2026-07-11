@@ -123,6 +123,7 @@ describe("codexAdapter - approvals", () => {
 			],
 			requestId: String(APPROVAL_REQUEST_ID),
 			timeoutAt: expect.any(Number),
+			timeoutMs: expect.any(Number),
 			title: "Run command?",
 			turnEpoch: 0,
 		});
@@ -195,6 +196,7 @@ describe("codexAdapter - approvals - fileChange summary (R3-T2)", () => {
 			requestId: String(APPROVAL_REQUEST_ID),
 			summary: "2 files: 1 added, 1 modified (a.ts, b.ts)",
 			timeoutAt: expect.any(Number),
+			timeoutMs: expect.any(Number),
 			title: "Apply file change?",
 			turnEpoch: 0,
 		});

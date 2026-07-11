@@ -70,7 +70,11 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - on-time answe
 			onTimeout,
 		});
 		expect(pushed).toEqual([
-			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+			{
+				...PRESENT_APPROVAL_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
 		]);
 
 		registry.answer("req_1", "allow");
@@ -79,7 +83,11 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - on-time answe
 		expect(onAnswer).toHaveBeenCalledExactlyOnceWith("allow");
 		expect(onTimeout).not.toHaveBeenCalled();
 		expect(pushed).toEqual([
-			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+			{
+				...PRESENT_APPROVAL_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
 		]);
 	});
 });
@@ -115,7 +123,11 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - timeout", () 
 		expect(onTimeout).toHaveBeenCalledOnce();
 		expect(onAnswer).not.toHaveBeenCalled();
 		expect(pushed).toEqual([
-			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+			{
+				...PRESENT_APPROVAL_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
 			{
 				kind: "approval",
 				cancelled: true,
@@ -164,7 +176,11 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - interrupt", (
 		expect(onTimeout).not.toHaveBeenCalled();
 		expect(onAnswer).not.toHaveBeenCalled();
 		expect(pushed).toEqual([
-			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+			{
+				...PRESENT_APPROVAL_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
 			{
 				kind: "approval",
 				cancelled: true,
