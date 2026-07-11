@@ -19,7 +19,11 @@ export type BridgeAgentKind = "claude-code" | "opencode" | "codex" | "pi";
  * `packages/api/src/routers/mcp.ts`); the server resolves these into
  * connection-ready `mcpServers` alongside `config` on `startSession` /
  * `fetchConfig` (see `packages/api/src/routers/bridge-mcp-resolve.ts`) — the
- * CLI actually applying them to the agent process is R5-b, not yet wired. */
+ * CLI actually applying them to the agent process is R5-b, not yet wired.
+ * (R5-T2) `skillIds` mirrors `mcpServerIds`, but for the user's registered
+ * skills (see `packages/api/src/routers/skills.ts`): the server resolves
+ * these into `ResolvedSkill[]` (see `bridge-skills-resolve.ts`) — the CLI
+ * writes each as a `SKILL.md` at start (already wired, R4). */
 export interface BridgeTokenConfig {
 	appendSystemPrompt?: string;
 	effort?: "low" | "medium" | "high" | "xhigh" | "max";
@@ -28,6 +32,7 @@ export interface BridgeTokenConfig {
 	mcpServerIds?: string[];
 	model?: string;
 	permissionMode?: string;
+	skillIds?: string[];
 }
 
 /** Owner-facing bridge token: raw `token` + bound `agentKind`, never the hash. */

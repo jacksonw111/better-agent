@@ -7,8 +7,7 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import type { AnchorHTMLAttributes, ReactNode } from "react";
-import { act } from "react";
+import { type AnchorHTMLAttributes, act, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import { LocalAgentSettingsDialog } from "./local-agent-settings-dialog";
@@ -69,6 +68,8 @@ const store = vi.hoisted(() => ({
 		{ id: "mcp-1", name: "Notion", url: "https://mcp.example.com/notion" },
 		{ id: "mcp-2", name: "Linear", url: "https://mcp.example.com/linear" },
 	] as { id: string; name: string; url: string }[],
+	// Skills picker coverage lives in local-agent-settings-dialog-skills.test.tsx.
+	skills: [] as { id: string; name: string; description: string }[],
 }));
 
 vi.mock("@/utils/orpc", () => ({
@@ -91,6 +92,14 @@ vi.mock("@/utils/orpc", () => ({
 				queryOptions: () => ({
 					queryKey: ["mcp", "listServers"],
 					queryFn: () => Promise.resolve(store.mcpServers),
+				}),
+			},
+		},
+		skills: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["skills", "list"],
+					queryFn: () => Promise.resolve(store.skills),
 				}),
 			},
 		},
@@ -145,10 +154,9 @@ it("shows the startup-config fields for claude-code (its adapter applies them)",
 it("hides startup-only fields but shows model/permission fields (R2-T2) and the MCP servers picker (R5-a) for codex", async () => {
 	// codex: agentAppliesConfig=false (its adapter still ignores
 	// appendSystemPrompt/maxTurns/etc.), but modelSwitch=true and
-	// permissionModes is non-empty as of R2-T2 (setModel/setPermissionMode
-	// are real per-turn controls now) — so those two fields DO show, unlike
-	// the startup-only ones. The MCP-servers picker (R5-a) shows for every
-	// agent kind regardless.
+	// permissionModes is non-empty as of R2-T2 (setModel/setPermissionMode are
+	// real per-turn controls now) — so those two fields DO show, unlike the
+	// startup-only ones. The MCP-servers picker (R5-a) shows for every kind.
 	const view = renderDialog(makeToken({ agentKind: "codex" }));
 	fireEvent.click(view.getByRole("tab", { name: "Config" }));
 	expect(view.queryByLabelText("Append system prompt")).toBeNull();
@@ -167,7 +175,6 @@ it("shows the model field for a model-switch agent", () => {
 });
 
 it("shows the permission-mode select with the agent's capability options", async () => {
-	// claude-code has permission modes — the select renders with its options.
 	const view = renderDialog(makeToken());
 	fireEvent.click(view.getByRole("tab", { name: "Config" }));
 	expect(view.getByLabelText("Permission mode")).toBeDefined();

@@ -5,6 +5,7 @@ import { bridgeProcedure, userProcedure } from "../index";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { fetchConfig, restartSession } from "./bridge-restart";
 import { assertInputWithinSizeLimit } from "./bridge-size-limits";
+import { resolveSkills } from "./bridge-skills-resolve";
 import {
 	createToken,
 	deleteToken,
@@ -79,10 +80,18 @@ export const bridgeRouter = {
 				userId,
 				token?.config?.mcpServerIds
 			);
+			// R5-T2: same resolve for the token's assigned skill ids — see
+			// bridge-skills-resolve.ts's doc comment.
+			const skills = await resolveSkills(
+				context,
+				userId,
+				token?.config?.skillIds
+			);
 			return {
 				sessionId: session.id,
 				config: token?.config ?? null,
 				mcpServers,
+				skills,
 			};
 		}),
 

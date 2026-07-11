@@ -182,6 +182,7 @@ function BodyFromView({
 			answerQuestion={view.answerQuestion}
 			avatars={view.avatars}
 			caps={caps}
+			commandCatalog={view.commandCatalog}
 			disabled={!view.canSend}
 			ended={view.status === "ended"}
 			interrupt={view.interrupt}

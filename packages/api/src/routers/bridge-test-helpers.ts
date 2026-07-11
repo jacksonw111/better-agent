@@ -9,7 +9,9 @@ import type {
 	BridgeTokenStore,
 	McpServerRow,
 	McpServerStore,
+	SkillStore,
 } from "@better-agent/agent/ports";
+import { createFakeSkillStore } from "@better-agent/agent/testing/fake-skill-store";
 import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
 import { createCommandBus } from "../bridge/command-bus";
@@ -57,6 +59,7 @@ interface TestServices {
 		bridgeSession: BridgeSessionStore;
 		bridgeMessage: BridgeMessageStore;
 		mcpServer: McpServerStore;
+		skill: SkillStore;
 		usageRecord: ReturnType<typeof createFakeUsageRecordStore>;
 	};
 }
@@ -104,6 +107,7 @@ export function build() {
 			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
 	);
 	const mcpServer = memoryMcpServerStore(mcpServerRows, mcpServerAuthHeaders);
+	const skill = createFakeSkillStore();
 	const relayStore = createInMemoryRelayStore();
 	const commandBus = createCommandBus();
 	const usageRecord = createFakeUsageRecordStore();
@@ -115,6 +119,7 @@ export function build() {
 			bridgeSession,
 			bridgeMessage,
 			mcpServer,
+			skill,
 			usageRecord,
 		},
 	};
@@ -124,6 +129,7 @@ export function build() {
 		bridgeSession,
 		bridgeMessage,
 		mcpServer,
+		skill,
 		usageRecord,
 		services,
 		userClientFor,

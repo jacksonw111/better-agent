@@ -1,3 +1,8 @@
+import {
+	COMMAND_CATALOG_STATUS,
+	type CommandCatalogDetail,
+	parseCommandCatalogDetail,
+} from "./bridge-command-catalog";
 import type { RawBridgeEvent, StreamEvent } from "./bridge-events";
 import {
 	parseQueueUpdateDetail,
@@ -41,6 +46,12 @@ export interface FeedState {
 	/** requestId -> submitted answers, for questions already answered this
 	 * client session (R3-T3). Mirrors `answered` above. */
 	answeredQuestions: Record<string, string[][]>;
+	/** The latest `command_catalog` detail (R5-T1/R5-T2) — the live,
+	 * richer replacement for `sessionReady.slashCommands` on adapters that push
+	 * it (claude-code/pi/opencode-serve; ACP opencode still only reports
+	 * `session_ready.slashCommands`, see terminal-body.tsx's fallback). `null`
+	 * before any adapter has emitted one. */
+	commandCatalog: CommandCatalogDetail | null;
 	events: StreamEvent[];
 	maxSeenId: number;
 	/** Next id for an optimistic local echo — decrements on each `localEcho`,
@@ -74,6 +85,7 @@ export const initialFeedState: FeedState = {
 	maxSeenId: 0,
 	answered: {},
 	answeredQuestions: {},
+	commandCatalog: null,
 	nextLocalId: INITIAL_LOCAL_ID,
 	pendingEchoes: 0,
 	queueUpdate: null,
@@ -85,6 +97,7 @@ export const initialFeedState: FeedState = {
 };
 
 interface StatusDetails {
+	commandCatalog: CommandCatalogDetail | null;
 	queueUpdate: QueueUpdateDetail | null;
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
@@ -103,6 +116,7 @@ function nextStatusDetails(
 	parsed: StreamEvent[]
 ): StatusDetails {
 	let {
+		commandCatalog,
 		queueUpdate,
 		sessionList,
 		sessionReady,
@@ -126,9 +140,12 @@ function nextStatusDetails(
 			statusSnapshot = parseStatusSnapshotDetail(event.detail);
 		} else if (event.status === QUEUE_UPDATE_STATUS) {
 			queueUpdate = parseQueueUpdateDetail(event.detail);
+		} else if (event.status === COMMAND_CATALOG_STATUS) {
+			commandCatalog = parseCommandCatalogDetail(event.detail);
 		}
 	}
 	return {
+		commandCatalog,
 		queueUpdate,
 		sessionList,
 		sessionReady,

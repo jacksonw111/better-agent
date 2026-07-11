@@ -130,12 +130,18 @@ const RESTART_FAILURE_MESSAGE = "Couldn't restart the agent — try again.";
 /** Config fields the CLI only re-reads at session start (see
  * docs/research/agent-config-claude-code.md) — changing one of these needs a
  * restart to take effect. `model`/`permissionMode` are excluded: the CLI
- * applies those on its next control message, no restart needed (R2-a). */
+ * applies those on its next control message, no restart needed (R2-a).
+ * `skillIds` is included (R5-T2): skills are only written/applied at launch
+ * today for every adapter — claude could live-reload them later, but until
+ * then a skills edit always needs a restart, same as the startup-only fields
+ * above. `mcpServerIds` is intentionally NOT here yet (R5-a predates this
+ * distinction). */
 const RESTART_REQUIRED_FIELDS = [
 	"appendSystemPrompt",
 	"effort",
 	"maxBudgetUsd",
 	"maxTurns",
+	"skillIds",
 ] as const satisfies readonly (keyof ConfigDraft)[];
 
 /** Whether this save touched a field from `RESTART_REQUIRED_FIELDS`, by

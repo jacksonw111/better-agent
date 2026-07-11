@@ -84,11 +84,12 @@ async function relaunch(
 	transport: RelayTransport,
 	agentSessionIdRef: AgentSessionIdRef
 ): Promise<AgentHandle> {
-	const { config, mcpServers } = await transport.fetchConfig();
+	const { config, mcpServers, skills } = await transport.fetchConfig();
 	return adapter.start(args.dir, {
 		resume: agentSessionIdRef.current ?? args.resume,
 		config: config ?? undefined,
 		mcpServers,
+		skills,
 	});
 }
 

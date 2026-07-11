@@ -12,18 +12,17 @@ import {
 import { TabsContent } from "@better-agent/ui/components/tabs";
 import { Textarea } from "@better-agent/ui/components/textarea";
 import type { BridgeTokenRow } from "@/utils/api-types";
-import type { AgentCapabilities } from "./agent-capabilities";
-import { capabilities } from "./agent-capabilities";
+import { type AgentCapabilities, capabilities } from "./agent-capabilities";
 import { McpServersConfigField } from "./local-agent-mcp-field";
 import {
 	ModelField,
 	PermissionModeField,
 } from "./local-agent-model-permission-fields";
+import { SkillsConfigField } from "./local-agent-skills-field";
 
 // The Settings "Config" tab + its field components + the draft/payload
-// helpers, split out of local-agent-settings-dialog.tsx so neither file
-// exceeds the repo's 300-line limit. The fields are grounded in
-// docs/research/agent-config-claude-code.md (the SDK Options type).
+// helpers, split out of local-agent-settings-dialog.tsx to stay under the
+// 300-line limit. Fields are grounded in agent-config-claude-code.md.
 
 /** The persisted config shape this dialog edits (mirrors the server's
  * BridgeTokenConfig). Numeric fields are held as strings while editing so the
@@ -40,6 +39,8 @@ export interface ConfigDraft {
 	mcpServerIds: string[];
 	model: string;
 	permissionMode: string;
+	/** Registered skill ids (R5-T2) — same convention as `mcpServerIds`. */
+	skillIds: string[];
 }
 
 /** A number-or-absent config field, held as a string while editing so the
@@ -54,15 +55,21 @@ function stringToDraftString(value: string | undefined): string {
 	return value ?? "";
 }
 
+/** An always-included id-array field, held as `[]` not `undefined`. */
+function idsToDraftArray(value: string[] | undefined): string[] {
+	return value ?? [];
+}
+
 export function toDraft(config: BridgeTokenRow["config"]): ConfigDraft {
 	return {
 		appendSystemPrompt: stringToDraftString(config?.appendSystemPrompt),
 		effort: stringToDraftString(config?.effort),
 		maxBudgetUsd: numberToDraftString(config?.maxBudgetUsd),
 		maxTurns: numberToDraftString(config?.maxTurns),
-		mcpServerIds: config?.mcpServerIds ?? [],
+		mcpServerIds: idsToDraftArray(config?.mcpServerIds),
 		model: stringToDraftString(config?.model),
 		permissionMode: stringToDraftString(config?.permissionMode),
+		skillIds: idsToDraftArray(config?.skillIds),
 	};
 }
 
@@ -116,15 +123,14 @@ function numericConfigFields(draft: ConfigDraft) {
 	};
 }
 
-/** Builds the persisted-config payload from the edit draft. `mcpServerIds` is
- * always included (even `[]`) — see `ConfigDraft`'s doc comment for why it
- * doesn't follow the "blank clears the field" convention the other fields
- * use. */
+/** Builds the persisted-config payload from the edit draft. `mcpServerIds`
+ * and `skillIds` are always included (even `[]`) — see `ConfigDraft`. */
 export function configFromDraft(draft: ConfigDraft) {
 	return {
 		...identityConfigFields(draft),
 		...numericConfigFields(draft),
 		mcpServerIds: draft.mcpServerIds,
+		skillIds: draft.skillIds,
 	};
 }
 
@@ -231,13 +237,10 @@ interface FullFormProps extends AgentConfigFormProps {
 	showLimits: boolean;
 }
 
-/** The per-agent startup config form: the claude-only "applies today" fields
- * (appendSystemPrompt/effort/turns/budget) gated on `showLimits`, plus
- * model/permission-mode gated on the agent's own capabilities (R2-a — these
- * two persist regardless of adapter support; see docs/local-agent-plan.md for
- * the startup-application follow-up), plus the MCP-servers picker (R5-a),
- * shown unconditionally — every local agent can have servers assigned, even
- * though only the server side resolves them so far (R5-b wires the CLI). */
+/** The per-agent startup config form: claude-only "applies today" fields
+ * gated on `showLimits`, model/permission-mode gated on capabilities (R2-a),
+ * plus the MCP-servers (R5-a) and skills (R5-T2) pickers, shown for every
+ * agent kind. */
 function AgentConfigForm({
 	caps,
 	draft,
@@ -269,6 +272,7 @@ function AgentConfigForm({
 				/>
 			)}
 			<McpServersConfigField draft={draft} onDraft={onDraft} />
+			<SkillsConfigField draft={draft} onDraft={onDraft} />
 			<DialogFooter className="gap-2">
 				<Button disabled={pending} type="submit">
 					{pending ? "Saving…" : "Save"}

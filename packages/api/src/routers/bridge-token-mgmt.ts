@@ -61,7 +61,9 @@ export const deleteToken = userProcedure
 // Phase 4: persist a local agent's startup config (appendSystemPrompt,
 // maxTurns, …). The CLI fetches it via startSession and applies it at launch.
 // R5-a adds `mcpServerIds`, resolved into connection-ready `mcpServers` on
-// read (see bridge-mcp-resolve.ts) rather than stored resolved.
+// read (see bridge-mcp-resolve.ts) rather than stored resolved. R5-T2 mirrors
+// this with `skillIds`, resolved into `ResolvedSkill[]` on read (see
+// bridge-skills-resolve.ts).
 export const updateTokenConfig = userProcedure
 	.input(
 		z.object({
@@ -74,6 +76,7 @@ export const updateTokenConfig = userProcedure
 				mcpServerIds: z.array(z.uuid()).optional(),
 				model: z.string().optional(),
 				permissionMode: z.string().optional(),
+				skillIds: z.array(z.uuid()).optional(),
 			}),
 		})
 	)

@@ -1,5 +1,6 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
 import type { ResolvedCapabilities, TextWhen } from "./agent-capabilities";
+import type { CommandCatalogDetail } from "./bridge-command-catalog";
 import type { QueueUpdateDetail } from "./bridge-queue-status";
 import type {
 	SessionReadyDetail,
@@ -24,6 +25,10 @@ export interface TerminalBodyProps {
 	answerQuestion: (requestId: string, answers: string[][]) => Promise<void>;
 	avatars: ChatAvatars;
 	caps: ResolvedCapabilities;
+	/** The latest `command_catalog` detail (R5-T2) — feeds the "/" picker's
+	 * "Commands" group; see `BodyComposer`'s fallback to
+	 * `sessionReady.slashCommands` for adapters that don't emit this yet. */
+	commandCatalog: CommandCatalogDetail | null;
 	disabled: boolean;
 	ended: boolean;
 	interrupt: () => void;
@@ -46,6 +51,7 @@ export interface TerminalBodyProps {
 
 interface BodyComposerProps {
 	caps: ResolvedCapabilities;
+	commandCatalog: CommandCatalogDetail | null;
 	disabled: boolean;
 	interrupt: () => void;
 	onSend: (text: string, when?: TextWhen) => Promise<void>;
@@ -59,11 +65,30 @@ interface BodyComposerProps {
 	turnInFlight: boolean;
 }
 
+/** The "/" picker's command names: the live `command_catalog` (R5-T1/R5-T2)
+ * wins once an adapter has pushed one (claude-code/pi/opencode-serve), since
+ * it's richer and stays current across mid-session changes; ACP opencode
+ * never emits a catalog, so its `session_ready.slashCommands` (folded in at
+ * normalize time — see `normalizeAcpAvailableCommands`) is kept as the
+ * fallback rather than going dark. `undefined` (not `[]`) means "nothing
+ * reported yet", same contract `slashCommands` already had — the picker
+ * simply won't open. */
+function commandNamesFor(
+	commandCatalog: CommandCatalogDetail | null,
+	sessionReady: SessionReadyDetail | null
+): string[] | undefined {
+	if (commandCatalog) {
+		return commandCatalog.commands.map((command) => command.name);
+	}
+	return sessionReady?.slashCommands;
+}
+
 /** The composer with its capability-gated control menus fed from the session's
  * reported model/permission values — split out of `TerminalBody` purely to keep
  * that component under the repo's max-lines-per-function gate. */
 function BodyComposer({
 	caps,
+	commandCatalog,
 	disabled,
 	interrupt,
 	onSend,
@@ -95,7 +120,9 @@ function BodyComposer({
 			showNextTurnHint={showNextTurnHint}
 			skills={caps.skills ? sessionReady?.skills : undefined}
 			slashCommands={
-				caps.slashCommands ? sessionReady?.slashCommands : undefined
+				caps.slashCommands
+					? commandNamesFor(commandCatalog, sessionReady)
+					: undefined
 			}
 			thinkingLevels={caps.thinkingLevels}
 			turnInFlight={turnInFlight}
@@ -128,6 +155,7 @@ export function TerminalBody(props: TerminalBodyProps) {
 			)}
 			<BodyComposer
 				caps={props.caps}
+				commandCatalog={props.commandCatalog}
 				disabled={props.disabled}
 				interrupt={props.interrupt}
 				onSend={props.onSend}

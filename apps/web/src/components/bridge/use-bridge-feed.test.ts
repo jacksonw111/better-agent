@@ -126,6 +126,51 @@ describe("feedReducer queue_update folding", () => {
 	});
 });
 
+// R5-T2: command_catalog is folded into FeedState the same incremental way
+// as the other curated status kinds — the "/" picker's live command source
+// (see terminal-body.tsx's commandNamesFor).
+describe("feedReducer command_catalog folding", () => {
+	const commandCatalogRaw = (
+		id: number,
+		commands: { name: string; description?: string }[]
+	) => ({
+		id,
+		data: { kind: "status", status: "command_catalog", detail: { commands } },
+	});
+
+	it("starts null before any command_catalog has arrived", () => {
+		expect(initialFeedState.commandCatalog).toBeNull();
+	});
+
+	it("folds a well-formed command_catalog into state.commandCatalog", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [
+				commandCatalogRaw(1, [
+					{ name: "compact", description: "Compact the conversation" },
+				]),
+			],
+		});
+		expect(state.commandCatalog).toEqual({
+			commands: [{ name: "compact", description: "Compact the conversation" }],
+		});
+	});
+
+	it("keeps the latest command_catalog, replacing (not merging) an earlier one — mirrors claude-code's commands_changed push", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [
+				commandCatalogRaw(1, [{ name: "compact" }]),
+				commandCatalogRaw(2, [{ name: "compact" }, { name: "review" }]),
+			],
+		});
+		expect(state.commandCatalog?.commands.map((c) => c.name)).toEqual([
+			"compact",
+			"review",
+		]);
+	});
+});
+
 describe("feedReducer anti-leak (raw RPC envelope)", () => {
 	it("drops a wrapped oRPC {json:{ok:true}} envelope instead of rendering it", () => {
 		const state = feedReducer(initialFeedState, {

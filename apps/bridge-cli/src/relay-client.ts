@@ -5,7 +5,11 @@
 // under the repo's max-lines-per-file gate; every existing import path
 // (`from "./relay-client"`) keeps working via these re-exports.
 
-import type { AgentStartConfig, ResolvedMcpServer } from "./adapters/types";
+import type {
+	AgentStartConfig,
+	ResolvedMcpServer,
+	ResolvedSkill,
+} from "./adapters/types";
 import type { RelayEvent } from "./commands";
 import type { DuplexChannel } from "./ws-duplex";
 
@@ -33,6 +37,10 @@ export interface RelayTransport {
 	fetchConfig(): Promise<{
 		config: AgentStartConfig | null;
 		mcpServers: ResolvedMcpServer[];
+		/** R5-T2: the token's assigned skills, resolved server-side by
+		 * `resolveSkills` — same "always present, [] when none assigned" contract
+		 * as `mcpServers`. */
+		skills: ResolvedSkill[];
 	}>;
 	/** R0-T2: opens the WS duplex channel (see ws-duplex.ts) as an alternative
 	 * to `pollCommands`/`pushEvents` — optional so a transport (or a test
@@ -59,5 +67,6 @@ export interface RelayTransport {
 		config: AgentStartConfig | null;
 		mcpServers: ResolvedMcpServer[];
 		sessionId: string;
+		skills: ResolvedSkill[];
 	}>;
 }

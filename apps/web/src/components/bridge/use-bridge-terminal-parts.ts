@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { TextWhen } from "./agent-capabilities";
+import type { CommandCatalogDetail } from "./bridge-command-catalog";
 import type { QueueUpdateDetail } from "./bridge-queue-status";
 import type { SessionListDetail } from "./bridge-session-list";
 import type {
@@ -23,6 +24,9 @@ export interface UseBridgeTerminalResult {
 	/** R3-T3: mirrors `answerApproval`/`answered` for a `question` turn. */
 	answerQuestion: (requestId: string, answers: string[][]) => Promise<void>;
 	canSend: boolean;
+	/** The latest `command_catalog` detail (R5-T2), or `null` before any
+	 * adapter has emitted one — see `FeedState.commandCatalog`. */
+	commandCatalog: CommandCatalogDetail | null;
 	events: FeedState["events"];
 	/** Requests a fresh `status_snapshot` — the detail page's status refresh
 	 * affordance. Routed as `{ type: "control", action: "getStatus" }`; the
@@ -140,6 +144,7 @@ export interface BuildResultArgs {
 	answerApproval: (requestId: string, optionId: string) => Promise<void>;
 	/** R3-T3: mirrors `answerApproval` for a `question` turn. */
 	answerQuestion: (requestId: string, answers: string[][]) => Promise<void>;
+	commandCatalog: CommandCatalogDetail | null;
 	conn: ConnectionState;
 	ended: boolean;
 	feed: FeedState;
@@ -174,6 +179,7 @@ export interface BuildResultArgs {
  * anything. Send whenever the session is live. */
 export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 	return {
+		commandCatalog: args.commandCatalog,
 		events: args.feed.events,
 		status: args.ended ? "ended" : args.conn.status,
 		canSend: !args.ended,

@@ -148,7 +148,7 @@ async function doesNotReplayCommandsAcrossARestartGeneration(): Promise<void> {
 	const fetchConfig = vi.fn(() => {
 		commandLog.push({ id: 9, data: "hello after restart" });
 		commandLog.push({ id: 10, data: { type: "control", action: "stop" } });
-		return Promise.resolve({ config: null, mcpServers: [] });
+		return Promise.resolve({ config: null, mcpServers: [], skills: [] });
 	});
 	const transport = fakeTransport(pollCommands, fetchConfig);
 

@@ -112,6 +112,7 @@ it("fetchConfig returns the calling token's current config after an update", asy
 	expect(result).toEqual({
 		config: { appendSystemPrompt: "Be terse.", maxTurns: 5 },
 		mcpServers: [],
+		skills: [],
 	});
 });
 
@@ -134,10 +135,12 @@ it("fetchConfig scopes to the caller's own token, not another token's config", a
 	expect(await cliA.bridge.fetchConfig()).toEqual({
 		config: { model: "claude-opus-4" },
 		mcpServers: [],
+		skills: [],
 	});
 	expect(await cliB.bridge.fetchConfig()).toEqual({
 		config: { model: "gpt-5" },
 		mcpServers: [],
+		skills: [],
 	});
 });
 

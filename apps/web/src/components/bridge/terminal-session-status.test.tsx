@@ -191,6 +191,47 @@ it("feeds the composer's '/' picker from session_ready's slashCommands/skills", 
 	expect(view.getByRole("option", { name: "web-design" })).toBeDefined();
 });
 
+// R5-T2: the "/" picker's command source upgrades to the live command_catalog
+// status event (R5-T1) once an adapter has pushed one, instead of staying
+// pinned to session_ready's static slashCommands snapshot forever.
+it("prefers the live command_catalog over session_ready's slashCommands once one has arrived", async () => {
+	const fake = makeControllableTransport();
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				kind: "status",
+				status: "session_ready",
+				detail: SESSION_READY_DETAIL,
+			},
+		},
+		{
+			seq: 2,
+			event: {
+				kind: "status",
+				status: "command_catalog",
+				detail: { commands: [{ name: "review" }, { name: "deploy" }] },
+			},
+		},
+	]);
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+	const view = within(container);
+
+	await waitFor(() => {
+		expect(view.getAllByText("claude-opus-4-6").length).toBeGreaterThan(0);
+	});
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+	fireEvent.change(textarea, { target: { value: "/" } });
+
+	expect(view.getByRole("option", { name: "review" })).toBeDefined();
+	expect(view.getByRole("option", { name: "deploy" })).toBeDefined();
+	// The stale session_ready snapshot no longer leaks through once the live
+	// catalog has replaced it.
+	expect(view.queryByRole("option", { name: "compact" })).toBeNull();
+});
+
 it("shows no '/' picker before session_ready has arrived", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([]);

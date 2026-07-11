@@ -205,6 +205,7 @@ function useCuratedAndControls(
 	sessionId: string
 ): Pick<
 	FeedState,
+	| "commandCatalog"
 	| "queueUpdate"
 	| "sessionReady"
 	| "statusSnapshot"
@@ -212,9 +213,16 @@ function useCuratedAndControls(
 	| "usageUpdate"
 > &
 	ReturnType<typeof useControls> {
-	const { queueUpdate, sessionReady, statusSnapshot, turnUsage, usageUpdate } =
-		feed;
+	const {
+		commandCatalog,
+		queueUpdate,
+		sessionReady,
+		statusSnapshot,
+		turnUsage,
+		usageUpdate,
+	} = feed;
 	return {
+		commandCatalog,
 		queueUpdate,
 		sessionReady,
 		statusSnapshot,
