@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { StreamEvent } from "./bridge-events";
+import { latestSessionListDetail } from "./bridge-session-list";
 import {
-	latestSessionListDetail,
 	latestSessionReadyDetail,
 	latestTurnUsageDetail,
 	latestUsageUpdateDetail,

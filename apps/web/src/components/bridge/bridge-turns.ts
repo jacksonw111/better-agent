@@ -17,9 +17,9 @@ import type {
 	StreamEvent,
 	ToolEvent,
 } from "./bridge-events";
+import { SESSION_LIST_STATUS } from "./bridge-session-list";
 import {
 	PLAN_STATUS,
-	SESSION_LIST_STATUS,
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
 	USAGE_UPDATE_STATUS,

@@ -213,6 +213,13 @@ it("merges the agent's supportedModels() ids into the session_ready event", asyn
 		detail: {
 			model: "claude-opus-4",
 			models: ["claude-opus-4", "claude-sonnet-4"],
+			// R2-T1: the CLI-side capability handshake — see session-capabilities.ts.
+			capabilities: {
+				approval: "gated",
+				mcp: "live",
+				modelSwitch: true,
+				usage: "stream",
+			},
 		},
 	});
 });

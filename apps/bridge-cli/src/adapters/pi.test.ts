@@ -3,6 +3,7 @@ import { createAsyncQueue } from "./async-queue";
 import { piAdapter } from "./pi";
 import type { ProcessExitInfo, ProcessIo } from "./process-io";
 import { spawnProcessIo } from "./process-io";
+import { PI_SESSION_CAPABILITIES } from "./session-capabilities";
 
 vi.mock("./process-io", () => ({ spawnProcessIo: vi.fn() }));
 
@@ -181,8 +182,27 @@ describe("piAdapter - session_ready response parsing", () => {
 				model: undefined,
 				slashCommands: ["fix-tests", "skill:brave-search"],
 				skills: ["brave-search"],
+				capabilities: PI_SESSION_CAPABILITIES,
 			},
 			turnEpoch: 0,
+		});
+		// R2-T1/R2-T3: pi's setThinking + steer support means the reported busy
+		// surface and thinking vocabulary are the FULL ones, not a reduced subset.
+		expect(event).toMatchObject({
+			detail: {
+				capabilities: {
+					busyModes: ["queue", "steer", "interrupt"],
+					thinkingLevels: [
+						"off",
+						"minimal",
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max",
+					],
+				},
+			},
 		});
 	});
 });
@@ -220,6 +240,7 @@ describe("piAdapter - session_ready model merge", () => {
 				model: "claude-sonnet-4-20250514",
 				slashCommands: [],
 				skills: [],
+				capabilities: PI_SESSION_CAPABILITIES,
 			},
 			turnEpoch: 0,
 		});

@@ -4,10 +4,8 @@ import { PowerIcon, SettingsIcon, ShieldOffIcon } from "lucide-react";
 import { useState } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import type { AgentCapabilities } from "./agent-capabilities";
-import type {
-	SessionListDetail,
-	SessionReadyDetail,
-} from "./bridge-session-status";
+import type { SessionListDetail } from "./bridge-session-list";
+import type { SessionReadyDetail } from "./bridge-session-status";
 import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import { AgentKindIcon } from "./local-agent-kind-icon";
 import { LocalAgentSessionPicker } from "./local-agent-session-picker";

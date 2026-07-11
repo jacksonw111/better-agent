@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { CAPABILITIES, capabilities } from "./agent-capabilities";
+import {
+	CAPABILITIES,
+	capabilities,
+	resolveCapabilities,
+	type SessionCapabilities,
+} from "./agent-capabilities";
 
 // Phase 0.5: one canonical matrix (from the pi/opencode research in the plan
 // doc) every optional Local Agent surface gates on. These assertions pin the
@@ -105,4 +110,78 @@ it("flags pi (and only pi) as running with no approval gate at all (RC-T4)", () 
 	expect(capabilities("claude-code").noApprovalGate).toBe(false);
 	expect(capabilities("opencode").noApprovalGate).toBe(false);
 	expect(capabilities("codex").noApprovalGate).toBe(false);
+});
+
+// R2-T1: the capability handshake — resolveCapabilities prefers whatever the
+// LIVE session_ready carried over the web's own static matrix, and falls back
+// to that matrix alone for old CLIs (or codex, which emits no handshake yet).
+const HANDSHAKE: SessionCapabilities = {
+	approval: "none",
+	busyModes: ["queue", "steer", "interrupt"],
+	mcp: "none",
+	modelSwitch: true,
+	permissionModes: [],
+	quota: false,
+	sessionOps: [],
+	skills: true,
+	slashCommands: true,
+	thinkingLevels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
+	usage: "poll",
+};
+
+it("falls back to the static matrix when no session_ready has arrived", () => {
+	const resolved = resolveCapabilities("claude-code", null);
+	const claude = capabilities("claude-code");
+	expect(resolved.permissionModes).toEqual(claude.permissionModes);
+	expect(resolved.reasoning).toBe(claude.reasoning);
+	expect(resolved.mcp).toBe("none");
+	expect(resolved.thinkingLevels).toEqual([]);
+});
+
+it("falls back to the static matrix when session_ready carries no capabilities", () => {
+	const resolved = resolveCapabilities("pi", { capabilities: undefined });
+	expect(resolved.usageMode).toBe("poll");
+	expect(resolved.mcp).toBe("none");
+});
+
+it("prefers the handshake's overlapping fields over the static matrix", () => {
+	// claude's static matrix has permissionModes/usageMode wildly different
+	// from HANDSHAKE's — proves the handshake, not the matrix, wins.
+	const resolved = resolveCapabilities("claude-code", {
+		capabilities: HANDSHAKE,
+	});
+	expect(resolved.permissionModes).toEqual([]);
+	expect(resolved.usageMode).toBe("poll");
+	expect(resolved.skills).toBe(true);
+	expect(resolved.slashCommands).toBe(true);
+	expect(resolved.modelSwitch).toBe(true);
+});
+
+it("adds the handshake-only fields (busyModes/mcp/approval/quota/sessionOps/thinkingLevels)", () => {
+	const resolved = resolveCapabilities("pi", { capabilities: HANDSHAKE });
+	expect(resolved.busyModes).toEqual(["queue", "steer", "interrupt"]);
+	expect(resolved.mcp).toBe("none");
+	expect(resolved.approval).toBe("none");
+	expect(resolved.quota).toBe(false);
+	expect(resolved.sessionOps).toEqual([]);
+	expect(resolved.thinkingLevels).toEqual([
+		"off",
+		"minimal",
+		"low",
+		"medium",
+		"high",
+		"xhigh",
+		"max",
+	]);
+});
+
+it("keeps static-only fields (reasoning, sessionResume, noApprovalGate, contextUsage) untouched by the handshake", () => {
+	const resolved = resolveCapabilities("claude-code", {
+		capabilities: HANDSHAKE,
+	});
+	const claude = capabilities("claude-code");
+	expect(resolved.reasoning).toBe(claude.reasoning);
+	expect(resolved.sessionResume).toBe(claude.sessionResume);
+	expect(resolved.noApprovalGate).toBe(claude.noApprovalGate);
+	expect(resolved.contextUsage).toBe(claude.contextUsage);
 });

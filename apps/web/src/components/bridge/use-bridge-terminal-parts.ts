@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { SessionListDetail } from "./bridge-session-list";
 import type {
-	SessionListDetail,
 	SessionReadyDetail,
 	TurnUsageDetail,
 	UsageUpdateDetail,

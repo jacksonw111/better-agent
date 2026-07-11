@@ -3,6 +3,7 @@ import { createAsyncQueue } from "./async-queue";
 import { piAdapter } from "./pi";
 import type { ProcessExitInfo, ProcessIo } from "./process-io";
 import { spawnProcessIo } from "./process-io";
+import { PI_SESSION_CAPABILITIES } from "./session-capabilities";
 
 vi.mock("./process-io", () => ({ spawnProcessIo: vi.fn() }));
 
@@ -238,6 +239,7 @@ describe("piAdapter - session_ready models merge", () => {
 				models: ["claude-sonnet-4-20250514", "gpt-5"],
 				slashCommands: [],
 				skills: [],
+				capabilities: PI_SESSION_CAPABILITIES,
 			},
 			turnEpoch: 0,
 		});

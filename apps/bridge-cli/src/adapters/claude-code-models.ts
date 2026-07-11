@@ -4,6 +4,7 @@
 
 import type { query } from "@anthropic-ai/claude-agent-sdk";
 import { isRecord, type NormalizedEvent } from "../normalize/types";
+import { CLAUDE_CODE_SESSION_CAPABILITIES } from "./session-capabilities";
 
 export type ClaudeQuery = ReturnType<typeof query>;
 
@@ -52,5 +53,29 @@ export async function withReportedModels(
 		kind: "status",
 		status: "session_ready",
 		detail: { ...event.detail, models: list },
+	};
+}
+
+/** R2-T1: attaches claude-code's static `SessionCapabilities` constant to the
+ * one-time `session_ready` event, leaving every other event untouched — the
+ * web's `resolveCapabilities` (agent-capabilities.ts) reads it straight off
+ * the wire, falling back to its own static matrix only when it's absent. */
+export function withSessionCapabilities(
+	event: NormalizedEvent
+): NormalizedEvent {
+	if (
+		event.kind !== "status" ||
+		event.status !== "session_ready" ||
+		!isRecord(event.detail)
+	) {
+		return event;
+	}
+	return {
+		kind: "status",
+		status: "session_ready",
+		detail: {
+			...event.detail,
+			capabilities: CLAUDE_CODE_SESSION_CAPABILITIES,
+		},
 	};
 }

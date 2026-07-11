@@ -18,6 +18,7 @@ import {
 	makeOpencodeGetStatus,
 	updateOpencodeStatusCache,
 } from "./opencode-status";
+import { OPENCODE_SESSION_CAPABILITIES } from "./session-capabilities";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -61,7 +62,12 @@ function enrichOpencodeSessionReady(
 	return {
 		kind: "status",
 		status: "session_ready",
-		detail: { ...detail, cwd: dir, sessionId },
+		detail: {
+			...detail,
+			cwd: dir,
+			sessionId,
+			capabilities: OPENCODE_SESSION_CAPABILITIES,
+		},
 	};
 }
 

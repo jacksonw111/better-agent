@@ -1,11 +1,8 @@
 // `opencode serve` — opencode's HTTP + SSE server, driven over plain `fetch`
 // (Node 22+ global). Opt-in via `--opencode-transport serve` (see args.ts);
 // the ACP adapter (opencode.ts) stays the default until these wire shapes are
-// verified against a real binary. Every request/stream shape assumption is
-// marked ASSUMPTION here, in opencode-serve-http.ts, or in
-// normalize/opencode-serve.ts. Unlike ACP this transport also unlocks the
-// serve-only control surface (live `POST /mcp`, `GET/PATCH /config`,
-// `GET /global/health`, on-demand history/usage) for later plan phases.
+// verified against a real binary. Every request/stream shape ASSUMPTION is
+// marked here, in opencode-serve-http.ts, or in normalize/opencode-serve.ts.
 
 import { parseOpencodeServeModels } from "../normalize/opencode-serve";
 import { parseOpencodeServeStatus } from "../normalize/opencode-serve-status";
@@ -35,6 +32,7 @@ import {
 	waitForServeUrl,
 } from "./opencode-serve-http";
 import { type ProcessIo, spawnProcessIo } from "./process-io";
+import { OPENCODE_SESSION_CAPABILITIES } from "./session-capabilities";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -79,12 +77,8 @@ export interface ServeSessionContext {
 	sessionId: string;
 }
 
-/** Serve has no stateful model setter — the model rides on EVERY prompt as
- * `{ providerID, modelID }` (ASSUMPTION, unverified: `POST
- * /session/:id/message` accepts `{ parts: [{ type: "text", text }], model? }`
- * and streams the turn's updates on /event; its own response — the finished
- * message — is ignored). `setModel` therefore just stores the split
- * "provider/model" string for subsequent sends. */
+/** Serve has no stateful model setter — the model rides on EVERY prompt
+ * (ASSUMPTION). `setModel` stores the split "provider/model" string. */
 interface ServeModelRef {
 	current?: { modelID: string; providerID: string };
 }
@@ -101,8 +95,7 @@ function parseServeModelRef(model: string): ServeModelRef["current"] {
 }
 
 /** Cancels the in-flight turn and retracts any pending approval — split out
- * of `makeServeControls` purely to keep that function under the repo's
- * max-lines-per-function gate. */
+ * of `makeServeControls` to keep it under the max-lines-per-function gate. */
 function makeServeInterrupt(ctx: ServeSessionContext): () => void {
 	return () => {
 		// RC-T3: supersede the current turn and retract any pending approval
@@ -180,12 +173,8 @@ function makeServeControls(
 
 /** Builds the `getStatus` control: GETs the serve session's message history
  * and maps the latest assistant message's cost/tokens/model into ONE
- * `status_snapshot` event — see the ASSUMPTION note on
- * `parseOpencodeServeStatus` (normalize/opencode-serve-status.ts) for the
- * endpoint/shape this assumes. A fetch failure pushes a snapshot with every
- * field absent rather than throwing or surfacing a raw `error` event —
- * matching every other adapter's "the web renders whatever arrived" posture
- * for `getStatus` (see e.g. claude-code-status.ts's `buildSnapshotDetail`). */
+ * `status_snapshot` event. A fetch failure pushes a snapshot with every field
+ * absent rather than throwing — matching every other adapter's posture. */
 function makeServeGetStatus(ctx: ServeSessionContext): () => void {
 	return () => {
 		ctx.http
@@ -205,6 +194,28 @@ function makeServeGetStatus(ctx: ServeSessionContext): () => void {
 				});
 			});
 	};
+}
+
+/** Pushes the one-time `session_ready` event — keeps `start` under the
+ * max-lines-per-function gate. */
+function pushServeSessionReady(
+	ctx: ServeSessionContext,
+	dir: string,
+	models: string[],
+	permissionModes: string[]
+): void {
+	ctx.events.push({
+		kind: "status",
+		status: "session_ready",
+		detail: {
+			cwd: dir,
+			sessionId: ctx.sessionId,
+			models,
+			permissionModes,
+			// R2-T3's live GET /agent list wins over the ACP-only static pair.
+			capabilities: { ...OPENCODE_SESSION_CAPABILITIES, permissionModes },
+		},
+	});
 }
 
 /** Wires the turn-epoch-stamped event queue, approval registry, and the
@@ -255,19 +266,14 @@ export const opencodeServeAdapter: Adapter = {
 		};
 		wireServeEventStream(ctx, sseAbort.signal);
 		// Health (item 6) is a startup diagnostic only — logged, not stored or
-		// surfaced in any event — so it's fetched alongside (not blocking) the
-		// two lists session_ready actually ships.
+		// surfaced in any event — fetched alongside session_ready's own lists.
 		const [models, permissionModes, health] = await Promise.all([
 			fetchServeModels(http),
 			fetchServeAgents(http),
 			fetchServeHealth(http),
 		]);
 		logServeHealth(health);
-		events.push({
-			kind: "status",
-			status: "session_ready",
-			detail: { cwd: dir, sessionId, models, permissionModes },
-		});
+		pushServeSessionReady(ctx, dir, models, permissionModes);
 
 		const agentRef: ServeAgentRef = {};
 		return {

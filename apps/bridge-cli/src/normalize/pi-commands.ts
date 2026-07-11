@@ -36,7 +36,7 @@ export function buildPiPromptCommand(
  * (R2-T3 item 2). ASSUMPTION (unverified, no `pi` binary in this sandbox —
  * per the brief's researched rpc-types v0.80.6 shape): this exact 7-value
  * vocabulary. */
-const PI_THINKING_LEVELS = [
+export const PI_THINKING_LEVELS = [
 	"off",
 	"minimal",
 	"low",

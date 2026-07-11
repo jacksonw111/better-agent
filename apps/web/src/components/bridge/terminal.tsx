@@ -2,7 +2,10 @@ import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
 import { useMemo } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
-import { type AgentCapabilities, capabilities } from "./agent-capabilities";
+import {
+	type AgentCapabilities,
+	resolveCapabilities,
+} from "./agent-capabilities";
 import type { StreamEvent } from "./bridge-events";
 import type {
 	SessionReadyDetail,
@@ -208,8 +211,8 @@ function useTerminalView(
 		[session.tokenId, userAvatarUrl]
 	);
 	const caps = useMemo(
-		() => capabilities(session.agentKind),
-		[session.agentKind]
+		() => resolveCapabilities(session.agentKind, bridge.sessionReady),
+		[session.agentKind, bridge.sessionReady]
 	);
 	const sessionId = bridge.sessionReady?.sessionId ?? session.id;
 	return { ...bridge, avatars, caps, sessionId, turns, turnInFlight };

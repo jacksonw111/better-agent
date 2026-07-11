@@ -9,10 +9,7 @@ import {
 } from "@better-agent/ui/components/popover";
 import { HistoryIcon } from "lucide-react";
 import { useState } from "react";
-import type {
-	SessionListDetail,
-	SessionListItem,
-} from "./bridge-session-status";
+import type { SessionListDetail, SessionListItem } from "./bridge-session-list";
 import { formatSessionTimestamp } from "./local-agent-format";
 import { bridgeResumeCliCommand, PLACEHOLDER_TOKEN } from "./local-agent-join";
 

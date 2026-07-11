@@ -195,3 +195,85 @@ export const CAPABILITIES: Record<AgentKind, AgentCapabilities> = {
 export function capabilities(kind: AgentKind): AgentCapabilities {
 	return CAPABILITIES[kind];
 }
+
+/** R2-T1: the CLI's LIVE capability handshake — the wire counterpart of
+ * `AgentCapabilities` above, carried on `session_ready`'s `detail.capabilities`
+ * once an adapter reports one (every adapter but codex, until R2-T2). Keep
+ * field-identical to `apps/bridge-cli/src/adapters/types.ts`'s copy. */
+export interface SessionCapabilities {
+	approval: "gated" | "none";
+	busyModes: ("queue" | "steer" | "interrupt")[];
+	mcp: "live" | "restart" | "none";
+	modelSwitch: boolean;
+	permissionModes: string[];
+	quota: boolean;
+	sessionOps: ("list" | "fork" | "tree" | "compact")[];
+	skills: boolean;
+	slashCommands: boolean;
+	thinkingLevels: string[];
+	usage: UsageMode;
+}
+
+/** `AgentCapabilities` plus every `SessionCapabilities` field that isn't
+ * already covered by an overlapping name — see `resolveCapabilities`'s merge
+ * semantics for which fields the handshake can override vs. only add. */
+export interface ResolvedCapabilities extends AgentCapabilities {
+	approval: SessionCapabilities["approval"];
+	busyModes: SessionCapabilities["busyModes"];
+	mcp: SessionCapabilities["mcp"];
+	quota: boolean;
+	sessionOps: SessionCapabilities["sessionOps"];
+	thinkingLevels: string[];
+}
+
+/** Conservative defaults for the fields `SessionCapabilities` adds that the
+ * old static `AgentCapabilities` matrix has no opinion on — used whenever no
+ * live handshake has arrived (old CLI, or a session before session_ready). */
+function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
+	const base = capabilities(kind);
+	return {
+		...base,
+		approval: base.toolApproval ? "gated" : "none",
+		busyModes: base.interrupt ? ["queue", "interrupt"] : ["queue"],
+		mcp: "none",
+		quota: false,
+		sessionOps: base.sessionList ? ["list"] : [],
+		thinkingLevels: [],
+	};
+}
+
+/** The single entry point every terminal/composer/header call site should use
+ * instead of the old static `capabilities(kind)` lookup: prefers the LIVE
+ * handshake off `session_ready` (`sessionReady?.capabilities`) when present,
+ * merging it onto the static matrix by OVERRIDING only the fields the two
+ * shapes share (modelSwitch, permissionModes, skills, slashCommands, and
+ * usageMode←usage) and ADDING the handshake-only fields (busyModes, mcp,
+ * approval, quota, sessionOps, thinkingLevels) — every other static-only flag
+ * (reasoning, contextUsage, sessionResume, noApprovalGate, toolApproval,
+ * interrupt) stays exactly as the matrix says, since the handshake carries no
+ * opinion on them. Falls back to `staticCapabilities` alone when no handshake
+ * has arrived yet (old CLI, or codex until R2-T2). */
+export function resolveCapabilities(
+	kind: AgentKind,
+	sessionReady: { capabilities?: SessionCapabilities } | null | undefined
+): ResolvedCapabilities {
+	const handshake = sessionReady?.capabilities;
+	const fallback = staticCapabilities(kind);
+	if (!handshake) {
+		return fallback;
+	}
+	return {
+		...fallback,
+		approval: handshake.approval,
+		busyModes: handshake.busyModes,
+		mcp: handshake.mcp,
+		modelSwitch: handshake.modelSwitch,
+		permissionModes: handshake.permissionModes,
+		quota: handshake.quota,
+		sessionOps: handshake.sessionOps,
+		skills: handshake.skills,
+		slashCommands: handshake.slashCommands,
+		thinkingLevels: handshake.thinkingLevels,
+		usageMode: handshake.usage,
+	};
+}

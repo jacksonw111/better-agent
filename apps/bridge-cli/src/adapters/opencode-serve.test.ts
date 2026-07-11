@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { APPROVAL_TIMEOUT_MS } from "./approvals";
 import { messageCalls, startServe } from "./opencode-serve-test-support";
 import { spawnProcessIo } from "./process-io";
+import { OPENCODE_SESSION_CAPABILITIES } from "./session-capabilities";
 
 vi.mock("./process-io", () => ({ spawnProcessIo: vi.fn() }));
 
@@ -29,6 +30,10 @@ describe("opencodeServeAdapter - start", () => {
 				models: ["anthropic/claude-sonnet-4"],
 				// R2-T3 item 7: from the fake server's default /agent fixture.
 				permissionModes: ["build", "plan"],
+				capabilities: {
+					...OPENCODE_SESSION_CAPABILITIES,
+					permissionModes: ["build", "plan"],
+				},
 			},
 			turnEpoch: 0,
 		});
@@ -203,8 +208,7 @@ describe("opencodeServeAdapter - interrupt retracts approvals (RC-T3)", () => {
 			turnEpoch: 1,
 		});
 
-		// A late answer for the retracted request must never fire the
-		// permissions POST — the registry no longer knows about it.
+		// A late answer must never fire the permissions POST.
 		handle.answerApproval("perm_2", "once");
 		const reply = server.calls.find((call) =>
 			call.url.endsWith("/session/ses_1/permissions/perm_2")
@@ -243,11 +247,8 @@ describe("opencodeServeAdapter - lifecycle", () => {
 		expect(done).toBe(true);
 	});
 
-	// RC-T5: a dead SSE reader (server crash, dropped connection) must not
-	// leave the session hanging forever — it surfaces the same way a real
-	// process exit does (an error event, then agent_exited, then the events
-	// stream closes), so runBridgeSession's loop ends cleanly instead of
-	// waiting on a stream that will never produce anything again.
+	// RC-T5: a dead SSE reader must surface the same as a real process exit
+	// (error, then agent_exited, then close) so the session loop ends cleanly.
 	it("surfaces an error and agent_exited, then closes events, when the SSE stream dies", async () => {
 		const { handle, server } = await startServe();
 		const iterator = handle.events[Symbol.asyncIterator]();
@@ -278,11 +279,9 @@ describe("opencodeServeAdapter - the turn POST has no request timeout (RC-T5)", 
 		handle.send("do it");
 		handle.interrupt?.();
 
-		// The turn POST (`POST /session/:id/message`) must carry NO abort signal
-		// at all (opencode-serve-http.ts's `requestJson`: `timeoutMs: null` maps
-		// to `signal: undefined`) — a slow-but-alive turn (tool calls, thinking)
-		// routinely exceeds the short-control-call deadline, and progress
-		// already streams in over SSE separately.
+		// The turn POST must carry NO abort signal at all (opencode-serve-http.ts's
+		// `requestJson`: `timeoutMs: null` maps to `signal: undefined`) — a slow
+		// turn routinely exceeds the short-control-call deadline.
 		const messageCall = server.fetchImpl.mock.calls.find(([input]) =>
 			String(input).endsWith("/session/ses_1/message")
 		);

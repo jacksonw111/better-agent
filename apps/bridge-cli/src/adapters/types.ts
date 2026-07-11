@@ -62,6 +62,37 @@ export interface AgentCapabilities {
 	usageMode: UsageMode;
 }
 
+/** R2-T1: what one adapter's underlying agent ACTUALLY supports, reported
+ * live on `session_ready`'s `detail.capabilities` — the wire counterpart of
+ * `AgentCapabilities` above, which the web falls back to when this is absent
+ * (old CLI, or an adapter — currently just codex, until R2-T2 — that doesn't
+ * emit `session_ready` yet). Mirrored by the web's own copy in
+ * `apps/web/src/components/bridge/agent-capabilities.ts` — keep in sync. */
+export interface SessionCapabilities {
+	/** Tool calls pause for approval ("gated") or never do ("none" — pi). */
+	approval: "gated" | "none";
+	/** Mid-turn interruption: queued follow-up, live steer, hard interrupt. */
+	busyModes: ("queue" | "steer" | "interrupt")[];
+	/** MCP servers: swappable LIVE, only after a restart, or unsupported. */
+	mcp: "live" | "restart" | "none";
+	/** Switching models mid-session. */
+	modelSwitch: boolean;
+	/** Permission-mode values this agent accepts; empty = no such concept. */
+	permissionModes: string[];
+	/** Can fetch the account's quota/rate-limit windows on demand. */
+	quota: boolean;
+	/** Session-management operations the agent supports. */
+	sessionOps: ("list" | "fork" | "tree" | "compact")[];
+	/** The agent exposes a skills list. */
+	skills: boolean;
+	/** The agent exposes a slash-command list. */
+	slashCommands: boolean;
+	/** Thinking/reasoning effort levels accepted; empty = no such concept. */
+	thinkingLevels: string[];
+	/** See `UsageMode`. */
+	usage: UsageMode;
+}
+
 /** `status` value pushed on `events` right before it's closed, whenever the
  * underlying process exits on its own — a crash, or the agent simply
  * finishing its work — so the web UI (and CLI stdout) sees an explicit "the

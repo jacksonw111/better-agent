@@ -21,6 +21,7 @@ import { makePiSetModel, makePiSetThinking } from "./pi-controls";
 import { makePiStatusTracker } from "./pi-status";
 import { makePiStreamingTracker } from "./pi-streaming";
 import { spawnProcessIo } from "./process-io";
+import { PI_SESSION_CAPABILITIES } from "./session-capabilities";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -79,7 +80,12 @@ function makePiSessionReadyTracker(events: {
 			events.push({
 				kind: "status",
 				status: "session_ready",
-				detail: { model, models, ...commands },
+				detail: {
+					model,
+					models,
+					...commands,
+					capabilities: PI_SESSION_CAPABILITIES,
+				},
 			});
 		},
 	};

@@ -13,6 +13,7 @@ import {
 	type ClaudeQuery,
 	fetchSupportedModels,
 	withReportedModels,
+	withSessionCapabilities,
 } from "./claude-code-models";
 import { writeSkillFiles } from "./claude-code-skills";
 import {
@@ -79,7 +80,9 @@ async function drainSession(deps: DrainSessionDeps): Promise<void> {
 				// Seed the getStatus snapshot's model/permissionMode off the one-time
 				// init event as it flows by (see claude-code-status.ts).
 				recordSessionInfo(event, lastKnown);
-				events.push(await withReportedModels(event, models));
+				events.push(
+					withSessionCapabilities(await withReportedModels(event, models))
+				);
 			}
 		}
 	} catch (error) {

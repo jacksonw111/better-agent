@@ -4,6 +4,7 @@
 // turn). Session METADATA, not chat messages, so kept out of `BridgeTurn`/the
 // message list (see bridge-turns.ts) and surfaced as dedicated header/chip UI,
 // each always showing the LATEST detail seen on the feed.
+import type { SessionCapabilities } from "./agent-capabilities";
 import type { StreamEvent } from "./bridge-events";
 
 /** `StatusEvent.status` value naming each curated event — checked by
@@ -11,10 +12,6 @@ import type { StreamEvent } from "./bridge-events";
  * `latest*` finders below to pick them back out of the raw feed. */
 export const SESSION_READY_STATUS = "session_ready";
 export const TURN_USAGE_STATUS = "turn_usage";
-/** Pushed by the claude adapter in reply to a `{ control: listSessions }`
- * command (see `apps/bridge-cli/src/adapters/claude-code.ts`'s
- * `makeListSessions`) — the "Past conversations" picker's data. */
-export const SESSION_LIST_STATUS = "session_list";
 /** opencode (ACP) emits its evolving task list as a `plan` status update whose
  * `detail` is the list of entries — rendered as a todolist, not a status line. */
 export const PLAN_STATUS = "plan";
@@ -32,6 +29,11 @@ export interface McpServerStatus {
 }
 
 export interface SessionReadyDetail {
+	/** R2-T1: the CLI's live capability handshake, when the running adapter
+	 * reports one — see `agent-capabilities.ts`'s `resolveCapabilities`, which
+	 * prefers this over the web's own static matrix. Passed through verbatim
+	 * (trusted, same-origin CLI wire) rather than re-validated field-by-field. */
+	capabilities?: SessionCapabilities;
 	cwd?: string;
 	mcpServers?: McpServerStatus[];
 	model?: string;
@@ -49,21 +51,6 @@ export interface SessionReadyDetail {
 	skills?: string[];
 	slashCommands?: string[];
 	tools?: string[];
-}
-
-/** One past local conversation the "Past conversations" picker renders —
- * mirrors `SessionListItem` in
- * `apps/bridge-cli/src/adapters/claude-code.ts`. */
-export interface SessionListItem {
-	cwd?: string;
-	gitBranch?: string;
-	id: string;
-	lastModified?: number;
-	title: string;
-}
-
-export interface SessionListDetail {
-	sessions: SessionListItem[];
 }
 
 interface TurnUsageTokens {
@@ -137,6 +124,17 @@ export function asOptionalMcpServers(
 	return servers;
 }
 
+/** R2-T1: passed through verbatim (not field-validated) — same-origin CLI
+ * wire, and `resolveCapabilities` already degrades to the static matrix for
+ * anything that isn't a plain object. */
+function asOptionalCapabilities(
+	value: unknown
+): SessionCapabilities | undefined {
+	return isRecord(value)
+		? (value as unknown as SessionCapabilities)
+		: undefined;
+}
+
 export function parseSessionReadyDetail(
 	detail: unknown
 ): SessionReadyDetail | null {
@@ -144,6 +142,7 @@ export function parseSessionReadyDetail(
 		return null;
 	}
 	return {
+		capabilities: asOptionalCapabilities(detail.capabilities),
 		model: asOptionalString(detail.model),
 		models: asOptionalStringArray(detail.models),
 		cwd: asOptionalString(detail.cwd),
@@ -154,38 +153,6 @@ export function parseSessionReadyDetail(
 		skills: asOptionalStringArray(detail.skills),
 		mcpServers: asOptionalMcpServers(detail.mcpServers),
 	};
-}
-
-function asOptionalSessionListItems(
-	value: unknown
-): SessionListItem[] | undefined {
-	if (!Array.isArray(value)) {
-		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
-		return undefined;
-	}
-	const items: SessionListItem[] = [];
-	for (const item of value) {
-		if (isRecord(item) && typeof item.id === "string") {
-			items.push({
-				id: item.id,
-				title: asOptionalString(item.title) ?? item.id,
-				lastModified: asOptionalNumber(item.lastModified),
-				gitBranch: asOptionalString(item.gitBranch),
-				cwd: asOptionalString(item.cwd),
-			});
-		}
-	}
-	return items;
-}
-
-export function parseSessionListDetail(
-	detail: unknown
-): SessionListDetail | null {
-	if (!isRecord(detail)) {
-		return null;
-	}
-	const sessions = asOptionalSessionListItems(detail.sessions);
-	return sessions === undefined ? null : { sessions };
 }
 
 function parseUsageTokens(value: unknown): TurnUsageTokens | undefined {
@@ -288,12 +255,7 @@ export function latestUsageUpdateDetail(
 	return detail === undefined ? null : parseUsageUpdateDetail(detail);
 }
 
-/** The latest `session_list` detail on the feed — `null` before a `{
- * control: listSessions }` request has gotten a reply (or the reply was
- * malformed). */
-export function latestSessionListDetail(
-	events: StreamEvent[]
-): SessionListDetail | null {
-	const detail = latestStatusDetail(events, SESSION_LIST_STATUS);
-	return detail === undefined ? null : parseSessionListDetail(detail);
-}
+// R2-T1: `SessionListDetail`/`SessionListItem`/`parseSessionListDetail`/
+// `latestSessionListDetail`/`SESSION_LIST_STATUS` moved to
+// bridge-session-list.ts (which imports helpers FROM this file — a re-export
+// back here would make the two files circularly depend on each other).

@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { connectJsonRpc } from "./jsonrpc-io";
 import { opencodeAdapter } from "./opencode";
 import { createFakeRpc } from "./opencode-test-harness";
+import { OPENCODE_SESSION_CAPABILITIES } from "./session-capabilities";
 
 vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
 
@@ -57,6 +58,7 @@ describe("opencodeAdapter - session_ready", () => {
 				slashCommands: ["explain"],
 				cwd: "/tmp/project",
 				sessionId: "session_1",
+				capabilities: OPENCODE_SESSION_CAPABILITIES,
 			},
 			turnEpoch: 0,
 		});

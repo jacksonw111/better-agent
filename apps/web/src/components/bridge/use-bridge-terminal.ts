@@ -1,7 +1,7 @@
 import { type Dispatch, useReducer, useState } from "react";
 import type { StreamEvent } from "./bridge-events";
+import type { SessionListDetail } from "./bridge-session-list";
 import type {
-	SessionListDetail,
 	SessionReadyDetail,
 	TurnUsageDetail,
 	UsageUpdateDetail,
