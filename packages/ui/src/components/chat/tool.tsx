@@ -71,35 +71,6 @@ function richResult(
 	return renderToolResult(tool.toolName, tool.result);
 }
 
-// A registered rich result renders ALWAYS-VISIBLE (never hidden behind the
-// collapsible), with the raw call folded into a subtle "details" disclosure
-// beneath it — otherwise the component the whole feature exists to show sat
-// collapsed and users only ever saw a plain tool-call row.
-function RichToolView({
-	tool,
-	rich,
-}: {
-	tool: ToolInvocation;
-	rich: ReactNode;
-}) {
-	return (
-		<div className="flex flex-col gap-1.5">
-			{rich}
-			<Collapsible.Root className="rounded-md">
-				<Collapsible.Trigger className="flex items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
-					<WrenchIcon className="size-3" />
-					<span className="font-mono">{tool.toolName}</span>
-					<ChevronDownIcon className="size-3 transition-transform data-[panel-open]:rotate-180" />
-				</Collapsible.Trigger>
-				<Collapsible.Panel className="mt-1.5 flex flex-col gap-2">
-					<ToolSection label="Arguments" value={formatValue(tool.args)} />
-					<ToolSection label="Raw result" value={formatValue(tool.result)} />
-				</Collapsible.Panel>
-			</Collapsible.Root>
-		</div>
-	);
-}
-
 // The plain (unregistered / errored / in-flight) tool block: a collapsible row
 // showing name + status, expanding to arguments and the raw JSON result.
 function PlainToolView({ tool }: { tool: ToolInvocation }) {
@@ -147,9 +118,13 @@ function ToolInvocationView({
 	if (custom != null) {
 		return <>{custom}</>;
 	}
+	// A registered rich result renders ONLY the rich component — once a genui
+	// renderer claims the result, the raw tool-call row (wrench + name +
+	// Arguments/Raw result disclosure) adds no information the user needs and
+	// is dropped entirely, per product requirement.
 	const rich = richResult(tool, renderToolResult);
 	if (rich !== null) {
-		return <RichToolView rich={rich} tool={tool} />;
+		return <>{rich}</>;
 	}
 	return <PlainToolView tool={tool} />;
 }

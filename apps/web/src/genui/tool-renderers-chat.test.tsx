@@ -58,6 +58,15 @@ it("a registered tool renders its rich component immediately, without expanding"
 	expect(scope.getByText(TWEET_FIXTURE.fullText)).toBeDefined();
 });
 
+it("a registered tool hides the raw tool-call row entirely once a rich component claims it", () => {
+	// Product requirement: when genui renders the result, the wrench/toolName
+	// disclosure (Arguments/Raw result) must not also render alongside it.
+	const tool = baseTool({ result: mcpEnvelope([TWEET_FIXTURE]) });
+	const scope = renderTool(tool);
+	expect(scope.queryByText(tool.toolName)).toBeNull();
+	expect(scope.queryByRole("button")).toBeNull();
+});
+
 it("an unregistered tool keeps the raw-JSON fallback", () => {
 	const tool = baseTool({
 		result: "plain fallback text",
@@ -88,7 +97,6 @@ it("caps a long tweet list at MAX_RENDERED_ITEMS with a +N more line", () => {
 	}));
 	const tool = baseTool({ result: mcpEnvelope(tweets) });
 	const scope = renderTool(tool);
-	fireEvent.click(scope.getByRole("button"));
 	expect(scope.getByText("tweet number 0")).toBeDefined();
 	expect(
 		scope.getByText(`tweet number ${MAX_RENDERED_ITEMS - 1}`)
