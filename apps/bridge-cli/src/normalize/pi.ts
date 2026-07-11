@@ -191,6 +191,13 @@ type PiEventHandler = (raw: Record<string, unknown>) => NormalizedEvent[];
 const PI_STATUS_TYPES = new Set([
 	"agent_start",
 	"agent_end",
+	// R2-T3 item 3: `agent_end` can be followed by auto-retries, so it's NOT
+	// the true end-of-turn signal — `agent_settled` is (see
+	// session-watchdog.ts's `TURN_END_STATUSES` and adapters/pi-streaming.ts,
+	// which both key off this same status). Kept alongside `agent_end` rather
+	// than replacing it, for compat with anything already watching for
+	// `agent_end`.
+	"agent_settled",
 	"turn_start",
 	"turn_end",
 	"queue_update",

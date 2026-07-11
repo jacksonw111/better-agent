@@ -183,6 +183,13 @@ export interface AgentHandle {
 	 * implements the control methods.
 	 */
 	setPermissionMode?(mode: string): void;
+	/**
+	 * Switches the extended-thinking/reasoning effort level for subsequent
+	 * turns (pi's `set_thinking_level`, R2-T3 item 2). Optional — see
+	 * `interrupt` for why not every adapter implements the control methods;
+	 * only pi does today.
+	 */
+	setThinking?(level: string): void;
 	/** Terminates the agent process and releases its resources. */
 	stop(): void;
 }

@@ -2,23 +2,68 @@ import { describe, expect, it } from "vitest";
 import {
 	buildPiExtensionUiCancelResponse,
 	buildPiExtensionUiResponse,
-	buildPiGetAvailableModelsCommand,
 	buildPiGetCommandsCommand,
 	buildPiGetStateCommand,
 	buildPiPromptCommand,
 	buildPiSetModelCommand,
-	normalizePiAvailableModels,
+	buildPiSetThinkingLevelCommand,
+	isPiThinkingLevel,
 	normalizePiCommandsResponse,
-	normalizePiModelProviders,
 	normalizePiStateModel,
 } from "./pi-commands";
 
+// `get_available_models`' command builder + response parsers (re-exported
+// from pi-models.ts, see that file's header) are tested in pi-models.test.ts,
+// alongside that module's other tests — kept out of this file purely for the
+// 300-line convention (mirrors the pi-commands.ts/pi-models.ts split).
+
 describe("buildPiPromptCommand", () => {
-	it("builds a prompt command frame", () => {
+	it("builds a bare prompt command frame with no streamingBehavior", () => {
 		const frame = buildPiPromptCommand("continue please");
 		expect(JSON.parse(frame)).toEqual({
 			type: "prompt",
 			message: "continue please",
+		});
+	});
+
+	// CRITICAL (R2-T3 item 1): pi ERRORS on a bare prompt sent while it's still
+	// streaming a turn — `streamingBehavior` must ride along whenever the
+	// caller (the adapter's streaming tracker) says so.
+	it("carries streamingBehavior when one is passed", () => {
+		expect(JSON.parse(buildPiPromptCommand("steer now", "steer"))).toEqual({
+			type: "prompt",
+			message: "steer now",
+			streamingBehavior: "steer",
+		});
+		expect(JSON.parse(buildPiPromptCommand("queue this", "followUp"))).toEqual({
+			type: "prompt",
+			message: "queue this",
+			streamingBehavior: "followUp",
+		});
+	});
+});
+
+describe("isPiThinkingLevel / buildPiSetThinkingLevelCommand", () => {
+	it("accepts every documented level and rejects anything else", () => {
+		for (const level of [
+			"off",
+			"minimal",
+			"low",
+			"medium",
+			"high",
+			"xhigh",
+			"max",
+		]) {
+			expect(isPiThinkingLevel(level)).toBe(true);
+		}
+		expect(isPiThinkingLevel("ultra")).toBe(false);
+		expect(isPiThinkingLevel("")).toBe(false);
+	});
+
+	it("builds the set_thinking_level command frame", () => {
+		expect(JSON.parse(buildPiSetThinkingLevelCommand("high"))).toEqual({
+			type: "set_thinking_level",
+			level: "high",
 		});
 	});
 });
@@ -32,43 +77,13 @@ describe("buildPiGetCommandsCommand / buildPiGetStateCommand", () => {
 	});
 });
 
-describe("buildPiGetAvailableModelsCommand / buildPiSetModelCommand", () => {
-	it("builds the get_available_models and set_model command frames", () => {
-		expect(JSON.parse(buildPiGetAvailableModelsCommand())).toEqual({
-			type: "get_available_models",
-		});
+describe("buildPiSetModelCommand", () => {
+	it("builds the set_model command frame", () => {
 		expect(JSON.parse(buildPiSetModelCommand("openai", "gpt-5"))).toEqual({
 			type: "set_model",
 			provider: "openai",
 			modelId: "gpt-5",
 		});
-	});
-});
-
-describe("normalizePiModelProviders", () => {
-	it("maps model ids to their provider from get_available_models", () => {
-		const raw = {
-			type: "response",
-			command: "get_available_models",
-			success: true,
-			data: {
-				models: [
-					{ id: "claude-sonnet-4", provider: "anthropic" },
-					{ id: "gpt-5", provider: "openai" },
-					{ id: "no-provider" },
-				],
-			},
-		};
-		expect(normalizePiModelProviders(raw)).toEqual({
-			"claude-sonnet-4": "anthropic",
-			"gpt-5": "openai",
-		});
-	});
-
-	it("returns undefined for a non-get_available_models frame", () => {
-		expect(
-			normalizePiModelProviders({ type: "response", command: "get_state" })
-		).toBeUndefined();
 	});
 });
 
@@ -117,6 +132,30 @@ describe("normalizePiCommandsResponse", () => {
 	});
 });
 
+// R2-T3 item 4: pi v0.80.6 moved a command's provenance from a flat `source`
+// string into `sourceInfo: { scope, ... }` — split into its own describe
+// purely to keep `normalizePiCommandsResponse`'s describe under the repo's
+// max-lines-per-function gate.
+describe("normalizePiCommandsResponse dual-format (R2-T3 item 4)", () => {
+	it("also splits skills correctly from v0.80.6's sourceInfo.scope shape", () => {
+		const result = normalizePiCommandsResponse({
+			type: "response",
+			command: "get_commands",
+			success: true,
+			data: {
+				commands: [
+					{ name: "session-name", sourceInfo: { scope: "extension" } },
+					{ name: "skill:brave-search", sourceInfo: { scope: "skill" } },
+				],
+			},
+		});
+		expect(result).toEqual({
+			slashCommands: ["session-name", "skill:brave-search"],
+			skills: ["brave-search"],
+		});
+	});
+});
+
 describe("normalizePiStateModel", () => {
 	it("extracts the model id from a get_state response", () => {
 		const model = normalizePiStateModel({
@@ -157,48 +196,6 @@ describe("normalizePiStateModel", () => {
 				data: { commands: [] },
 			})
 		).toBeUndefined();
-	});
-});
-
-describe("normalizePiAvailableModels", () => {
-	it("parses a successful get_available_models response into model ids", () => {
-		const models = normalizePiAvailableModels({
-			type: "response",
-			command: "get_available_models",
-			success: true,
-			data: {
-				models: [
-					{ id: "claude-sonnet-4-20250514", name: "Sonnet" },
-					{ name: "Unnamed Model" },
-				],
-			},
-		});
-		expect(models).toEqual(["claude-sonnet-4-20250514", "Unnamed Model"]);
-	});
-
-	it("is undefined for a different command, a failure, or a non-array", () => {
-		expect(
-			normalizePiAvailableModels({
-				type: "response",
-				command: "get_state",
-				success: true,
-				data: { model: { id: "x" } },
-			})
-		).toBeUndefined();
-		expect(
-			normalizePiAvailableModels({
-				type: "response",
-				command: "get_available_models",
-				success: false,
-				data: {},
-			})
-		).toBeUndefined();
-		expect(
-			normalizePiAvailableModels({
-				type: "agent_start",
-			})
-		).toBeUndefined();
-		expect(normalizePiAvailableModels(null)).toBeUndefined();
 	});
 });
 

@@ -6,9 +6,59 @@
 
 import { asString, isRecord } from "./types";
 
-/** Builds one `pi --mode rpc` stdin command for a user turn. */
-export function buildPiPromptCommand(text: string): string {
-	return JSON.stringify({ type: "prompt", message: text });
+/** The values pi's `prompt` command accepts for `streamingBehavior` — see
+ * `buildPiPromptCommand`'s doc comment (R2-T3 item 1, CRITICAL). ASSUMPTION
+ * (unverified, no `pi` binary in this sandbox — per the brief's researched
+ * rpc-types v0.80.6 shape): `"steer"` interrupts the current turn with this
+ * message, `"followUp"` queues it behind the current turn. */
+export type PiStreamingBehavior = "followUp" | "steer";
+
+/**
+ * Builds one `pi --mode rpc` stdin command for a user turn.
+ *
+ * CRITICAL (R2-T3 item 1): pi ERRORS on a bare `prompt` sent while it's still
+ * streaming a turn — the adapter's streaming tracker (adapters/pi-streaming.ts)
+ * must pass `"followUp"` (the safe, non-interrupting default) whenever a
+ * `send()` lands mid-turn; `streamingBehavior` is omitted entirely (unchanged
+ * from before this fix) for an idle send, and `"steer"` is supported for a
+ * future mid-turn-redirect UI but never sent by this adapter today.
+ */
+export function buildPiPromptCommand(
+	text: string,
+	streamingBehavior?: PiStreamingBehavior
+): string {
+	return streamingBehavior === undefined
+		? JSON.stringify({ type: "prompt", message: text })
+		: JSON.stringify({ type: "prompt", message: text, streamingBehavior });
+}
+
+/** The thinking-effort levels pi's `set_thinking_level` command accepts
+ * (R2-T3 item 2). ASSUMPTION (unverified, no `pi` binary in this sandbox —
+ * per the brief's researched rpc-types v0.80.6 shape): this exact 7-value
+ * vocabulary. */
+const PI_THINKING_LEVELS = [
+	"off",
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max",
+] as const;
+
+export type PiThinkingLevel = (typeof PI_THINKING_LEVELS)[number];
+
+/** Validates a `setThinking` level against pi's fixed vocabulary before
+ * `AgentHandle.setThinking` (adapters/pi.ts) builds a wire frame from it — an
+ * unrecognized level degrades to a visible error event instead of a frame pi
+ * itself would reject. */
+export function isPiThinkingLevel(value: string): value is PiThinkingLevel {
+	return (PI_THINKING_LEVELS as readonly string[]).includes(value);
+}
+
+/** Builds the `set_thinking_level` stdin command (R2-T3 item 2). */
+export function buildPiSetThinkingLevelCommand(level: PiThinkingLevel): string {
+	return JSON.stringify({ type: "set_thinking_level", level });
 }
 
 // --- session_ready: get_commands / get_state -------------------------------
@@ -32,14 +82,16 @@ export function buildPiGetStateCommand(): string {
 	return JSON.stringify({ type: "get_state" });
 }
 
-/** Builds the `get_available_models` stdin command — fired once at start so the
- * model menu can list every model pi can switch to (not just the current one
- * `get_state` reports). ASSUMPTION (unverified, same source as
- * `normalizePiCommandsResponse`): returns `{ data: { models: Model[] } }` where
- * each Model is the same shape `get_state`'s `data.model` uses. */
-export function buildPiGetAvailableModelsCommand(): string {
-	return JSON.stringify({ type: "get_available_models" });
-}
+// `get_available_models`' command builder + response parsers live in
+// pi-models.ts, split out purely to keep this file under the repo's 300-line
+// limit; re-exported here so existing imports of these from "./pi-commands"
+// keep working (mirrors normalize/pi.ts's re-export of
+// `normalizePiExtensionUiRequest` from pi-extension-ui.ts).
+export {
+	buildPiGetAvailableModelsCommand,
+	normalizePiAvailableModels,
+	normalizePiModelProviders,
+} from "./pi-models";
 
 /** Builds the `set_model` stdin command — switches the model used for
  * subsequent turns (the model menu's pick). pi's `set_model` takes SEPARATE
@@ -97,10 +149,14 @@ export function buildPiExtensionUiCancelResponse(id: string): string {
 }
 
 /** A command entry as returned by `get_commands` — see
- * `normalizePiCommandsResponse`'s ASSUMPTION note below for the source. */
+ * `normalizePiCommandsResponse`'s ASSUMPTION note below for the source.
+ * `source`/`sourceInfo` are both `unknown`, not typed to either shape, since
+ * which one a given pi version sends is exactly what `piCommandSource`
+ * (R2-T3 item 4) is resolving. */
 interface PiCommandInfo {
 	name: string;
-	source?: string;
+	source?: unknown;
+	sourceInfo?: unknown;
 }
 
 function isPiCommandInfo(value: unknown): value is PiCommandInfo {
@@ -112,6 +168,21 @@ function isPiCommandInfo(value: unknown): value is PiCommandInfo {
  * both remain directly invocable via `/<name>`. */
 const PI_SKILL_PREFIX = "skill:";
 
+/** A command's provenance string ("extension"/"prompt"/"skill"), read from
+ * WHICHEVER shape `raw` carries it in (R2-T3 item 4): the older flat
+ * `source` string, or v0.80.6's `sourceInfo: { scope, ... }` — so a pi
+ * upgrade/downgrade never silently drops the whole skills list. ASSUMPTION
+ * (unverified, no `pi` binary in this sandbox): `sourceInfo.scope` mirrors
+ * the old `source` string 1:1. */
+function piCommandSource(command: PiCommandInfo): string | undefined {
+	return (
+		asString(command.source) ??
+		(isRecord(command.sourceInfo)
+			? asString(command.sourceInfo.scope)
+			: undefined)
+	);
+}
+
 function splitPiCommands(commands: PiCommandInfo[]): {
 	skills: string[];
 	slashCommands: string[];
@@ -121,7 +192,7 @@ function splitPiCommands(commands: PiCommandInfo[]): {
 	for (const command of commands) {
 		slashCommands.push(command.name);
 		if (
-			command.source === "skill" &&
+			piCommandSource(command) === "skill" &&
 			command.name.startsWith(PI_SKILL_PREFIX)
 		) {
 			skills.push(command.name.slice(PI_SKILL_PREFIX.length));
@@ -138,9 +209,12 @@ function splitPiCommands(commands: PiCommandInfo[]): {
  *
  * ASSUMPTION (unverified — no `pi` binary available in this sandbox; shape
  * per https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/rpc.md):
- * `data.commands` is `{name, description, source: "extension"|"prompt"|"skill", location?, path?}[]`;
- * skills are the entries with `source: "skill"`, whose `name` is prefixed
- * `skill:`. Reverify against the installed pi version before relying on this.
+ * `data.commands` is `{name, description, source: "extension"|"prompt"|"skill", location?, path?}[]`
+ * on older docs, or (R2-T3 item 4, pi rpc-types v0.80.6)
+ * `{name, description, sourceInfo: {scope: "extension"|"prompt"|"skill", ...}}[]`;
+ * skills are the entries whose resolved source (`piCommandSource`) is
+ * `"skill"`, whose `name` is prefixed `skill:`. Reverify against the
+ * installed pi version before relying on this.
  */
 export function normalizePiCommandsResponse(
 	raw: unknown
@@ -187,80 +261,4 @@ export function normalizePiStateModel(raw: unknown): string | undefined {
 		return undefined;
 	}
 	return asString(data.model.id) ?? asString(data.model.name);
-}
-
-/** Parses a `get_available_models` RPC response's `data.models` into the
- * switchable model-id list the web model menu shows, or `undefined` if `raw`
- * isn't a successful `get_available_models` response.
- *
- * ASSUMPTION (unverified — same source as `normalizePiStateModel`):
- * `data.models` is `Model[]` where each Model is the same `{id, name, ...}`
- * shape `get_state`'s `data.model` uses; `id` is preferred over `name`. */
-export function normalizePiAvailableModels(raw: unknown): string[] | undefined {
-	if (
-		!isRecord(raw) ||
-		raw.type !== "response" ||
-		raw.command !== "get_available_models" ||
-		raw.success !== true
-	) {
-		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
-		return undefined;
-	}
-	const data = raw.data;
-	if (!(isRecord(data) && Array.isArray(data.models))) {
-		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
-		return undefined;
-	}
-	return data.models.map(piModelId).filter(isDefinedString);
-}
-
-/** A pi `Model` object's display id — `id` preferred over the human-readable
- * `name`. Extracted so `normalizePiAvailableModels` stays under the complexity
- * gate (the `isRecord`/`??` branches live here instead). */
-function piModelId(model: unknown): string | undefined {
-	return isRecord(model)
-		? (asString(model.id) ?? asString(model.name))
-		: undefined;
-}
-
-/** A single `{id, provider}` pair from a pi Model, or null when either is
- * missing — keeps `normalizePiModelProviders` under the complexity gate. */
-function piModelProviderEntry(model: unknown): [string, string] | null {
-	if (!isRecord(model)) {
-		return null;
-	}
-	const id = asString(model.id);
-	const provider = asString(model.provider);
-	return id && provider ? [id, provider] : null;
-}
-
-/** Parses `get_available_models` into a model-id → provider map so the adapter
- * can build `set_model`'s required `{provider, modelId}` from the bare id the
- * web menu sends. `undefined` if `raw` isn't a successful
- * `get_available_models` response; entries missing an id or provider are
- * skipped. */
-export function normalizePiModelProviders(
-	raw: unknown
-): Record<string, string> | undefined {
-	if (
-		!isRecord(raw) ||
-		raw.type !== "response" ||
-		raw.command !== "get_available_models" ||
-		raw.success !== true
-	) {
-		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
-		return undefined;
-	}
-	const data = raw.data;
-	if (!(isRecord(data) && Array.isArray(data.models))) {
-		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
-		return undefined;
-	}
-	return Object.fromEntries(
-		data.models.map(piModelProviderEntry).filter((entry) => entry !== null)
-	);
-}
-
-function isDefinedString(value: unknown): value is string {
-	return typeof value === "string";
 }

@@ -4,7 +4,6 @@ import {
 	buildPiGetCommandsCommand,
 	buildPiGetStateCommand,
 	buildPiPromptCommand,
-	buildPiSetModelCommand,
 	normalizePiAvailableModels,
 	normalizePiCommandsResponse,
 	normalizePiModelProviders,
@@ -18,7 +17,9 @@ import {
 import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { wirePiExtensionUiRequest } from "./pi-approvals";
+import { makePiSetModel, makePiSetThinking } from "./pi-controls";
 import { makePiStatusTracker } from "./pi-status";
+import { makePiStreamingTracker } from "./pi-streaming";
 import { spawnProcessIo } from "./process-io";
 import {
 	bumpTurnEpoch,
@@ -41,43 +42,6 @@ function tryParseJson(line: string): unknown {
 	} catch {
 		return null;
 	}
-}
-
-/** Resolves the `{provider, modelId}` pi's `set_model` needs from the bare id
- * the web menu sends: a `provider/id` string splits directly; otherwise the
- * provider is looked up in the model→provider map built from
- * `get_available_models`. `null` when the provider can't be resolved. */
-function resolvePiSetModel(
-	model: string,
-	providers: Record<string, string>
-): { modelId: string; provider: string } | null {
-	const slash = model.indexOf("/");
-	if (slash > 0) {
-		return { provider: model.slice(0, slash), modelId: model.slice(slash + 1) };
-	}
-	const provider = providers[model];
-	return provider ? { provider, modelId: model } : null;
-}
-
-/** The `setModel` control: resolves the provider for the chosen id, then writes
- * pi's `{provider, modelId}` set_model frame — or an error event if the
- * provider is unknown. Extracted so `start` stays under the line gate. */
-function makePiSetModel(
-	io: { writeLine(line: string): void },
-	events: { push(event: NormalizedEvent): void },
-	modelProviders: Record<string, string>
-): (model: string) => void {
-	return (model: string) => {
-		const resolved = resolvePiSetModel(model, modelProviders);
-		if (resolved) {
-			io.writeLine(buildPiSetModelCommand(resolved.provider, resolved.modelId));
-		} else {
-			events.push({
-				kind: "error",
-				message: `pi setModel: unknown provider for model "${model}"`,
-			});
-		}
-	};
 }
 
 /**
@@ -134,6 +98,9 @@ interface PiStdoutDeps {
 	normalize: (raw: unknown) => NormalizedEvent[];
 	sessionReady: { onLine(raw: unknown): void };
 	statusTracker: { onLine(raw: unknown): void };
+	// R2-T3 item 1 (CRITICAL): tracks whether pi is mid-turn so `send()` can
+	// decide whether the prompt frame needs `streamingBehavior: "followUp"`.
+	streaming: { onLine(raw: unknown): void };
 }
 
 /** Consumes pi's stdout: feeds every parsed line to the session-ready +
@@ -150,11 +117,13 @@ async function drainPiStdout(deps: PiStdoutDeps): Promise<void> {
 		normalize,
 		sessionReady,
 		statusTracker,
+		streaming,
 	} = deps;
 	for await (const line of io.lines) {
 		const raw = tryParseJson(line);
 		sessionReady.onLine(raw);
 		statusTracker.onLine(raw);
+		streaming.onLine(raw);
 		if (isRecord(raw)) {
 			wirePiExtensionUiRequest(raw, io, events, approvals);
 		}
@@ -191,12 +160,23 @@ interface PiAgentHandleDeps {
 	};
 	modelProviders: Record<string, string>;
 	statusTracker: { request(): void };
+	// R2-T3 item 1 (CRITICAL): `send()` consults this to decide whether the
+	// prompt frame needs `streamingBehavior: "followUp"` — see pi-streaming.ts.
+	streaming: { isStreaming(): boolean };
 }
 
 /** Builds the `AgentHandle` `start` returns. Extracted purely to keep `start`
  * itself under the line gate. */
 function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
-	const { approvals, epoch, events, io, modelProviders, statusTracker } = deps;
+	const {
+		approvals,
+		epoch,
+		events,
+		io,
+		modelProviders,
+		statusTracker,
+		streaming,
+	} = deps;
 	return {
 		answerApproval(requestId: string, optionId: string): void {
 			approvals.answer(requestId, optionId);
@@ -216,9 +196,19 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 			// A new turn begins — bump BEFORE pushing (see `interrupt` above).
 			bumpTurnEpoch(epoch);
 			events.push(userMessageEvent(text));
-			io.writeLine(buildPiPromptCommand(text));
+			// CRITICAL (R2-T3 item 1): a bare prompt sent while pi is still
+			// streaming a turn errors — `followUp` is the always-safe,
+			// non-interrupting choice for a send that lands mid-turn (`"steer"`
+			// isn't sent by this adapter today, see buildPiPromptCommand's doc).
+			io.writeLine(
+				buildPiPromptCommand(
+					text,
+					streaming.isStreaming() ? "followUp" : undefined
+				)
+			);
 		},
 		setModel: makePiSetModel(io, events, modelProviders),
+		setThinking: makePiSetThinking(io, events),
 		stop(): void {
 			bumpTurnEpoch(epoch);
 			io.stop();
@@ -255,6 +245,7 @@ export const piAdapter: Adapter = {
 
 		const sessionReady = makePiSessionReadyTracker(events);
 		const statusTracker = makePiStatusTracker(io, events);
+		const streaming = makePiStreamingTracker();
 		// modelId → provider, accumulated from get_available_models, so setModel
 		// can build set_model's required {provider, modelId} from a bare id.
 		const modelProviders: Record<string, string> = {};
@@ -266,6 +257,7 @@ export const piAdapter: Adapter = {
 			normalize: createPiNormalizer(),
 			sessionReady,
 			statusTracker,
+			streaming,
 		});
 		drainPiStderr(io, events);
 
@@ -284,6 +276,7 @@ export const piAdapter: Adapter = {
 			io,
 			modelProviders,
 			statusTracker,
+			streaming,
 		});
 	},
 };

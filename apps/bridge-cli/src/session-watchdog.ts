@@ -33,11 +33,18 @@ export const STALL_MS = 90_000;
 // Each adapter's own "the turn is over" status string — see the per-adapter
 // normalizers: claude-code's `normalizeClaudeResult` ("turn_usage", from the
 // SDK's `result` line), codex's `CODEX_NOTIFICATION_HANDLERS`
-// ("turn_completed"), pi's `PI_STATUS_TYPES` and opencode-serve's
-// `session.idle` handler (both "turn_end"). No adapter uses more than one of
-// these, so a flat set is enough — there's no cross-adapter ambiguity to
-// resolve.
-const TURN_END_STATUSES = new Set(["turn_usage", "turn_completed", "turn_end"]);
+// ("turn_completed"), pi's `PI_STATUS_TYPES` (both "turn_end" AND
+// "agent_settled" — R2-T3 item 3: pi's `agent_end` is deliberately NOT here,
+// since auto-retries can follow it; `agent_settled` is the TRUE idle signal)
+// and opencode-serve's `session.idle` handler ("turn_end"). No adapter uses
+// more than these, so a flat set is enough — there's no cross-adapter
+// ambiguity to resolve.
+const TURN_END_STATUSES = new Set([
+	"turn_usage",
+	"turn_completed",
+	"turn_end",
+	"agent_settled",
+]);
 
 type SessionWatchdogState = "active" | "approval-open" | "idle" | "stopped";
 

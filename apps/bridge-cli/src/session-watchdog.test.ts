@@ -86,6 +86,20 @@ describe("createSessionWatchdog - turn-end and exit signals", () => {
 		expect(onStall).not.toHaveBeenCalled();
 	});
 
+	// R2-T3 item 3: pi's TRUE idle signal is `agent_settled`, not `agent_end`
+	// (which auto-retries can follow) — the watchdog must stop the clock on
+	// `agent_settled`.
+	it("pi's agent_settled status also stops the clock (agent_end alone would not)", () => {
+		const onStall = vi.fn();
+		const watchdog = createSessionWatchdog({ onStall, stallMs: TEST_STALL_MS });
+
+		watchdog.observeTurnStart();
+		watchdog.observeEvent({ kind: "status", status: "agent_settled" });
+		vi.advanceTimersByTime(WELL_PAST_STALL_MS);
+
+		expect(onStall).not.toHaveBeenCalled();
+	});
+
 	it("an agent_exited status also stops the clock like a turn-end status", () => {
 		const onStall = vi.fn();
 		const watchdog = createSessionWatchdog({ onStall, stallMs: TEST_STALL_MS });

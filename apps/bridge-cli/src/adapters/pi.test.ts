@@ -94,6 +94,10 @@ describe("piAdapter - send()", () => {
 		);
 	});
 
+	// send()'s streamingBehavior wiring (R2-T3 item 1, CRITICAL) is covered in
+	// pi-send-streaming.test.ts, split out purely to keep this file under the
+	// repo's 300-line limit.
+
 	it("stamps each turn's events with a bumped turnEpoch (RC-T3)", async () => {
 		const { io } = createFakeProcessIo();
 		vi.mocked(spawnProcessIo).mockResolvedValue(io);

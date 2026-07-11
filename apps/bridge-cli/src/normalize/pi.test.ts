@@ -89,6 +89,19 @@ describe("normalizePi - lifecycle status passthrough", () => {
 			},
 		]);
 	});
+
+	// R2-T3 item 3: `agent_settled` is pi's TRUE idle signal (unlike agent_end,
+	// which can be followed by auto-retries) — it must be normalized as a
+	// status event, not silently dropped.
+	it("maps agent_settled to a status event", () => {
+		expect(normalizePi({ type: "agent_settled" })).toEqual([
+			{
+				kind: "status",
+				status: "agent_settled",
+				detail: { type: "agent_settled" },
+			},
+		]);
+	});
 });
 
 describe("normalizePi - response failures", () => {

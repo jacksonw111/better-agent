@@ -3,6 +3,7 @@
 // dispatches it to a `CommandSink` — split out of relay-client.ts to keep
 // that file under the project's file-size limit.
 
+import { dispatchControlCommand } from "./command-dispatch";
 import { isRecord } from "./normalize/types";
 
 /** One relayed command/event; mirrors `RelayEvent` from `@better-agent/agent/ports`. */
@@ -59,6 +60,14 @@ export interface ControlSetPermissionModeCommand {
 	type: "control";
 }
 
+/** The Local Agent detail page's thinking-effort dropdown (R2-T3 item 2 —
+ * pi's `set_thinking_level`). Routed to `CommandSink.setThinking`. */
+export interface ControlSetThinkingCommand {
+	action: "setThinking";
+	level: string;
+	type: "control";
+}
+
 /** The Local Agent detail page's "Past conversations" button — requests the
  * agent's local session list (e.g. claude's `listSessions({dir})`). Routed to
  * `CommandSink.listSessions`; the adapter answers asynchronously by pushing a
@@ -96,6 +105,7 @@ export type ControlCommand =
 	| ControlRestartCommand
 	| ControlSetModelCommand
 	| ControlSetPermissionModeCommand
+	| ControlSetThinkingCommand
 	| ControlStopCommand;
 
 export type ParsedCommand = ApprovalCommand | ControlCommand | TextCommand;
@@ -109,11 +119,27 @@ function isApprovalCommand(data: unknown): data is ApprovalCommand {
 	);
 }
 
-/** Parses a `{ type: "control", ... }` record's `action` (and any
- * action-specific payload) into a `ControlCommand`, or `null` for an
- * unrecognized action or a malformed payload (e.g. `setModel` missing its
- * `model` string). */
-function parseControlCommand(
+/** The control actions that carry a required string payload — split out of
+ * `parseControlCommand` purely to keep its complexity under the repo's
+ * eslint gate (each added action's `&&` check counts against it). */
+function parseControlCommandWithPayload(
+	data: Record<string, unknown>
+): ControlCommand | null {
+	if (data.action === "setModel" && typeof data.model === "string") {
+		return { action: "setModel", model: data.model, type: "control" };
+	}
+	if (data.action === "setPermissionMode" && typeof data.mode === "string") {
+		return { action: "setPermissionMode", mode: data.mode, type: "control" };
+	}
+	if (data.action === "setThinking" && typeof data.level === "string") {
+		return { action: "setThinking", level: data.level, type: "control" };
+	}
+	return null;
+}
+
+/** The control actions with no payload at all — see
+ * `parseControlCommandWithPayload` for why this is split out. */
+function parseSimpleControlCommand(
 	data: Record<string, unknown>
 ): ControlCommand | null {
 	if (data.action === "stop") {
@@ -121,12 +147,6 @@ function parseControlCommand(
 	}
 	if (data.action === "interrupt") {
 		return { action: "interrupt", type: "control" };
-	}
-	if (data.action === "setModel" && typeof data.model === "string") {
-		return { action: "setModel", model: data.model, type: "control" };
-	}
-	if (data.action === "setPermissionMode" && typeof data.mode === "string") {
-		return { action: "setPermissionMode", mode: data.mode, type: "control" };
 	}
 	if (data.action === "listSessions") {
 		return { action: "listSessions", type: "control" };
@@ -140,14 +160,27 @@ function parseControlCommand(
 	return null;
 }
 
+/** Parses a `{ type: "control", ... }` record's `action` (and any
+ * action-specific payload) into a `ControlCommand`, or `null` for an
+ * unrecognized action or a malformed payload (e.g. `setModel` missing its
+ * `model` string). */
+function parseControlCommand(
+	data: Record<string, unknown>
+): ControlCommand | null {
+	return (
+		parseControlCommandWithPayload(data) ?? parseSimpleControlCommand(data)
+	);
+}
+
 /**
  * Parses one relayed command's `data` (`unknown` on the wire) into a text
  * send, an approval answer, or a control command. Accepts a bare string or
  * `{ text }` (a plain-text command), `{ type: "approval", requestId,
  * optionId }` (the web UI's reply to an `ApprovalEvent`), and `{ type:
  * "control", action: "stop" | "interrupt" | "setModel" |
- * "setPermissionMode" | "listSessions" | "getStatus" | "restart", ... }`
- * (session controls); anything else is `null` and left undispatched.
+ * "setPermissionMode" | "setThinking" | "listSessions" | "getStatus" |
+ * "restart", ... }` (session controls); anything else is `null` and left
+ * undispatched.
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
@@ -200,6 +233,10 @@ export interface CommandSink {
 	/** Changes the session's permission mode. Called for a
 	 * `control: setPermissionMode` command. */
 	setPermissionMode?(mode: string): void;
+	/** Changes the extended-thinking/reasoning effort level. Called for a
+	 * `control: setThinking` command (R2-T3 item 2 — pi's
+	 * `set_thinking_level`). */
+	setThinking?(level: string): void;
 	/** Stops the agent process. Called for a `control: stop` command; see
 	 * `AgentHandle.stop` in `apps/bridge-cli/src/adapters/types.ts`, which the
 	 * real sink (the running session's `handle`) always implements. */
@@ -220,54 +257,6 @@ export interface DispatchResult {
 	/** Whether any commands were seen at all (used by `pollLoop` to decide
 	 * whether to speed back up or keep backing off). */
 	wasActive: boolean;
-}
-
-// Each of these one-liners exists purely so `dispatchControlCommand`'s own
-// branching doesn't also carry the optional-chaining call itself — eslint's
-// `complexity` rule counts each `?.` same as a branch, and the two together
-// on one line push that function's count above the repo's gate.
-function callStop(sink: CommandSink): void {
-	sink.stop?.();
-}
-function callInterrupt(sink: CommandSink): void {
-	sink.interrupt?.();
-}
-function callSetModel(sink: CommandSink, model: string): void {
-	sink.setModel?.(model);
-}
-function callSetPermissionMode(sink: CommandSink, mode: string): void {
-	sink.setPermissionMode?.(mode);
-}
-function callListSessions(sink: CommandSink): void {
-	sink.listSessions?.();
-}
-function callGetStatus(sink: CommandSink): void {
-	sink.getStatus?.();
-}
-
-/** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`
- * method. Split out of `dispatchCommands` purely to keep that loop's body
- * short. `restart` has no branch here — routing it to `sink.stop()` at this
- * layer would make it indistinguishable from an ordinary stop; `pollOnce`
- * (poll-loop.ts) reports `restartRequested` as its own `PollOutcome` AND
- * separately calls `sink.stop()` to actually end the current process. */
-function dispatchControlCommand(
-	command: ControlCommand,
-	sink: CommandSink
-): void {
-	if (command.action === "stop") {
-		callStop(sink);
-	} else if (command.action === "interrupt") {
-		callInterrupt(sink);
-	} else if (command.action === "setModel") {
-		callSetModel(sink, command.model);
-	} else if (command.action === "setPermissionMode") {
-		callSetPermissionMode(sink, command.mode);
-	} else if (command.action === "listSessions") {
-		callListSessions(sink);
-	} else if (command.action === "getStatus") {
-		callGetStatus(sink);
-	}
 }
 
 /** Parses and dispatches each command to `sink` — a text command calls

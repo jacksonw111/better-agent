@@ -172,6 +172,37 @@ describe("piAdapter - setModel()", () => {
 	});
 });
 
+describe("piAdapter - setThinking()", () => {
+	it("writes a set_thinking_level frame for a valid level", async () => {
+		const { io } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+		const handle = await piAdapter.start("/tmp/project");
+
+		handle.setThinking?.("high");
+
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({ type: "set_thinking_level", level: "high" })
+		);
+	});
+
+	it("emits an error event instead of writing a frame for an unrecognized level", async () => {
+		const { io } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+		const handle = await piAdapter.start("/tmp/project");
+		vi.mocked(io.writeLine).mockClear();
+
+		handle.setThinking?.("ultra");
+
+		const { value: event } = await handle.events[Symbol.asyncIterator]().next();
+		expect(event).toEqual({
+			kind: "error",
+			message: 'pi setThinking: unknown thinking level "ultra"',
+			turnEpoch: 0,
+		});
+		expect(io.writeLine).not.toHaveBeenCalled();
+	});
+});
+
 describe("piAdapter - session_ready models merge", () => {
 	it("includes the available model list when get_available_models responds before get_commands'", async () => {
 		const { io, pushLine } = createFakeProcessIo();
