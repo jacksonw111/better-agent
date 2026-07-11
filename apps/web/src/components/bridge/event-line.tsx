@@ -45,8 +45,7 @@ export function FileLine({ event }: { event: FileEvent }) {
 }
 
 /** How a status notice reads: `info`/`ended` are quiet asides, `warn` flags a
- * self-healing hiccup (a retry/restart in progress), `error` flags something
- * the user may need to act on (the agent gave up and needs re-poking). */
+ * self-healing hiccup, `error` flags something the user may need to act on. */
 type StatusTone = "ended" | "error" | "info" | "warn";
 
 const TONE_CLASS: Record<StatusTone, string> = {
@@ -62,14 +61,10 @@ interface StatusNotice {
 	tone: StatusTone;
 }
 
-/** Wire `StatusEvent.status` -> human-readable copy, pushed straight to the
- * server by the bridge CLI's own lifecycle (restart/stop/watchdog — see
- * `apps/bridge-cli/src/command-outcome.ts` and `session-watchdog.ts`), not by
- * an agent adapter, so these never carry curated Chinese copy of their own —
- * this is the ONLY place they get translated for the chat feed. Statuses NOT
- * listed here (a status this table hasn't caught up to yet, or an adapter's
- * own passthrough status) fall back to a cleaned `humanizeStatus` label
- * rather than disappearing. */
+/** Wire `StatusEvent.status` -> human-readable copy, pushed by the bridge
+ * CLI's own lifecycle (restart/stop/watchdog), not an agent adapter — the
+ * ONLY place these get translated. Statuses not listed here fall back to a
+ * cleaned `humanizeStatus` label rather than disappearing. */
 const STATUS_NOTICES: Record<string, StatusNotice> = {
 	restarting: {
 		icon: RotateCwIcon,
@@ -113,8 +108,7 @@ const STATUS_NOTICES: Record<string, StatusNotice> = {
 	},
 };
 
-/** A status this table doesn't map yet: still readable (underscores become
- * spaces) instead of showing the raw wire token verbatim. */
+/** A status this table doesn't map yet: still readable, not the raw token. */
 function humanizeStatus(status: string): string {
 	return status.replace(/_/g, " ");
 }
@@ -149,10 +143,9 @@ export interface ApprovalLineProps {
 }
 
 /** R3-T2: `true` once wall-clock has passed `timeoutAt` — the CLI's
- * `presentApproval` (`apps/bridge-cli/src/adapters/approvals.ts`) resolves
- * declined and pushes a real "Timed out — declined" event around then, so
- * this local flag is purely cosmetic: it swaps the shrinking bar for expiry
- * copy a little before that server-pushed event lands. */
+ * `presentApproval` resolves declined and pushes a real "Timed out —
+ * declined" event around then, so this flag is purely cosmetic: it swaps the
+ * shrinking bar for expiry copy a little before that event lands. */
 function useApprovalExpired(timeoutAt: number): boolean {
 	const [expired, setExpired] = useState(() => timeoutAt <= Date.now());
 	useEffect(() => {
@@ -167,13 +160,40 @@ function useApprovalExpired(timeoutAt: number): boolean {
 	return expired;
 }
 
-/** A thin bar that visually shrinks from full to empty between mount and
- * `timeoutAt`, or "已超时，按拒绝处理" once that time has passed. The width
- * transition is triggered by flipping `shrink` a frame after mount (so the
- * initial full-width paint isn't itself animated) — no Tailwind arbitrary
- * values, so the duration/width are set via inline style instead of a
- * `transition-[width]` class. */
-function ApprovalCountdown({ timeoutAt }: { timeoutAt: number }) {
+/** R3-4 review finding 4: the window `timeoutAt` was computed from, used only
+ * for an event that predates `timeoutMs` (an older CLI). Mirrors bridge-cli's
+ * `APPROVAL_TIMEOUT_MS` — keep the two in sync. */
+const DEFAULT_APPROVAL_WINDOW_MS = 5 * 60_000;
+
+const FULL_WIDTH_PERCENT = 100;
+const EMPTY_WIDTH_PERCENT = 0;
+
+/** Bar width % for remaining/total, clamped to `[0, 100]`. */
+function countdownWidthPercent(remainingMs: number, totalMs: number): number {
+	if (totalMs <= 0) {
+		return FULL_WIDTH_PERCENT;
+	}
+	const fraction = (remainingMs / totalMs) * FULL_WIDTH_PERCENT;
+	return Math.min(FULL_WIDTH_PERCENT, Math.max(EMPTY_WIDTH_PERCENT, fraction));
+}
+
+/** A thin bar that visually shrinks from its current fill to empty between
+ * mount and `timeoutAt`, or "已超时，按拒绝处理" once that time has passed.
+ * `shrink` flips a frame after mount so the initial paint isn't itself
+ * animated; duration/width are inline style since there's no Tailwind
+ * arbitrary `transition-[width]` class.
+ *
+ * R3-4 review finding 4: the initial (pre-shrink) width is the REMAINING
+ * fraction of `timeoutMs` (falling back to `DEFAULT_APPROVAL_WINDOW_MS`), not
+ * a hardcoded 100% — otherwise a remount mid-window (e.g. a page reload while
+ * a card is still pending) redraws a full bar despite elapsed time. */
+function ApprovalCountdown({
+	timeoutAt,
+	timeoutMs,
+}: {
+	timeoutAt: number;
+	timeoutMs?: number;
+}) {
 	const expired = useApprovalExpired(timeoutAt);
 	const [shrink, setShrink] = useState(false);
 	useEffect(() => {
@@ -191,6 +211,11 @@ function ApprovalCountdown({ timeoutAt }: { timeoutAt: number }) {
 			</p>
 		);
 	}
+	const remainingMs = Math.max(timeoutAt - Date.now(), 0);
+	const initialWidthPercent = countdownWidthPercent(
+		remainingMs,
+		timeoutMs ?? DEFAULT_APPROVAL_WINDOW_MS
+	);
 	return (
 		<div
 			className="mx-4 h-1 overflow-hidden rounded-full bg-muted group-data-[size=sm]/card:mx-3"
@@ -200,10 +225,10 @@ function ApprovalCountdown({ timeoutAt }: { timeoutAt: number }) {
 				className="h-full bg-primary"
 				data-slot="approval-countdown-fill"
 				style={{
-					transitionDuration: `${Math.max(timeoutAt - Date.now(), 0)}ms`,
+					transitionDuration: `${remainingMs}ms`,
 					transitionProperty: "width",
 					transitionTimingFunction: "linear",
-					width: shrink ? "0%" : "100%",
+					width: shrink ? "0%" : `${initialWidthPercent}%`,
 				}}
 			/>
 		</div>
@@ -213,17 +238,16 @@ function ApprovalCountdown({ timeoutAt }: { timeoutAt: number }) {
 /**
  * Approval request card: title + optional detail + one button per option.
  * The first option is the "allow"-style default action, the rest render as
- * outline buttons. Once `answeredOptionId` is set — either from this
- * session's own click (optimistically, before the round trip settles — see
- * `makeAnswerApproval`) or a replayed event for an already-answered
- * `requestId` — THIS card's buttons disable and the chosen one shows a check.
- * Disabling is per-card (keyed by `requestId`), deliberately NOT gated on the
- * connection's global "sending" flag: that flag flips for any send, so gating
- * on it greyed out every open approval card when the user answered one.
+ * outline buttons. Once `answeredOptionId` is set — this session's own click
+ * (optimistically, before the round trip settles) or a replayed event for an
+ * already-answered `requestId` — THIS card's buttons disable and the chosen
+ * one shows a check. Disabling is per-card, deliberately NOT gated on the
+ * connection's global "sending" flag, which would grey out every open card
+ * whenever any one of them was answered.
  *
  * R3-T2: below the header, an optional muted `summary` line (codex fileChange
- * requests only, for now) and an optional countdown bar/expiry notice driven
- * by `timeoutAt` — both additive fields, absent for other adapters/requests.
+ * only, for now) and an optional countdown bar/expiry notice driven by
+ * `timeoutAt` — both additive fields, absent for other adapters/requests.
  */
 export function ApprovalLine({
 	answeredOptionId,
@@ -246,7 +270,10 @@ export function ApprovalLine({
 				</p>
 			)}
 			{event.timeoutAt !== undefined && !disabled && (
-				<ApprovalCountdown timeoutAt={event.timeoutAt} />
+				<ApprovalCountdown
+					timeoutAt={event.timeoutAt}
+					timeoutMs={event.timeoutMs}
+				/>
 			)}
 			<CardContent className="flex flex-wrap gap-2">
 				{event.options.map((option, index) => {

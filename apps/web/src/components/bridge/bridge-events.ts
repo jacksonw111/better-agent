@@ -115,6 +115,12 @@ export interface ApprovalEvent extends TurnScoped {
 	 * `ApprovalEvent.timeoutAt`. Additive; drives `ApprovalLine`'s countdown
 	 * bar. */
 	timeoutAt?: number;
+	/** R3-4 review finding 4: the total window (ms) `timeoutAt` was computed
+	 * from — mirrors the CLI's `ApprovalEvent.timeoutMs`. Additive; lets
+	 * `ApprovalCountdown` initialize its bar from the correct remaining
+	 * fraction on mount instead of always starting at 100% (e.g. a page
+	 * remount mid-window). */
+	timeoutMs?: number;
 	title: string;
 }
 
@@ -143,6 +149,8 @@ export interface QuestionEvent extends TurnScoped {
 	/** Mirrors `ApprovalEvent.timeoutAt` — the epoch ms the CLI's
 	 * `presentQuestion` armed its fail-closed timer for. */
 	timeoutAt?: number;
+	/** Mirrors `ApprovalEvent.timeoutMs` (R3-4 review finding 4). */
+	timeoutMs?: number;
 	title: string;
 }
 

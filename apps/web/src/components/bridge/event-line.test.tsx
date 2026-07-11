@@ -113,6 +113,55 @@ it("shows the expiry notice instead of the bar once timeoutAt has passed", () =>
 	).toBeNull();
 });
 
+// R3-4 review finding 4: a remount mid-window (e.g. the page refreshes while
+// a card is still pending) must not restart the bar at 100% — it should
+// resume from the actual remaining fraction of the CLI's timeoutMs window.
+it("initializes the countdown bar from the remaining fraction on mount, not always 100%", () => {
+	const totalMs = 5 * 60_000; // mirrors bridge-cli's APPROVAL_TIMEOUT_MS
+	const remainingMs = 60_000; // 1 of 5 minutes left
+	const view = renderApproval({
+		...BASE_APPROVAL_EVENT,
+		timeoutAt: Date.now() + remainingMs,
+		timeoutMs: totalMs,
+	});
+	const fill = view.container.querySelector(
+		'[data-slot="approval-countdown-fill"]'
+	);
+	const width = Number.parseFloat((fill as HTMLElement).style.width);
+	expect(width).toBeGreaterThan(0);
+	expect(width).toBeLessThan(100);
+});
+
+it("derives the countdown's total window from a fallback constant (matching the CLI's APPROVAL_TIMEOUT_MS) when timeoutMs is absent", () => {
+	const remainingMs = 60_000; // 1 of a 5-minute fallback window
+	const view = renderApproval({
+		...BASE_APPROVAL_EVENT,
+		timeoutAt: Date.now() + remainingMs,
+	});
+	const fill = view.container.querySelector(
+		'[data-slot="approval-countdown-fill"]'
+	);
+	const width = Number.parseFloat((fill as HTMLElement).style.width);
+	// Same ~20% (1/5) math as the timeoutMs-provided case above — proves the
+	// fallback constant is also 5 minutes, not a flat "always 100%".
+	expect(width).toBeGreaterThan(15);
+	expect(width).toBeLessThan(25);
+});
+
+it("still starts near 100% on a fresh mount (remaining ~= the full fallback window)", () => {
+	const fallbackTotalMs = 5 * 60_000; // mirrors bridge-cli's APPROVAL_TIMEOUT_MS
+	const view = renderApproval({
+		...BASE_APPROVAL_EVENT,
+		timeoutAt: Date.now() + fallbackTotalMs - 1000,
+	});
+	const fill = view.container.querySelector(
+		'[data-slot="approval-countdown-fill"]'
+	);
+	const width = Number.parseFloat((fill as HTMLElement).style.width);
+	expect(width).toBeGreaterThan(90);
+	expect(width).toBeLessThanOrEqual(100);
+});
+
 it("hides the countdown once the card is answered", () => {
 	const { container } = render(
 		<ApprovalLine

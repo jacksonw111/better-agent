@@ -41,7 +41,8 @@ function QuestionRow({
 						<Button
 							aria-pressed={chosen}
 							disabled={disabled}
-							key={option}
+							// biome-ignore lint/suspicious/noArrayIndexKey: fixed snapshot from one event, never reordered — index only disambiguates two options sharing a label (R3-4 finding 5)
+							key={`${optionIndex}-${option}`}
 							onClick={() => onChoose(optionIndex)}
 							size="sm"
 							type="button"
@@ -116,7 +117,8 @@ export function QuestionCard({ answered, event, onAnswer }: QuestionCardProps) {
 					<QuestionRow
 						answeredLabel={answered?.[questionIndex]?.[0]}
 						disabled={disabled}
-						key={question.text}
+						// biome-ignore lint/suspicious/noArrayIndexKey: fixed snapshot from one event, never reordered — index only disambiguates two questions sharing text (R3-4 finding 5)
+						key={`${questionIndex}-${question.text}`}
 						onChoose={(optionIndex) => choose(questionIndex, optionIndex)}
 						picked={picks[questionIndex]}
 						question={question}

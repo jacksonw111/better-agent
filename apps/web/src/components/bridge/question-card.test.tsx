@@ -49,6 +49,33 @@ it("keeps Submit disabled until every question has a pick, then submits all answ
 	]);
 });
 
+// R3-4 review finding 5: `key={option}`/`key={question.text}` collide when
+// two options (within one question) or two questions share a label/text —
+// React warns "Encountered two children with the same key" and reconciliation
+// can mix up which row's state belongs to which DOM node.
+it("keys duplicate-labeled options and duplicate-text questions uniquely (no React duplicate-key warning)", () => {
+	const consoleError = vi
+		.spyOn(console, "error")
+		.mockImplementation(() => undefined);
+	const duplicateEvent: QuestionEvent = {
+		kind: "question",
+		questions: [
+			{ text: "Confirm?", options: ["Yes", "Yes", "No"] },
+			{ text: "Confirm?", options: ["Yes", "No"] },
+		],
+		requestId: "q_dup",
+		title: "Duplicate labels",
+	};
+
+	render(<QuestionCard event={duplicateEvent} />);
+
+	const duplicateKeyWarning = consoleError.mock.calls.some(([message]) =>
+		typeof message === "string" ? message.includes("same key") : false
+	);
+	expect(duplicateKeyWarning).toBe(false);
+	consoleError.mockRestore();
+});
+
 it("disables every option and shows the chosen one once `answered` is set", () => {
 	const { container } = render(
 		<QuestionCard answered={[["staging"], ["no"]]} event={EVENT} />
