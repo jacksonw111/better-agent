@@ -43,7 +43,7 @@ function BlockView({
 }) {
 	if (block.kind === "reasoning") {
 		return (
-			<Reasoning isStreaming={streaming}>
+			<Reasoning isStreaming={streaming} text={block.text}>
 				<ReasoningTrigger label="Reasoning" />
 				<ReasoningContent>
 					<Response isAnimating={streaming}>{block.text}</Response>

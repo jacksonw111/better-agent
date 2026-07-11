@@ -2,22 +2,50 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import { cn } from "@better-agent/ui/lib/utils";
 import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
+// Collapsed-preview budget: enough characters for a single line at the trigger
+// row's text size without measuring layout.
+const TAIL_PREVIEW_CHARS = 80;
+
+/** The tail of the text (its most-recently-streamed end), single line,
+ * prefixed with an ellipsis when truncated — reads as text ticking forward as
+ * it streams in, with no JS animation loop involved. */
+function tailPreview(text: string): string {
+	const trimmed = text.trim();
+	if (trimmed.length <= TAIL_PREVIEW_CHARS) {
+		return trimmed;
+	}
+	return `…${trimmed.slice(-TAIL_PREVIEW_CHARS)}`;
+}
+
+/** The first line of the text, for the "done streaming" collapsed preview —
+ * a stable snippet rather than a constantly-moving tail once there's nothing
+ * left to stream. */
+function firstLinePreview(text: string): string {
+	const [firstLine = ""] = text.trim().split("\n", 1);
+	return firstLine;
+}
 
 export function Reasoning({
 	isStreaming,
+	text,
 	children,
 	className,
 }: {
 	isStreaming: boolean;
+	/** Raw reasoning text, used only to derive the collapsed-state preview;
+	 * `children` still renders the full (formatted) content when expanded. */
+	text: string;
 	children: ReactNode;
 	className?: string;
 }) {
-	const [open, setOpen] = useState(isStreaming);
-	// Auto-open while streaming, auto-close when done.
-	useEffect(() => {
-		setOpen(isStreaming);
-	}, [isStreaming]);
+	// Always starts (and stays, unless the user clicks) collapsed — streaming
+	// no longer auto-expands this. Because open state is driven solely by the
+	// user's own click, "user intent wins" falls out for free: nothing else
+	// ever calls setOpen.
+	const [open, setOpen] = useState(false);
+	const preview = isStreaming ? tailPreview(text) : firstLinePreview(text);
 	return (
 		<Collapsible.Root
 			className={cn("rounded-md border bg-muted/40 p-2", className)}
@@ -25,7 +53,16 @@ export function Reasoning({
 			open={open}
 		>
 			{children}
+			{!open && preview ? <ReasoningPreview text={preview} /> : null}
 		</Collapsible.Root>
+	);
+}
+
+function ReasoningPreview({ text }: { text: string }) {
+	return (
+		<p className="reasoning-tail mt-1 overflow-hidden whitespace-nowrap text-right text-muted-foreground text-xs">
+			{text}
+		</p>
 	);
 }
 

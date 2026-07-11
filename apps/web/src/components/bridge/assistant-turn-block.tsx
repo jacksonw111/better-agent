@@ -62,7 +62,7 @@ function TurnElementView({
 	}
 	if (element.kind === "reasoning") {
 		return (
-			<Reasoning isStreaming={streaming}>
+			<Reasoning isStreaming={streaming} text={element.text}>
 				<ReasoningTrigger label="Reasoning" />
 				<ReasoningContent>
 					<Response isAnimating={streaming}>{element.text}</Response>

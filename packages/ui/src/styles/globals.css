@@ -214,3 +214,12 @@
 		transition: none !important;
 	}
 }
+
+/* Reasoning collapsed-tail preview — single-line, right-aligned so the TAIL of
+   the streaming text stays visible (it "ticks" forward as new content arrives
+   via plain text-content updates, no animation loop). The left edge fades via
+   a mask instead of a hard clip. */
+.reasoning-tail {
+	-webkit-mask-image: linear-gradient(to right, transparent, black 1.5rem);
+	mask-image: linear-gradient(to right, transparent, black 1.5rem);
+}
