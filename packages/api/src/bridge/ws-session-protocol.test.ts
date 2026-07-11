@@ -10,15 +10,15 @@ beforeEach(() => {
 	__resetOwnedBridgeSessionCacheForTests();
 });
 
-describe("createBridgeWsConnection: events frame", () => {
-	async function helloed() {
-		const harness = connect();
-		await harness.connection.handleMessage(
-			JSON.stringify({ t: "hello", sessionId: SESSION, afterId: 0 })
-		);
-		return harness;
-	}
+async function helloed() {
+	const harness = connect();
+	await harness.connection.handleMessage(
+		JSON.stringify({ t: "hello", sessionId: SESSION, afterId: 0 })
+	);
+	return harness;
+}
 
+describe("createBridgeWsConnection: events frame", () => {
 	it("ingests an events frame (relay store + persistence) and acks it", async () => {
 		const { connection, frames, relayStore, persistedRows } = await helloed();
 
@@ -35,6 +35,25 @@ describe("createBridgeWsConnection: events frame", () => {
 		const stored = await relayStore.read(SESSION, "events", 0);
 		expect(stored.map((e) => e.data)).toEqual([{ text: "hi" }]);
 		expect(persistedRows.map((r) => r.event)).toEqual([{ text: "hi" }]);
+	});
+
+	// Rejected by the frame schema (matches the HTTP endpoint's
+	// `.max(MAX_PUSH_BATCH)`), before ever reaching `ingestEvents`.
+	it("an events frame over the 50-event batch cap errors and closes", async () => {
+		const { connection, frames, closed } = await helloed();
+		const OVER_CAP = 51;
+
+		await connection.handleMessage(
+			JSON.stringify({
+				t: "events",
+				batchId: "b1",
+				events: Array.from({ length: OVER_CAP }, (_, i) => ({ text: `e${i}` })),
+				idempotencyKeys: Array.from({ length: OVER_CAP }, (_, i) => `k${i}`),
+			})
+		);
+
+		expect(frames.at(-1)).toEqual({ t: "error", message: "malformed frame" });
+		expect(closed()).toBe(true);
 	});
 
 	it("an events frame with mismatched idempotencyKeys length errors and closes", async () => {

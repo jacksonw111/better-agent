@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetOwnedBridgeSessionCacheForTests } from "./ownership";
 import {
 	connect,
@@ -55,6 +55,39 @@ describe("createBridgeWsConnection: hello + replay", () => {
 		);
 
 		expect(touched).toEqual([SESSION]);
+	});
+});
+
+describe("createBridgeWsConnection: double-hello race", () => {
+	// Regression test for the R0 final-review finding: `state.sessionId` used
+	// to be latched only AFTER the ownership-check `await` inside
+	// `handleHello` — so two `hello` frames arriving back-to-back (before
+	// that await resolves) both passed the `!state.sessionId` gate in
+	// `handleFrame`, each creating its own command pump/subscription. Only
+	// the LAST one ends up in `state.unsubscribe`, so `handleClose` only ever
+	// tears down that one — the other's subscription (and pump) leaks past
+	// close, forever. Fixed by latching a synchronous "hello in progress"
+	// flag before the await, so a second concurrent hello is rejected
+	// outright instead of racing the first.
+	it("two hellos back-to-back create exactly one subscription; the second gets an error and closes", async () => {
+		const { connection, commandBus, frames, closed } = connect();
+		const subscribeSpy = vi.spyOn(commandBus, "subscribe");
+
+		const first = connection.handleMessage(
+			JSON.stringify({ t: "hello", sessionId: SESSION, afterId: 0 })
+		);
+		const second = connection.handleMessage(
+			JSON.stringify({ t: "hello", sessionId: SESSION, afterId: 0 })
+		);
+		await Promise.all([first, second]);
+
+		// Exactly one pump/subscription was created — the second hello never
+		// got far enough to make its own.
+		expect(subscribeSpy).toHaveBeenCalledTimes(1);
+		// The second (losing) hello gets an error frame and the connection is
+		// closed.
+		expect(frames.filter((frame) => frame.t === "error")).toHaveLength(1);
+		expect(closed()).toBe(true);
 	});
 });
 

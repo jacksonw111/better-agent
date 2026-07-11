@@ -2,7 +2,7 @@ import type { RelayStore } from "@better-agent/agent/ports";
 import { z } from "zod";
 import type { Context } from "../context";
 import type { CommandBus } from "./command-bus";
-import { ingestEvents } from "./ingest-events";
+import { ingestEvents, MAX_PUSH_BATCH } from "./ingest-events";
 import { requireOwnedBridgeSession } from "./ownership";
 
 // The server half of the CLI<->server WS duplex channel (R0-T1 of the
@@ -29,8 +29,12 @@ const helloFrameSchema = z.object({
 });
 const eventsFrameSchema = z.object({
 	batchId: z.string(),
-	events: z.array(z.unknown()),
-	idempotencyKeys: z.array(z.string()),
+	// Capped to match the HTTP push endpoint's `.max(MAX_PUSH_BATCH)`
+	// (routers/bridge.ts) — rejects an oversized frame outright, before it
+	// ever reaches `ingestEvents`/the relay store, instead of relying solely
+	// on `ingestEvents`' own downstream `MAX_PUSH_BATCH` check.
+	events: z.array(z.unknown()).max(MAX_PUSH_BATCH),
+	idempotencyKeys: z.array(z.string()).max(MAX_PUSH_BATCH),
 	t: z.literal("events"),
 });
 const clientFrameSchema = z.discriminatedUnion("t", [
@@ -145,6 +149,15 @@ export interface BridgeWsDeps {
  * below instead of closed over — keeps `createBridgeWsConnection` itself (the
  * function eslint's max-lines-per-function measures) small. */
 interface ConnectionState {
+	/** Latched synchronously (BEFORE `handleHello`'s ownership-check `await`)
+	 * the moment the FIRST `hello` frame is accepted — closes the race where
+	 * two `hello` frames arriving back-to-back both pass `handleFrame`'s
+	 * `!state.sessionId` gate (still true for both, since `sessionId` isn't
+	 * set until after that await) and each create their own command
+	 * pump/subscription. Only the winning hello's subscription ends up in
+	 * `state.unsubscribe`, so without this flag the loser's subscription
+	 * leaks past `handleClose` forever. */
+	helloStarted: boolean;
 	sessionId: string | null;
 	unsubscribe: (() => void) | null;
 }
@@ -224,6 +237,14 @@ async function handleFrame(conn: Conn, raw: string): Promise<void> {
 			fail(socket, "expected hello");
 			return;
 		}
+		// Latched synchronously, before `handleHello`'s ownership-check await —
+		// see `ConnectionState.helloStarted`'s doc comment for why this can't
+		// wait until `state.sessionId` is set.
+		if (state.helloStarted) {
+			fail(socket, "hello already in progress");
+			return;
+		}
+		state.helloStarted = true;
 		await handleHello(conn, frame);
 		return;
 	}
@@ -246,7 +267,7 @@ export function createBridgeWsConnection(
 		context,
 		deps,
 		socket,
-		state: { sessionId: null, unsubscribe: null },
+		state: { helloStarted: false, sessionId: null, unsubscribe: null },
 	};
 
 	return {
