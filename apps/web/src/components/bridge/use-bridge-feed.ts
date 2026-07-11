@@ -1,5 +1,10 @@
 import type { RawBridgeEvent, StreamEvent } from "./bridge-events";
 import {
+	parseQueueUpdateDetail,
+	QUEUE_UPDATE_STATUS,
+	type QueueUpdateDetail,
+} from "./bridge-queue-status";
+import {
 	parseSessionListDetail,
 	SESSION_LIST_STATUS,
 	type SessionListDetail,
@@ -47,6 +52,9 @@ export interface FeedState {
 	 * Map-build+filter pass on every merge while this is zero (the common,
 	 * no-pending-echo case). */
 	pendingEchoes: number;
+	/** The latest `queue_update` detail (R3-T1 Part A), or `null` before one has
+	 * arrived (or it was malformed) — see bridge-queue-status.ts. */
+	queueUpdate: QueueUpdateDetail | null;
 	/** The latest curated status details, folded incrementally off each merge's
 	 * new tail instead of rescanning the whole `events` array per render.
 	 * `null` before an event of that kind has arrived (or its latest one was
@@ -68,6 +76,7 @@ export const initialFeedState: FeedState = {
 	answeredQuestions: {},
 	nextLocalId: INITIAL_LOCAL_ID,
 	pendingEchoes: 0,
+	queueUpdate: null,
 	sessionList: null,
 	sessionReady: null,
 	statusSnapshot: null,
@@ -76,6 +85,7 @@ export const initialFeedState: FeedState = {
 };
 
 interface StatusDetails {
+	queueUpdate: QueueUpdateDetail | null;
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
 	statusSnapshot: StatusSnapshotDetail | null;
@@ -92,8 +102,14 @@ function nextStatusDetails(
 	prev: StatusDetails,
 	parsed: StreamEvent[]
 ): StatusDetails {
-	let { sessionList, sessionReady, statusSnapshot, turnUsage, usageUpdate } =
-		prev;
+	let {
+		queueUpdate,
+		sessionList,
+		sessionReady,
+		statusSnapshot,
+		turnUsage,
+		usageUpdate,
+	} = prev;
 	for (const { event } of parsed) {
 		if (event.kind !== "status") {
 			continue;
@@ -108,9 +124,18 @@ function nextStatusDetails(
 			sessionList = parseSessionListDetail(event.detail);
 		} else if (event.status === STATUS_SNAPSHOT_STATUS) {
 			statusSnapshot = parseStatusSnapshotDetail(event.detail);
+		} else if (event.status === QUEUE_UPDATE_STATUS) {
+			queueUpdate = parseQueueUpdateDetail(event.detail);
 		}
 	}
-	return { sessionList, sessionReady, statusSnapshot, turnUsage, usageUpdate };
+	return {
+		queueUpdate,
+		sessionList,
+		sessionReady,
+		statusSnapshot,
+		turnUsage,
+		usageUpdate,
+	};
 }
 
 export type FeedAction =

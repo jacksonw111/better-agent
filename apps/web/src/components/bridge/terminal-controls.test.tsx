@@ -3,46 +3,26 @@ import { fireEvent, render, waitFor, within } from "@testing-library/react";
 import { act } from "react";
 import { expect, it } from "vitest";
 import type { BridgeSessionRow } from "@/utils/api-types";
+import type { TextWhen } from "./agent-capabilities";
 import { Terminal } from "./terminal";
 import {
 	CODEX_SESSION,
 	ENDED_SESSION,
 	makeControllableTransport,
 	PI_SESSION,
+	pickSelectOption,
 	SESSION,
 	sessionReadyRaw,
 	waitForConnect,
 } from "./terminal-test-helpers";
+
+const ALL_BUSY_MODES: TextWhen[] = ["queue", "steer", "interrupt"];
 
 // The session controls (model menu / permission-mode menu / Stop) now live in
 // the composer's bottom bar rather than a hardcoded header strip — and the
 // model menu lists exactly what the AGENT reports (session_ready.models), not a
 // baked-in opus/sonnet/haiku list. These cover that relocation + agent-sourced
 // model list, wired through the same `sendInput` control path as before.
-
-/** Opens a base-ui `Select` and picks the option with the given accessible
- * name — plain `fireEvent.click` alone doesn't register the pick in jsdom, so
- * this mirrors the exact event sequence base-ui listens for. */
-async function pickSelectOption(
-	container: HTMLElement,
-	triggerLabel: string,
-	optionName: string
-): Promise<void> {
-	const view = within(container);
-	const trigger = view.getByRole("combobox", { name: triggerLabel });
-	await act(() => {
-		fireEvent.pointerDown(trigger, { button: 0, pointerId: 1 });
-		fireEvent.click(trigger);
-	});
-	const option = await waitFor(() =>
-		within(document.body).getByRole("option", { name: optionName })
-	);
-	await act(() => {
-		fireEvent.pointerDown(option, { button: 0, pointerId: 1 });
-		fireEvent.pointerUp(option, { button: 0, pointerId: 1 });
-		fireEvent.click(option);
-	});
-}
 
 /** Renders a live terminal (claude by default; pass `session` for another
  * agent kind) and seeds a `session_ready` with the given detail, so the
@@ -146,6 +126,44 @@ it("swaps Send for a Stop button while a turn is in flight and dispatches interr
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: { type: "control", action: "interrupt" },
+		});
+	});
+});
+
+// R3-T1 Part A: pi's live handshake can report all three busy-turn modes —
+// this end-to-end pass confirms a picked non-default mode actually rides the
+// wire as `{text, when}` (see `parseCommandText`,
+// apps/bridge-cli/src/commands.ts), not just that the composer calls onSend
+// correctly in isolation (already covered by terminal-composer.test.tsx).
+it("sends {text, when} once a busy-mode is picked while a pi turn is in flight", async () => {
+	const { container, fake } = await renderReady(
+		{
+			capabilities: { ...PI_HANDSHAKE_CAPABILITIES, busyModes: ALL_BUSY_MODES },
+		},
+		PI_SESSION
+	);
+	const view = within(container);
+	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
+
+	// Puts the turn in flight, same as the Stop-button test above.
+	fireEvent.change(textarea, { target: { value: "do it" } });
+	await act(() => {
+		fireEvent.click(view.getByRole("button", { name: "Send" }));
+	});
+	await waitFor(() => view.getByRole("button", { name: "Stop" }));
+
+	await pickSelectOption(container, "发送方式", "插话");
+	fireEvent.change(textarea, { target: { value: "steer this" } });
+	// The toolbar shows Stop (not Send) while the turn is in flight — submit via
+	// Enter instead, same as terminal-composer.test.tsx's plain-send coverage.
+	await act(() => {
+		fireEvent.keyDown(textarea, { key: "Enter" });
+	});
+
+	await waitFor(() => {
+		expect(fake.sendInput).toHaveBeenCalledWith({
+			sessionId: PI_SESSION.id,
+			data: { text: "steer this", when: "steer" },
 		});
 	});
 });

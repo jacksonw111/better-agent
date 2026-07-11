@@ -1,4 +1,5 @@
 import { type Dispatch, useReducer, useState } from "react";
+import type { TextWhen } from "./agent-capabilities";
 import type { SessionListDetail } from "./bridge-session-list";
 import type { BridgeTransport } from "./bridge-transport";
 import {
@@ -50,9 +51,18 @@ function useSendInput(
 	// Plain chat send only: echo the user's own line into the feed immediately
 	// (optimistic) BEFORE the round trip. `sendRaw` stays echo-free so approval
 	// decisions never produce a fake chat line.
-	const sendInput = (text: string): Promise<void> => {
+	//
+	// R3-T1: `when` rides the send as a busy-turn policy override. Omitted (or
+	// "queue", the default) sends the bare trimmed string — byte-identical to
+	// the pre-R3-T1 wire shape — since `parseCommandText`
+	// (apps/bridge-cli/src/commands.ts) accepts both a bare string and
+	// `{text, when}` (no `type` field required for the latter).
+	const sendInput = (text: string, when?: TextWhen): Promise<void> => {
 		const trimmed = text.trim();
 		dispatchFeed({ type: "localEcho", text: trimmed });
+		if (when && when !== "queue") {
+			return sendRaw({ text: trimmed, when });
+		}
 		return sendRaw(trimmed);
 	};
 	return { sending, sendInput, sendRaw };
@@ -183,6 +193,37 @@ function useControls(
 	};
 }
 
+/** Curated status details are now folded incrementally into the feed reducer
+ * (see use-bridge-feed.ts) rather than rescanned off `feed.events` on every
+ * render — the same latest-wins semantics, without the four full tail scans
+ * per event that made a streaming session O(n²). Bundled together with the
+ * session's control commands (see `useControls`) purely to keep
+ * `useBridgeTerminal` itself under the repo's max-lines-per-function gate. */
+function useCuratedAndControls(
+	feed: FeedState,
+	sendRaw: (data: unknown) => Promise<void>,
+	sessionId: string
+): Pick<
+	FeedState,
+	| "queueUpdate"
+	| "sessionReady"
+	| "statusSnapshot"
+	| "turnUsage"
+	| "usageUpdate"
+> &
+	ReturnType<typeof useControls> {
+	const { queueUpdate, sessionReady, statusSnapshot, turnUsage, usageUpdate } =
+		feed;
+	return {
+		queueUpdate,
+		sessionReady,
+		statusSnapshot,
+		turnUsage,
+		usageUpdate,
+		...useControls(sendRaw, feed.sessionList, sessionId),
+	};
+}
+
 export function useBridgeTerminal(
 	sessionId: string,
 	transport: BridgeTransport,
@@ -198,43 +239,16 @@ export function useBridgeTerminal(
 		transport,
 		dispatchFeed
 	);
-	const answerApproval = makeAnswerApproval(dispatchFeed, sendRaw);
-	const answerQuestion = makeAnswerQuestion(dispatchFeed, sendRaw);
-	// Curated status details are now folded incrementally into the feed reducer
-	// (see use-bridge-feed.ts) rather than rescanned off `feed.events` on every
-	// render — the same latest-wins semantics, without the four full tail scans
-	// per event that made a streaming session O(n²).
-	const { sessionReady, statusSnapshot, turnUsage, usageUpdate } = feed;
-	const {
-		getStatus,
-		interrupt,
-		listSessions,
-		restart,
-		sessionList,
-		setModel,
-		setPermissionMode,
-		setThinking,
-	} = useControls(sendRaw, feed.sessionList, sessionId);
+	const curated = useCuratedAndControls(feed, sendRaw, sessionId);
 
 	return buildResult({
-		answerApproval,
-		answerQuestion,
+		answerApproval: makeAnswerApproval(dispatchFeed, sendRaw),
+		answerQuestion: makeAnswerQuestion(dispatchFeed, sendRaw),
 		conn,
 		ended,
 		feed,
-		getStatus,
-		interrupt,
-		listSessions,
-		restart,
 		sendInput,
 		sending,
-		sessionList,
-		sessionReady,
-		setModel,
-		setPermissionMode,
-		setThinking,
-		statusSnapshot,
-		turnUsage,
-		usageUpdate,
+		...curated,
 	});
 }

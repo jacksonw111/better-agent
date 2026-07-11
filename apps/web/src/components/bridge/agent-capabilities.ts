@@ -203,13 +203,20 @@ export function capabilities(kind: AgentKind): AgentCapabilities {
 	return CAPABILITIES[kind];
 }
 
+/** R3-T1: the busy-turn send policies a composer send can carry — mirrors
+ * `TextWhen` in `apps/bridge-cli/src/adapters/types.ts`. Also the element type
+ * of `SessionCapabilities.busyModes` below, i.e. the set of modes a given
+ * agent actually supports (pi reports all three; claude-code/opencode/codex
+ * report `["queue", "interrupt"]` — "steer" is never offered for them). */
+export type TextWhen = "queue" | "steer" | "interrupt";
+
 /** R2-T1: the CLI's LIVE capability handshake — the wire counterpart of
  * `AgentCapabilities` above, carried on `session_ready`'s `detail.capabilities`
  * once an adapter reports one (every adapter but codex, until R2-T2). Keep
  * field-identical to `apps/bridge-cli/src/adapters/types.ts`'s copy. */
 export interface SessionCapabilities {
 	approval: "gated" | "none";
-	busyModes: ("queue" | "steer" | "interrupt")[];
+	busyModes: TextWhen[];
 	mcp: "live" | "restart" | "none";
 	modelSwitch: boolean;
 	permissionModes: string[];

@@ -47,6 +47,15 @@ it("maps restarting/stopped_by_server/agent_exited/session_resumed too", () => {
 	expect(renderStatus("session_resumed").getByText("会话已恢复")).toBeDefined();
 });
 
+// R3-T1 Part B: pi's extension_ui_request input/editor auto-cancel gets a
+// visible Chinese notice instead of vanishing silently.
+it("maps extension_ui_auto_cancelled to the local-input-unsupported notice", () => {
+	const view = renderStatus("extension_ui_auto_cancelled");
+	expect(
+		view.getByText("agent 请求了本地输入（远程暂不支持），已自动取消")
+	).toBeDefined();
+});
+
 it("falls back to a cleaned (underscore-free) label for an unmapped status", () => {
 	const view = renderStatus("some_future_status");
 	expect(view.getByText("some future status")).toBeDefined();

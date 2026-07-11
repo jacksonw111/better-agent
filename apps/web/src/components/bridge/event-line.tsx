@@ -101,6 +101,16 @@ const STATUS_NOTICES: Record<string, StatusNotice> = {
 		text: "会话已恢复",
 		tone: "info",
 	},
+	// R3-T1 Part B: pi's extension_ui_request `input`/`editor` methods (free-form
+	// local text, no deny analog) are auto-cancelled on stdin the instant they
+	// arrive (see apps/bridge-cli/src/adapters/pi-approvals.ts) — this status is
+	// pushed alongside that cancel so the user sees WHY nothing happened instead
+	// of the request just silently vanishing.
+	extension_ui_auto_cancelled: {
+		icon: InfoIcon,
+		text: "agent 请求了本地输入（远程暂不支持），已自动取消",
+		tone: "info",
+	},
 };
 
 /** A status this table doesn't map yet: still readable (underscores become

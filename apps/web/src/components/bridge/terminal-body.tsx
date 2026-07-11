@@ -1,5 +1,6 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
-import type { ResolvedCapabilities } from "./agent-capabilities";
+import type { ResolvedCapabilities, TextWhen } from "./agent-capabilities";
+import type { QueueUpdateDetail } from "./bridge-queue-status";
 import type {
 	SessionReadyDetail,
 	TurnUsageDetail,
@@ -26,7 +27,10 @@ export interface TerminalBodyProps {
 	disabled: boolean;
 	ended: boolean;
 	interrupt: () => void;
-	onSend: (text: string) => Promise<void>;
+	onSend: (text: string, when?: TextWhen) => Promise<void>;
+	/** R3-T1: pi's queued-message count, or `null` before one has arrived — see
+	 * bridge-queue-status.ts. */
+	queueUpdate: QueueUpdateDetail | null;
 	sending: boolean;
 	sessionReady: SessionReadyDetail | null;
 	setModel: (model: string) => void;
@@ -44,7 +48,8 @@ interface BodyComposerProps {
 	caps: ResolvedCapabilities;
 	disabled: boolean;
 	interrupt: () => void;
-	onSend: (text: string) => Promise<void>;
+	onSend: (text: string, when?: TextWhen) => Promise<void>;
+	queueUpdate: QueueUpdateDetail | null;
 	sending: boolean;
 	sessionReady: SessionReadyDetail | null;
 	setModel: (model: string) => void;
@@ -62,6 +67,7 @@ function BodyComposer({
 	disabled,
 	interrupt,
 	onSend,
+	queueUpdate,
 	sending,
 	sessionReady,
 	setModel,
@@ -72,6 +78,7 @@ function BodyComposer({
 }: BodyComposerProps) {
 	return (
 		<TerminalComposer
+			busyModes={caps.busyModes}
 			canInterrupt={caps.interrupt}
 			disabled={disabled}
 			model={sessionReady?.model}
@@ -83,6 +90,7 @@ function BodyComposer({
 			onSetThinking={setThinking}
 			permissionMode={sessionReady?.permissionMode}
 			permissionModes={caps.permissionModes}
+			queuedCount={queueUpdate?.queuedCount}
 			sending={sending}
 			showNextTurnHint={showNextTurnHint}
 			skills={caps.skills ? sessionReady?.skills : undefined}
@@ -123,6 +131,7 @@ export function TerminalBody(props: TerminalBodyProps) {
 				disabled={props.disabled}
 				interrupt={props.interrupt}
 				onSend={props.onSend}
+				queueUpdate={props.queueUpdate}
 				sending={props.sending}
 				sessionReady={props.sessionReady}
 				setModel={props.setModel}

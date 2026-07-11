@@ -93,6 +93,39 @@ describe("feedReducer echo dedupe", () => {
 	});
 });
 
+// R3-T1 Part A: pi's queue_update passthrough is folded into FeedState the
+// same incremental way as the other curated status kinds (see
+// bridge-queue-status.ts / nextStatusDetails).
+describe("feedReducer queue_update folding", () => {
+	const queueUpdateRaw = (id: number, detail: Record<string, unknown>) => ({
+		id,
+		data: { kind: "status", status: "queue_update", detail },
+	});
+
+	it("starts null before any queue_update has arrived", () => {
+		expect(initialFeedState.queueUpdate).toBeNull();
+	});
+
+	it("folds a well-formed queue_update into state.queueUpdate", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [queueUpdateRaw(1, { steering: ["a"], followUp: ["b", "c"] })],
+		});
+		expect(state.queueUpdate).toEqual({ queuedCount: 3 });
+	});
+
+	it("keeps the latest queue_update, ignoring an earlier one in the same batch", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [
+				queueUpdateRaw(1, { steering: ["a"] }),
+				queueUpdateRaw(2, { steering: ["a", "b"], followUp: ["c"] }),
+			],
+		});
+		expect(state.queueUpdate).toEqual({ queuedCount: 3 });
+	});
+});
+
 describe("feedReducer anti-leak (raw RPC envelope)", () => {
 	it("drops a wrapped oRPC {json:{ok:true}} envelope instead of rendering it", () => {
 		const state = feedReducer(initialFeedState, {

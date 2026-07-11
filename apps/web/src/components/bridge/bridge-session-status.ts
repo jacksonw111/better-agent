@@ -83,8 +83,9 @@ export interface UsageUpdateDetail {
 	used?: number;
 }
 
-// Exported so `bridge-status-snapshot.ts` (split out for the file-line gate)
-// reuses the same "trust nothing off the wire" parse helpers.
+// Exported so `bridge-status-snapshot.ts`/`bridge-queue-status.ts` (both split
+// out for the file-line gate) reuse the same "trust nothing off the wire"
+// parse helpers.
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);

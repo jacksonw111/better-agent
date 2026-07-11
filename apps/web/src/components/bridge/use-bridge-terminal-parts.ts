@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { TextWhen } from "./agent-capabilities";
+import type { QueueUpdateDetail } from "./bridge-queue-status";
 import type { SessionListDetail } from "./bridge-session-list";
 import type {
 	SessionReadyDetail,
@@ -36,12 +38,20 @@ export interface UseBridgeTerminalResult {
 	 * "listSessions" }`; the reply arrives asynchronously as a `session_list`
 	 * status event, reflected in `sessionList` once it lands. */
 	listSessions: () => Promise<void>;
+	/** The latest `queue_update` detail (R3-T1), or `null` before pi has
+	 * reported anything queued behind the in-flight turn. */
+	queueUpdate: QueueUpdateDetail | null;
 	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
 	 * the detail page's Restart button. A distinct `bridge.restartSession`
 	 * server procedure, not a `sendRaw` control command (see
 	 * use-bridge-terminal-actions.ts). */
 	restart: () => Promise<void>;
-	sendInput: (text: string) => Promise<void>;
+	/** R3-T1: `when` rides the send as a busy-turn policy override ("steer"/
+	 * "interrupt") — omitted (or "queue", the default) sends the plain queued
+	 * text, identical to the pre-R3-T1 single-argument call. See
+	 * `parseCommandText` (apps/bridge-cli/src/commands.ts) for the wire shape
+	 * this produces. */
+	sendInput: (text: string, when?: TextWhen) => Promise<void>;
 	sending: boolean;
 	/** The latest `session_list` detail, or `null` before a `listSessions`
 	 * request has gotten a reply. */
@@ -138,9 +148,12 @@ export interface BuildResultArgs {
 	getStatus: () => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
+	/** The latest `queue_update` detail (R3-T1), or `null` before pi has
+	 * reported anything queued behind the in-flight turn. */
+	queueUpdate: QueueUpdateDetail | null;
 	/** Asks the CLI to tear down and relaunch under the same sessionId (R3). */
 	restart: () => Promise<void>;
-	sendInput: (text: string) => Promise<void>;
+	sendInput: (text: string, when?: TextWhen) => Promise<void>;
 	sending: boolean;
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
@@ -175,6 +188,7 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		setPermissionMode: args.setPermissionMode,
 		setThinking: args.setThinking,
 		listSessions: args.listSessions,
+		queueUpdate: args.queueUpdate,
 		restart: args.restart,
 		sessionReady: args.sessionReady,
 		sessionList: args.sessionList,

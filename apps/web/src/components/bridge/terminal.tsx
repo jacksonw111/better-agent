@@ -185,6 +185,7 @@ function BodyFromView({
 			ended={view.status === "ended"}
 			interrupt={view.interrupt}
 			onSend={view.sendInput}
+			queueUpdate={view.queueUpdate}
 			sending={view.sending}
 			sessionReady={view.sessionReady}
 			setModel={view.setModel}

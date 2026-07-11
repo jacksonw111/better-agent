@@ -1,4 +1,5 @@
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, within } from "@testing-library/react";
+import { act } from "react";
 import { expect, vi } from "vitest";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import type { BridgeTransport, ConnectStreamArgs } from "./bridge-transport";
@@ -135,5 +136,31 @@ export async function waitForConnect(
 ): Promise<void> {
 	await waitFor(() => {
 		expect(fake.current()).not.toBeNull();
+	});
+}
+
+/** Opens a base-ui `Select` and picks the option with the given accessible
+ * name — plain `fireEvent.click` alone doesn't register the pick in jsdom, so
+ * this mirrors the exact event sequence base-ui listens for. Shared by
+ * terminal-controls.test.tsx and terminal-composer.test.tsx (moved here so
+ * neither trips the repo's max-lines-per-file gate). */
+export async function pickSelectOption(
+	container: HTMLElement,
+	triggerLabel: string,
+	optionName: string
+): Promise<void> {
+	const view = within(container);
+	const trigger = view.getByRole("combobox", { name: triggerLabel });
+	await act(() => {
+		fireEvent.pointerDown(trigger, { button: 0, pointerId: 1 });
+		fireEvent.click(trigger);
+	});
+	const option = await waitFor(() =>
+		within(document.body).getByRole("option", { name: optionName })
+	);
+	await act(() => {
+		fireEvent.pointerDown(option, { button: 0, pointerId: 1 });
+		fireEvent.pointerUp(option, { button: 0, pointerId: 1 });
+		fireEvent.click(option);
 	});
 }
