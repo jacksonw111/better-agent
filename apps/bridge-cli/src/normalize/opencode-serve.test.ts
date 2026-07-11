@@ -98,6 +98,47 @@ describe("createOpencodeServeNormalizer - tool parts", () => {
 	});
 });
 
+describe("createOpencodeServeNormalizer - tool title/duration (R1-T2)", () => {
+	it("maps state.title and computes durationMs from state.time.{start,end} on completed", () => {
+		const normalize = createOpencodeServeNormalizer(SESSION_ID);
+		const events = normalize(
+			partEvent({
+				type: "tool",
+				callID: "call_1",
+				tool: "read",
+				state: {
+					status: "completed",
+					output: "file contents",
+					title: "Read src/app.ts",
+					time: { start: 1000, end: 1250 },
+				},
+			})
+		);
+		expect(events[0]).toMatchObject({
+			title: "Read src/app.ts",
+			durationMs: 250,
+		});
+	});
+
+	it("leaves durationMs unset when the tool is still running (no state.time.end yet)", () => {
+		const normalize = createOpencodeServeNormalizer(SESSION_ID);
+		const events = normalize(
+			partEvent({
+				type: "tool",
+				callID: "call_1",
+				tool: "read",
+				state: {
+					status: "running",
+					title: "Read src/app.ts",
+					time: { start: 1000 },
+				},
+			})
+		);
+		expect(events[0]).toMatchObject({ title: "Read src/app.ts" });
+		expect((events[0] as { durationMs?: number }).durationMs).toBeUndefined();
+	});
+});
+
 describe("createOpencodeServeNormalizer - usage", () => {
 	it("maps a step-finish part to a usage_update status with summed tokens and cost", () => {
 		const normalize = createOpencodeServeNormalizer(SESSION_ID);

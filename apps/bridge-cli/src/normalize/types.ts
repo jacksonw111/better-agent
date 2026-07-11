@@ -32,12 +32,27 @@ export interface MessageEvent extends TurnScoped {
 
 /** A tool invocation, from request through to its result. */
 export interface ToolEvent extends TurnScoped {
+	/** R1-T2: wall-clock ms between the `started` and `completed`/`failed`
+	 * events for this id, when the adapter could measure it (adapter-side
+	 * timing for protocols whose wire never reports a duration itself — see
+	 * `tool-timing.ts` — or wire-native for opencode-serve's `state.time`).
+	 * Absent where neither applies (e.g. claude-code with no matching start). */
+	durationMs?: number;
 	id: string;
 	input?: unknown;
 	kind: "tool";
 	name: string;
 	output?: unknown;
+	/** R1-T2: a RUNNING tool's latest partial output — REPLACE semantics, not
+	 * append (each event carries the tool's full output so far, not a delta).
+	 * Currently only pi's `tool_execution_update` populates this, on a
+	 * `status: "started"` event. */
+	preview?: string;
 	status: "started" | "completed" | "failed";
+	/** R1-T2: a short human-readable label for the tool call, when the wire
+	 * carries one distinct from `name` (opencode-serve's `state.title`, e.g.
+	 * "Read src/app.ts" for a `read` tool). */
+	title?: string;
 }
 
 /** A file created/modified/deleted by the agent. */

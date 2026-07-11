@@ -169,76 +169,10 @@ describe("normalizeClaudeCode - assistant text and thinking blocks", () => {
 	});
 });
 
-describe("normalizeClaudeCode - assistant tool_use block", () => {
-	it("keeps tool_use but drops the sibling text block on an assistant turn", () => {
-		const events = normalizeClaudeCode({
-			type: "assistant",
-			message: {
-				content: [
-					{ type: "text", text: "Let me check that file." },
-					{
-						type: "tool_use",
-						id: "toolu_1",
-						name: "Read",
-						input: { file_path: "a.ts" },
-					},
-				],
-			},
-		});
-		expect(events).toEqual([
-			{
-				kind: "tool",
-				id: "toolu_1",
-				name: "Read",
-				status: "started",
-				input: { file_path: "a.ts" },
-			},
-		]);
-	});
-});
-
-describe("normalizeClaudeCode - user tool_result block", () => {
-	it("maps a user tool_result block to a completed tool event", () => {
-		const events = normalizeClaudeCode({
-			type: "user",
-			message: {
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "toolu_1",
-						content: "file contents",
-					},
-				],
-			},
-		});
-		expect(events).toEqual([
-			{
-				kind: "tool",
-				id: "toolu_1",
-				name: "toolu_1",
-				status: "completed",
-				output: "file contents",
-			},
-		]);
-	});
-
-	it("marks a failed tool_result as failed", () => {
-		const events = normalizeClaudeCode({
-			type: "user",
-			message: {
-				content: [
-					{
-						type: "tool_result",
-						tool_use_id: "toolu_2",
-						content: "boom",
-						is_error: true,
-					},
-				],
-			},
-		});
-		expect(events[0]).toMatchObject({ status: "failed" });
-	});
-});
+// normalizeClaudeCode's tool_use/tool_result block mapping, and
+// createClaudeCodeNormalizer's (R1-T2) adapter-side duration tracking, now
+// live in claude-code-tool-events.test.ts, split out to keep this file under
+// the 300-line cap.
 
 // RC-T6: defensive unknown-type audit — an unrecognized top-level `type` (a
 // future stream-json line shape) or a non-object line must drop safely

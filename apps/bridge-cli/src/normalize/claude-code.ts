@@ -4,6 +4,7 @@
 // stream_event). Confirm against the installed `claude` version if its
 // stream-json output ever changes shape.
 
+import { createToolDurationTracker, withToolDuration } from "./tool-timing";
 import { asString, isRecord, NO_EVENTS, type NormalizedEvent } from "./types";
 
 function normalizeTextBlock(
@@ -202,4 +203,19 @@ export function normalizeClaudeCode(raw: unknown): NormalizedEvent[] {
 		default:
 			return NO_EVENTS;
 	}
+}
+
+/**
+ * R1-T2: the claude-code SDK's stream-json output carries no tool duration on
+ * the wire — `tool_use` (start) and `tool_result` (end) share the same id
+ * namespace (`block.id` / `block.tool_use_id`), so it's trivially wireable
+ * adapter-side with the same `withToolDuration` tracker codex/pi use. One
+ * instance per session, so state doesn't leak across sessions.
+ */
+export function createClaudeCodeNormalizer(): (
+	raw: unknown
+) => NormalizedEvent[] {
+	const tracker = createToolDurationTracker();
+	return (raw: unknown): NormalizedEvent[] =>
+		normalizeClaudeCode(raw).map((event) => withToolDuration(tracker, event));
 }

@@ -27,12 +27,25 @@ export interface MessageEvent extends TurnScoped {
 
 /** A tool invocation, from request through to its result. */
 export interface ToolEvent extends TurnScoped {
+	/** R1-T2: wall-clock ms between the `started` and `completed`/`failed`
+	 * events for this id, when the CLI adapter could measure it. Additive —
+	 * mirrors `apps/bridge-cli/src/normalize/types.ts`; no fold/render wiring
+	 * here yet (owned by a parallel task). */
+	durationMs?: number;
 	id: string;
 	input?: unknown;
 	kind: "tool";
 	name: string;
 	output?: unknown;
+	/** R1-T2: a RUNNING tool's latest partial output — REPLACE semantics, not
+	 * append. Additive — no fold/render wiring here yet (owned by a parallel
+	 * task). */
+	preview?: string;
 	status: "started" | "completed" | "failed";
+	/** R1-T2: a short human-readable label for the tool call, when the wire
+	 * carries one distinct from `name`. Additive — no fold/render wiring here
+	 * yet (owned by a parallel task). */
+	title?: string;
 }
 
 /** A file created/modified/deleted by the agent. */

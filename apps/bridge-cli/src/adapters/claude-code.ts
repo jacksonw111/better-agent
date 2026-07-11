@@ -1,5 +1,5 @@
 import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { normalizeClaudeCode } from "../normalize/claude-code";
+import { createClaudeCodeNormalizer } from "../normalize/claude-code";
 import type { NormalizedEvent } from "../normalize/types";
 import { userMessageEvent } from "../normalize/types";
 import {
@@ -57,15 +57,25 @@ function userTurn(text: string): SDKUserMessage {
 	};
 }
 
-async function drainSession(
-	session: AsyncIterable<unknown>,
-	events: AsyncQueue<NormalizedEvent>,
-	models: Promise<string[] | undefined>,
-	lastKnown: LastKnownSessionInfo
-): Promise<void> {
+/** The plumbing `drainSession` closes over — bundled into one object so it
+ * stays under the repo's max-params gate (mirrors `StartClaudeQueryDeps`
+ * below). */
+interface DrainSessionDeps {
+	events: AsyncQueue<NormalizedEvent>;
+	lastKnown: LastKnownSessionInfo;
+	models: Promise<string[] | undefined>;
+	// R1-T2: the stateful normalizer — tracks tool_use/tool_result id pairs to
+	// stamp durationMs adapter-side (the SDK carries no wire duration). One
+	// instance per session, so state doesn't leak across sessions.
+	normalize: (raw: unknown) => NormalizedEvent[];
+	session: AsyncIterable<unknown>;
+}
+
+async function drainSession(deps: DrainSessionDeps): Promise<void> {
+	const { events, lastKnown, models, normalize, session } = deps;
 	try {
 		for await (const message of session) {
-			for (const event of normalizeClaudeCode(message)) {
+			for (const event of normalize(message)) {
 				// Seed the getStatus snapshot's model/permissionMode off the one-time
 				// init event as it flows by (see claude-code-status.ts).
 				recordSessionInfo(event, lastKnown);
@@ -243,7 +253,13 @@ export const claudeCodeAdapter: Adapter = {
 		// for the permission mode, so the adapter tracks the last-known values
 		// (init event + this handle's own setModel/setPermissionMode calls).
 		const lastKnown: LastKnownSessionInfo = {};
-		drainSession(session, events, models, lastKnown);
+		drainSession({
+			events,
+			lastKnown,
+			models,
+			normalize: createClaudeCodeNormalizer(),
+			session,
+		});
 
 		return buildClaudeHandle({
 			approvals,

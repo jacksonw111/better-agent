@@ -5,7 +5,11 @@
 // https://developers.openai.com/codex/app-server for the protocol reference.
 
 import {
-	type ApprovalEvent,
+	normalizeCodexMcpToolCallItem,
+	normalizeCodexReasoningItem,
+} from "./codex-items";
+import { createToolDurationTracker, withToolDuration } from "./tool-timing";
+import {
 	asString,
 	isArrayOf,
 	isRecord,
@@ -121,10 +125,24 @@ function normalizeCodexAgentMessageItem(
 	];
 }
 
-// `terminal` is true only for `item/completed`. Non-terminal `item/started`
-// notifications must not materialize agentMessage/fileChange content (empty/
-// premature) — only commandExecution surfaces on start, since it carries a
-// `status` and dedups by id so the same tool bubble updates in place.
+// Items whose content only materializes on the terminal `item/completed` —
+// `item/started` carries the same item premature/empty (see
+// normalizeCodexAgentMessageItem's doc comment). Kept as a lookup table
+// (rather than more switch cases) to keep normalizeCodexItem's complexity
+// under the repo's eslint gate.
+const CODEX_TERMINAL_ONLY_ITEM_HANDLERS: Record<
+	string,
+	(item: Record<string, unknown>) => NormalizedEvent[]
+> = {
+	agentMessage: normalizeCodexAgentMessageItem,
+	fileChange: normalizeCodexFileChangeItem,
+	reasoning: normalizeCodexReasoningItem,
+};
+
+// `terminal` is true only for `item/completed`. commandExecution/mcpToolCall/
+// dynamicToolCall are NOT terminal-gated — they carry their own `status` and
+// dedup by id, so the same tool bubble updates in place across
+// item/started → item/completed.
 function normalizeCodexItem(
 	item: unknown,
 	terminal: boolean
@@ -132,16 +150,14 @@ function normalizeCodexItem(
 	if (!isRecord(item) || typeof item.type !== "string") {
 		return NO_EVENTS;
 	}
-	switch (item.type) {
-		case "agentMessage":
-			return terminal ? normalizeCodexAgentMessageItem(item) : NO_EVENTS;
-		case "commandExecution":
-			return normalizeCodexCommandExecutionItem(item);
-		case "fileChange":
-			return terminal ? normalizeCodexFileChangeItem(item) : NO_EVENTS;
-		default:
-			return NO_EVENTS;
+	if (item.type === "commandExecution") {
+		return normalizeCodexCommandExecutionItem(item);
 	}
+	if (item.type === "mcpToolCall" || item.type === "dynamicToolCall") {
+		return normalizeCodexMcpToolCallItem(item);
+	}
+	const terminalHandler = CODEX_TERMINAL_ONLY_ITEM_HANDLERS[item.type];
+	return terminalHandler && terminal ? terminalHandler(item) : NO_EVENTS;
 }
 
 // Streaming deltas are DISPLAY-ONLY: the message materializes once on
@@ -212,71 +228,17 @@ export function normalizeCodex(raw: unknown): NormalizedEvent[] {
 	return handler ? handler(params) : NO_EVENTS;
 }
 
-// --- Approval requests ------------------------------------------------------
-//
-// ASSUMPTION (unverified — no `codex` binary is available in this sandbox;
-// method names per https://developers.openai.com/codex/app-server, which
-// documents the approval workflow and the client's decision vocabulary but
-// not the literal JSON-RPC envelope for the *request* side): the app-server
-// asks for approval via a server-initiated *request* — an id-bearing
-// message, handled by `jsonrpc-io.ts`'s `onRequest`, not a notification —
-// named `item/commandExecution/requestApproval` or
-// `item/fileChange/requestApproval`. We reply with a simplified two-option
-// decision, `{ decision: "accept" | "decline" }`, collapsing the documented
-// `acceptForSession`/`cancel`/`acceptWithExecpolicyAmendment` variants (no UI
-// for those yet). Reverify against the installed codex version — both the
-// method names and the reply envelope — before relying on this.
-
-const CODEX_APPROVAL_METHODS = new Set([
-	"item/commandExecution/requestApproval",
-	"item/fileChange/requestApproval",
-]);
-
-/** The only two decisions `answerApproval` can currently produce for codex;
- * see the ASSUMPTION above about the decisions this collapses away. */
-const CODEX_APPROVAL_OPTIONS = [
-	{ id: "accept", label: "Allow" },
-	{ id: "decline", label: "Deny" },
-];
-
-function codexApprovalTitle(method: string): string {
-	return method === "item/fileChange/requestApproval"
-		? "Apply file change?"
-		: "Run command?";
+/** R1-T2: stateful wrapper around `normalizeCodex` that additionally stamps
+ * `durationMs` onto `commandExecution`/`mcpToolCall`/`dynamicToolCall` tool
+ * events — codex's wire never reports how long a tool ran, only a
+ * started/completed pair keyed by item id (see tool-timing.ts). One instance
+ * lives per session, in adapters/codex.ts's `start`. */
+export function createCodexNormalizer(): (raw: unknown) => NormalizedEvent[] {
+	const tracker = createToolDurationTracker();
+	return (raw: unknown): NormalizedEvent[] =>
+		normalizeCodex(raw).map((event) => withToolDuration(tracker, event));
 }
 
-function codexApprovalDetail(
-	params: Record<string, unknown>
-): string | undefined {
-	const command = isArrayOf(
-		params.command,
-		(part): part is string => typeof part === "string"
-	)
-		? params.command.join(" ")
-		: asString(params.command);
-	return command ?? asString(params.reason);
-}
-
-/**
- * Maps a codex app-server server-initiated approval *request* — an
- * `onRequest`-surfaced `(id, method, params)`, not an `onNotification` one —
- * to an `ApprovalEvent`, or `[]` if `method` isn't a known approval method.
- */
-export function normalizeCodexApprovalRequest(
-	requestId: string,
-	method: string,
-	params: unknown
-): ApprovalEvent[] {
-	if (!CODEX_APPROVAL_METHODS.has(method)) {
-		return [];
-	}
-	return [
-		{
-			detail: isRecord(params) ? codexApprovalDetail(params) : undefined,
-			kind: "approval",
-			options: CODEX_APPROVAL_OPTIONS,
-			requestId,
-			title: codexApprovalTitle(method),
-		},
-	];
-}
+// Approval *requests* (as opposed to the notifications this file maps) live
+// in codex-approvals.ts, split out to keep this file under the 300-line cap.
+export { normalizeCodexApprovalRequest } from "./codex-approvals";

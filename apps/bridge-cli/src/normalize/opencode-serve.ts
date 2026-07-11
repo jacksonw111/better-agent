@@ -81,10 +81,21 @@ function normalizeServeTextPart(
 	];
 }
 
+/** R1-T2: `state.time: {start, end}` (ms-epoch) is only complete once the
+ * tool finishes — `durationMs` is undefined while still running. */
+function serveToolDurationMs(
+	state: Record<string, unknown>
+): number | undefined {
+	const time = isRecord(state.time) ? state.time : undefined;
+	const start = typeof time?.start === "number" ? time.start : undefined;
+	const end = typeof time?.end === "number" ? time.end : undefined;
+	return start === undefined || end === undefined ? undefined : end - start;
+}
+
 /** ASSUMPTION (unverified): a tool part is `{ type: "tool", callID, tool,
  * state: { status: "pending"|"running"|"completed"|"error", input?, output?,
- * error? } }`. Unknown statuses degrade to "started" so a tool at least shows
- * up as running. */
+ * error?, title?, time?: {start, end} } }`. Unknown statuses degrade to
+ * "started" so a tool at least shows up as running. */
 function normalizeServeToolPart(
 	part: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -107,6 +118,8 @@ function normalizeServeToolPart(
 			status,
 			input: state.input,
 			output: state.output ?? asString(state.error),
+			title: asString(state.title),
+			durationMs: serveToolDurationMs(state),
 		},
 	];
 }

@@ -1,5 +1,5 @@
 import {
-	normalizeCodex,
+	createCodexNormalizer,
 	normalizeCodexApprovalRequest,
 } from "../normalize/codex";
 import {
@@ -254,10 +254,14 @@ export const codexAdapter: Adapter = {
 		});
 
 		const statusCache = createCodexStatusCache();
+		// R1-T2: one duration-tracking normalizer per session — codex's wire
+		// never reports how long a commandExecution/mcpToolCall ran, only a
+		// started/completed pair keyed by item id (see normalize/tool-timing.ts).
+		const normalize = createCodexNormalizer();
 		rpc.onNotification((method, params) => {
 			logRawCodexNotification(method, params);
 			updateCodexStatusCache(statusCache, method, params);
-			for (const event of normalizeCodex({ method, params })) {
+			for (const event of normalize({ method, params })) {
 				events.push(event);
 			}
 		});

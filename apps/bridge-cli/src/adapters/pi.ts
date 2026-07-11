@@ -1,4 +1,4 @@
-import { normalizePi } from "../normalize/pi";
+import { createPiNormalizer } from "../normalize/pi";
 import {
 	buildPiGetAvailableModelsCommand,
 	buildPiGetCommandsCommand,
@@ -128,6 +128,10 @@ interface PiStdoutDeps {
 	events: { push(event: NormalizedEvent): void };
 	io: { lines: AsyncIterable<string>; writeLine(line: string): void };
 	modelProviders: Record<string, string>;
+	// R1-T2: the stateful normalizer — tracks tool-call name/duration across
+	// lines (tool_execution_update's running preview, durationMs) — one
+	// instance per session, so state doesn't leak across sessions.
+	normalize: (raw: unknown) => NormalizedEvent[];
 	sessionReady: { onLine(raw: unknown): void };
 	statusTracker: { onLine(raw: unknown): void };
 }
@@ -138,8 +142,15 @@ interface PiStdoutDeps {
  * (see pi-approvals.ts), and forwards each normalized event. Detached
  * (fire-and-forget) from `start` purely to keep it under the line gate. */
 async function drainPiStdout(deps: PiStdoutDeps): Promise<void> {
-	const { approvals, events, io, modelProviders, sessionReady, statusTracker } =
-		deps;
+	const {
+		approvals,
+		events,
+		io,
+		modelProviders,
+		normalize,
+		sessionReady,
+		statusTracker,
+	} = deps;
 	for await (const line of io.lines) {
 		const raw = tryParseJson(line);
 		sessionReady.onLine(raw);
@@ -151,7 +162,7 @@ async function drainPiStdout(deps: PiStdoutDeps): Promise<void> {
 		if (nextProviders) {
 			Object.assign(modelProviders, nextProviders);
 		}
-		for (const event of normalizePi(raw)) {
+		for (const event of normalize(raw)) {
 			events.push(event);
 		}
 	}
@@ -252,6 +263,7 @@ export const piAdapter: Adapter = {
 			events,
 			io,
 			modelProviders,
+			normalize: createPiNormalizer(),
 			sessionReady,
 			statusTracker,
 		});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePi, normalizePiExtensionUiRequest } from "./pi";
+import { normalizePi } from "./pi";
 
 describe("normalizePi - message_update text_delta", () => {
 	it("maps a text_delta assistantMessageEvent to an output event", () => {
@@ -66,65 +66,9 @@ describe("normalizePi - message_end", () => {
 	});
 });
 
-describe("normalizePi - tool_execution_start", () => {
-	it("maps tool_execution_start to a started tool event", () => {
-		const events = normalizePi({
-			type: "tool_execution_start",
-			toolCallId: "call_1",
-			toolName: "bash",
-			args: { command: "ls" },
-		});
-		expect(events).toEqual([
-			{
-				kind: "tool",
-				id: "call_1",
-				name: "bash",
-				status: "started",
-				input: { command: "ls" },
-			},
-		]);
-	});
-});
-
-describe("normalizePi - tool_execution_end", () => {
-	it("maps tool_execution_end with isError to a failed tool event", () => {
-		const events = normalizePi({
-			type: "tool_execution_end",
-			toolCallId: "call_1",
-			toolName: "bash",
-			result: "boom",
-			isError: true,
-		});
-		expect(events).toEqual([
-			{
-				kind: "tool",
-				id: "call_1",
-				name: "bash",
-				status: "failed",
-				output: "boom",
-			},
-		]);
-	});
-
-	it("maps tool_execution_end without isError to a completed tool event", () => {
-		const events = normalizePi({
-			type: "tool_execution_end",
-			toolCallId: "call_1",
-			toolName: "bash",
-			result: "ok",
-			isError: false,
-		});
-		expect(events).toEqual([
-			{
-				kind: "tool",
-				id: "call_1",
-				name: "bash",
-				status: "completed",
-				output: "ok",
-			},
-		]);
-	});
-});
+// tool_execution_start/_end (plain normalizePi) and createPiNormalizer's
+// tool_execution_update/duration tracking now live in pi-tool-events.test.ts,
+// split out to keep this file under the 300-line cap.
 
 describe("normalizePi - lifecycle status passthrough", () => {
 	it("maps agent_start/agent_end/turn_start/turn_end to status events", () => {
@@ -194,88 +138,8 @@ describe("normalizePi - edge cases", () => {
 	});
 });
 
-describe("normalizePiExtensionUiRequest (RC-T4) - select/confirm map to a card", () => {
-	it("maps a select request to an ApprovalEvent whose option ids are the option labels", () => {
-		const events = normalizePiExtensionUiRequest({
-			type: "extension_ui_request",
-			id: "req-1",
-			method: "select",
-			title: "Allow dangerous command?",
-			options: ["Allow", "Block"],
-		});
-		expect(events).toEqual([
-			{
-				detail: undefined,
-				kind: "approval",
-				options: [
-					{ id: "Allow", label: "Allow" },
-					{ id: "Block", label: "Block" },
-				],
-				requestId: "req-1",
-				title: "Allow dangerous command?",
-			},
-		]);
-	});
-
-	it("maps a confirm request to an ApprovalEvent with fixed confirmed/declined options", () => {
-		const events = normalizePiExtensionUiRequest({
-			type: "extension_ui_request",
-			id: "req-2",
-			method: "confirm",
-			title: "Clear session?",
-			message: "All messages will be lost.",
-		});
-		expect(events).toEqual([
-			{
-				detail: "All messages will be lost.",
-				kind: "approval",
-				options: [
-					{ id: "confirmed", label: "Confirm" },
-					{ id: "declined", label: "Decline" },
-				],
-				requestId: "req-2",
-				title: "Clear session?",
-			},
-		]);
-	});
-});
-
-describe("normalizePiExtensionUiRequest (RC-T4) - non-representable/malformed input", () => {
-	it("returns [] for input/editor methods — free-form text has no deny analog", () => {
-		expect(
-			normalizePiExtensionUiRequest({
-				type: "extension_ui_request",
-				id: "req-3",
-				method: "input",
-				title: "Enter a value",
-			})
-		).toEqual([]);
-		expect(
-			normalizePiExtensionUiRequest({
-				type: "extension_ui_request",
-				id: "req-4",
-				method: "editor",
-				title: "Edit some text",
-			})
-		).toEqual([]);
-	});
-
-	it("returns [] for a malformed select with no usable string options", () => {
-		expect(
-			normalizePiExtensionUiRequest({
-				type: "extension_ui_request",
-				id: "req-5",
-				method: "select",
-				title: "Pick one",
-				options: [],
-			})
-		).toEqual([]);
-	});
-
-	it("returns [] for a non-extension_ui_request line", () => {
-		expect(normalizePiExtensionUiRequest({ type: "agent_start" })).toEqual([]);
-	});
-});
+// normalizePiExtensionUiRequest (RC-T4) tests moved to
+// pi-extension-ui.test.ts alongside the module it now lives in.
 
 // RC-T6: defensive unknown-type audit — an unrecognized top-level `type` (a
 // future pi event) or a non-object line must drop safely, never throw.
