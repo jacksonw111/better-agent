@@ -6,6 +6,7 @@
 // it returns a `PollOutcome` instead of just ending the process itself.
 import type { Adapter, AgentHandle } from "./adapters/types";
 import type { BridgeCliArgs } from "./args";
+import type { AfterIdRef } from "./commands";
 import type {
 	AgentSessionIdRef,
 	PollOutcome,
@@ -106,6 +107,13 @@ export async function runRestartLoop(
 	const controller = new AbortController();
 	const handleRef = { current: options.handle };
 	const agentSessionIdRef: AgentSessionIdRef = {};
+	// Hoisted here (NOT inside `runBridgeSession`) and passed into every
+	// generation below: relay command reads are non-destructive and every
+	// generation shares the same bridge sessionId, so a fresh cursor per
+	// generation would make generation N+1 re-read (and re-dispatch) every
+	// command generation N already handled, including the very
+	// `control:restart` command that triggered this relaunch.
+	const afterIdRef: AfterIdRef = { current: 0 };
 	wireShutdown(controller, handleRef);
 
 	let outcome: PollOutcome;
@@ -122,6 +130,7 @@ export async function runRestartLoop(
 			sessionId,
 			signal: controller.signal,
 			agentSessionIdRef,
+			afterIdRef,
 			onStart,
 			pollOptions: buildPollOptions(args),
 			forwardOptions: buildForwardOptions(args, generation),

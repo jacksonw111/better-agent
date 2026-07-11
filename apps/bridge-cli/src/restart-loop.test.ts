@@ -107,10 +107,82 @@ async function tearsDownFetchesFreshConfigAndRelaunchesWithCapturedSessionId(): 
 	writeSpy.mockRestore();
 }
 
+/** Regression test for the R0 final-review finding: `runBridgeSession` used
+ * to create a FRESH `afterIdRef` (starting at 0) on every call, while
+ * `runRestartLoop` reuses the same bridge sessionId across generations and
+ * relay command reads are non-destructive — so generation 2 would re-poll
+ * from 0 and re-dispatch every command generation 1 already handled,
+ * including the very `control:restart` command that triggered the relaunch
+ * (a restart-loop risk). The fix hoists one `AfterIdRef` to `runRestartLoop`
+ * scope and threads it into every generation, so gen 2 resumes exactly where
+ * gen 1 left off. */
+async function doesNotReplayCommandsAcrossARestartGeneration(): Promise<void> {
+	const writeSpy = vi
+		.spyOn(process.stdout, "write")
+		.mockImplementation(() => true);
+
+	const { handle: handle1 } = queueHandle();
+	const events2 = createAsyncQueue<NormalizedEvent>();
+	const send2 = vi.fn();
+	const stop2 = vi.fn(() => events2.close());
+	const handle2: AgentHandle = {
+		answerApproval: vi.fn(),
+		events: events2,
+		send: send2,
+		stop: stop2,
+	};
+
+	// A minimal stand-in for the server's non-destructive command log: every
+	// call returns whatever's still ahead of the given `afterId`, exactly like
+	// the real relay store — so this test actually exercises cursor
+	// propagation instead of just replaying a scripted response queue.
+	const commandLog: { id: number; data: unknown }[] = [
+		{ id: 5, data: { type: "control", action: "restart" } },
+	];
+	const pollCommands = vi.fn(({ afterId }: { afterId: number }) =>
+		Promise.resolve(commandLog.filter((command) => command.id > afterId))
+	);
+	// Simulates a command arriving on the server WHILE the CLI is relaunching
+	// (between gen 1 ending and gen 2's first poll) — `relaunch` calls
+	// `fetchConfig` in exactly that gap.
+	const fetchConfig = vi.fn(() => {
+		commandLog.push({ id: 9, data: "hello after restart" });
+		commandLog.push({ id: 10, data: { type: "control", action: "stop" } });
+		return Promise.resolve({ config: null, mcpServers: [] });
+	});
+	const transport = fakeTransport(pollCommands, fetchConfig);
+
+	const start = vi.fn().mockResolvedValue(handle2);
+	const adapter: Adapter = { start };
+
+	await runRestartLoop({
+		adapter,
+		args: fakeArgs(),
+		handle: handle1,
+		sessionId: "sess_1",
+		transport,
+	});
+
+	// Gen 2's first poll must resume from the cursor gen 1 left at (5, the
+	// restart command's id), not reset to 0 — otherwise it would re-read (and
+	// re-dispatch) the restart command itself.
+	expect(pollCommands.mock.calls[1]?.[0]).toMatchObject({ afterId: 5 });
+	// A command that arrived after the restart must still reach the NEW
+	// process, exactly once.
+	expect(send2).toHaveBeenCalledExactlyOnceWith("hello after restart");
+
+	writeSpy.mockRestore();
+}
+
 describe("runRestartLoop restart", () => {
 	it(
 		"on a control:restart, tears down the old process, fetches fresh config, and relaunches with the captured agent sessionId under the same bridge sessionId",
 		tearsDownFetchesFreshConfigAndRelaunchesWithCapturedSessionId
+	);
+
+	it(
+		"does not re-dispatch generation 1's commands (incl. the restart command) in generation 2, but does dispatch one that arrived after the restart",
+		doesNotReplayCommandsAcrossARestartGeneration
 	);
 
 	it("falls back to the CLI's original --resume id when no session_ready event arrived before the restart", async () => {

@@ -32,6 +32,11 @@ import type { DuplexChannel } from "./ws-duplex";
 const WS_FLUSH_INTERVAL_MS = 25;
 
 export interface RunBridgeSessionOptions {
+	/** Command-read cursor. Optional (defaults to a fresh `{ current: 0 }`) —
+	 * `restart-loop.ts` hoists and reuses ONE across generations so a relaunch
+	 * doesn't replay commands (incl. the triggering `control:restart`) the
+	 * previous generation already handled; reads are non-destructive. */
+	afterIdRef?: AfterIdRef;
 	/** See `AgentSessionIdRef`. Optional: only the outer restart loop needs
 	 * it, so tests that don't exercise restart can omit it. */
 	agentSessionIdRef?: AgentSessionIdRef;
@@ -251,7 +256,7 @@ export async function runBridgeSession(
 	try {
 		const { sessionId } = options;
 		options.onStart?.(sessionId);
-		const afterIdRef: AfterIdRef = { current: 0 };
+		const afterIdRef: AfterIdRef = options.afterIdRef ?? { current: 0 };
 		const pollController = new AbortController();
 		const stopPolling = () => pollController.abort();
 		options.signal.addEventListener("abort", stopPolling);

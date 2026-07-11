@@ -39,14 +39,19 @@ export function parseServerFrame(raw: unknown): ServerFrame | null {
  * server skipping straight past it. The handler itself is responsible for
  * surfacing the error (mirrors poll-loop.ts's `onError`) — this function only
  * owns the afterId bookkeeping, so it deliberately swallows the rejection
- * after leaving `lastCommandId` alone. */
+ * after leaving `lastCommandId` alone. Advances with `Math.max` rather than
+ * a plain assignment: `onCommand`'s handler may be async, so two dispatches
+ * can be in flight at once and complete out of order — a slower EARLIER
+ * dispatch finishing after a faster LATER one must not regress the cursor
+ * backwards (which would get already-handled commands redelivered on the
+ * next reconnect). */
 async function handleCommandFrame(
 	state: ChannelState,
 	frame: Extract<ServerFrame, { t: "command" }>
 ): Promise<void> {
 	try {
 		await state.commandHandler?.({ id: frame.id, data: frame.data });
-		state.lastCommandId = frame.id;
+		state.lastCommandId = Math.max(state.lastCommandId, frame.id);
 	} catch {
 		// Dispatch failed — see doc comment above; nothing else to do here.
 	}
