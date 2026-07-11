@@ -29,6 +29,15 @@ type TextBlock = Extract<ChatBlock, { kind: "text" | "reasoning" }>;
  * appended in between — instead of spawning a second bubble. */
 export interface MessageAccumulator {
 	block: TextBlock;
+	/** Set by `finalizeAssistantMessage` once the final for this id has landed
+	 * — the accumulator entry is kept around (so a REPEATED final, or the
+	 * id-matched lookup itself, still resolves) but is now closed to further
+	 * accumulation. Per the last-write-wins contract (see `FoldState.current`'s
+	 * doc), the final IS canonical: a late/duplicate `output` delta that still
+	 * carries this id afterward is a network straggler, not new content — see
+	 * `accumulateOutput`, which drops it rather than appending onto the sealed
+	 * text. */
+	sealed: boolean;
 	turn: AssistantTurn;
 }
 
@@ -170,6 +179,14 @@ export function accumulateOutput(
 	}
 	const existing = state.assistantByMessageId.get(event.id);
 	if (existing) {
+		// The final for this id already landed (see `finalizeAssistantMessage`)
+		// — per last-write-wins, that final IS canonical, so this delta is a
+		// late/duplicate straggler. Drop it: don't append onto the sealed text,
+		// don't touch `state.current`, and don't mark the turn touched (it did
+		// not change) — see `MessageAccumulator.sealed`'s doc.
+		if (existing.sealed) {
+			return;
+		}
 		existing.block.text += event.text;
 		state.current = existing.turn;
 		state.touched.add(existing.turn);
@@ -178,7 +195,7 @@ export function accumulateOutput(
 	const turn = openAssistant(state, id);
 	const block: TextBlock = { kind, text: event.text };
 	turn.blocks.push(block);
-	state.assistantByMessageId.set(event.id, { block, turn });
+	state.assistantByMessageId.set(event.id, { block, sealed: false, turn });
 }
 
 /**
@@ -215,6 +232,7 @@ export function finalizeAssistantMessage(
 			: state.assistantByMessageId.get(event.id);
 	if (existing) {
 		existing.block.text = event.text;
+		existing.sealed = true;
 		state.current = existing.turn;
 		state.sealedBlock = existing.block;
 		state.touched.add(existing.turn);
@@ -225,7 +243,7 @@ export function finalizeAssistantMessage(
 	const block: TextBlock = { kind, text: event.text };
 	turn.blocks.push(block);
 	if (event.id !== undefined) {
-		state.assistantByMessageId.set(event.id, { block, turn });
+		state.assistantByMessageId.set(event.id, { block, sealed: true, turn });
 	}
 	state.sealedBlock = block;
 }

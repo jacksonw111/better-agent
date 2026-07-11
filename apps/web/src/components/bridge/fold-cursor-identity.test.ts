@@ -34,6 +34,14 @@ function expectCompletedToolBlock(turn: BridgeTurn): void {
 	}
 }
 
+function expectCompletedAssistantText(turn: BridgeTurn, text: string): void {
+	expect(turn.kind).toBe("assistant");
+	if (turn.kind !== "assistant") {
+		return;
+	}
+	expect(turn.blocks).toEqual([{ kind: "text", text }]);
+}
+
 it("keeps the same array reference across a call with no new events", () => {
 	const cursor = createFoldCursor();
 	const events = [ev(1, { kind: "output", text: "hi" })];
@@ -94,6 +102,36 @@ it("the R0-T4 brief's scenario: tool started, many unrelated events, tool comple
 	expectCompletedToolBlock(afterComplete[0]);
 	// Unrelated rows created in the middle batch stay stable.
 	expect(afterComplete[5]).toBe(unrelatedRow);
+});
+
+it("R1-T1: a late id-matched delta after finalize is dropped and does NOT mark the turn touched (no new reference)", () => {
+	const cursor = createFoldCursor();
+	const finalEvents = [
+		ev(1, { kind: "output", text: "Sure, ", id: "item_1" }),
+		ev(2, {
+			kind: "message",
+			role: "assistant",
+			text: "Sure, let me check that for you.",
+			id: "item_1",
+		}),
+	];
+	const afterFinal = foldIncremental(cursor, finalEvents);
+	const turnAfterFinal = afterFinal[0];
+
+	const afterLateDelta = foldIncremental(cursor, [
+		...finalEvents,
+		ev(3, { kind: "output", text: "DUPLICATE-LATE", id: "item_1" }),
+	]);
+
+	// A dropped delta must not touch the turn: same top-level array reference
+	// AND same row reference — nothing rendering-relevant happened — and the
+	// text stays exactly what the final already committed.
+	expect(afterLateDelta).toBe(afterFinal);
+	expect(afterLateDelta[0]).toBe(turnAfterFinal);
+	expectCompletedAssistantText(
+		afterLateDelta[0],
+		"Sure, let me check that for you."
+	);
 });
 
 it("folding stays proportional to NEW events, not total history", () => {
