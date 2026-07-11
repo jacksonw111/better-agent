@@ -24,6 +24,13 @@ export interface PiStreamingTracker {
 	/** Feed every parsed stdout line here, same as `pi-status.ts`'s
 	 * `onLine`-shaped trackers. */
 	onLine(raw: unknown): void;
+	/** R2-T3 review finding 2: forces the tracker back to idle regardless of
+	 * the last line seen. pi's abort path isn't guaranteed to emit
+	 * `agent_settled` (unverified — no `pi` binary in this sandbox), so
+	 * without this an interrupt/stop mid-stream would leave `isStreaming()`
+	 * stuck `true` forever, wrongly tagging every later send `followUp`. The
+	 * adapter's `interrupt()`/`stop()` call this directly (see pi.ts). */
+	reset(): void;
 }
 
 export function makePiStreamingTracker(): PiStreamingTracker {
@@ -39,6 +46,9 @@ export function makePiStreamingTracker(): PiStreamingTracker {
 			} else if (PI_STREAMING_START_TYPES.has(raw.type)) {
 				streaming = true;
 			}
+		},
+		reset(): void {
+			streaming = false;
 		},
 	};
 }

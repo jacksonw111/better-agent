@@ -102,3 +102,27 @@ describe("piAdapter - send() streamingBehavior", () => {
 		);
 	});
 });
+
+// R2-T3 review finding 2 (important): if pi's abort path never emits
+// agent_settled, the tracker would stay streaming forever and every
+// subsequent send would be wrongly tagged followUp. interrupt() must reset
+// the tracker to idle itself rather than depend on that line arriving. Split
+// into its own describe (rather than folded into the block above) to stay
+// under the repo's 50-line-per-function lint cap.
+describe("piAdapter - interrupt() resets streaming", () => {
+	it("resets the streaming tracker, so the next send is a bare prompt", async () => {
+		const { io, pushLine } = createFakeProcessIo();
+		vi.mocked(spawnProcessIo).mockResolvedValue(io);
+
+		const handle = await piAdapter.start("/tmp/project");
+		pushLine(JSON.stringify({ type: "agent_start" }));
+		await new Promise((resolve) => setImmediate(resolve));
+
+		handle.interrupt?.();
+		handle.send("after interrupt");
+
+		expect(io.writeLine).toHaveBeenCalledWith(
+			JSON.stringify({ type: "prompt", message: "after interrupt" })
+		);
+	});
+});

@@ -162,7 +162,9 @@ interface PiAgentHandleDeps {
 	statusTracker: { request(): void };
 	// R2-T3 item 1 (CRITICAL): `send()` consults this to decide whether the
 	// prompt frame needs `streamingBehavior: "followUp"` — see pi-streaming.ts.
-	streaming: { isStreaming(): boolean };
+	// R2-T3 review finding 2: `interrupt()`/`stop()` also call `reset()` on
+	// this so an abort that never emits `agent_settled` can't leave it stuck.
+	streaming: { isStreaming(): boolean; reset(): void };
 }
 
 /** Builds the `AgentHandle` `start` returns. Extracted purely to keep `start`
@@ -190,6 +192,11 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		// pi has no per-tool-call approval protocol, so nothing to retract.
 		interrupt(): void {
 			bumpTurnEpoch(epoch);
+			// R2-T3 review finding 2: pi's abort path isn't guaranteed to emit
+			// agent_settled, so the tracker is force-reset here rather than left
+			// to observe its own end-of-turn line — otherwise a send right after
+			// an interrupt would be wrongly tagged followUp forever.
+			streaming.reset();
 			io.writeLine(JSON.stringify({ type: "abort" }));
 		},
 		send(text: string): void {
@@ -211,6 +218,7 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		setThinking: makePiSetThinking(io, events),
 		stop(): void {
 			bumpTurnEpoch(epoch);
+			streaming.reset();
 			io.stop();
 			events.close();
 			approvals.clear();

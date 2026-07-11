@@ -39,4 +39,16 @@ describe("makePiStreamingTracker", () => {
 		tracker.onLine("agent_start");
 		expect(tracker.isStreaming()).toBe(false);
 	});
+
+	// R2-T3 review finding 2: if pi's abort path never emits agent_settled
+	// (its normal end-of-turn signal), the tracker would stick `true` forever.
+	// `reset()` is the interrupt/stop escape hatch back to idle.
+	it("reset() forces the tracker back to idle from any state", () => {
+		const tracker = makePiStreamingTracker();
+		tracker.onLine({ type: "agent_start" });
+		expect(tracker.isStreaming()).toBe(true);
+
+		tracker.reset();
+		expect(tracker.isStreaming()).toBe(false);
+	});
 });
