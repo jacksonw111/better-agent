@@ -28,6 +28,63 @@ function createMessageRoute() {
 	return { messageBody: [] as unknown, messageOk: true };
 }
 
+/** Mutable canned response for `GET /agent` (R2-T3 item 7) — defaults to a
+ * realistic mixed list (two selectable `primary` agents, one `subagent` that
+ * must be filtered out) so the DEFAULT case exercises real parsing, not just
+ * the `SERVE_AGENT_FALLBACK` path; tests reassign `agentBody` to cover the
+ * fallback (empty/malformed response) and failure cases. */
+function createAgentRoute() {
+	return {
+		agentBody: [
+			{ name: "build", mode: "primary" },
+			{ name: "plan", mode: "primary" },
+			{ name: "reviewer", mode: "subagent" },
+		] as unknown,
+		agentOk: true,
+	};
+}
+
+/** Mutable canned response for `GET /global/health` (R2-T3 item 6). */
+function createHealthRoute() {
+	return {
+		healthBody: { healthy: true, version: "0.80.6" } as unknown,
+		healthOk: true,
+	};
+}
+
+/** Bundles the three mutable canned-response fixtures into one object, purely
+ * so `routeResponse` stays within the repo's max-params gate. */
+interface FakeRoutes {
+	agents: ReturnType<typeof createAgentRoute>;
+	health: ReturnType<typeof createHealthRoute>;
+	messages: ReturnType<typeof createMessageRoute>;
+}
+
+/** The GET-only routes with a mutable canned response — split out of
+ * `routeResponse` purely to keep its complexity under the lint gate. */
+function routeGetResponse(
+	url: string,
+	routes: FakeRoutes
+): Response | undefined {
+	if (url.endsWith("/config/providers")) {
+		return Response.json({
+			providers: [{ id: "anthropic", models: { "claude-sonnet-4": {} } }],
+		});
+	}
+	if (url.endsWith("/agent")) {
+		return routes.agents.agentOk
+			? Response.json(routes.agents.agentBody)
+			: new Response(null, { status: 500 });
+	}
+	if (url.endsWith("/global/health")) {
+		return routes.health.healthOk
+			? Response.json(routes.health.healthBody)
+			: new Response(null, { status: 404 });
+	}
+	// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+	return undefined;
+}
+
 /** Picks the canned response for one fake-server route — split out of
  * `createFakeServer`'s `fetchImpl` purely to keep that arrow function's
  * complexity under the lint gate. */
@@ -35,7 +92,7 @@ function routeResponse(
 	url: string,
 	method: string,
 	stream: ReadableStream<Uint8Array>,
-	messages: ReturnType<typeof createMessageRoute>
+	routes: FakeRoutes
 ): Promise<Response> {
 	if (url.endsWith("/event")) {
 		return Promise.resolve(new Response(stream));
@@ -43,16 +100,13 @@ function routeResponse(
 	if (method === "POST" && url.endsWith("/session")) {
 		return Promise.resolve(Response.json({ id: "ses_1" }));
 	}
-	if (url.endsWith("/config/providers")) {
-		return Promise.resolve(
-			Response.json({
-				providers: [{ id: "anthropic", models: { "claude-sonnet-4": {} } }],
-			})
-		);
+	const getResponse = routeGetResponse(url, routes);
+	if (getResponse !== undefined) {
+		return Promise.resolve(getResponse);
 	}
 	if (url.endsWith("/session/ses_1/message")) {
-		return messages.messageOk
-			? Promise.resolve(Response.json(messages.messageBody))
+		return routes.messages.messageOk
+			? Promise.resolve(Response.json(routes.messages.messageBody))
 			: Promise.resolve(new Response(null, { status: 500 }));
 	}
 	return Promise.resolve(Response.json({}));
@@ -70,16 +124,22 @@ export function createFakeServer() {
 		},
 	});
 	const encoder = new TextEncoder();
-	const messages = createMessageRoute();
+	const routes: FakeRoutes = {
+		agents: createAgentRoute(),
+		health: createHealthRoute(),
+		messages: createMessageRoute(),
+	};
+	const { agents, health, messages } = routes;
 	const fetchImpl = vi.fn((input: string | URL, init?: RequestInit) => {
 		const url = String(input);
 		const method = init?.method ?? "GET";
 		const body =
 			typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
 		calls.push({ body, method, url });
-		return routeResponse(url, method, stream, messages);
+		return routeResponse(url, method, stream, routes);
 	});
 	return {
+		agents,
 		calls,
 		emitSse(data: unknown): void {
 			sse?.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
@@ -91,6 +151,7 @@ export function createFakeServer() {
 			sse?.error(error);
 		},
 		fetchImpl,
+		health,
 		messages,
 	};
 }

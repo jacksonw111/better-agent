@@ -20,6 +20,12 @@ import {
 	retractPendingApprovals,
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
+import {
+	fetchServeAgents,
+	fetchServeHealth,
+	logServeHealth,
+	type ServeAgentRef,
+} from "./opencode-serve-agent";
 import { wireServeEventStream } from "./opencode-serve-approvals";
 import {
 	createServeHttp,
@@ -94,10 +100,34 @@ function parseServeModelRef(model: string): ServeModelRef["current"] {
 		: undefined;
 }
 
+/** Cancels the in-flight turn and retracts any pending approval — split out
+ * of `makeServeControls` purely to keep that function under the repo's
+ * max-lines-per-function gate. */
+function makeServeInterrupt(ctx: ServeSessionContext): () => void {
+	return () => {
+		// RC-T3: supersede the current turn and retract any pending approval
+		// (pending permission request) BEFORE aborting the remote turn, so a
+		// straggler SSE event or a late approval answer can never land against
+		// a turn context that's already moved on — mirrors claude-code.ts's
+		// `interrupt()`.
+		bumpTurnEpoch(ctx.epoch);
+		retractPendingApprovals(ctx.approvals, ctx.events);
+		// ASSUMPTION (unverified): `POST /session/:id/abort` cancels the
+		// in-flight turn but keeps the session alive.
+		firePost(
+			ctx.http,
+			`/session/${ctx.sessionId}/abort`,
+			undefined,
+			ctx.events
+		);
+	};
+}
+
 function makeServeControls(
 	ctx: ServeSessionContext,
-	modelRef: ServeModelRef
-): Pick<AgentHandle, "send" | "setModel" | "interrupt"> {
+	modelRef: ServeModelRef,
+	agentRef: ServeAgentRef
+): Pick<AgentHandle, "send" | "setModel" | "interrupt" | "setPermissionMode"> {
 	return {
 		send(text: string): void {
 			// A new turn begins — bump the epoch BEFORE pushing the user's own
@@ -109,6 +139,9 @@ function makeServeControls(
 			};
 			if (modelRef.current !== undefined) {
 				body.model = modelRef.current;
+			}
+			if (agentRef.current !== undefined) {
+				body.agent = agentRef.current;
 			}
 			// RC-T5: no request timeout on the turn POST — it blocks until the
 			// turn actually finishes (routinely >15s with tool calls/thinking),
@@ -134,23 +167,14 @@ function makeServeControls(
 			}
 			modelRef.current = parsed;
 		},
-		interrupt(): void {
-			// RC-T3: supersede the current turn and retract any pending approval
-			// (pending permission request) BEFORE aborting the remote turn, so a
-			// straggler SSE event or a late approval answer can never land against
-			// a turn context that's already moved on — mirrors claude-code.ts's
-			// `interrupt()`.
-			bumpTurnEpoch(ctx.epoch);
-			retractPendingApprovals(ctx.approvals, ctx.events);
-			// ASSUMPTION (unverified): `POST /session/:id/abort` cancels the
-			// in-flight turn but keeps the session alive.
-			firePost(
-				ctx.http,
-				`/session/${ctx.sessionId}/abort`,
-				undefined,
-				ctx.events
-			);
+		// R2-T3 item 7, ASSUMPTION (unverified): see `ServeAgentRef`'s own doc
+		// comment (opencode-serve-agent.ts) for why this stores rather than
+		// POSTs immediately — the deprecated `/mode` route is deliberately not
+		// used here.
+		setPermissionMode(mode: string): void {
+			agentRef.current = mode;
 		},
+		interrupt: makeServeInterrupt(ctx),
 	};
 }
 
@@ -230,19 +254,29 @@ export const opencodeServeAdapter: Adapter = {
 			sessionId,
 		};
 		wireServeEventStream(ctx, sseAbort.signal);
+		// Health (item 6) is a startup diagnostic only — logged, not stored or
+		// surfaced in any event — so it's fetched alongside (not blocking) the
+		// two lists session_ready actually ships.
+		const [models, permissionModes, health] = await Promise.all([
+			fetchServeModels(http),
+			fetchServeAgents(http),
+			fetchServeHealth(http),
+		]);
+		logServeHealth(health);
 		events.push({
 			kind: "status",
 			status: "session_ready",
-			detail: { cwd: dir, sessionId, models: await fetchServeModels(http) },
+			detail: { cwd: dir, sessionId, models, permissionModes },
 		});
 
+		const agentRef: ServeAgentRef = {};
 		return {
 			answerApproval(requestId: string, optionId: string): void {
 				approvals.answer(requestId, optionId);
 			},
 			events,
 			getStatus: makeServeGetStatus(ctx),
-			...makeServeControls(ctx, {}),
+			...makeServeControls(ctx, {}, agentRef),
 			stop(): void {
 				bumpTurnEpoch(epoch);
 				// Retract before close(): a push after the queue is closed is a

@@ -27,6 +27,8 @@ describe("opencodeServeAdapter - start", () => {
 				cwd: "/tmp/project",
 				sessionId: "ses_1",
 				models: ["anthropic/claude-sonnet-4"],
+				// R2-T3 item 7: from the fake server's default /agent fixture.
+				permissionModes: ["build", "plan"],
 			},
 			turnEpoch: 0,
 		});
