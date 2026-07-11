@@ -85,6 +85,7 @@ export interface BuildResultArgs {
 	sessionReady: SessionReadyDetail | null;
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
+	setThinking: (level: string) => Promise<void>;
 	statusSnapshot: StatusSnapshotDetail | null;
 	turnUsage: TurnUsageDetail | null;
 	usageUpdate: UsageUpdateDetail | null;
@@ -109,6 +110,7 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		interrupt: args.interrupt,
 		setModel: args.setModel,
 		setPermissionMode: args.setPermissionMode,
+		setThinking: args.setThinking,
 		listSessions: args.listSessions,
 		restart: args.restart,
 		sessionReady: args.sessionReady,

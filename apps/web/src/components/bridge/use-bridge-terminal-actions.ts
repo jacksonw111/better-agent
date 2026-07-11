@@ -101,6 +101,11 @@ export interface SessionControls {
 	restart: () => Promise<void>;
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
+	/** Switches the reasoning-effort level for subsequent turns — the
+	 * composer's Thinking picker (pi's `set_thinking_level`, R2-T3 item 2).
+	 * Routed as `{ type: "control", action: "setThinking", level }`, mirroring
+	 * `setModel`/`setPermissionMode` (see `apps/bridge-cli/src/commands.ts`). */
+	setThinking: (level: string) => Promise<void>;
 }
 
 /** Builds the detail page's session-control callbacks (Interrupt/model
@@ -118,6 +123,8 @@ export function useSessionControls(
 			sendControlCommand(sendRaw, "setModel", { model }),
 		setPermissionMode: (mode: string) =>
 			sendControlCommand(sendRaw, "setPermissionMode", { mode }),
+		setThinking: (level: string) =>
+			sendControlCommand(sendRaw, "setThinking", { level }),
 		listSessions: () => sendControlCommand(sendRaw, "listSessions"),
 		getStatus: () => sendControlCommand(sendRaw, "getStatus"),
 		restart: () => restartSession(sessionId),

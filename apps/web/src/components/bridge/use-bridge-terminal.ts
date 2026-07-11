@@ -77,6 +77,10 @@ export interface UseBridgeTerminalResult {
 	 * dropdown. Routed as `{ type: "control", action: "setPermissionMode",
 	 * mode }`. */
 	setPermissionMode: (mode: string) => Promise<void>;
+	/** Switches the reasoning-effort level for subsequent turns — the
+	 * composer's Thinking picker. Routed as `{ type: "control", action:
+	 * "setThinking", level }`. */
+	setThinking: (level: string) => Promise<void>;
 	status: TerminalConnectionStatus;
 	/** The latest `status_snapshot` detail (model/context/cost/tokens/mcp/
 	 * running), or `null` before a `getStatus` request has gotten a reply. */
@@ -206,9 +210,9 @@ function useFeedPipeline(
 }
 
 /** Wires the session's control commands (getStatus/interrupt/setModel/
- * setPermissionMode/listSessions/restart) plus the listSessions timeout
- * fallback — split out purely to keep `useBridgeTerminal` under the repo's
- * max-lines-per-function gate. */
+ * setPermissionMode/setThinking/listSessions/restart) plus the listSessions
+ * timeout fallback — split out purely to keep `useBridgeTerminal` under the
+ * repo's max-lines-per-function gate. */
 function useControls(
 	sendRaw: (data: unknown) => Promise<void>,
 	feedSessionList: SessionListDetail | null,
@@ -220,6 +224,7 @@ function useControls(
 		restart,
 		setModel,
 		setPermissionMode,
+		setThinking,
 		listSessions: requestSessions,
 	} = useSessionControls(sendRaw, sessionId);
 	const { listSessions, sessionList } = useListSessionsWithTimeout(
@@ -234,6 +239,7 @@ function useControls(
 		sessionList,
 		setModel,
 		setPermissionMode,
+		setThinking,
 	};
 }
 
@@ -266,6 +272,7 @@ export function useBridgeTerminal(
 		sessionList,
 		setModel,
 		setPermissionMode,
+		setThinking,
 	} = useControls(sendRaw, feed.sessionList, sessionId);
 
 	return buildResult({
@@ -283,6 +290,7 @@ export function useBridgeTerminal(
 		sessionReady,
 		setModel,
 		setPermissionMode,
+		setThinking,
 		statusSnapshot,
 		turnUsage,
 		usageUpdate,

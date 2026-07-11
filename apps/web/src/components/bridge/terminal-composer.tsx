@@ -1,20 +1,16 @@
-import { Button } from "@better-agent/ui/components/button";
 import {
 	PromptInput,
 	type PromptInputComboboxAria,
 	PromptInputTextarea,
-	PromptInputToolbar,
-	PromptInputTools,
 } from "@better-agent/ui/components/prompt-input";
-import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { SlashPickerList } from "./slash-picker-list";
-import { ComposerControls } from "./terminal-controls";
+import {
+	ComposerToolbar,
+	resolveToolbarProps,
+} from "./terminal-composer-toolbar";
 import { type UseSlashPickerResult, useSlashPicker } from "./use-slash-picker";
-
-const NOOP = () => undefined;
-const NO_MODES: readonly string[] = [];
 
 export interface TerminalComposerProps {
 	/** True while this agent supports mid-turn interruption — controls whether a
@@ -31,12 +27,17 @@ export interface TerminalComposerProps {
 	onSend: (text: string) => void;
 	onSetModel?: (model: string) => void;
 	onSetPermissionMode?: (mode: string) => void;
+	onSetThinking?: (level: string) => void;
 	/** The session's active permission mode, highlighted in the mode menu. */
 	permissionMode?: string;
 	/** The permission-mode values this agent accepts; the mode menu is hidden
 	 * when empty. */
 	permissionModes?: readonly string[];
 	sending: boolean;
+	/** True for a codex session — see `ComposerControlsProps.showNextTurnHint`;
+	 * threaded through from `terminal.tsx`, which is the one place that knows
+	 * the session's `agentKind`. */
+	showNextTurnHint?: boolean;
 	/** The session's reported skill names (see `session_ready`'s `skills`) —
 	 * `undefined` before the session has reported them, in which case the "/"
 	 * picker never opens (there is nothing yet to show). */
@@ -44,6 +45,9 @@ export interface TerminalComposerProps {
 	/** The session's reported slash-command names (see `session_ready`'s
 	 * `slashCommands`) — same "absent until reported" contract as `skills`. */
 	slashCommands?: string[];
+	/** pi's `set_thinking_level` vocabulary (see `ComposerControlsProps`'s
+	 * `thinkingLevels`); the Thinking menu is hidden when empty/absent. */
+	thinkingLevels?: readonly string[];
 	/** True from the user's send until the turn completes — swaps Send for Stop
 	 * (when `canInterrupt`) so the user can cancel a long-running turn. */
 	turnInFlight?: boolean;
@@ -62,94 +66,6 @@ function comboboxAriaFor(
 		activeDescendant: picker.itemDomId(picker.activeIndex),
 		controls: picker.listId,
 	};
-}
-
-interface ComposerToolbarProps {
-	canStop: boolean;
-	controlsDisabled: boolean;
-	model?: string;
-	models?: string[];
-	onInterrupt: () => void;
-	onSetModel: (model: string) => void;
-	onSetPermissionMode: (mode: string) => void;
-	permissionMode?: string;
-	permissionModes: readonly string[];
-	sendDisabled: boolean;
-}
-
-/** Send — or Stop, while a turn is interruptibly in flight. */
-function SendOrStopButton({
-	canStop,
-	onInterrupt,
-	sendDisabled,
-}: {
-	canStop: boolean;
-	onInterrupt: () => void;
-	sendDisabled: boolean;
-}) {
-	if (canStop) {
-		return (
-			<Button
-				aria-label="Stop"
-				onClick={onInterrupt}
-				size="icon-sm"
-				type="button"
-				variant="destructive"
-			>
-				<SquareIcon className="size-3.5" />
-			</Button>
-		);
-	}
-	return (
-		<Button
-			aria-label="Send"
-			disabled={sendDisabled}
-			size="icon-sm"
-			type="submit"
-		>
-			<ArrowUpIcon className="size-4" />
-		</Button>
-	);
-}
-
-/** The composer's bottom bar: everything sits bottom-RIGHT next to each other —
- * the agent-reported control menus ([model] [permission]) then Send/Stop — with
- * an empty spacer on the left so the toolbar's `justify-between` pushes the
- * cluster to the right. Split out of `TerminalComposer` to keep it under the
- * max-lines-per-function gate. */
-function ComposerToolbar({
-	canStop,
-	controlsDisabled,
-	model,
-	models,
-	onInterrupt,
-	onSetModel,
-	onSetPermissionMode,
-	permissionMode,
-	permissionModes,
-	sendDisabled,
-}: ComposerToolbarProps) {
-	return (
-		<PromptInputToolbar>
-			<div aria-hidden="true" />
-			<PromptInputTools>
-				<ComposerControls
-					disabled={controlsDisabled}
-					model={model}
-					models={models}
-					onSetModel={onSetModel}
-					onSetPermissionMode={onSetPermissionMode}
-					permissionMode={permissionMode}
-					permissionModes={permissionModes}
-				/>
-				<SendOrStopButton
-					canStop={canStop}
-					onInterrupt={onInterrupt}
-					sendDisabled={sendDisabled}
-				/>
-			</PromptInputTools>
-		</PromptInputToolbar>
-	);
 }
 
 interface ComposerBoxProps {
@@ -235,20 +151,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		setText("");
 	};
 
-	const toolbar = (
-		<ComposerToolbar
-			canStop={(props.turnInFlight ?? false) && (props.canInterrupt ?? false)}
-			controlsDisabled={disabled}
-			model={props.model}
-			models={props.models}
-			onInterrupt={props.onInterrupt ?? NOOP}
-			onSetModel={props.onSetModel ?? NOOP}
-			onSetPermissionMode={props.onSetPermissionMode ?? NOOP}
-			permissionMode={props.permissionMode}
-			permissionModes={props.permissionModes ?? NO_MODES}
-			sendDisabled={disabled || sending || text.trim() === ""}
-		/>
-	);
+	const toolbar = <ComposerToolbar {...resolveToolbarProps(props, text)} />;
 
 	return (
 		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 py-3 sm:px-4">

@@ -2,10 +2,13 @@
 import { fireEvent, render, waitFor, within } from "@testing-library/react";
 import { act } from "react";
 import { expect, it } from "vitest";
+import type { BridgeSessionRow } from "@/utils/api-types";
 import { Terminal } from "./terminal";
 import {
+	CODEX_SESSION,
 	ENDED_SESSION,
 	makeControllableTransport,
+	PI_SESSION,
 	SESSION,
 	sessionReadyRaw,
 	waitForConnect,
@@ -41,15 +44,19 @@ async function pickSelectOption(
 	});
 }
 
-/** Renders a live claude terminal and seeds a `session_ready` with the given
- * detail, so the composer's agent-sourced menus have data to render. */
-async function renderReady(detail: Record<string, unknown>): Promise<{
+/** Renders a live terminal (claude by default; pass `session` for another
+ * agent kind) and seeds a `session_ready` with the given detail, so the
+ * composer's agent-sourced menus have data to render. */
+async function renderReady(
+	detail: Record<string, unknown>,
+	session: BridgeSessionRow = SESSION
+): Promise<{
 	container: HTMLElement;
 	fake: ReturnType<typeof makeControllableTransport>;
 }> {
 	const fake = makeControllableTransport();
 	const { container } = render(
-		<Terminal session={SESSION} transport={fake.transport} />
+		<Terminal session={session} transport={fake.transport} />
 	);
 	await waitForConnect(fake);
 	await act(() => {
@@ -171,4 +178,91 @@ it("disables the composer control menus for an already-ended session", () => {
 			}) as HTMLButtonElement
 		).disabled
 	).toBe(true);
+});
+
+// R2-T4: the Thinking picker (pi's `set_thinking_level`, R2-T3 item 2) is
+// driven entirely by the LIVE `session_ready.capabilities.thinkingLevels`
+// handshake (see agent-capabilities.ts's `resolveCapabilities`) — the static
+// matrix always reports an empty list, so these tests seed it on the
+// `session_ready` event rather than relying on `agentKind` alone. The handshake
+// must be a COMPLETE `SessionCapabilities` object (mirroring the `HANDSHAKE`
+// fixture in agent-capabilities.test.ts) — `resolveCapabilities` overrides
+// every one of its overlapping fields wholesale once a handshake is present,
+// so a partial one would leave `permissionModes` etc. undefined and crash the
+// composer's other menus.
+const PI_HANDSHAKE_CAPABILITIES = {
+	approval: "none",
+	busyModes: ["queue"],
+	mcp: "none",
+	modelSwitch: true,
+	permissionModes: [],
+	quota: false,
+	sessionOps: [],
+	skills: true,
+	slashCommands: true,
+	thinkingLevels: ["low", "high"],
+	usage: "poll",
+};
+
+it("renders the Thinking menu from the live handshake's thinkingLevels and dispatches setThinking on pick", async () => {
+	const { container, fake } = await renderReady(
+		{ capabilities: PI_HANDSHAKE_CAPABILITIES },
+		PI_SESSION
+	);
+
+	await pickSelectOption(container, "Thinking", "High");
+
+	await waitFor(() => {
+		expect(fake.sendInput).toHaveBeenCalledWith({
+			sessionId: PI_SESSION.id,
+			data: { type: "control", action: "setThinking", level: "high" },
+		});
+	});
+});
+
+it("hides the Thinking menu for a claude session (no thinkingLevels reported)", async () => {
+	const { container } = await renderReady({ model: "opus" });
+
+	expect(
+		within(container).queryByRole("combobox", { name: "Thinking" })
+	).toBeNull();
+});
+
+it("hides the Thinking menu when the live handshake reports an empty thinkingLevels list", async () => {
+	const { container } = await renderReady(
+		{ capabilities: { ...PI_HANDSHAKE_CAPABILITIES, thinkingLevels: [] } },
+		PI_SESSION
+	);
+
+	expect(
+		within(container).queryByRole("combobox", { name: "Thinking" })
+	).toBeNull();
+});
+
+it("shows a next-turn-effect tooltip on the model and permission menus for a codex session", async () => {
+	const { container } = await renderReady(
+		{ model: "gpt-5", models: ["gpt-5", "gpt-5-mini"] },
+		CODEX_SESSION
+	);
+	const view = within(container);
+
+	const model = view.getByRole("combobox", { name: "Model" });
+	const permission = view.getByRole("combobox", { name: "Permission mode" });
+
+	expect(model.getAttribute("title")).toBe("下一回合生效");
+	expect(permission.getAttribute("title")).toBe("下一回合生效");
+});
+
+it("does not show the next-turn-effect tooltip for a claude session", async () => {
+	const { container } = await renderReady({
+		model: "opus",
+		models: ["opus", "sonnet"],
+	});
+	const view = within(container);
+
+	const model = view.getByRole("combobox", { name: "Model" });
+	const permission = view.getByRole("combobox", { name: "Permission mode" });
+
+	expect(model.getAttribute("title")).toBeNull();
+	expect(permission.getAttribute("title")).toBeNull();
 });

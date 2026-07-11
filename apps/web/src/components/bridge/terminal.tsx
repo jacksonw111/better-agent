@@ -3,22 +3,13 @@ import { useMemo } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import {
-	type AgentCapabilities,
+	type ResolvedCapabilities,
 	resolveCapabilities,
 } from "./agent-capabilities";
 import type { StreamEvent } from "./bridge-events";
-import type {
-	SessionReadyDetail,
-	TurnUsageDetail,
-	UsageUpdateDetail,
-} from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
-import type { BridgeTurn } from "./bridge-turns";
-import { TerminalComposer } from "./terminal-composer";
-import { TerminalFeed } from "./terminal-feed";
+import { TerminalBody } from "./terminal-body";
 import { TerminalHeader } from "./terminal-header";
-import { TurnUsagePanel } from "./turn-usage-panel";
-import { UsageUpdateLine } from "./usage-update-line";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 import { useFoldedTurns } from "./use-folded-turns";
 
@@ -46,109 +37,6 @@ export interface TerminalProps {
 	/** Dicebear URL for the current user's bubbles; falls back to a role icon
 	 * when absent (e.g. the email hasn't loaded yet). */
 	userAvatarUrl?: string;
-}
-
-interface TerminalBodyProps {
-	answerApproval: (requestId: string, optionId: string) => Promise<void>;
-	answered: Record<string, string>;
-	avatars: ChatAvatars;
-	caps: AgentCapabilities;
-	disabled: boolean;
-	ended: boolean;
-	interrupt: () => void;
-	onSend: (text: string) => Promise<void>;
-	sending: boolean;
-	sessionReady: SessionReadyDetail | null;
-	setModel: (model: string) => void;
-	setPermissionMode: (mode: string) => void;
-	turnInFlight: boolean;
-	turns: BridgeTurn[];
-	turnUsage: TurnUsageDetail | null;
-	usageUpdate: UsageUpdateDetail | null;
-}
-
-interface BodyComposerProps {
-	caps: AgentCapabilities;
-	disabled: boolean;
-	interrupt: () => void;
-	onSend: (text: string) => Promise<void>;
-	sending: boolean;
-	sessionReady: SessionReadyDetail | null;
-	setModel: (model: string) => void;
-	setPermissionMode: (mode: string) => void;
-	turnInFlight: boolean;
-}
-
-/** The composer with its capability-gated control menus fed from the session's
- * reported model/permission values — split out of `TerminalBody` purely to keep
- * that component under the repo's max-lines-per-function gate. */
-function BodyComposer({
-	caps,
-	disabled,
-	interrupt,
-	onSend,
-	sending,
-	sessionReady,
-	setModel,
-	setPermissionMode,
-	turnInFlight,
-}: BodyComposerProps) {
-	return (
-		<TerminalComposer
-			canInterrupt={caps.interrupt}
-			disabled={disabled}
-			model={sessionReady?.model}
-			models={sessionReady?.models}
-			onInterrupt={interrupt}
-			onSend={onSend}
-			onSetModel={setModel}
-			onSetPermissionMode={setPermissionMode}
-			permissionMode={sessionReady?.permissionMode}
-			permissionModes={caps.permissionModes}
-			sending={sending}
-			skills={caps.skills ? sessionReady?.skills : undefined}
-			slashCommands={
-				caps.slashCommands ? sessionReady?.slashCommands : undefined
-			}
-			turnInFlight={turnInFlight}
-		/>
-	);
-}
-
-/** The feed, the (capability-gated) usage chip, and the composer — split out
- * of `Terminal` purely to keep that component under the repo's
- * max-lines-per-function gate. The composer now carries the model /
- * permission-mode menus and the Stop button (see terminal-composer.tsx). */
-function TerminalBody(props: TerminalBodyProps) {
-	return (
-		<>
-			<TerminalFeed
-				answerApproval={props.answerApproval}
-				answered={props.answered}
-				avatars={props.avatars}
-				ended={props.ended}
-				turnInFlight={props.turnInFlight}
-				turns={props.turns}
-			/>
-			{props.caps.usageMode === "stream" && (
-				<>
-					<TurnUsagePanel detail={props.turnUsage} />
-					<UsageUpdateLine detail={props.usageUpdate} />
-				</>
-			)}
-			<BodyComposer
-				caps={props.caps}
-				disabled={props.disabled}
-				interrupt={props.interrupt}
-				onSend={props.onSend}
-				sending={props.sending}
-				sessionReady={props.sessionReady}
-				setModel={props.setModel}
-				setPermissionMode={props.setPermissionMode}
-				turnInFlight={props.turnInFlight}
-			/>
-		</>
-	);
 }
 
 /** Whether to show the "working" skeleton — derived from the LAST renderable
@@ -260,7 +148,11 @@ export function Terminal({
 				statusSnapshot={view.statusSnapshot}
 				token={token}
 			/>
-			<BodyFromView caps={caps} view={view} />
+			<BodyFromView
+				caps={caps}
+				showNextTurnHint={session.agentKind === "codex"}
+				view={view}
+			/>
 		</div>
 	);
 }
@@ -268,12 +160,17 @@ export function Terminal({
 type TerminalView = ReturnType<typeof useTerminalView>;
 
 /** The feed + usage + composer, built from the terminal hook's `view` — split
- * out so `Terminal` itself stays under the max-lines-per-function gate. */
+ * out so `Terminal` itself stays under the max-lines-per-function gate.
+ * `showNextTurnHint` is codex-only (R2-T2's per-turn `setModel`/
+ * `setPermissionMode` semantics) — computed here from `session.agentKind`,
+ * the one place in the composer chain that actually has the session row. */
 function BodyFromView({
 	caps,
+	showNextTurnHint,
 	view,
 }: {
-	caps: AgentCapabilities;
+	caps: ResolvedCapabilities;
+	showNextTurnHint: boolean;
 	view: TerminalView;
 }) {
 	return (
@@ -290,6 +187,8 @@ function BodyFromView({
 			sessionReady={view.sessionReady}
 			setModel={view.setModel}
 			setPermissionMode={view.setPermissionMode}
+			setThinking={view.setThinking}
+			showNextTurnHint={showNextTurnHint}
 			turnInFlight={view.turnInFlight}
 			turns={view.turns}
 			turnUsage={view.turnUsage}
