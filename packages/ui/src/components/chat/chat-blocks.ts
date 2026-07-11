@@ -5,9 +5,19 @@ type SessionMessageRow = MessageHistory[number];
 export interface ToolInvocation {
 	args: unknown;
 	callId: string;
+	/** R1-T2/R1-T3: wall-clock ms the call took (started→completed/failed),
+	 * when the adapter measured it. Rendered right-aligned on the local-agent
+	 * terminal's ActivityItem header — see `apps/web/src/components/bridge/`. */
+	durationMs?: number;
 	isError: boolean;
+	/** R1-T2/R1-T3: a RUNNING call's latest partial output (replace, not
+	 * append) — the local-agent terminal shows its last line as a live tail. */
+	preview?: string;
 	result?: unknown;
 	status: "running" | "complete" | "error";
+	/** R1-T2/R1-T3: a short human-readable label distinct from `toolName`,
+	 * when the wire carries one. */
+	title?: string;
 	toolName: string;
 }
 

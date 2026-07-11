@@ -21,6 +21,24 @@ export function toolStatusOf(status: ToolEvent["status"]): {
 	return { status: "running", isError: false };
 }
 
+/** Copies R1-T2's additive wire fields onto the block's `ToolInvocation`.
+ * Each is set only when present on THIS event: `title`/`durationMs` usually
+ * land once (on `started`/`completed` respectively) and must survive later
+ * updates that don't repeat them; `preview` is replace-semantics per event
+ * (a running call's latest partial output), so a later event without one
+ * simply leaves the prior value in place rather than clearing it. */
+function applyToolMeta(tool: ToolInvocation, event: ToolEvent): void {
+	if (event.title !== undefined) {
+		tool.title = event.title;
+	}
+	if (event.durationMs !== undefined) {
+		tool.durationMs = event.durationMs;
+	}
+	if (event.preview !== undefined) {
+		tool.preview = event.preview;
+	}
+}
+
 export function applyToolResult(tool: ToolInvocation, event: ToolEvent): void {
 	const { status, isError } = toolStatusOf(event.status);
 	tool.status = status;
@@ -28,6 +46,7 @@ export function applyToolResult(tool: ToolInvocation, event: ToolEvent): void {
 	if (event.output !== undefined) {
 		tool.result = flattenToolResult(event.output);
 	}
+	applyToolMeta(tool, event);
 }
 
 /** A task's title is its `description` input when present (opencode names

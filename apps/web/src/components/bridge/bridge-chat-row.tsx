@@ -4,7 +4,7 @@ import {
 	ChatRow,
 } from "@better-agent/ui/components/chat/chat-row";
 import { memo } from "react";
-import { renderBridgeTool } from "./bridge-tool-card";
+import { AssistantTurnBlock } from "./assistant-turn-block";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
 import { ApprovalLine, ErrorLine, FileLine, StatusLine } from "./event-line";
 import { TaskCard } from "./task-card";
@@ -89,10 +89,9 @@ function BridgeChatRowImpl({
 		case "assistant":
 			return (
 				<>
-					<ChatRow
+					<AssistantTurnBlock
 						avatars={avatars}
 						message={assistantMessage(turn, ended)}
-						renderTool={renderBridgeTool}
 					/>
 					{attachSkeleton && <StreamingSkeleton />}
 				</>
