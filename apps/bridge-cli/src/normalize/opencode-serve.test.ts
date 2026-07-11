@@ -181,7 +181,7 @@ describe("createOpencodeServeNormalizer - permissions & lifecycle", () => {
 				detail: JSON.stringify({ command: "ls" }),
 				kind: "approval",
 				options: [
-					{ id: "once", label: "Allow" },
+					{ id: "once", label: "Allow once" },
 					{ id: "always", label: "Always allow" },
 					{ id: "reject", label: "Deny" },
 				],

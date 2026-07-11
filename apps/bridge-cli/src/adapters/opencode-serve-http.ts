@@ -103,6 +103,18 @@ function resolveRequestTimeout(
 	return timeoutMs === undefined ? requestTimeoutMs : timeoutMs;
 }
 
+/** R3-T3: thrown by `fetchJson` in place of a plain `Error` so callers (the
+ * new-route-404-falls-back-to-legacy-route logic) can react to a SPECIFIC
+ * status without parsing the message string. */
+export class ServeHttpError extends Error {
+	status: number;
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = "ServeHttpError";
+		this.status = status;
+	}
+}
+
 /** Issues one request and parses its JSON body — split out of
  * `createServeHttp` purely to keep that function under the line gate. */
 async function fetchJson(
@@ -122,8 +134,9 @@ async function fetchJson(
 				: AbortSignal.timeout(effectiveTimeoutMs),
 	});
 	if (!response.ok) {
-		throw new Error(
-			`opencode serve ${init.method} ${url} → HTTP ${response.status}`
+		throw new ServeHttpError(
+			`opencode serve ${init.method} ${url} → HTTP ${response.status}`,
+			response.status
 		);
 	}
 	// Biome's formatter strips an explicit `return undefined;` back to a bare

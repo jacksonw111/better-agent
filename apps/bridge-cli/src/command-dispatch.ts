@@ -30,6 +30,13 @@ function callListSessions(sink: CommandSink): void {
 function callGetStatus(sink: CommandSink): void {
 	sink.getStatus?.();
 }
+function callAnswerQuestion(
+	sink: CommandSink,
+	requestId: string,
+	answers: string[][]
+): void {
+	sink.answerQuestion?.(requestId, answers);
+}
 
 /** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`
  * method. Split out of `dispatchCommands` purely to keep that loop's body
@@ -55,5 +62,7 @@ export function dispatchControlCommand(
 		callListSessions(sink);
 	} else if (command.action === "getStatus") {
 		callGetStatus(sink);
+	} else if (command.action === "answerQuestion") {
+		callAnswerQuestion(sink, command.requestId, command.answers);
 	}
 }

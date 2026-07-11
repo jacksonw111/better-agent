@@ -4,6 +4,10 @@
 // that file under the project's file-size limit.
 
 import { dispatchControlCommand } from "./command-dispatch";
+import {
+	type ControlAnswerQuestionCommand,
+	parseAnswerQuestionCommand,
+} from "./commands-question";
 import { isRecord } from "./normalize/types";
 
 /** One relayed command/event; mirrors `RelayEvent` from `@better-agent/agent/ports`. */
@@ -99,6 +103,7 @@ export interface ControlRestartCommand {
 }
 
 export type ControlCommand =
+	| ControlAnswerQuestionCommand
 	| ControlGetStatusCommand
 	| ControlInterruptCommand
 	| ControlListSessionsCommand
@@ -168,7 +173,9 @@ function parseControlCommand(
 	data: Record<string, unknown>
 ): ControlCommand | null {
 	return (
-		parseControlCommandWithPayload(data) ?? parseSimpleControlCommand(data)
+		parseControlCommandWithPayload(data) ??
+		parseAnswerQuestionCommand(data) ??
+		parseSimpleControlCommand(data)
 	);
 }
 
@@ -213,6 +220,10 @@ export interface AfterIdRef {
  * a crash. */
 export interface CommandSink {
 	answerApproval(requestId: string, optionId: string): void;
+	/** R3-T3: the web's reply to a `question` event. An empty `answers` array
+	 * means "reject" (opencode's `POST /question/:id/reject`), not "no answer
+	 * for any question". Optional: only opencode-serve implements it. */
+	answerQuestion?(requestId: string, answers: string[][]): void;
 	/** Asks the agent for a normalized status snapshot; the adapter answers by
 	 * pushing a `status_snapshot` status event (see
 	 * `apps/bridge-cli/src/adapters/types.ts`'s `StatusSnapshotDetail`). Called

@@ -153,6 +153,9 @@ export interface AgentHandle {
 	 * by the time the user answers.
 	 */
 	answerApproval(requestId: string, optionId: string): void;
+	/** R3-T3: answers a pending `QuestionEvent` — empty `answers` means
+	 * "reject" (see `commands.ts`'s `CommandSink.answerQuestion`). Optional. */
+	answerQuestion?(requestId: string, answers: string[][]): void;
 	/** Normalized events, in emission order. Completes when the agent exits. */
 	events: AsyncIterable<NormalizedEvent>;
 	/**
@@ -203,10 +206,8 @@ export interface AgentHandle {
 	 * `StartOptions.mcpServers`, not here.
 	 */
 	setMcpServers?(servers: ResolvedMcpServer[]): void;
-	/**
-	 * Switches the model used for subsequent turns. Optional — see `interrupt`
-	 * for why not every adapter implements the control methods.
-	 */
+	/** Switches the model used for subsequent turns. Optional — see
+	 * `interrupt` for why not every adapter implements the control methods. */
 	setModel?(model: string): void;
 	/**
 	 * Switches the session's permission mode (e.g. "default", "plan",

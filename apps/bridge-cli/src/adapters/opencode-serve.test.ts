@@ -142,10 +142,11 @@ describe("opencodeServeAdapter - interrupt & approvals", () => {
 		});
 
 		handle.answerApproval("perm_1", "once");
+		// R3-T3 item 4: the default health fixture resolves the CURRENT route.
 		const reply = server.calls.find((call) =>
-			call.url.endsWith("/session/ses_1/permissions/perm_1")
+			call.url.endsWith("/permission/perm_1/reply")
 		);
-		expect(reply).toMatchObject({ method: "POST", body: { response: "once" } });
+		expect(reply).toMatchObject({ method: "POST", body: { reply: "once" } });
 	});
 });
 
@@ -165,12 +166,13 @@ describe("opencodeServeAdapter - approvals never hang forever (RC-T4)", () => {
 
 			await vi.advanceTimersByTimeAsync(APPROVAL_TIMEOUT_MS);
 
+			// R3-T3 item 4: same route-resolution note as the answer test above.
 			const reply = server.calls.find((call) =>
-				call.url.endsWith("/session/ses_1/permissions/perm_3")
+				call.url.endsWith("/permission/perm_3/reply")
 			);
 			expect(reply).toMatchObject({
 				method: "POST",
-				body: { response: "reject" },
+				body: { reply: "reject" },
 			});
 			const { value: timeoutEvent } = await iterator.next();
 			expect(timeoutEvent).toMatchObject({
@@ -208,10 +210,10 @@ describe("opencodeServeAdapter - interrupt retracts approvals (RC-T3)", () => {
 			turnEpoch: 1,
 		});
 
-		// A late answer must never fire the permissions POST.
+		// A late answer must never fire the permission-reply POST.
 		handle.answerApproval("perm_2", "once");
 		const reply = server.calls.find((call) =>
-			call.url.endsWith("/session/ses_1/permissions/perm_2")
+			call.url.endsWith("/permission/perm_2/reply")
 		);
 		expect(reply).toBeUndefined();
 	});

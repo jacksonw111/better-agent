@@ -132,6 +132,36 @@ export interface ApprovalEvent extends TurnScoped {
 	title: string;
 }
 
+/** R3-T3: one question in a `question.asked` request — a free-text prompt the
+ * user answers by picking from `options` (single-select; `answers` on the
+ * reply carries the chosen label(s) per question, see `commands.ts`'s
+ * `ControlAnswerQuestionCommand`). */
+export interface QuestionItem {
+	options: string[];
+	text: string;
+}
+
+/**
+ * R3-T3: opencode's `question.asked` SSE event — a SEPARATE request family
+ * from `ApprovalEvent`/`permission.updated` (a question asks for information,
+ * an approval asks for permission to act), but round-trips through
+ * `AgentHandle.answerQuestion` the same shape-of-way `ApprovalEvent` does
+ * through `answerApproval`.
+ */
+export interface QuestionEvent extends TurnScoped {
+	/** Mirrors `ApprovalEvent.cancelled` — set when a still-pending question is
+	 * retracted (interrupt/stop, or the shared fail-closed timeout) instead of
+	 * requesting a fresh answer. */
+	cancelled?: boolean;
+	kind: "question";
+	questions: QuestionItem[];
+	requestId: string;
+	/** Mirrors `ApprovalEvent.timeoutAt` — the epoch ms `adapters/questions.ts`'s
+	 * `presentQuestion` armed its fail-closed timer for. */
+	timeoutAt?: number;
+	title: string;
+}
+
 export type NormalizedEvent =
 	| MessageEvent
 	| ToolEvent
@@ -139,7 +169,8 @@ export type NormalizedEvent =
 	| OutputEvent
 	| StatusEvent
 	| ErrorEvent
-	| ApprovalEvent;
+	| ApprovalEvent
+	| QuestionEvent;
 
 export const NO_EVENTS: NormalizedEvent[] = [];
 

@@ -11,6 +11,7 @@
 // "no events", never a crash. Reverify against a real `opencode serve` before
 // relying on any exact field name.
 
+import { normalizeServeQuestion } from "./opencode-serve-question";
 import {
 	type ApprovalEvent,
 	asString,
@@ -182,12 +183,10 @@ function normalizeServePart(
 // --- permissions -------------------------------------------------------------
 
 /** ASSUMPTION (unverified): a `permission.updated` event is `{ id, sessionID,
- * title, metadata?, … }`, and the reply (`POST
- * /session/:id/permissions/:permissionID`, issued by the adapter) takes
- * `{ response: "once" | "always" | "reject" }` — so the options are a fixed
- * vocabulary rather than announced per-request like ACP's. */
+ * title, metadata?, … }`. Option ids are the literal reply values BOTH the
+ * new and deprecated permission-reply routes take (opencode-serve-approvals.ts). */
 const SERVE_PERMISSION_OPTIONS: ApprovalEvent["options"] = [
-	{ id: "once", label: "Allow" },
+	{ id: "once", label: "Allow once" },
 	{ id: "always", label: "Always allow" },
 	{ id: "reject", label: "Deny" },
 ];
@@ -225,6 +224,8 @@ function normalizeServeEvent(
 			return normalizeServePart(properties.part, partTexts);
 		case "permission.updated":
 			return normalizeServePermission(properties);
+		case "question.asked":
+			return normalizeServeQuestion(properties);
 		case "session.error":
 			return [
 				{

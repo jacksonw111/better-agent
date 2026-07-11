@@ -5,17 +5,8 @@
 // marked here, in opencode-serve-http.ts, or in normalize/opencode-serve.ts.
 
 import { parseOpencodeServeModels } from "../normalize/opencode-serve";
-import { parseOpencodeServeStatus } from "../normalize/opencode-serve-status";
-import {
-	isRecord,
-	type NormalizedEvent,
-	userMessageEvent,
-} from "../normalize/types";
-import {
-	type ApprovalRegistry,
-	createApprovalRegistry,
-	retractPendingApprovals,
-} from "./approvals";
+import { isRecord, type NormalizedEvent } from "../normalize/types";
+import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import {
 	fetchServeAgents,
@@ -25,26 +16,36 @@ import {
 } from "./opencode-serve-agent";
 import { wireServeEventStream } from "./opencode-serve-approvals";
 import {
+	buildServeHandle,
+	pushServeSessionReady,
+} from "./opencode-serve-controls";
+import {
 	createServeHttp,
 	type EventSink,
-	firePost,
 	type ServeHttp,
 	waitForServeUrl,
 } from "./opencode-serve-http";
 import { type ProcessIo, spawnProcessIo } from "./process-io";
-import { OPENCODE_SESSION_CAPABILITIES } from "./session-capabilities";
+import { createQuestionRegistry, type QuestionRegistry } from "./questions";
 import {
-	bumpTurnEpoch,
 	createTurnEpoch,
 	type TurnEpochRef,
 	turnStampingQueue,
 } from "./turn-epoch";
-import {
-	type Adapter,
-	AGENT_EXITED_STATUS,
-	type AgentHandle,
-	STATUS_SNAPSHOT_STATUS,
-} from "./types";
+import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
+
+/** R3-T3: which permission-reply route this session's health probe (fetched
+ * in `start`, before the SSE stream — see the race-condition note below)
+ * settled on. `"unknown"` until the probe resolves — `wireServeEventStream`
+ * is wired BEFORE `Promise.all([...health probe])` resolves, so a permission
+ * can race in before the hint is known; opencode-serve-approvals.ts's
+ * `postPermissionReply` tries the new route and falls back once on a 404 in
+ * that case. `"new"`: the probe succeeded (a modern server) — new route only.
+ * `"legacy"`: the probe failed (an old server, or the route itself 404s) —
+ * deprecated route only, skipping a doomed new-route attempt. */
+export interface PermissionRouteHint {
+	current: "legacy" | "new" | "unknown";
+}
 
 // See the ASSUMPTION on `waitForServeUrl` (opencode-serve-http.ts) for why
 // port 0: the OS assigns a free port and the printed URL tells us which.
@@ -74,148 +75,10 @@ export interface ServeSessionContext {
 	epoch: TurnEpochRef;
 	events: EventSink;
 	http: ServeHttp;
+	/** R3-T3: see `PermissionRouteHint`'s own doc comment. */
+	permissionRouteHint: PermissionRouteHint;
+	questions: QuestionRegistry;
 	sessionId: string;
-}
-
-/** Serve has no stateful model setter — the model rides on EVERY prompt
- * (ASSUMPTION). `setModel` stores the split "provider/model" string. */
-interface ServeModelRef {
-	current?: { modelID: string; providerID: string };
-}
-
-function parseServeModelRef(model: string): ServeModelRef["current"] {
-	const separator = model.indexOf("/");
-	const isValid = separator > 0 && separator !== model.length - 1;
-	return isValid
-		? {
-				providerID: model.slice(0, separator),
-				modelID: model.slice(separator + 1),
-			}
-		: undefined;
-}
-
-/** Cancels the in-flight turn and retracts any pending approval — split out
- * of `makeServeControls` to keep it under the max-lines-per-function gate. */
-function makeServeInterrupt(ctx: ServeSessionContext): () => void {
-	return () => {
-		// RC-T3: supersede the current turn and retract any pending approval
-		// (pending permission request) BEFORE aborting the remote turn, so a
-		// straggler SSE event or a late approval answer can never land against
-		// a turn context that's already moved on — mirrors claude-code.ts's
-		// `interrupt()`.
-		bumpTurnEpoch(ctx.epoch);
-		retractPendingApprovals(ctx.approvals, ctx.events);
-		// ASSUMPTION (unverified): `POST /session/:id/abort` cancels the
-		// in-flight turn but keeps the session alive.
-		firePost(
-			ctx.http,
-			`/session/${ctx.sessionId}/abort`,
-			undefined,
-			ctx.events
-		);
-	};
-}
-
-function makeServeControls(
-	ctx: ServeSessionContext,
-	modelRef: ServeModelRef,
-	agentRef: ServeAgentRef
-): Pick<AgentHandle, "send" | "setModel" | "interrupt" | "setPermissionMode"> {
-	return {
-		send(text: string): void {
-			// A new turn begins — bump the epoch BEFORE pushing the user's own
-			// turn-start event (see the RC-T3 note on `opencodeServeAdapter.start`).
-			bumpTurnEpoch(ctx.epoch);
-			ctx.events.push(userMessageEvent(text));
-			const body: Record<string, unknown> = {
-				parts: [{ type: "text", text }],
-			};
-			if (modelRef.current !== undefined) {
-				body.model = modelRef.current;
-			}
-			if (agentRef.current !== undefined) {
-				body.agent = agentRef.current;
-			}
-			// RC-T5: no request timeout on the turn POST — it blocks until the
-			// turn actually finishes (routinely >15s with tool calls/thinking),
-			// while progress streams in over SSE; a genuinely wedged turn is the
-			// activity watchdog's job (session-watchdog.ts), not this call's.
-			firePost(
-				ctx.http,
-				`/session/${ctx.sessionId}/message`,
-				body,
-				ctx.events,
-				null
-			);
-		},
-		setModel(model: string): void {
-			const parsed = parseServeModelRef(model);
-			if (parsed === undefined) {
-				ctx.events.push({
-					kind: "status",
-					status: "model_format_invalid",
-					detail: { model, expected: "provider/model" },
-				});
-				return;
-			}
-			modelRef.current = parsed;
-		},
-		// R2-T3 item 7, ASSUMPTION (unverified): see `ServeAgentRef`'s own doc
-		// comment (opencode-serve-agent.ts) for why this stores rather than
-		// POSTs immediately — the deprecated `/mode` route is deliberately not
-		// used here.
-		setPermissionMode(mode: string): void {
-			agentRef.current = mode;
-		},
-		interrupt: makeServeInterrupt(ctx),
-	};
-}
-
-/** Builds the `getStatus` control: GETs the serve session's message history
- * and maps the latest assistant message's cost/tokens/model into ONE
- * `status_snapshot` event. A fetch failure pushes a snapshot with every field
- * absent rather than throwing — matching every other adapter's posture. */
-function makeServeGetStatus(ctx: ServeSessionContext): () => void {
-	return () => {
-		ctx.http
-			.getJson(`/session/${ctx.sessionId}/message`)
-			.then((raw) => {
-				ctx.events.push({
-					kind: "status",
-					status: STATUS_SNAPSHOT_STATUS,
-					detail: parseOpencodeServeStatus(raw),
-				});
-			})
-			.catch(() => {
-				ctx.events.push({
-					kind: "status",
-					status: STATUS_SNAPSHOT_STATUS,
-					detail: {},
-				});
-			});
-	};
-}
-
-/** Pushes the one-time `session_ready` event — keeps `start` under the
- * max-lines-per-function gate. */
-function pushServeSessionReady(
-	ctx: ServeSessionContext,
-	dir: string,
-	models: string[],
-	permissionModes: string[]
-): void {
-	ctx.events.push({
-		kind: "status",
-		status: "session_ready",
-		detail: {
-			cwd: dir,
-			sessionId: ctx.sessionId,
-			models,
-			permissionModes,
-			// R2-T3's live GET /agent list wins over the ACP-only static pair.
-			capabilities: { ...OPENCODE_SESSION_CAPABILITIES, permissionModes },
-		},
-	});
 }
 
 /** Wires the turn-epoch-stamped event queue, approval registry, and the
@@ -225,26 +88,38 @@ function createServePipeline(io: ProcessIo): {
 	approvals: ApprovalRegistry;
 	epoch: TurnEpochRef;
 	events: AsyncQueue<NormalizedEvent>;
+	permissionRouteHint: PermissionRouteHint;
+	questions: QuestionRegistry;
 	sseAbort: AbortController;
 } {
 	const epoch = createTurnEpoch();
 	const events = turnStampingQueue(createAsyncQueue<NormalizedEvent>(), epoch);
 	const approvals = createApprovalRegistry(events);
+	const questions = createQuestionRegistry(events);
+	const permissionRouteHint: PermissionRouteHint = { current: "unknown" };
 	const sseAbort = new AbortController();
 	io.onExit(() => {
 		sseAbort.abort();
 		events.push({ kind: "status", status: AGENT_EXITED_STATUS });
 		events.close();
 		approvals.clear();
+		questions.clear();
 	});
-	return { approvals, epoch, events, sseAbort };
+	return { approvals, epoch, events, permissionRouteHint, questions, sseAbort };
 }
 
 /** `opencode serve` + HTTP/SSE — the serve-backed opencode transport. */
 export const opencodeServeAdapter: Adapter = {
 	async start(dir: string): Promise<AgentHandle> {
 		const io = await spawnProcessIo("opencode", SERVE_ARGS, dir);
-		const { approvals, epoch, events, sseAbort } = createServePipeline(io);
+		const {
+			approvals,
+			epoch,
+			events,
+			permissionRouteHint,
+			questions,
+			sseAbort,
+		} = createServePipeline(io);
 
 		let http: ServeHttp;
 		let sessionId: string;
@@ -262,38 +137,25 @@ export const opencodeServeAdapter: Adapter = {
 			epoch,
 			events,
 			http,
+			permissionRouteHint,
+			questions,
 			sessionId,
 		};
 		wireServeEventStream(ctx, sseAbort.signal);
-		// Health (item 6) is a startup diagnostic only — logged, not stored or
-		// surfaced in any event — fetched alongside session_ready's own lists.
+		// R3-T3: unlike models/permissionModes, health ALSO decides
+		// `permissionRouteHint` (item 4) — `wireServeEventStream` above is wired
+		// before this resolves, so a permission racing in ahead of it sees
+		// `"unknown"` and opencode-serve-approvals.ts tries the new route first.
 		const [models, permissionModes, health] = await Promise.all([
 			fetchServeModels(http),
 			fetchServeAgents(http),
 			fetchServeHealth(http),
 		]);
+		permissionRouteHint.current = health === undefined ? "legacy" : "new";
 		logServeHealth(health);
 		pushServeSessionReady(ctx, dir, models, permissionModes);
 
 		const agentRef: ServeAgentRef = {};
-		return {
-			answerApproval(requestId: string, optionId: string): void {
-				approvals.answer(requestId, optionId);
-			},
-			events,
-			getStatus: makeServeGetStatus(ctx),
-			...makeServeControls(ctx, {}, agentRef),
-			stop(): void {
-				bumpTurnEpoch(epoch);
-				// Retract before close(): a push after the queue is closed is a
-				// silent no-op (see async-queue.ts), so the cancelled ApprovalEvent
-				// must land first.
-				retractPendingApprovals(approvals, events);
-				sseAbort.abort();
-				io.stop();
-				events.close();
-				approvals.clear();
-			},
-		};
+		return buildServeHandle(ctx, events, { agentRef, io, sseAbort });
 	},
 };
