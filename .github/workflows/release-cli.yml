@@ -11,7 +11,11 @@ name: Release CLI (auto on version bump)
 #
 # Install (users):
 #   curl -fsSL https://github.com/jacksonw111/better-agent/releases/latest/download/install.sh | bash
-#   better-agent-bridge --agent claude-code --token bt_… --server https://…
+#   agent-cli --agent claude-code --token bt_… --server https://…
+#
+# The CLI was renamed better-agent-bridge → agent-cli (0.2.0). Both binary
+# names are published in each release so existing install.sh/scripts keep
+# working; agent-cli is the canonical name going forward.
 
 on:
   push:
@@ -64,16 +68,20 @@ jobs:
       - name: Build cross-platform binaries (Bun --compile)
         run: |
           for entry in \
-            "bun-darwin-arm64 better-agent-bridge-darwin-arm64" \
-            "bun-darwin-x64   better-agent-bridge-darwin-x64" \
-            "bun-linux-x64    better-agent-bridge-linux-x64" \
-            "bun-linux-arm64  better-agent-bridge-linux-arm64"; do
+            "bun-darwin-arm64 agent-cli-darwin-arm64" \
+            "bun-darwin-x64   agent-cli-darwin-x64" \
+            "bun-linux-x64    agent-cli-linux-x64" \
+            "bun-linux-arm64  agent-cli-linux-arm64"; do
             set -- $entry
             target="$1"
             out="$2"
             echo "::group::Build ${target} → ${out}"
             bun build --compile --target="${target}" apps/bridge-cli/src/index.ts --outfile "${out}"
             ls -lh "${out}"
+            # Also publish under the pre-0.2.0 binary name so existing
+            # install.sh copies / docs pointing at better-agent-bridge-<os>-<arch>
+            # keep working for one major version.
+            cp "${out}" "${out/agent-cli/better-agent-bridge}"
             echo "::endgroup::"
           done
       - name: Create GitHub Release with binaries + installer
@@ -81,6 +89,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ needs.gate.outputs.tag }}" \
+            agent-cli-darwin-arm64 \
+            agent-cli-darwin-x64 \
+            agent-cli-linux-x64 \
+            agent-cli-linux-arm64 \
             better-agent-bridge-darwin-arm64 \
             better-agent-bridge-darwin-x64 \
             better-agent-bridge-linux-x64 \
@@ -89,4 +101,5 @@ jobs:
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
             --title "${{ needs.gate.outputs.tag }}" \
+            --notes "The bridge CLI's canonical binary is now **agent-cli** (renamed from \`better-agent-bridge\`). Both binary names are published in this release, and \`better-agent-bridge\` remains a supported alias for one major version — existing install scripts keep working unchanged." \
             --generate-notes

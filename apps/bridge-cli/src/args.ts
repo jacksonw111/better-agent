@@ -8,7 +8,8 @@ import {
 
 const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
-export const USAGE = `Usage: better-agent-bridge --agent <kind> --server <url> --token <token> [options]
+export const USAGE = `Usage: agent-cli --agent <kind> --server <url> --token <token> [options]
+(alias: better-agent-bridge — kept for existing scripts)
 
 Required:
   --agent <kind>    Agent to run: claude-code | opencode | codex | pi
@@ -28,7 +29,7 @@ Options:
 /**
  * Detects `-v`/`--version` or `-h`/`--help` anywhere in the raw argv, before
  * `parseArgs` runs — `parseArgs` throws on a missing --token/--server, which
- * would otherwise turn `better-agent-bridge -v` into an error instead of
+ * would otherwise turn `agent-cli -v` into an error instead of
  * printing the version. Returns the text to print, or `undefined` if neither
  * flag is present so the caller proceeds to `parseArgs` as usual.
  */
@@ -116,7 +117,7 @@ function validateOpencodeTransport(
 }
 
 /**
- * Parses `better-agent-bridge`'s CLI arguments: `--agent`, `--dir`,
+ * Parses `agent-cli`'s CLI arguments: `--agent`, `--dir`,
  * `--token`, `--server`, and the optional
  * `--label`/`--resume`/`--opencode-transport`. Falls back to
  * env vars (`BETTER_AGENT_BRIDGE_TOKEN`, `BETTER_AGENT_BRIDGE_SERVER`) and the

@@ -18,7 +18,7 @@ pnpm -F bridge-cli build     # 或直接用 pnpm -F bridge-cli dev 跑源码
 cd deploy/compose && docker compose pull && docker compose up -d
 ```
 
-**判断 CLI 是否够新**：`better-agent-bridge --help` 应能看到 `--agent`、`--resume`、`--server`、`--token`。缺任何一个 = 版本旧，重新 build。
+**判断 CLI 是否够新**：`agent-cli --help`（0.2.0 前叫 `better-agent-bridge`，旧名仍可用）应能看到 `--agent`、`--resume`、`--server`、`--token`。缺任何一个 = 版本旧，重新 build。
 
 ---
 
@@ -58,7 +58,7 @@ cd deploy/compose && docker compose pull && docker compose up -d
 1. 从 agent 详情页**复制那条 CLI 命令**。
 2. 在你要让 agent 干活的项目目录里跑它（把 `--dir .` 改成目标目录，或就在该目录执行）：
    ```bash
-   better-agent-bridge --agent claude-code --dir . --token bt_xxx --server https://agent-api.trendf.top
+   agent-cli --agent claude-code --dir . --token bt_xxx --server https://agent-api.trendf.top
    ```
 
 **预期**：CLI 打印已连接；网页该 agent 详情页头部状态变 **Live**。

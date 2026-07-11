@@ -17,7 +17,7 @@ export const PLACEHOLDER_TOKEN = "<your-bridge-token>";
  * bound to its own `agentKind`. Shared by the create flow and the bound
  * agent's detail page so the two never render a different command. */
 export function bridgeCliCommand(agentKind: AgentKind, token: string): string {
-	return `better-agent-bridge --agent ${agentKind} --dir . --token ${token} --server ${env.VITE_SERVER_URL}`;
+	return `agent-cli --agent ${agentKind} --dir . --token ${token} --server ${env.VITE_SERVER_URL}`;
 }
 
 /** The ready-to-run CLI command to resume a specific past claude conversation
@@ -29,7 +29,7 @@ export function bridgeResumeCliCommand(
 	dir: string | undefined,
 	resumeId: string
 ): string {
-	return `better-agent-bridge --agent claude-code --dir ${dir ?? "."} --resume ${resumeId} --token ${token} --server ${env.VITE_SERVER_URL}`;
+	return `agent-cli --agent claude-code --dir ${dir ?? "."} --resume ${resumeId} --token ${token} --server ${env.VITE_SERVER_URL}`;
 }
 
 /** A local agent's display status, extending `LocalAgentStatus` with the

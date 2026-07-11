@@ -91,16 +91,16 @@ authz 和 mcp 留在 Workers 上；server 通过它们的公共 URL（`AUTHZ_URL
 
 ### Bridge CLI 发布
 
-`release-cli.yml` 在 `cli-v*` 标签时触发。`bun build --compile` 将 Bun 运行时嵌入一个自包含的二进制，因此用户机器上无需 Node.js/npm。在循环中构建四个目标：
+`release-cli.yml` 在 `cli-v*` 标签时触发。`bun build --compile` 将 Bun 运行时嵌入一个自包含的二进制，因此用户机器上无需 Node.js/npm。在循环中构建四个目标，每个目标同时以规范名 `agent-cli-*` 和 0.2.0 之前的别名 `better-agent-bridge-*` 发布，使现有安装脚本继续可用：
 
 | 目标 | 产物 |
 |--------|--------|
-| `bun-darwin-arm64` | `better-agent-bridge-darwin-arm64` |
-| `bun-darwin-x64` | `better-agent-bridge-darwin-x64` |
-| `bun-linux-x64` | `better-agent-bridge-linux-x64` |
-| `bun-linux-arm64` | `better-agent-bridge-linux-arm64` |
+| `bun-darwin-arm64` | `agent-cli-darwin-arm64`（+ `better-agent-bridge-darwin-arm64`） |
+| `bun-darwin-x64` | `agent-cli-darwin-x64`（+ `better-agent-bridge-darwin-x64`） |
+| `bun-linux-x64` | `agent-cli-linux-x64`（+ `better-agent-bridge-linux-x64`） |
+| `bun-linux-arm64` | `agent-cli-linux-arm64`（+ `better-agent-bridge-linux-arm64`） |
 
-`gh release create` 附上全部四个二进制以及 `apps/bridge-cli/install.sh`，并附带生成的说明。
+`gh release create` 附上全部八个二进制以及 `apps/bridge-cli/install.sh`，并附带生成的说明。
 
 ### `install.sh`
 

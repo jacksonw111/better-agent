@@ -4,7 +4,7 @@ import { expect, it } from "vitest";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
 
-const CLI_COMMAND_RE = /better-agent-bridge/;
+const CLI_COMMAND_RE = /agent-cli/;
 const RECREATE_HINT_RE = /recreate it/i;
 
 function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {

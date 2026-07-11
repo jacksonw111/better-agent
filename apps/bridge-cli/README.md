@@ -2,12 +2,14 @@
 
 The bridge CLI for **Better Agent** — connects a local coding agent (`claude-code`, `opencode`, `codex`, or `pi`) running on your machine to a Better Agent server. The agent's events stream up to the server, and the web UI's chat input is forwarded back down, so you can drive a local agent from the browser.
 
+As of 0.2.0 the CLI's canonical command is **`agent-cli`** (renamed from `better-agent-bridge`, which stays installed as an alias for one major version — existing scripts keep working unchanged).
+
 ```
 your machine                                  better-agent server
 ┌───────────────────┐   events ↑ ↓ input    ┌──────────────────┐
 │ claude/opencode/  │ ──────────────────── → │   server (API)   │
 │ codex / pi        │                        │   web (chat UI)  │
-└───────────────────┘   better-agent-bridge  └──────────────────┘
+└───────────────────┘        agent-cli       └──────────────────┘
 ```
 
 ## Install
@@ -22,7 +24,7 @@ This downloads a self-contained binary for your platform (macOS/Linux, x64/arm64
 
 ```bash
 export PATH="$HOME/.better-agent/bin:$PATH"   # add to ~/.zshrc or ~/.bashrc
-better-agent-bridge --version
+agent-cli --version
 ```
 
 ### Alternative: npm (GitHub Packages)
@@ -39,6 +41,8 @@ export BETTER_AGENT_PAT=ghp_xxx_read_packages   # or put the token inline above
 npm install -g @jacksonw111/better-agent-bridge
 ```
 
+This installs both the `agent-cli` and `better-agent-bridge` bin entries (same executable).
+
 ## Prerequisites
 
 The chosen agent's CLI must be installed and on `PATH`:
@@ -53,7 +57,7 @@ The chosen agent's CLI must be installed and on `PATH`:
 ## Usage
 
 ```bash
-better-agent-bridge --agent <kind> --token <bt_…> --server <url> [options]
+agent-cli --agent <kind> --token <bt_…> --server <url> [options]
 ```
 
 ### Flags
@@ -75,7 +79,7 @@ better-agent-bridge --agent <kind> --token <bt_…> --server <url> [options]
 Run claude-code in the current project:
 
 ```bash
-better-agent-bridge --agent claude-code \
+agent-cli --agent claude-code \
   --token bt_xxx --server https://agent-api.trendf.top
 ```
 
@@ -84,13 +88,13 @@ Run opencode against a local dev server, using env vars for the token/server:
 ```bash
 export BETTER_AGENT_BRIDGE_TOKEN=bt_xxx
 export BETTER_AGENT_BRIDGE_SERVER=http://localhost:3000
-better-agent-bridge --agent opencode --dir ~/code/myproject
+agent-cli --agent opencode --dir ~/code/myproject
 ```
 
 Resume a previous claude-code conversation:
 
 ```bash
-better-agent-bridge --agent claude-code --token bt_xxx \
+agent-cli --agent claude-code --token bt_xxx \
   --server https://agent-api.trendf.top --resume 11c186d9-…
 ```
 

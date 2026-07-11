@@ -11,6 +11,7 @@
   },
   "homepage": "https://github.com/jacksonw111/better-agent/tree/main/apps/bridge-cli#readme",
   "bin": {
+    "agent-cli": "./dist/index.mjs",
     "better-agent-bridge": "./dist/index.mjs"
   },
   "files": [

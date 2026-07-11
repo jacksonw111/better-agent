@@ -1,6 +1,6 @@
 # 桥接 / 本地 Agent
 
-桥接将用户本地安装的编码 agent（claude-code、opencode、codex 或 pi）连接到 better-agent web UI。一个独立的 CLI 二进制文件（`better-agent-bridge`）驱动本地 agent，将其输出归一化为统一的事件模型，并通过服务端滚动窗口存储中继事件↑ / 命令↓。Web 将实时数据流渲染为终端风格的聊天界面，并提供按能力门控的控件（模型选择器、中断、历史会话、用量芯片）。
+桥接将用户本地安装的编码 agent（claude-code、opencode、codex 或 pi）连接到 better-agent web UI。一个独立的 CLI 二进制文件（`agent-cli`，0.2.0 起由 `better-agent-bridge` 更名而来，旧名仍作为别名可用）驱动本地 agent，将其输出归一化为统一的事件模型，并通过服务端滚动窗口存储中继事件↑ / 命令↓。Web 将实时数据流渲染为终端风格的聊天界面，并提供按能力门控的控件（模型选择器、中断、历史会话、用量芯片）。
 
 ## 架构
 
@@ -48,7 +48,7 @@
 
 ### 桥接 CLI
 
-`better-agent-bridge` 是用 `bun --compile` 编译的独立二进制文件（无需 Node.js）。`install.sh`（`apps/bridge-cli/install.sh`）从 GitHub Releases 下载平台资产到 `~/.better-agent/bin` 并打印 PATH 提示。它同时处理公共仓库（releases/latest/download 快捷方式）和私有仓库（通过 `GITHUB_TOKEN` 进行认证 API 资产解析）。
+`agent-cli` 是用 `bun --compile` 编译的独立二进制文件（无需 Node.js）。`install.sh`（`apps/bridge-cli/install.sh`）从 GitHub Releases 下载平台资产到 `~/.better-agent/bin` 并打印 PATH 提示。它同时处理公共仓库（releases/latest/download 快捷方式）和私有仓库（通过 `GITHUB_TOKEN` 进行认证 API 资产解析）。
 
 入口点（`apps/bridge-cli/src/index.ts:27` `main`）：
 
@@ -165,7 +165,7 @@ Web 的 SSE 客户端（`apps/web/src/components/bridge/sse-client.ts`）使用 
 ### 会话启动（CLI → 服务端 → agent）
 
 ```
-better-agent-bridge --agent claude-code --token bt_… --server https://…
+agent-cli --agent claude-code --token bt_… --server https://…
   → parseArgs → selectAdapter → requireAgentCli（PATH 检查）
   → createRelayTransport(serverUrl, token)
   → transport.startSession({agentKind, label})

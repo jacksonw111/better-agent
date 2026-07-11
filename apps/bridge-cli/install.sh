@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# install.sh — install the better-agent-bridge CLI as a standalone binary.
+# install.sh — install the agent-cli (bridge CLI) as a standalone binary.
 # No Node.js / npm needed: Bun --compile embeds the runtime, so this is one
 # self-contained executable.
 #
@@ -9,10 +9,14 @@
 # Downloads the binary for your platform from the latest GitHub Release and
 # installs it to ~/.better-agent/bin, then tells you how to add it to PATH.
 # Override the destination with:  INSTALL_DIR=... bash install.sh
+#
+# `agent-cli` was named `better-agent-bridge` before 0.2.0. Set
+# BIN_NAME=better-agent-bridge to keep installing under the old name (the
+# release still publishes both binaries).
 set -euo pipefail
 
 OWNER_REPO="${OWNER_REPO:-jacksonw111/better-agent}"
-BIN_NAME="better-agent-bridge"
+BIN_NAME="${BIN_NAME:-agent-cli}"
 INSTALL_DIR="${INSTALL_DIR:-${HOME}/.better-agent/bin}"
 
 # --- platform detection ---
@@ -20,7 +24,7 @@ case "$(uname -s)" in
 	Darwin) os="darwin" ;;
 	Linux)  os="linux" ;;
 	*)
-		echo "✗ Unsupported OS: $(uname -s) (better-agent-bridge ships for macOS/Linux only)" >&2
+		echo "✗ Unsupported OS: $(uname -s) (${BIN_NAME} ships for macOS/Linux only)" >&2
 		exit 1
 		;;
 esac

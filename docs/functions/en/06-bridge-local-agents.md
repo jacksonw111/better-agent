@@ -1,6 +1,6 @@
 # Bridge / Local Agents
 
-The bridge connects a user's locally-installed coding agent (claude-code, opencode, codex, or pi) to the better-agent web UI. A standalone CLI binary (`better-agent-bridge`) drives the local agent, normalizes its output into a unified event model, and relays events↑ / commands↓ through a server-side rolling-window store. The web renders the live feed as a terminal-style chat, with capability-gated controls (model picker, interrupt, past conversations, usage chips).
+The bridge connects a user's locally-installed coding agent (claude-code, opencode, codex, or pi) to the better-agent web UI. A standalone CLI binary (`agent-cli`, renamed from `better-agent-bridge` in 0.2.0 — the old name still works as an alias) drives the local agent, normalizes its output into a unified event model, and relays events↑ / commands↓ through a server-side rolling-window store. The web renders the live feed as a terminal-style chat, with capability-gated controls (model picker, interrupt, past conversations, usage chips).
 
 ## Architecture
 
@@ -48,7 +48,7 @@ The bridge connects a user's locally-installed coding agent (claude-code, openco
 
 ### Bridge CLI
 
-`better-agent-bridge` is a standalone binary compiled with `bun --compile` (no Node.js needed). `install.sh` (`apps/bridge-cli/install.sh`) downloads the platform asset from GitHub Releases to `~/.better-agent/bin` and prints a PATH hint. It handles both public repos (releases/latest/download shortcut) and private repos (authenticated API asset resolution via `GITHUB_TOKEN`).
+`agent-cli` is a standalone binary compiled with `bun --compile` (no Node.js needed). `install.sh` (`apps/bridge-cli/install.sh`) downloads the platform asset from GitHub Releases to `~/.better-agent/bin` and prints a PATH hint. It handles both public repos (releases/latest/download shortcut) and private repos (authenticated API asset resolution via `GITHUB_TOKEN`).
 
 The entry point (`apps/bridge-cli/src/index.ts:27` `main`):
 
@@ -165,7 +165,7 @@ Live usage chips: `TurnUsagePanel` + `UsageUpdateLine` render only when `caps.us
 ### Session start (CLI → server → agent)
 
 ```
-better-agent-bridge --agent claude-code --token bt_… --server https://…
+agent-cli --agent claude-code --token bt_… --server https://…
   → parseArgs → selectAdapter → requireAgentCli (PATH check)
   → createRelayTransport(serverUrl, token)
   → transport.startSession({agentKind, label})

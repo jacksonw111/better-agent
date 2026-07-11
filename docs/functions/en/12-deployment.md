@@ -91,16 +91,16 @@ Triggered on push to `main`. Two jobs, strictly ordered:
 
 ### Bridge CLI release
 
-`release-cli.yml` triggers on `cli-v*` tags. `bun build --compile` embeds the Bun runtime into a self-contained binary, so no Node.js/npm is needed on the user's machine. Four targets are built in a loop:
+`release-cli.yml` triggers on `cli-v*` tags. `bun build --compile` embeds the Bun runtime into a self-contained binary, so no Node.js/npm is needed on the user's machine. Four targets are built in a loop, each published under both the canonical `agent-cli-*` name and the pre-0.2.0 `better-agent-bridge-*` alias so existing install scripts keep working:
 
 | Target | Output |
 |--------|--------|
-| `bun-darwin-arm64` | `better-agent-bridge-darwin-arm64` |
-| `bun-darwin-x64` | `better-agent-bridge-darwin-x64` |
-| `bun-linux-x64` | `better-agent-bridge-linux-x64` |
-| `bun-linux-arm64` | `better-agent-bridge-linux-arm64` |
+| `bun-darwin-arm64` | `agent-cli-darwin-arm64` (+ `better-agent-bridge-darwin-arm64`) |
+| `bun-darwin-x64` | `agent-cli-darwin-x64` (+ `better-agent-bridge-darwin-x64`) |
+| `bun-linux-x64` | `agent-cli-linux-x64` (+ `better-agent-bridge-linux-x64`) |
+| `bun-linux-arm64` | `agent-cli-linux-arm64` (+ `better-agent-bridge-linux-arm64`) |
 
-`gh release create` attaches all four binaries plus `apps/bridge-cli/install.sh` with generated notes.
+`gh release create` attaches all eight binaries plus `apps/bridge-cli/install.sh` with generated notes.
 
 ### `install.sh`
 
