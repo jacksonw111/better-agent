@@ -112,8 +112,9 @@ it("shows the working skeleton while awaiting a reply, cleared once the agent ou
 	const textarea = view.getByLabelText("Message") as HTMLTextAreaElement;
 	fireEvent.change(textarea, { target: { value: "hi" } });
 	fireEvent.click(view.getByRole("button", { name: "Send" }));
-	// A skeleton — not the words "Thinking…/Working…" — signals work while the
-	// last event is the user's own message (awaiting the reply).
+	// The skeleton (a shimmering "Thinking…", not the old bars — R1-T1) signals
+	// work while the last event is the user's own message (awaiting the reply).
+	// It never says "Working…" — that copy was retired with the bar skeleton.
 	await waitFor(() => {
 		expect(view.getByTestId("working-skeleton")).toBeDefined();
 	});

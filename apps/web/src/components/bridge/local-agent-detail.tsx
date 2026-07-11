@@ -6,6 +6,7 @@ import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
 import { createBridgeTransport } from "./bridge-transport";
+import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import { deriveLocalAgentEntries } from "./local-agent-join";
 import { withSessionPolling } from "./local-agent-poll";
@@ -29,17 +30,22 @@ function useEndSession() {
 	);
 }
 
-/** Friendly state for a token whose CLI has never connected: the command to
- * run lives in the always-present connection panel above, so this is just the
- * status note. */
-function WaitingForCli() {
+/** Friendly state for a token whose CLI has never connected: mounts the
+ * connection guide panel (token + ready-to-run `agent-cli` command) right
+ * above the status note, so "Run the command above" actually has a command
+ * above it — R1-T1: `LocalAgentConnectionPanel` used to be built but never
+ * rendered anywhere. */
+function WaitingForCli({ token }: { token: BridgeTokenRow }) {
 	return (
-		<div className="rounded-lg bg-muted/40 p-6">
-			<p className="font-medium text-sm">Waiting for the CLI to connect</p>
-			<p className="text-muted-foreground text-sm">
-				Run the command above from your project directory to connect this local
-				agent.
-			</p>
+		<div className="flex flex-col gap-4">
+			<LocalAgentConnectionPanel token={token} />
+			<div className="rounded-lg bg-muted/40 p-6">
+				<p className="font-medium text-sm">Waiting for the CLI to connect</p>
+				<p className="text-muted-foreground text-sm">
+					Run the command above from your project directory to connect this
+					local agent.
+				</p>
+			</div>
 		</div>
 	);
 }
@@ -71,7 +77,7 @@ function SessionView({
 	const { activeSession, select } = useSessionSelection(sessions);
 
 	if (!activeSession) {
-		return <WaitingForCli />;
+		return <WaitingForCli token={token} />;
 	}
 	return (
 		<Terminal
@@ -129,6 +135,6 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 			userAvatarUrl={email ? userAvatar(email) : undefined}
 		/>
 	) : (
-		<WaitingForCli />
+		<WaitingForCli token={entry.token} />
 	);
 }

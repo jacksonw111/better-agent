@@ -41,8 +41,11 @@ it("merges a codex-style streamed delta and its final message (same id) into ONE
 	expect(assistant.blocks).toEqual([
 		{ kind: "text", text: "Sure, let me check that for you." },
 	]);
-	// The final closes the bubble — it's no longer the trailing open turn.
-	expect(assistant.streaming).toBe(false);
+	// R1-T1: a message final is no longer a turn boundary by itself — the turn
+	// stays open (state.current) so a following tool call can still join it
+	// (see bridge-assistant-merge.ts). With nothing after it here, it's still
+	// the trailing open turn.
+	expect(assistant.streaming).toBe(true);
 });
 
 it("merges chunked deltas and a final sharing an id into one bubble (generic — not codex-specific)", () => {

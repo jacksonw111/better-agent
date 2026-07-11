@@ -99,49 +99,6 @@
 	}
 }
 
-/* Working skeleton: an assistant-message-shaped placeholder (avatar dot + a few
-   lines) shown for the whole in-flight turn. A muted block with a highlight
-   sweep moving left→right reads as "still producing". Reduced-motion swaps the
-   sweep for a gentle opacity pulse (no positional motion). */
-@keyframes working-shimmer {
-	0% {
-		background-position: 200% 0;
-	}
-	100% {
-		background-position: -200% 0;
-	}
-}
-
-@keyframes working-pulse {
-	0%,
-	100% {
-		opacity: 0.45;
-	}
-	50% {
-		opacity: 0.85;
-	}
-}
-
-.working-shimmer {
-	background-color: var(--muted);
-	background-image: linear-gradient(
-		90deg,
-		transparent 0%,
-		color-mix(in oklab, var(--foreground) 10%, transparent) 50%,
-		transparent 100%
-	);
-	background-repeat: no-repeat;
-	background-size: 200% 100%;
-	animation: working-shimmer 1.5s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.working-shimmer {
-		background-image: none;
-		animation: working-pulse 2s ease-in-out infinite;
-	}
-}
-
 /* Indeterminate bar for an in-flight memory role change (read ⇄ read & write).
    A faint accent track with a shorter accent segment sliding L→R on a loop; the
    segment also pulses its opacity so the bar keeps flickering — it reads as

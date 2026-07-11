@@ -47,17 +47,19 @@ export interface BridgeChatRowProps {
 	turn: BridgeTurn;
 }
 
-/** Shimmer lines attached to the trailing in-flight assistant message. Indented
- * past the avatar column (`pl-9` ≈ avatar + row gap) so they sit directly under
- * the message text, and tucked up with a small negative margin so the skeleton
- * reads as a continuation of the bubble above rather than a separate row.
- * Decorative — hidden from assistive tech (the streaming caret + "Thinking…"
- * already convey state). */
+/** The same shimmering "Thinking…" text `ChatRow` (packages/ui) shows for a
+ * live draft with no blocks yet, attached under the trailing in-flight
+ * assistant message instead: indented past the avatar column (`pl-9` ≈ avatar
+ * + row gap) so it sits directly under the message text, and tucked up with a
+ * small negative margin so it reads as a continuation of the bubble above
+ * rather than a separate row. Decorative — hidden from assistive tech (the
+ * streaming caret already conveys state). R1-T1: replaces the old
+ * `.working-shimmer` bar pair so this and `WorkingSkeleton` (terminal-feed.tsx)
+ * read as the same visual language. */
 function StreamingSkeleton() {
 	return (
-		<div aria-hidden className="-mt-0.5 flex flex-col gap-1.5 pl-9">
-			<div className="working-shimmer h-3 w-3/4 rounded" />
-			<div className="working-shimmer h-3 w-2/5 rounded" />
+		<div aria-hidden className="-mt-0.5 pl-9">
+			<span className="shimmer font-medium text-sm">Thinking…</span>
 		</div>
 	);
 }

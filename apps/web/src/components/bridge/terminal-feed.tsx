@@ -7,18 +7,12 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import { cn } from "@better-agent/ui/lib/utils";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type { BridgeTurn } from "./bridge-turns";
 
 // The scrolling conversation surface for a Local Agent session, split out of
 // terminal.tsx to keep that file under the repo's max-lines-per-file gate: the
 // turn list plus the persistent "working" row (see `WorkingSkeleton`).
-
-/** The shimmer lines' widths (varying, so the placeholder reads as prose rather
- * than a progress bar) — static Tailwind classes so the sweep animation (see
- * `.working-shimmer` in index.css) has real blocks to move across. */
-const SHIMMER_LINE_WIDTHS = ["w-4/5", "w-3/5", "w-2/5"] as const;
 
 function EmptyTerminal() {
 	return (
@@ -30,30 +24,25 @@ function EmptyTerminal() {
 	);
 }
 
-/** A persistent assistant-message-shaped placeholder — an avatar dot plus a few
- * shimmering lines — pinned to the bottom of the feed for the WHOLE in-flight
- * turn (from the user's send until `turn_usage`/`turn_end`). The moving
- * highlight sweep (`.working-shimmer`, index.css) makes it obvious the agent is
- * still producing, so a long tool run never looks frozen; it replaces the old
- * "Thinking…/Working…" text line. Respects `prefers-reduced-motion` (the sweep
- * becomes a gentle opacity pulse). */
+/** A persistent assistant-message-shaped placeholder — an avatar dot plus the
+ * same shimmering "Thinking…" text the main chat's `ChatRow` (packages/ui)
+ * shows while a live draft has no blocks yet — pinned to the bottom of the
+ * feed for the WHOLE in-flight turn (from the user's send until
+ * `turn_usage`/`turn_end`), so a long tool run never looks frozen. R1-T1:
+ * replaces the old moving-bars skeleton (`.working-shimmer`, now unused —
+ * deleted from index.css) so the web's two "still producing" placeholders
+ * (this one, and `StreamingSkeleton` in bridge-chat-row.tsx) read as the same
+ * visual language. */
 function WorkingSkeleton() {
 	return (
 		<div
 			aria-label="Agent is working"
-			className="flex gap-3 px-1 py-3"
+			className="flex items-center gap-3 px-1 py-3"
 			data-testid="working-skeleton"
 			role="status"
 		>
-			<div className="working-shimmer size-7 shrink-0 rounded-full" />
-			<div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
-				{SHIMMER_LINE_WIDTHS.map((width) => (
-					<div
-						className={cn("working-shimmer h-3 rounded", width)}
-						key={width}
-					/>
-				))}
-			</div>
+			<div className="size-7 shrink-0 rounded-full bg-muted" />
+			<span className="shimmer font-medium text-sm">Thinking…</span>
 		</div>
 	);
 }

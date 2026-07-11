@@ -48,6 +48,15 @@ export interface FoldState {
 	current: AssistantTurn | null;
 	/** The single plan/todo turn, updated in place as `plan` updates arrive. */
 	plan: PlanTurn | null;
+	/** The block a FINALIZED message last wrote into (see
+	 * `finalizeAssistantMessage`) — a "sealed" marker, not a turn boundary. A
+	 * later id-less `accumulateOutput` delta checks this: if it's about to
+	 * land on the SAME block, it must open a fresh block instead of appending
+	 * (via `appendText`'s trailing-same-kind merge), or it would silently glue
+	 * unrelated new text onto content the final message already committed.
+	 * Anything else — a new block, a new turn — naturally stops matching this
+	 * reference, so no explicit clearing is needed elsewhere. */
+	sealedBlock: TextBlock | null;
 	/** Set whenever `turns` gained or lost an ELEMENT this pass (a push or a
 	 * retract) — as opposed to `touched`, which tracks in-place mutation of
 	 * existing elements. Consulted only by the incremental fold core
@@ -77,6 +86,7 @@ export function createFoldState(): FoldState {
 		assistantByMessageId: new Map(),
 		current: null,
 		plan: null,
+		sealedBlock: null,
 		structureChanged: false,
 		tasksByCallId: new Map(),
 		toolsByCallId: new Map(),
@@ -138,7 +148,10 @@ export function openAssistant(state: FoldState, id: number): AssistantTurn {
  * of rendering a second bubble (see `finalizeAssistantMessage`). An id-less
  * delta (claude-code, pi, opencode ACP chunks — adapters that never repeat
  * this content in a final message) falls back to the pre-existing "append to
- * the trailing same-kind block" merge.
+ * the trailing same-kind block" merge — UNLESS the trailing block is
+ * `state.sealedBlock` (a message just finalized into it): that block is done
+ * accumulating, so a delta landing right after it opens a fresh block in the
+ * SAME turn instead of silently growing already-committed text.
  */
 export function accumulateOutput(
 	state: FoldState,
@@ -147,7 +160,12 @@ export function accumulateOutput(
 ): void {
 	const kind: TextBlock["kind"] = event.reasoning ? "reasoning" : "text";
 	if (event.id === undefined) {
-		appendText(openAssistant(state, id).blocks, kind, event.text);
+		const turn = openAssistant(state, id);
+		if (turn.blocks.at(-1) === state.sealedBlock) {
+			turn.blocks.push({ kind, text: event.text });
+		} else {
+			appendText(turn.blocks, kind, event.text);
+		}
 		return;
 	}
 	const existing = state.assistantByMessageId.get(event.id);
@@ -169,10 +187,17 @@ export function accumulateOutput(
  * last-write-wins, never appended — so codex's `item.completed` (which
  * repeats the item's full text) collapses onto the same bubble its deltas
  * streamed into instead of opening a second one. Otherwise (no id, or an id
- * never seen before — claude-code/pi's single non-streamed messages) it opens
- * a brand-new bubble, exactly like the pre-id-contract behavior. Either way a
- * message is a turn boundary: it closes the open accumulation so trailing
- * id-less content starts a fresh bubble rather than appending here.
+ * never seen before — pi/opencode's single non-streamed messages) it opens a
+ * NEW block, reusing the open turn (`state.current`) if there is one instead
+ * of always starting a fresh turn — exactly like `foldTool` already does.
+ *
+ * Unlike the old behavior, a message final is NOT a turn boundary by itself:
+ * `state.current` stays set to this turn (see `FoldState.current`'s doc) so a
+ * following tool call folds into the SAME turn rather than opening a new one
+ * (the "text→tool→text fragments into three turns" bug). Only the text
+ * ACCUMULATION closes — the finalized block is marked `state.sealedBlock` so
+ * a trailing id-less delta opens a fresh block instead of appending onto
+ * already-committed text (see `accumulateOutput`).
  *
  * ASSUMPTION: a message id's `reasoning`/`thinking` flag doesn't change
  * between its deltas and its final — true for every adapter today (codex
@@ -190,21 +215,17 @@ export function finalizeAssistantMessage(
 			: state.assistantByMessageId.get(event.id);
 	if (existing) {
 		existing.block.text = event.text;
-		state.current = null;
+		state.current = existing.turn;
+		state.sealedBlock = existing.block;
 		state.touched.add(existing.turn);
 		return;
 	}
 	const kind: TextBlock["kind"] = event.thinking ? "reasoning" : "text";
+	const turn = openAssistant(state, id);
 	const block: TextBlock = { kind, text: event.text };
-	const turn: AssistantTurn = {
-		blocks: [block],
-		id,
-		kind: "assistant",
-		streaming: false,
-	};
+	turn.blocks.push(block);
 	if (event.id !== undefined) {
 		state.assistantByMessageId.set(event.id, { block, turn });
 	}
-	pushTurn(state, turn);
-	state.current = null;
+	state.sealedBlock = block;
 }

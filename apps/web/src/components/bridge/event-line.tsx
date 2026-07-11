@@ -7,11 +7,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@better-agent/ui/components/card";
+import { cn } from "@better-agent/ui/lib/utils";
+import type { LucideIcon } from "lucide-react";
 import {
 	AlertTriangleIcon,
 	CheckIcon,
 	FileEditIcon,
 	InfoIcon,
+	PowerOffIcon,
+	RotateCwIcon,
 } from "lucide-react";
 import type {
 	ApprovalEvent,
@@ -39,11 +43,81 @@ export function FileLine({ event }: { event: FileEvent }) {
 	);
 }
 
+/** How a status notice reads: `info`/`ended` are quiet asides, `warn` flags a
+ * self-healing hiccup (a retry/restart in progress), `error` flags something
+ * the user may need to act on (the agent gave up and needs re-poking). */
+type StatusTone = "ended" | "error" | "info" | "warn";
+
+const TONE_CLASS: Record<StatusTone, string> = {
+	ended: "text-muted-foreground",
+	error: "text-destructive",
+	info: "text-muted-foreground",
+	warn: "text-amber-600 dark:text-amber-500",
+};
+
+interface StatusNotice {
+	icon: LucideIcon;
+	text: string;
+	tone: StatusTone;
+}
+
+/** Wire `StatusEvent.status` -> human-readable copy, pushed straight to the
+ * server by the bridge CLI's own lifecycle (restart/stop/watchdog — see
+ * `apps/bridge-cli/src/command-outcome.ts` and `session-watchdog.ts`), not by
+ * an agent adapter, so these never carry curated Chinese copy of their own —
+ * this is the ONLY place they get translated for the chat feed. Statuses NOT
+ * listed here (a status this table hasn't caught up to yet, or an adapter's
+ * own passthrough status) fall back to a cleaned `humanizeStatus` label
+ * rather than disappearing. */
+const STATUS_NOTICES: Record<string, StatusNotice> = {
+	restarting: {
+		icon: RotateCwIcon,
+		text: "正在重启 agent…",
+		tone: "warn",
+	},
+	restarted: {
+		icon: RotateCwIcon,
+		text: "agent 已重启",
+		tone: "info",
+	},
+	stopped_by_server: {
+		icon: PowerOffIcon,
+		text: "会话已由服务端结束",
+		tone: "ended",
+	},
+	agent_exited: {
+		icon: PowerOffIcon,
+		text: "agent 进程已退出",
+		tone: "ended",
+	},
+	stalled: {
+		icon: AlertTriangleIcon,
+		text: "agent 无响应，已自动中断",
+		tone: "error",
+	},
+	session_resumed: {
+		icon: InfoIcon,
+		text: "会话已恢复",
+		tone: "info",
+	},
+};
+
+/** A status this table doesn't map yet: still readable (underscores become
+ * spaces) instead of showing the raw wire token verbatim. */
+function humanizeStatus(status: string): string {
+	return status.replace(/_/g, " ");
+}
+
 export function StatusLine({ event }: { event: StatusEvent }) {
+	const notice = STATUS_NOTICES[event.status];
+	const Icon = notice?.icon ?? InfoIcon;
+	const tone = notice?.tone ?? "info";
+	const text = notice?.text ?? humanizeStatus(event.status);
+	const toneClass = TONE_CLASS[tone];
 	return (
-		<p className="flex items-center gap-1.5 text-muted-foreground italic">
-			<InfoIcon className="size-3.5 shrink-0" />
-			{event.status}
+		<p className={cn("flex items-center gap-1.5", toneClass)}>
+			<Icon className="size-3.5 shrink-0" />
+			{text}
 		</p>
 	);
 }
