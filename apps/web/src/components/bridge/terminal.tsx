@@ -10,13 +10,14 @@ import type {
 	UsageUpdateDetail,
 } from "./bridge-session-status";
 import type { BridgeTransport } from "./bridge-transport";
-import { type BridgeTurn, foldEventsToTurns } from "./bridge-turns";
+import type { BridgeTurn } from "./bridge-turns";
 import { TerminalComposer } from "./terminal-composer";
 import { TerminalFeed } from "./terminal-feed";
 import { TerminalHeader } from "./terminal-header";
 import { TurnUsagePanel } from "./turn-usage-panel";
 import { UsageUpdateLine } from "./usage-update-line";
 import { useBridgeTerminal } from "./use-bridge-terminal";
+import { useFoldedTurns } from "./use-folded-turns";
 
 export interface TerminalProps {
 	/** The bridge session id the terminal is currently showing — drives the
@@ -191,10 +192,7 @@ function useTerminalView(
 		session.status === "ended"
 	);
 	const ended = session.status === "ended";
-	const turns = useMemo(
-		() => foldEventsToTurns(bridge.events),
-		[bridge.events]
-	);
+	const turns = useFoldedTurns(bridge.events);
 	const turnInFlight = useMemo(
 		() => deriveTurnInFlight(bridge.events, ended),
 		[bridge.events, ended]

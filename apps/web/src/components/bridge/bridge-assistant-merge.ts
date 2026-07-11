@@ -14,8 +14,12 @@ import {
 	type ToolInvocation,
 } from "@better-agent/ui/components/chat/chat-blocks";
 import type { MessageEvent, OutputEvent } from "./bridge-events";
-import type { AssistantTurn, BridgeTurn, PlanTurn } from "./bridge-turn-types";
-import type { TaskInvocation } from "./task-card";
+import type {
+	AssistantTurn,
+	BridgeTurn,
+	PlanTurn,
+	TaskTurn,
+} from "./bridge-turn-types";
 
 type TextBlock = Extract<ChatBlock, { kind: "text" | "reasoning" }>;
 
@@ -28,6 +32,15 @@ export interface MessageAccumulator {
 	turn: AssistantTurn;
 }
 
+/** A tool call plus the assistant turn its block lives in — lets a later
+ * update (completed/failed) that mutates `tool` in place also mark the
+ * OWNING turn as touched (see `FoldState.touched`), even though the turn
+ * itself isn't otherwise re-visited. */
+export interface ToolOwner {
+	tool: ToolInvocation;
+	turn: AssistantTurn;
+}
+
 export interface FoldState {
 	/** In-flight streamed messages keyed by their shared id — see
 	 * `MessageAccumulator`. */
@@ -35,14 +48,40 @@ export interface FoldState {
 	current: AssistantTurn | null;
 	/** The single plan/todo turn, updated in place as `plan` updates arrive. */
 	plan: PlanTurn | null;
-	tasksByCallId: Map<string, TaskInvocation>;
-	toolsByCallId: Map<string, ToolInvocation>;
+	tasksByCallId: Map<string, TaskTurn>;
+	toolsByCallId: Map<string, ToolOwner>;
+	/** Turns mutated IN PLACE during the current incremental fold pass (a
+	 * block's text grew, a tool/task completed, the plan's items changed, the
+	 * streaming caret moved) — consulted only by the incremental fold core
+	 * (fold-cursor.ts) to know which turns need a fresh top-level reference
+	 * for `React.memo` to see; `foldEventsToTurns` populates it too (every
+	 * mutation site marks it unconditionally) but never reads it. */
+	touched: Set<BridgeTurn>;
 	turns: BridgeTurn[];
 }
 
-/** Reuse the open assistant turn, or start (and record) a fresh one. */
+/** A fresh, empty fold accumulator — the single source of truth for both
+ * `foldEventsToTurns` (one-shot batch) and the incremental engine
+ * (fold-cursor.ts), so the two can never diverge in how an event folds. */
+export function createFoldState(): FoldState {
+	return {
+		assistantByMessageId: new Map(),
+		current: null,
+		plan: null,
+		tasksByCallId: new Map(),
+		toolsByCallId: new Map(),
+		touched: new Set(),
+		turns: [],
+	};
+}
+
+/** Reuse the open assistant turn, or start (and record) a fresh one. Either
+ * way the returned turn is about to receive a new/updated block from the
+ * caller, so it's marked touched here — the one place all block-writing
+ * paths pass through. */
 export function openAssistant(state: FoldState, id: number): AssistantTurn {
 	if (state.current) {
+		state.touched.add(state.current);
 		return state.current;
 	}
 	const turn: AssistantTurn = {
@@ -53,6 +92,7 @@ export function openAssistant(state: FoldState, id: number): AssistantTurn {
 	};
 	state.turns.push(turn);
 	state.current = turn;
+	state.touched.add(turn);
 	return turn;
 }
 
@@ -80,6 +120,7 @@ export function accumulateOutput(
 	if (existing) {
 		existing.block.text += event.text;
 		state.current = existing.turn;
+		state.touched.add(existing.turn);
 		return;
 	}
 	const turn = openAssistant(state, id);
@@ -116,6 +157,7 @@ export function finalizeAssistantMessage(
 	if (existing) {
 		existing.block.text = event.text;
 		state.current = null;
+		state.touched.add(existing.turn);
 		return;
 	}
 	const kind: TextBlock["kind"] = event.thinking ? "reasoning" : "text";

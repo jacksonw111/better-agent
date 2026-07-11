@@ -2,6 +2,7 @@ import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-block
 import { isTaskToolInput } from "@/genui/tool-renderers";
 import {
 	accumulateOutput,
+	createFoldState,
 	type FoldState,
 	finalizeAssistantMessage,
 	openAssistant,
@@ -21,10 +22,13 @@ import {
 	TURN_USAGE_STATUS,
 	USAGE_UPDATE_STATUS,
 } from "./bridge-session-status";
-import type { BridgeTurn, PlanTurn } from "./bridge-turn-types";
-import { stripTaskWrapper, type TaskInvocation } from "./task-card";
+import type { BridgeTurn, PlanTurn, TaskTurn } from "./bridge-turn-types";
+import {
+	applyToolResult,
+	createTaskInvocation,
+	updateTaskInvocation,
+} from "./bridge-turns-tool-task";
 import { parseTodoItems } from "./todo-list";
-import { flattenToolResult } from "./tool-result-text";
 
 export type {
 	AssistantTurn,
@@ -79,61 +83,12 @@ function foldPlan(state: FoldState, id: number, event: StatusEvent): void {
 	}
 	if (state.plan) {
 		state.plan.items = items;
+		state.touched.add(state.plan);
 		return;
 	}
 	const turn: PlanTurn = { kind: "plan", id, items };
 	state.plan = turn;
 	state.turns.push(turn);
-}
-
-function toolStatusOf(status: ToolEvent["status"]): {
-	isError: boolean;
-	status: ToolInvocation["status"];
-} {
-	if (status === "completed") {
-		return { status: "complete", isError: false };
-	}
-	if (status === "failed") {
-		return { status: "error", isError: true };
-	}
-	return { status: "running", isError: false };
-}
-
-function applyToolResult(tool: ToolInvocation, event: ToolEvent): void {
-	const { status, isError } = toolStatusOf(event.status);
-	tool.status = status;
-	tool.isError = isError;
-	if (event.output !== undefined) {
-		tool.result = flattenToolResult(event.output);
-	}
-}
-
-/** A task's title is its `description` input when present (opencode names
- * the call after it already, but Claude's fixed-name "Task" tool doesn't),
- * falling back to the raw tool name otherwise. */
-function taskTitle(event: ToolEvent): string {
-	const input = event.input as { description?: unknown } | null | undefined;
-	if (input && typeof input.description === "string" && input.description) {
-		return input.description;
-	}
-	return event.name;
-}
-
-function createTaskInvocation(event: ToolEvent): TaskInvocation {
-	return {
-		callId: event.id,
-		resultText: "",
-		status: "running",
-		title: taskTitle(event),
-	};
-}
-
-function updateTaskInvocation(task: TaskInvocation, event: ToolEvent): void {
-	const { status } = toolStatusOf(event.status);
-	task.status = status;
-	if (event.output !== undefined) {
-		task.resultText = stripTaskWrapper(flattenToolResult(event.output));
-	}
 }
 
 /** A task call never joins the assistant's block flow — it closes any open
@@ -143,12 +98,16 @@ function updateTaskInvocation(task: TaskInvocation, event: ToolEvent): void {
 function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
 	state.current = null;
 	const existing = state.tasksByCallId.get(event.id);
-	const task = existing ?? createTaskInvocation(event);
-	updateTaskInvocation(task, event);
-	if (!existing) {
-		state.tasksByCallId.set(event.id, task);
-		state.turns.push({ kind: "task", id, task });
+	if (existing) {
+		updateTaskInvocation(existing.task, event);
+		state.touched.add(existing);
+		return;
 	}
+	const task = createTaskInvocation(event);
+	updateTaskInvocation(task, event);
+	const turn: TaskTurn = { kind: "task", id, task };
+	state.tasksByCallId.set(event.id, turn);
+	state.turns.push(turn);
 }
 
 /** A message is a turn boundary: it closes any open output accumulation. A
@@ -178,7 +137,8 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
 	// it never spawns a spurious empty bubble.
 	const existing = state.toolsByCallId.get(event.id);
 	if (existing) {
-		applyToolResult(existing, event);
+		applyToolResult(existing.tool, event);
+		state.touched.add(existing.turn);
 		return;
 	}
 	// A subagent "Task" tool: identified by input shape (subagent_type, or
@@ -198,7 +158,7 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
 	};
 	applyToolResult(tool, event);
 	turn.blocks.push({ kind: "tool", tool });
-	state.toolsByCallId.set(event.id, tool);
+	state.toolsByCallId.set(event.id, { tool, turn });
 }
 
 /**
@@ -224,7 +184,14 @@ function foldStatus(state: FoldState, id: number, event: StatusEvent): void {
 	state.turns.push({ kind: "status", id, event });
 }
 
-function foldEvent(state: FoldState, id: number, event: NormalizedEvent): void {
+/** Folds ONE event into `state`, mutating it in place — the shared per-event
+ * core both `foldEventsToTurns` (one-shot batch) and the incremental fold
+ * engine (fold-cursor.ts) call, so the two can never diverge in behavior. */
+export function foldEvent(
+	state: FoldState,
+	id: number,
+	event: NormalizedEvent
+): void {
 	switch (event.kind) {
 		case "message":
 			foldMessage(state, id, event);
@@ -281,14 +248,7 @@ function foldApproval(
  * `streaming`, so a completed turn never keeps a caret.
  */
 export function foldEventsToTurns(events: StreamEvent[]): BridgeTurn[] {
-	const state: FoldState = {
-		assistantByMessageId: new Map(),
-		current: null,
-		plan: null,
-		tasksByCallId: new Map(),
-		toolsByCallId: new Map(),
-		turns: [],
-	};
+	const state = createFoldState();
 	for (const { id, event } of events) {
 		foldEvent(state, id, event);
 	}
