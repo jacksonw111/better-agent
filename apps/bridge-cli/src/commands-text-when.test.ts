@@ -37,7 +37,7 @@ describe("parseTextCommand", () => {
 			text: "go",
 			type: "text",
 		});
-		expect(parseTextCommand("go", 42)).toEqual({ text: "go", type: "text" });
+		expect(parseTextCommand("go", true)).toEqual({ text: "go", type: "text" });
 	});
 });
 
