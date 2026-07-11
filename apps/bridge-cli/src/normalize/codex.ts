@@ -5,6 +5,11 @@
 // https://developers.openai.com/codex/app-server for the protocol reference.
 
 import {
+	type CodexFileChangeCache,
+	createCodexFileChangeCache,
+	recordCodexFileChangeStart,
+} from "./codex-file-change-cache";
+import {
 	normalizeCodexMcpToolCallItem,
 	normalizeCodexReasoningItem,
 } from "./codex-items";
@@ -232,11 +237,22 @@ export function normalizeCodex(raw: unknown): NormalizedEvent[] {
  * `durationMs` onto `commandExecution`/`mcpToolCall`/`dynamicToolCall` tool
  * events — codex's wire never reports how long a tool ran, only a
  * started/completed pair keyed by item id (see tool-timing.ts). One instance
- * lives per session, in adapters/codex.ts's `start`. */
-export function createCodexNormalizer(): (raw: unknown) => NormalizedEvent[] {
+ * lives per session, in adapters/codex.ts's `start`.
+ *
+ * R3-T2: also feeds every raw line into `fileChangeCache` (recording a
+ * fileChange `item/started`'s change list as a side effect — see
+ * `codex-file-change-cache.ts`) — a no-op for every other line. Defaults to a
+ * fresh cache so existing callers (and every prior test) are unaffected;
+ * `adapters/codex.ts` passes its own instance so it can look the same
+ * summaries back up when a `requestApproval` request arrives. */
+export function createCodexNormalizer(
+	fileChangeCache: CodexFileChangeCache = createCodexFileChangeCache()
+): (raw: unknown) => NormalizedEvent[] {
 	const tracker = createToolDurationTracker();
-	return (raw: unknown): NormalizedEvent[] =>
-		normalizeCodex(raw).map((event) => withToolDuration(tracker, event));
+	return (raw: unknown): NormalizedEvent[] => {
+		recordCodexFileChangeStart(fileChangeCache, raw);
+		return normalizeCodex(raw).map((event) => withToolDuration(tracker, event));
+	};
 }
 
 // Approval *requests* (as opposed to the notifications this file maps) live

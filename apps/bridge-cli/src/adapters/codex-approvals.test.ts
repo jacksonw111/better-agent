@@ -118,9 +118,11 @@ describe("codexAdapter - approvals", () => {
 			kind: "approval",
 			options: [
 				{ id: "accept", label: "Allow" },
+				{ id: "acceptForSession", label: "Allow for session" },
 				{ id: "decline", label: "Deny" },
 			],
 			requestId: String(APPROVAL_REQUEST_ID),
+			timeoutAt: expect.any(Number),
 			title: "Run command?",
 			turnEpoch: 0,
 		});
@@ -130,7 +132,9 @@ describe("codexAdapter - approvals", () => {
 			decision: "accept",
 		});
 	});
+});
 
+describe("codexAdapter - approvals - unknown requestId", () => {
 	it("emits a status warning instead of replying for an unknown requestId", async () => {
 		const { rpc } = createFakeRpc();
 		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
@@ -148,6 +152,57 @@ describe("codexAdapter - approvals", () => {
 			turnEpoch: 0,
 		});
 		expect(rpc.respond).not.toHaveBeenCalled();
+	});
+});
+
+// R3-T2: end-to-end through the adapter — item/started's changes[] are
+// cached (normalize/codex-file-change-cache.ts) and read back out once the
+// matching item/fileChange/requestApproval arrives, and the literal
+// "acceptForSession" id round-trips unchanged through answerApproval. Split
+// into its own describe (rather than folded into "codexAdapter - approvals"
+// above) to keep that describe's callback under this file's max-lines gate.
+describe("codexAdapter - approvals - fileChange summary (R3-T2)", () => {
+	it("attaches a fileChange summary cached from item/started, and replies acceptForSession unchanged", async () => {
+		const { rpc, triggerNotification, triggerRequest } = createFakeRpc();
+		vi.mocked(connectJsonRpc).mockResolvedValue(rpc);
+
+		const handle = await codexAdapter.start("/tmp/project");
+		const iterator = handle.events[Symbol.asyncIterator]();
+		await iterator.next(); // R2-T2: session_ready
+
+		triggerNotification("item/started", {
+			item: {
+				id: "item_1",
+				type: "fileChange",
+				changes: [
+					{ path: "a.ts", kind: "created" },
+					{ path: "b.ts", kind: "modified" },
+				],
+			},
+		});
+		triggerRequest(APPROVAL_REQUEST_ID, "item/fileChange/requestApproval", {
+			itemId: "item_1",
+		});
+
+		const { value: event } = await iterator.next();
+		expect(event).toEqual({
+			kind: "approval",
+			options: [
+				{ id: "accept", label: "Allow" },
+				{ id: "acceptForSession", label: "Allow for session" },
+				{ id: "decline", label: "Deny" },
+			],
+			requestId: String(APPROVAL_REQUEST_ID),
+			summary: "2 files: 1 added, 1 modified (a.ts, b.ts)",
+			timeoutAt: expect.any(Number),
+			title: "Apply file change?",
+			turnEpoch: 0,
+		});
+
+		handle.answerApproval(String(APPROVAL_REQUEST_ID), "acceptForSession");
+		expect(rpc.respond).toHaveBeenCalledExactlyOnceWith(APPROVAL_REQUEST_ID, {
+			decision: "acceptForSession",
+		});
 	});
 });
 

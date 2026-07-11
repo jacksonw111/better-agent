@@ -210,6 +210,10 @@ export function retractPendingApprovals(
  * event and calls `onTimeout`. An on-time answer clears the timer so it can
  * never fire after the fact.
  *
+ * R3-T2: the pushed card is also stamped with `timeoutAt` — the epoch ms
+ * this same timer will fire at — so the web can render a countdown toward
+ * the exact instant this approval resolves declined if nobody answers.
+ *
  * Params are bundled into one object (rather than five positional args) to
  * stay under this file's max-params lint gate.
  */
@@ -223,6 +227,10 @@ export interface PresentApprovalOptions {
 
 export function presentApproval(options: PresentApprovalOptions): void {
 	const { approvals, events, event, onAnswer, onTimeout } = options;
+	// R3-T2: computed once, up front, so it names the exact instant the timer
+	// armed just below will fire at — not a slightly-later `Date.now()` read
+	// at push time.
+	const timeoutAt = Date.now() + APPROVAL_TIMEOUT_MS;
 	const timer = setTimeout(() => {
 		if (!approvals.retract(event.requestId)) {
 			// Already answered, or already retracted by an interrupt — the
@@ -248,5 +256,5 @@ export function presentApproval(options: PresentApprovalOptions): void {
 		},
 		timer
 	);
-	events.push(event);
+	events.push({ ...event, timeoutAt });
 }

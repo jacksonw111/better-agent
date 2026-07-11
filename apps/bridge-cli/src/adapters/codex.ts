@@ -1,19 +1,17 @@
+import { createCodexNormalizer } from "../normalize/codex";
 import {
-	createCodexNormalizer,
-	normalizeCodexApprovalRequest,
-} from "../normalize/codex";
+	type CodexFileChangeCache,
+	createCodexFileChangeCache,
+} from "../normalize/codex-file-change-cache";
 import {
 	asString,
 	isRecord,
 	type NormalizedEvent,
 	userMessageEvent,
 } from "../normalize/types";
-import {
-	createApprovalRegistry,
-	presentApproval,
-	retractPendingApprovals,
-} from "./approvals";
+import { createApprovalRegistry, retractPendingApprovals } from "./approvals";
 import { createAsyncQueue } from "./async-queue";
+import { wireCodexApprovals } from "./codex-approval-wiring";
 import {
 	type CodexControlState,
 	codexTurnStartParams,
@@ -69,44 +67,6 @@ function threadIdFrom(result: unknown): unknown {
 		asString(result.threadId) ??
 		null
 	);
-}
-
-/** codex's own wire value for "the user (or the shared RC-T4 timeout) said
- * no" — the same `decision` string `normalizeCodexApprovalRequest`'s
- * `decline` option already sends when a human picks it, reused here so an
- * unanswered card times out into the exact same codex-side effect a manual
- * deny would. */
-const CODEX_DECLINE_DECISION = "decline";
-
-/** Wires codex's approval *requests* (`execCommandApproval`/`applyPatchApproval`
- * style, id-bearing) through the shared RC-T4 fail-closed contract
- * (`presentApproval`): registers a reply function that answers the RPC
- * request, presents the card, and — if nobody answers in time — replies
- * `decline` and pushes a visible timed-out event instead of leaving the
- * command blocked forever. */
-function wireCodexApprovals(
-	rpc: JsonRpcIo,
-	events: { push(event: NormalizedEvent): void },
-	approvals: ReturnType<typeof createApprovalRegistry>
-): void {
-	rpc.onRequest((id, method, params) => {
-		const requestId = String(id);
-		const [approvalEvent] = normalizeCodexApprovalRequest(
-			requestId,
-			method,
-			params
-		);
-		if (!approvalEvent) {
-			return;
-		}
-		presentApproval({
-			approvals,
-			event: approvalEvent,
-			events,
-			onAnswer: (optionId) => rpc.respond(id, { decision: optionId }),
-			onTimeout: () => rpc.respond(id, { decision: CODEX_DECLINE_DECISION }),
-		});
-	});
 }
 
 /**
@@ -260,7 +220,11 @@ export const codexAdapter: Adapter = {
 		// R1-T2: one duration-tracking normalizer per session — codex's wire
 		// never reports how long a commandExecution/mcpToolCall ran, only a
 		// started/completed pair keyed by item id (see normalize/tool-timing.ts).
-		const normalize = createCodexNormalizer();
+		// R3-T2: shares one fileChangeCache with wireCodexApprovals below, so a
+		// fileChange item/started's change list is still on hand when its
+		// requestApproval arrives (see normalize/codex-file-change-cache.ts).
+		const fileChangeCache: CodexFileChangeCache = createCodexFileChangeCache();
+		const normalize = createCodexNormalizer(fileChangeCache);
 		rpc.onNotification((method, params) => {
 			logRawCodexNotification(method, params);
 			updateCodexStatusCache(statusCache, method, params);
@@ -274,7 +238,7 @@ export const codexAdapter: Adapter = {
 				events.push(event);
 			}
 		});
-		wireCodexApprovals(rpc, events, approvals);
+		wireCodexApprovals(rpc, events, approvals, fileChangeCache);
 
 		await rpc.request("initialize", {
 			clientInfo: { name: "better-agent-bridge", version: "0.0.0" },

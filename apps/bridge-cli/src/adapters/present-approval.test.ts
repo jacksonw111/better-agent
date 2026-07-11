@@ -46,6 +46,10 @@ function presentTestApproval(
 describe("presentApproval (RC-T4 fail-closed + timeout contract) - on-time answer", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
+		// R3-T2: pins Date.now() so presentApproval's stamped `timeoutAt` is a
+		// deterministic value (APPROVAL_TIMEOUT_MS past epoch) instead of one
+		// that floats with the real wall clock at test-run time.
+		vi.setSystemTime(0);
 	});
 
 	afterEach(() => {
@@ -65,20 +69,28 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - on-time answe
 			onAnswer,
 			onTimeout,
 		});
-		expect(pushed).toEqual([PRESENT_APPROVAL_EVENT]);
+		expect(pushed).toEqual([
+			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+		]);
 
 		registry.answer("req_1", "allow");
 		vi.advanceTimersByTime(APPROVAL_TIMEOUT_MS);
 
 		expect(onAnswer).toHaveBeenCalledExactlyOnceWith("allow");
 		expect(onTimeout).not.toHaveBeenCalled();
-		expect(pushed).toEqual([PRESENT_APPROVAL_EVENT]);
+		expect(pushed).toEqual([
+			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
+		]);
 	});
 });
 
 describe("presentApproval (RC-T4 fail-closed + timeout contract) - timeout", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
+		// R3-T2: pins Date.now() so presentApproval's stamped `timeoutAt` is a
+		// deterministic value (APPROVAL_TIMEOUT_MS past epoch) instead of one
+		// that floats with the real wall clock at test-run time.
+		vi.setSystemTime(0);
 	});
 
 	afterEach(() => {
@@ -103,7 +115,7 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - timeout", () 
 		expect(onTimeout).toHaveBeenCalledOnce();
 		expect(onAnswer).not.toHaveBeenCalled();
 		expect(pushed).toEqual([
-			PRESENT_APPROVAL_EVENT,
+			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
 			{
 				kind: "approval",
 				cancelled: true,
@@ -123,6 +135,10 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - timeout", () 
 describe("presentApproval (RC-T4 fail-closed + timeout contract) - interrupt", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
+		// R3-T2: pins Date.now() so presentApproval's stamped `timeoutAt` is a
+		// deterministic value (APPROVAL_TIMEOUT_MS past epoch) instead of one
+		// that floats with the real wall clock at test-run time.
+		vi.setSystemTime(0);
 	});
 
 	afterEach(() => {
@@ -148,7 +164,7 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - interrupt", (
 		expect(onTimeout).not.toHaveBeenCalled();
 		expect(onAnswer).not.toHaveBeenCalled();
 		expect(pushed).toEqual([
-			PRESENT_APPROVAL_EVENT,
+			{ ...PRESENT_APPROVAL_EVENT, timeoutAt: APPROVAL_TIMEOUT_MS },
 			{
 				kind: "approval",
 				cancelled: true,
@@ -163,6 +179,10 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - interrupt", (
 describe("presentApproval (RC-T4 fail-closed + timeout contract) - fix3: retract clears the armed timer", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
+		// R3-T2: pins Date.now() so presentApproval's stamped `timeoutAt` is a
+		// deterministic value (APPROVAL_TIMEOUT_MS past epoch) instead of one
+		// that floats with the real wall clock at test-run time.
+		vi.setSystemTime(0);
 	});
 
 	afterEach(() => {

@@ -118,6 +118,17 @@ export interface ApprovalEvent extends TurnScoped {
 	kind: "approval";
 	options: ApprovalOption[];
 	requestId: string;
+	/** R3-T2: a human-readable change summary ("3 files: 2 added, 1
+	 * modified…"), attached when the adapter cached enough detail about the
+	 * pending item to build one — currently only codex's fileChange approval
+	 * requests (see `normalize/codex-file-change-cache.ts`). Additive/optional
+	 * — absent for every other approval kind. */
+	summary?: string;
+	/** R3-T2: the epoch ms `adapters/approvals.ts`'s `presentApproval` armed
+	 * its fail-closed timer for — the same instant this approval resolves
+	 * declined if nobody answers. Additive; lets the web render a countdown
+	 * toward the exact moment the CLI itself will time this card out. */
+	timeoutAt?: number;
 	title: string;
 }
 

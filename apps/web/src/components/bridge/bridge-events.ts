@@ -105,6 +105,16 @@ export interface ApprovalEvent extends TurnScoped {
 	kind: "approval";
 	options: ApprovalOption[];
 	requestId: string;
+	/** R3-T2: a human-readable change summary ("3 files: 2 added, 1
+	 * modified…") — mirrors the CLI's `ApprovalEvent.summary`
+	 * (`apps/bridge-cli/src/normalize/types.ts`). Additive; currently only
+	 * codex's fileChange approval requests populate it. */
+	summary?: string;
+	/** R3-T2: epoch ms the CLI's `presentApproval` will resolve this card
+	 * declined if nobody answers — mirrors the CLI's
+	 * `ApprovalEvent.timeoutAt`. Additive; drives `ApprovalLine`'s countdown
+	 * bar. */
+	timeoutAt?: number;
 	title: string;
 }
 

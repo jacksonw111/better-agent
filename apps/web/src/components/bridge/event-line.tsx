@@ -17,6 +17,7 @@ import {
 	PowerOffIcon,
 	RotateCwIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type {
 	ApprovalEvent,
 	ErrorEvent,
@@ -137,6 +138,68 @@ export interface ApprovalLineProps {
 	onAnswer?: (requestId: string, optionId: string) => void;
 }
 
+/** R3-T2: `true` once wall-clock has passed `timeoutAt` — the CLI's
+ * `presentApproval` (`apps/bridge-cli/src/adapters/approvals.ts`) resolves
+ * declined and pushes a real "Timed out — declined" event around then, so
+ * this local flag is purely cosmetic: it swaps the shrinking bar for expiry
+ * copy a little before that server-pushed event lands. */
+function useApprovalExpired(timeoutAt: number): boolean {
+	const [expired, setExpired] = useState(() => timeoutAt <= Date.now());
+	useEffect(() => {
+		if (expired) {
+			return () => {
+				// nothing to clean up: no timer was armed
+			};
+		}
+		const timer = setTimeout(() => setExpired(true), timeoutAt - Date.now());
+		return () => clearTimeout(timer);
+	}, [timeoutAt, expired]);
+	return expired;
+}
+
+/** A thin bar that visually shrinks from full to empty between mount and
+ * `timeoutAt`, or "已超时，按拒绝处理" once that time has passed. The width
+ * transition is triggered by flipping `shrink` a frame after mount (so the
+ * initial full-width paint isn't itself animated) — no Tailwind arbitrary
+ * values, so the duration/width are set via inline style instead of a
+ * `transition-[width]` class. */
+function ApprovalCountdown({ timeoutAt }: { timeoutAt: number }) {
+	const expired = useApprovalExpired(timeoutAt);
+	const [shrink, setShrink] = useState(false);
+	useEffect(() => {
+		const raf = requestAnimationFrame(() => setShrink(true));
+		return () => cancelAnimationFrame(raf);
+	}, []);
+
+	if (expired) {
+		return (
+			<p
+				className="px-4 text-destructive text-xs group-data-[size=sm]/card:px-3"
+				data-slot="approval-countdown-expired"
+			>
+				已超时，按拒绝处理
+			</p>
+		);
+	}
+	return (
+		<div
+			className="mx-4 h-1 overflow-hidden rounded-full bg-muted group-data-[size=sm]/card:mx-3"
+			data-slot="approval-countdown"
+		>
+			<div
+				className="h-full bg-primary"
+				data-slot="approval-countdown-fill"
+				style={{
+					transitionDuration: `${Math.max(timeoutAt - Date.now(), 0)}ms`,
+					transitionProperty: "width",
+					transitionTimingFunction: "linear",
+					width: shrink ? "0%" : "100%",
+				}}
+			/>
+		</div>
+	);
+}
+
 /**
  * Approval request card: title + optional detail + one button per option.
  * The first option is the "allow"-style default action, the rest render as
@@ -147,6 +210,10 @@ export interface ApprovalLineProps {
  * Disabling is per-card (keyed by `requestId`), deliberately NOT gated on the
  * connection's global "sending" flag: that flag flips for any send, so gating
  * on it greyed out every open approval card when the user answered one.
+ *
+ * R3-T2: below the header, an optional muted `summary` line (codex fileChange
+ * requests only, for now) and an optional countdown bar/expiry notice driven
+ * by `timeoutAt` — both additive fields, absent for other adapters/requests.
  */
 export function ApprovalLine({
 	answeredOptionId,
@@ -160,6 +227,17 @@ export function ApprovalLine({
 				<CardTitle>{event.title}</CardTitle>
 				{event.detail && <CardDescription>{event.detail}</CardDescription>}
 			</CardHeader>
+			{event.summary && (
+				<p
+					className="px-4 text-muted-foreground text-xs group-data-[size=sm]/card:px-3"
+					data-slot="approval-summary"
+				>
+					{event.summary}
+				</p>
+			)}
+			{event.timeoutAt !== undefined && !disabled && (
+				<ApprovalCountdown timeoutAt={event.timeoutAt} />
+			)}
 			<CardContent className="flex flex-wrap gap-2">
 				{event.options.map((option, index) => {
 					const chosen = answeredOptionId === option.id;
