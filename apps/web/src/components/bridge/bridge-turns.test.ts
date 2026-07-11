@@ -157,7 +157,7 @@ it("keeps reasoning and reply output in separate blocks, with no duplication", (
 	]);
 });
 
-it("hides session_ready/turn_usage AND does not let them fragment the assistant bubble", () => {
+it("hides session_ready/turn_usage/command_catalog AND does not let them fragment the assistant bubble", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "first" }),
 		ev(2, {
@@ -171,7 +171,12 @@ it("hides session_ready/turn_usage AND does not let them fragment the assistant 
 			status: "turn_usage",
 			detail: { costUsd: 0.01 },
 		}),
-		ev(5, { kind: "status", status: "some-other-status" }),
+		ev(5, {
+			kind: "status",
+			status: "command_catalog",
+			detail: { commands: [{ name: "compact" }] },
+		}),
+		ev(6, { kind: "status", status: "some-other-status" }),
 	]);
 	// Hidden non-boundary heartbeats interleave mid-stream (opencode fires one
 	// per session/update) and must NOT split a reply: the two outputs merge

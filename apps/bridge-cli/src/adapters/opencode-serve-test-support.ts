@@ -52,10 +52,18 @@ function createHealthRoute() {
 	};
 }
 
-/** Bundles the three mutable canned-response fixtures into one object, purely
- * so `routeResponse` stays within the repo's max-params gate. */
+/** Mutable canned response for `GET /command` (R5-T1) — defaults to empty so
+ * existing tests (predating command_catalog) see no catalog event; tests that
+ * care reassign `commandsBody`. */
+function createCommandsRoute() {
+	return { commandsBody: [] as unknown, commandsOk: true };
+}
+
+/** Bundles the mutable canned-response fixtures into one object, purely so
+ * `routeResponse` stays within the repo's max-params gate. */
 interface FakeRoutes {
 	agents: ReturnType<typeof createAgentRoute>;
+	commands: ReturnType<typeof createCommandsRoute>;
 	health: ReturnType<typeof createHealthRoute>;
 	messages: ReturnType<typeof createMessageRoute>;
 }
@@ -79,6 +87,11 @@ function routeGetResponse(
 	if (url.endsWith("/global/health")) {
 		return routes.health.healthOk
 			? Response.json(routes.health.healthBody)
+			: new Response(null, { status: 404 });
+	}
+	if (url.endsWith("/command")) {
+		return routes.commands.commandsOk
+			? Response.json(routes.commands.commandsBody)
 			: new Response(null, { status: 404 });
 	}
 	// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
@@ -126,10 +139,11 @@ export function createFakeServer() {
 	const encoder = new TextEncoder();
 	const routes: FakeRoutes = {
 		agents: createAgentRoute(),
+		commands: createCommandsRoute(),
 		health: createHealthRoute(),
 		messages: createMessageRoute(),
 	};
-	const { agents, health, messages } = routes;
+	const { agents, commands, health, messages } = routes;
 	const fetchImpl = vi.fn((input: string | URL, init?: RequestInit) => {
 		const url = String(input);
 		const method = init?.method ?? "GET";
@@ -141,6 +155,7 @@ export function createFakeServer() {
 	return {
 		agents,
 		calls,
+		commands,
 		emitSse(data: unknown): void {
 			sse?.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 		},
@@ -182,8 +197,16 @@ export function createFakeIo() {
 	};
 }
 
-export async function startServe() {
+/** `configure` runs on the fixture right after it's built but BEFORE
+ * `opencodeServeAdapter.start()` fires — the only way to steer a canned
+ * response (e.g. R5-T1's `/command` catalog) away from its default, since
+ * `start()`'s health-probe `Promise.all` reads every route synchronously on
+ * the way in. */
+export async function startServe(
+	configure?: (server: ReturnType<typeof createFakeServer>) => void
+) {
 	const server = createFakeServer();
+	configure?.(server);
 	const fake = createFakeIo();
 	vi.mocked(spawnProcessIo).mockResolvedValue(fake.io);
 	vi.stubGlobal("fetch", server.fetchImpl);

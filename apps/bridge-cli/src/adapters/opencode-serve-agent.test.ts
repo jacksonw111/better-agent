@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	fetchServeAgents,
+	fetchServeCommands,
 	fetchServeHealth,
 	logServeHealth,
 	SERVE_AGENT_FALLBACK,
@@ -58,6 +59,22 @@ describe("fetchServeHealth (R2-T3 item 6)", () => {
 	it("is undefined (treated as legacy) when the request fails", async () => {
 		const http = fakeHttp(() => Promise.reject(new Error("HTTP 404")));
 		expect(await fetchServeHealth(http)).toBeUndefined();
+	});
+});
+
+describe("fetchServeCommands (R5-T1)", () => {
+	it("returns the parsed command catalog on success", async () => {
+		const http = fakeHttp(() =>
+			Promise.resolve([{ name: "help", description: "Show help" }])
+		);
+		expect(await fetchServeCommands(http)).toEqual([
+			{ name: "help", description: "Show help" },
+		]);
+	});
+
+	it("returns [] (no fallback list) when the request fails", async () => {
+		const http = fakeHttp(() => Promise.reject(new Error("HTTP 404")));
+		expect(await fetchServeCommands(http)).toEqual([]);
 	});
 });
 

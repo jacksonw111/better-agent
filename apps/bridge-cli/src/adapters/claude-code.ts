@@ -10,6 +10,10 @@ import {
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { type EventSink, makeCanUseTool } from "./claude-code-approvals";
 import {
+	commandCatalogEvent,
+	fetchSupportedCommands,
+} from "./claude-code-commands";
+import {
 	type ClaudeQuery,
 	fetchSupportedModels,
 	withReportedModels,
@@ -260,6 +264,16 @@ export const claudeCodeAdapter: Adapter = {
 		// handshake that produces the `session_ready` line, so it's ready by the
 		// time `withReportedModels` merges it in (see fetchSupportedModels).
 		const models = fetchSupportedModels(session);
+		// R5-T1: same control channel, its own one-time `command_catalog` event
+		// (not merged into `session_ready` — unlike models, nothing else needs
+		// it inline) — fire-and-forget, so `start()` doesn't wait on it.
+		fetchSupportedCommands(session)
+			.then((commands) => {
+				if (commands && commands.length > 0) {
+					events.push(commandCatalogEvent(commands));
+				}
+			})
+			.catch(() => undefined);
 		// getStatus's model/permissionMode source: the SDK has no on-demand read
 		// for the permission mode, so the adapter tracks the last-known values
 		// (init event + this handle's own setModel/setPermissionMode calls).

@@ -10,6 +10,7 @@ import { type ApprovalRegistry, createApprovalRegistry } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import {
 	fetchServeAgents,
+	fetchServeCommands,
 	fetchServeHealth,
 	logServeHealth,
 	type ServeAgentRef,
@@ -17,6 +18,7 @@ import {
 import { wireServeEventStream } from "./opencode-serve-approvals";
 import {
 	buildServeHandle,
+	pushServeCommandCatalog,
 	pushServeSessionReady,
 } from "./opencode-serve-controls";
 import {
@@ -146,14 +148,16 @@ export const opencodeServeAdapter: Adapter = {
 		// `permissionRouteHint` (item 4) — `wireServeEventStream` above is wired
 		// before this resolves, so a permission racing in ahead of it sees
 		// `"unknown"` and opencode-serve-approvals.ts tries the new route first.
-		const [models, permissionModes, health] = await Promise.all([
+		const [models, permissionModes, health, commands] = await Promise.all([
 			fetchServeModels(http),
 			fetchServeAgents(http),
 			fetchServeHealth(http),
+			fetchServeCommands(http),
 		]);
 		permissionRouteHint.current = health === undefined ? "legacy" : "new";
 		logServeHealth(health);
 		pushServeSessionReady(ctx, dir, models, permissionModes);
+		pushServeCommandCatalog(ctx, commands);
 
 		const agentRef: ServeAgentRef = {};
 		return buildServeHandle(ctx, events, { agentRef, io, sseAbort });

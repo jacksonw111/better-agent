@@ -39,6 +39,57 @@ describe("normalizeClaudeCode - system envelope", () => {
 	});
 });
 
+// R5-T1: the SDK's mid-session `SDKCommandsChangedMessage` push (skills
+// discovered dynamically as the agent works in a subdirectory) — a
+// REPLACEMENT command_catalog, same shape as claude-code-commands.ts's
+// one-time initial fetch. Split into its own describe block purely to keep
+// the "system envelope" block under the repo's max-lines-per-function gate.
+describe("normalizeClaudeCode - commands_changed (R5-T1)", () => {
+	it("maps a system/commands_changed line to a command_catalog status", () => {
+		const events = normalizeClaudeCode({
+			type: "system",
+			subtype: "commands_changed",
+			commands: [
+				{ name: "clear", description: "Clear the conversation" },
+				{ name: "compact", description: "Compact the conversation" },
+			],
+		});
+		expect(events).toEqual([
+			{
+				kind: "status",
+				status: "command_catalog",
+				detail: {
+					commands: [
+						{ name: "clear", description: "Clear the conversation" },
+						{ name: "compact", description: "Compact the conversation" },
+					],
+				},
+			},
+		]);
+	});
+
+	it("drops malformed entries (no name) from a commands_changed push", () => {
+		const events = normalizeClaudeCode({
+			type: "system",
+			subtype: "commands_changed",
+			commands: [{ description: "no name here" }, { name: "ok" }],
+		});
+		expect(events).toEqual([
+			{
+				kind: "status",
+				status: "command_catalog",
+				detail: { commands: [{ name: "ok", description: undefined }] },
+			},
+		]);
+	});
+
+	it("hides a commands_changed line with a non-array commands field", () => {
+		expect(
+			normalizeClaudeCode({ type: "system", subtype: "commands_changed" })
+		).toEqual([]);
+	});
+});
+
 describe("normalizeClaudeCode - result envelope", () => {
 	it("maps a result line to a curated turn_usage status", () => {
 		const events = normalizeClaudeCode({

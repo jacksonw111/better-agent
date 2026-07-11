@@ -10,6 +10,10 @@ import {
 	parseOpencodeServeAgents,
 	parseOpencodeServeHealth,
 } from "../normalize/opencode-serve-agent";
+import {
+	type OpencodeServeCommand,
+	parseOpencodeServeCommands,
+} from "../normalize/opencode-serve-commands";
 import type { ServeHttp } from "./opencode-serve-http";
 
 /** opencode serve's own built-in agent names — used when `GET /agent` fails,
@@ -60,6 +64,21 @@ export function logServeHealth(health: OpencodeServeHealth | undefined): void {
 	process.stderr.write(
 		"[opencode-serve] health probe returned no version (legacy server?)\n"
 	);
+}
+
+/** R5-T1: GETs the slash-command catalog for the `command_catalog` status
+ * event — `[]` on ANY failure (network error, a 404 on an older server
+ * without this route), never throws; the adapter skips emitting on an empty
+ * result (unlike `fetchServeAgents`, there's no static fallback list — an
+ * empty catalog is just "this server has none"). */
+export async function fetchServeCommands(
+	http: ServeHttp
+): Promise<OpencodeServeCommand[]> {
+	try {
+		return parseOpencodeServeCommands(await http.getJson("/command"));
+	} catch {
+		return [];
+	}
 }
 
 /** Serve has no stateful mode-setter route we trust (ASSUMPTION, unverified:

@@ -3,6 +3,7 @@
 // `send`/`setModel`/`setPermissionMode`/`interrupt` controls, the `getStatus`
 // control, and the one-time `session_ready` push.
 
+import type { OpencodeServeCommand } from "../normalize/opencode-serve-commands";
 import { parseOpencodeServeStatus } from "../normalize/opencode-serve-status";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { retractPendingApprovals } from "./approvals";
@@ -199,5 +200,24 @@ export function pushServeSessionReady(
 			// R2-T3's live GET /agent list wins over the ACP-only static pair.
 			capabilities: { ...OPENCODE_SESSION_CAPABILITIES, permissionModes },
 		},
+	});
+}
+
+/** R5-T1: pushes the one-time `command_catalog` event off `GET /command` —
+ * separate from `session_ready` (mirrors codex/pi, unlike models/permission
+ * modes here), and skipped entirely on an empty catalog (an old server
+ * without the route, or a genuinely empty one — either way, nothing to
+ * show). */
+export function pushServeCommandCatalog(
+	ctx: ServeSessionContext,
+	commands: OpencodeServeCommand[]
+): void {
+	if (commands.length === 0) {
+		return;
+	}
+	ctx.events.push({
+		kind: "status",
+		status: "command_catalog",
+		detail: { commands },
 	});
 }

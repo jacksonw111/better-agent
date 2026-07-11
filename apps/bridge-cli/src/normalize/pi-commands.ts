@@ -155,6 +155,7 @@ export function buildPiExtensionUiCancelResponse(id: string): string {
  * which one a given pi version sends is exactly what `piCommandSource`
  * (R2-T3 item 4) is resolving. */
 interface PiCommandInfo {
+	description?: unknown;
 	name: string;
 	source?: unknown;
 	sourceInfo?: unknown;
@@ -202,24 +203,17 @@ function splitPiCommands(commands: PiCommandInfo[]): {
 	return { skills, slashCommands };
 }
 
-/**
- * Parses a `get_commands` RPC response's `data.commands` into
- * `session_ready`'s `slashCommands`/`skills` shape, or `null` if `raw` isn't
- * a successful `get_commands` response (a different command's response, a
- * failed one — see `normalizePiResponse` — or any other stdout line).
+/** Shared gate both `normalizePiCommandsResponse` and `normalizePiCommandCatalog`
+ * (R5-T1) parse off of: `null` unless `raw` is a successful `get_commands`
+ * response carrying an array of command entries.
  *
  * ASSUMPTION (unverified — no `pi` binary available in this sandbox; shape
  * per https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/rpc.md):
  * `data.commands` is `{name, description, source: "extension"|"prompt"|"skill", location?, path?}[]`
  * on older docs, or (R2-T3 item 4, pi rpc-types v0.80.6)
- * `{name, description, sourceInfo: {scope: "extension"|"prompt"|"skill", ...}}[]`;
- * skills are the entries whose resolved source (`piCommandSource`) is
- * `"skill"`, whose `name` is prefixed `skill:`. Reverify against the
- * installed pi version before relying on this.
- */
-export function normalizePiCommandsResponse(
-	raw: unknown
-): { skills: string[]; slashCommands: string[] } | null {
+ * `{name, description, sourceInfo: {scope: "extension"|"prompt"|"skill", ...}}[]`.
+ * Reverify against the installed pi version before relying on this. */
+function piCommandsFromResponse(raw: unknown): PiCommandInfo[] | null {
 	if (
 		!isRecord(raw) ||
 		raw.type !== "response" ||
@@ -232,7 +226,44 @@ export function normalizePiCommandsResponse(
 	if (!(isRecord(data) && Array.isArray(data.commands))) {
 		return null;
 	}
-	return splitPiCommands(data.commands.filter(isPiCommandInfo));
+	return data.commands.filter(isPiCommandInfo);
+}
+
+/**
+ * Parses a `get_commands` RPC response's `data.commands` into
+ * `session_ready`'s `slashCommands`/`skills` shape, or `null` if `raw` isn't
+ * a successful `get_commands` response (a different command's response, a
+ * failed one — see `normalizePiResponse` — or any other stdout line).
+ * Skills are the entries whose resolved source (`piCommandSource`) is
+ * `"skill"`, whose `name` is prefixed `skill:`.
+ */
+export function normalizePiCommandsResponse(
+	raw: unknown
+): { skills: string[]; slashCommands: string[] } | null {
+	const commands = piCommandsFromResponse(raw);
+	return commands && splitPiCommands(commands);
+}
+
+/**
+ * R5-T1: the same `get_commands` response, parsed into the richer
+ * `command_catalog` status event's shape — `{name, description?, source?}`
+ * per entry (unlike `normalizePiCommandsResponse`'s flattened name-only
+ * lists) — or `null` on the same terms as that function.
+ */
+export function normalizePiCommandCatalog(raw: unknown): {
+	commands: Array<{ name: string; description?: string; source?: string }>;
+} | null {
+	const commands = piCommandsFromResponse(raw);
+	if (!commands) {
+		return null;
+	}
+	return {
+		commands: commands.map((command) => ({
+			name: command.name,
+			description: asString(command.description),
+			source: piCommandSource(command),
+		})),
+	};
 }
 
 /**

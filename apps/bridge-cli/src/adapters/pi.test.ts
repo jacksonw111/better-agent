@@ -266,7 +266,11 @@ describe("piAdapter - session_ready emitted only once", () => {
 			data: { commands: [] },
 		});
 		pushLine(commandsResponse);
-		await iterator.next();
+		await iterator.next(); // session_ready
+		// R5-T1: the same get_commands response also emits a one-time
+		// command_catalog status, pushed right after session_ready.
+		const { value: catalogEvent } = await iterator.next();
+		expect(catalogEvent).toMatchObject({ status: "command_catalog" });
 
 		pushLine(commandsResponse);
 		pushLine(

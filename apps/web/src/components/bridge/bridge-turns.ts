@@ -9,6 +9,7 @@ import {
 	pushTurn,
 	removeTurns,
 } from "./bridge-assistant-merge";
+import { COMMAND_CATALOG_STATUS } from "./bridge-command-catalog";
 import type {
 	ApprovalEvent,
 	MessageEvent,
@@ -50,6 +51,9 @@ const HIDDEN_STATUS_KINDS = new Set<string>([
 	TURN_USAGE_STATUS,
 	SESSION_LIST_STATUS,
 	USAGE_UPDATE_STATUS,
+	// R5-T1: each adapter's slash-command catalog — curated metadata like the
+	// others above (R5-T2 renders it via dedicated UI, not the chat feed).
+	COMMAND_CATALOG_STATUS,
 	"agent_start",
 	"agent_end",
 	"turn_start",

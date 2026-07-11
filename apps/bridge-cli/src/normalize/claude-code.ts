@@ -123,6 +123,30 @@ function sessionInfo(raw: Record<string, unknown>): Record<string, unknown> {
 	};
 }
 
+// R5-T1: the SDK's mid-session slash-command push (fires when skills are
+// discovered dynamically as the agent works in a subdirectory) — a
+// REPLACEMENT payload per the SDK's own doc comment on
+// `SDKCommandsChangedMessage` ("Clients should REPLACE their cached command
+// list with this payload"), so this maps straight to a fresh `command_catalog`
+// status event, same shape as the adapter's one-time initial fetch (see
+// claude-code-commands.ts's `commandCatalogEvent`).
+function commandsChangedEvent(raw: Record<string, unknown>): NormalizedEvent[] {
+	if (!Array.isArray(raw.commands)) {
+		return NO_EVENTS;
+	}
+	const commands = raw.commands
+		.filter(isRecord)
+		.map((command) => ({
+			name: asString(command.name),
+			description: asString(command.description),
+		}))
+		.filter(
+			(command): command is { name: string; description: string | undefined } =>
+				command.name !== undefined
+		);
+	return [{ kind: "status", status: "command_catalog", detail: { commands } }];
+}
+
 function normalizeClaudeSystem(
 	raw: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -130,6 +154,9 @@ function normalizeClaudeSystem(
 		return [
 			{ kind: "status", status: "session_ready", detail: sessionInfo(raw) },
 		];
+	}
+	if (asString(raw.subtype) === "commands_changed") {
+		return commandsChangedEvent(raw);
 	}
 	// Every other system subtype (hooks, thinking_tokens, …) is internal noise.
 	return NO_EVENTS;

@@ -8,6 +8,7 @@ import {
 	buildPiSetModelCommand,
 	buildPiSetThinkingLevelCommand,
 	isPiThinkingLevel,
+	normalizePiCommandCatalog,
 	normalizePiCommandsResponse,
 	normalizePiStateModel,
 } from "./pi-commands";
@@ -153,6 +154,51 @@ describe("normalizePiCommandsResponse dual-format (R2-T3 item 4)", () => {
 			slashCommands: ["session-name", "skill:brave-search"],
 			skills: ["brave-search"],
 		});
+	});
+});
+
+// R5-T1: the richer per-entry command_catalog shape — same get_commands
+// response `normalizePiCommandsResponse` parses, kept in its own describe
+// purely to keep this file under the repo's 300-line limit.
+describe("normalizePiCommandCatalog", () => {
+	it("parses each entry's name/description/source", () => {
+		const result = normalizePiCommandCatalog({
+			type: "response",
+			command: "get_commands",
+			success: true,
+			data: {
+				commands: [
+					{
+						name: "fix-tests",
+						description: "Fix failing tests",
+						source: "prompt",
+					},
+					{ name: "skill:brave-search", sourceInfo: { scope: "skill" } },
+				],
+			},
+		});
+		expect(result).toEqual({
+			commands: [
+				{
+					name: "fix-tests",
+					description: "Fix failing tests",
+					source: "prompt",
+				},
+				{ name: "skill:brave-search", description: undefined, source: "skill" },
+			],
+		});
+	});
+
+	it("returns null on the same terms as normalizePiCommandsResponse", () => {
+		expect(
+			normalizePiCommandCatalog({
+				type: "response",
+				command: "get_state",
+				success: true,
+				data: {},
+			})
+		).toBeNull();
+		expect(normalizePiCommandCatalog(null)).toBeNull();
 	});
 });
 

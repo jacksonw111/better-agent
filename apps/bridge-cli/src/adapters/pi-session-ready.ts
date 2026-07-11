@@ -4,6 +4,7 @@
 
 import {
 	normalizePiAvailableModels,
+	normalizePiCommandCatalog,
 	normalizePiCommandsResponse,
 	normalizePiStateModel,
 } from "../normalize/pi-commands";
@@ -60,6 +61,17 @@ export function makePiSessionReadyTracker(events: {
 					capabilities: PI_SESSION_CAPABILITIES,
 				},
 			});
+			// R5-T1: the richer per-entry catalog (name/description/source) — same
+			// `get_commands` response, parsed a second way; pushed right after
+			// session_ready rather than merged into it (mirrors codex/opencode-serve).
+			const catalog = normalizePiCommandCatalog(raw);
+			if (catalog) {
+				events.push({
+					kind: "status",
+					status: "command_catalog",
+					detail: catalog,
+				});
+			}
 		},
 	};
 }
