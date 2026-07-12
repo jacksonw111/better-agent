@@ -169,14 +169,6 @@
 	transform: translateY(calc(100% + 1rem));
 }
 
-/* Animate the content's bottom padding as the dock reserves/releases its
-   space, so a pinned composer slides down to fill the gap in lockstep with the
-   dock hiding instead of leaving a dock-height blank. Matches the dock's own
-   300ms transform. */
-.dock-pad-transition {
-	transition: padding-bottom 300ms ease-out;
-}
-
 /* Near-fullscreen sheet height for dialogs on mobile (settings dialog) — only
    below Tailwind's `sm` breakpoint (matches the `max-sm:` variant threshold),
    so desktop keeps the dialog's own height classes. */
