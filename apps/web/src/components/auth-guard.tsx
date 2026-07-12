@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { RocketLoader } from "@/components/rocket-loader";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
@@ -61,12 +62,13 @@ function AuthedShell() {
 					<span className="font-medium text-sm">better-agent</span>
 				</header>
 				{/* Verify-email banner hidden for now (re-add when needed). */}
-				<div className="flex min-h-0 flex-1 flex-col overflow-auto">
+				<div className="flex min-h-0 flex-1 flex-col overflow-auto pb-tab-bar md:pb-0">
 					<RouteTransition>
 						<Outlet />
 					</RouteTransition>
 				</div>
 			</SidebarInset>
+			<MobileTabBar />
 		</SidebarProvider>
 	);
 }
