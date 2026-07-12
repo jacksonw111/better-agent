@@ -31,7 +31,9 @@ interface StatusNotice {
 }
 
 /** Wire `StatusEvent.status` -> human-readable copy, pushed by the bridge
- * CLI's own lifecycle (restart/stop/watchdog), not an agent adapter — the
+ * CLI's own code (restart/stop/watchdog lifecycle, plus its adapters'
+ * own validation/mismatch signals — never passthrough chatter from the
+ * underlying agent CLI), not an agent adapter's raw session update — the
  * ONLY place these get translated. Statuses not listed here fall back to a
  * cleaned `humanizeStatus` label rather than disappearing. */
 const STATUS_NOTICES: Record<string, StatusNotice> = {
@@ -85,6 +87,39 @@ const STATUS_NOTICES: Record<string, StatusNotice> = {
 		text: "无法恢复上下文，已开启新会话",
 		tone: "warn",
 	},
+	// Task 13 addendum: 6 kinds the old blacklist-based `foldStatus` used to
+	// render via the generic `humanizeStatus` fallback fell silently out of
+	// both curated lists when that fold flipped to a whitelist (commit
+	// 6e73cad) — re-admitting the 5 below (opencode-status.ts's
+	// model_format_invalid, approvals.ts/questions.ts's approval/question
+	// mismatches, truncate-event.ts's oversized-event marker) as proper
+	// visible notices; the 6th (status_snapshot) is a hidden non-boundary —
+	// see HIDDEN_STATUS_KINDS in bridge-turns.ts.
+	model_format_invalid: {
+		icon: AlertTriangleIcon,
+		text: "模型切换失败：格式无效",
+		tone: "warn",
+	},
+	approval_unknown: {
+		icon: AlertTriangleIcon,
+		text: "审批回复未能匹配到对应请求",
+		tone: "warn",
+	},
+	approval_invalid_option: {
+		icon: AlertTriangleIcon,
+		text: "审批回复选项无效，未能应用",
+		tone: "warn",
+	},
+	question_unknown: {
+		icon: AlertTriangleIcon,
+		text: "回复未能匹配到对应问题",
+		tone: "warn",
+	},
+	event_truncated: {
+		icon: AlertTriangleIcon,
+		text: "输出过长，已截断",
+		tone: "warn",
+	},
 };
 
 /** A status this table doesn't map yet: still readable, not the raw token. */
@@ -95,10 +130,12 @@ function humanizeStatus(status: string): string {
 /** The curated set of `STATUS_NOTICES` keys — exported so `bridge-turns.ts`'s
  * `foldStatus` can whitelist EXACTLY these as visible, bubble-splitting status
  * turns. Derived from the table above (not hand-duplicated) so the two can
- * never drift apart. All 8 are pushed by the bridge CLI's own lifecycle
- * (restart/stop/watchdog/resume-fallback) — never by an agent adapter — which
- * is what makes them safe to special-case: unlike an adapter's `sessionUpdate`
- * kind, no third-party agent build can silently add a 9th one. */
+ * never drift apart. All 13 are pushed by the bridge CLI's own code (restart/
+ * stop/watchdog/resume-fallback lifecycle, plus its adapters' own validation/
+ * mismatch signals) — never passthrough of an agent adapter's raw
+ * `sessionUpdate` kind — which is what makes them safe to special-case: unlike
+ * unrecognized adapter chatter, no third-party agent build can silently add a
+ * 14th one. */
 export const STATUS_NOTICE_KINDS: ReadonlySet<string> = new Set(
 	Object.keys(STATUS_NOTICES)
 );

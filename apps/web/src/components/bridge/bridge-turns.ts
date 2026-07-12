@@ -23,6 +23,7 @@ import {
 	TURN_USAGE_STATUS,
 	USAGE_UPDATE_STATUS,
 } from "./bridge-session-status";
+import { STATUS_SNAPSHOT_STATUS } from "./bridge-status-snapshot";
 import type { BridgeTurn, PlanTurn, TaskTurn } from "./bridge-turn-types";
 import { foldApproval, foldQuestion } from "./bridge-turns-approval";
 import {
@@ -44,7 +45,8 @@ export type {
  * capabilities, cost/tokens, past-conversations — surfaced by dedicated header/
  * chip UI) AND pure lifecycle heartbeats (pi's agent_start/turn_start, codex's
  * turn_started, opencode's usage_update) that carry nothing worth reading inline.
- * All still act as a turn boundary (closing any open assistant accumulation). */
+ * All still act as a turn boundary (closing any open assistant accumulation),
+ * except where noted below. */
 const HIDDEN_STATUS_KINDS = new Set<string>([
 	SESSION_READY_STATUS,
 	TURN_USAGE_STATUS,
@@ -53,6 +55,12 @@ const HIDDEN_STATUS_KINDS = new Set<string>([
 	// R5-T1: each adapter's slash-command catalog — curated metadata like the
 	// others above (R5-T2 renders it via dedicated UI, not the chat feed).
 	COMMAND_CATALOG_STATUS,
+	// Task 13 addendum: the on-demand `{ control: getStatus }` reply, consumed
+	// straight off the raw event stream by `use-bridge-feed.ts`'s own reducer
+	// (feeding `status-snapshot-panel.tsx`) BEFORE this fold ever runs — same
+	// shape as SESSION_READY_STATUS/TURN_USAGE_STATUS above, not a lifecycle
+	// boundary, so it does NOT appear in TURN_BOUNDARY_STATUS_KINDS either.
+	STATUS_SNAPSHOT_STATUS,
 	"agent_start",
 	"agent_end",
 	"turn_start",

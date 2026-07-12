@@ -71,3 +71,47 @@ it("does not let an unknown adapter status (not in any curated list) fragment th
 		{ kind: "text", text: "firstsecond" },
 	]);
 });
+
+it("renders a formerly-dropped CLI warning status (event_truncated) as its own status turn again", () => {
+	// Task 13 addendum: event_truncated (truncate-event.ts's oversized-event
+	// marker) fell out of both curated lists when foldStatus flipped to a
+	// whitelist (commit 6e73cad) and was silently absorbed. It's a CLI-origin
+	// warning the user must see, so it was re-admitted to STATUS_NOTICE_KINDS
+	// via status-line.tsx's STATUS_NOTICES — this asserts it closes the
+	// bubble and renders as a status turn, same as any other notice kind.
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "output", text: "first" }),
+		ev(2, { kind: "status", status: "event_truncated" }),
+		ev(3, { kind: "output", text: "second" }),
+	]);
+	expect(turns.map((t) => t.kind)).toEqual([
+		"assistant",
+		"status",
+		"assistant",
+	]);
+	expect(asAssistant(turns[0]).blocks).toEqual([
+		{ kind: "text", text: "first" },
+	]);
+	expect(asAssistant(turns[2]).blocks).toEqual([
+		{ kind: "text", text: "second" },
+	]);
+});
+
+it("hides status_snapshot (the on-demand getStatus reply, consumed off the raw feed by use-bridge-feed.ts BEFORE folding) without fragmenting the assistant bubble", () => {
+	// Task 13 addendum: status_snapshot is a hidden, non-boundary status like
+	// SESSION_READY_STATUS/TURN_USAGE_STATUS — it must not render a status
+	// turn nor close the in-flight assistant bubble.
+	const turns = foldEventsToTurns([
+		ev(1, { kind: "output", text: "first" }),
+		ev(2, {
+			kind: "status",
+			status: "status_snapshot",
+			detail: { model: "x" },
+		}),
+		ev(3, { kind: "output", text: "second" }),
+	]);
+	expect(turns.map((t) => t.kind)).toEqual(["assistant"]);
+	expect(asAssistant(turns[0]).blocks).toEqual([
+		{ kind: "text", text: "firstsecond" },
+	]);
+});
