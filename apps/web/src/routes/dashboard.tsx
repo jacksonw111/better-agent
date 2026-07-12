@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BarChart2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
 import { CloudAgentUsage } from "@/components/dashboard/cloud-agent-usage";
@@ -9,12 +9,19 @@ import {
 	type WindowDays,
 } from "@/components/dashboard/dashboard-constants";
 import { StatsPanel } from "@/components/dashboard/stats-panel";
-import { TokenChart } from "@/components/dashboard/token-chart";
 import { UsageOverview } from "@/components/dashboard/usage-overview";
 import { useUsageData } from "@/components/dashboard/use-usage-data";
 import { WindowToggle } from "@/components/dashboard/window-toggle";
 import { EmptyState } from "@/components/layout/empty-state";
 import { PageContainer } from "@/components/layout/page-container";
+
+// Lazy so recharts (~124KB gzip) stays out of the dashboard route's initial
+// chunk — it loads only once the usage chart is actually shown.
+const TokenChart = lazy(() =>
+	import("@/components/dashboard/token-chart").then((m) => ({
+		default: m.TokenChart,
+	}))
+);
 
 export const Route = createFileRoute("/dashboard")({
 	component: DashboardPage,
@@ -75,7 +82,13 @@ function DashboardBody({
 				) : (
 					<>
 						<StatsPanel isPending={isPending} totals={totals} />
-						<TokenChart daily={daily} isPending={isPending} />
+						<Suspense
+							fallback={
+								<div className="h-80 w-full animate-pulse rounded-xl bg-muted/40" />
+							}
+						>
+							<TokenChart daily={daily} isPending={isPending} />
+						</Suspense>
 					</>
 				)}
 				<ActivityHeatmap />
