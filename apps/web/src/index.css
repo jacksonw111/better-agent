@@ -162,6 +162,16 @@
 	padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
+/* Floating chat composer bottom padding on <md: clears the home indicator via
+   the safe-area inset but never dips below 0.75rem. Scoped below Tailwind's
+   `md` breakpoint (48rem) so desktop keeps the composer's own `md:pb-4`.
+   Hand-written because the pre-commit hook blocks Tailwind arbitrary values. */
+@media (width < 48rem) {
+	.pb-safe-composer {
+		padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+	}
+}
+
 /* Floating dock hidden state: slide it fully off-screen (its own height covers
    the safe-area gap; +1rem clears the drop shadow). Arbitrary Tailwind
    translate values are blocked by the pre-commit hook, so it's hand-written. */

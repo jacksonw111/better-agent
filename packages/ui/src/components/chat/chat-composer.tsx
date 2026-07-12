@@ -182,7 +182,7 @@ function ComposerBox({
 				/>
 			)}
 			<PromptInput
-				className="rounded-2xl border bg-background p-2 shadow-sm"
+				className="rounded-2xl border bg-background/85 p-2 shadow-lg backdrop-blur-md md:bg-background md:shadow-sm md:backdrop-blur-none"
 				onSubmit={submit}
 			>
 				<ChipRow items={items} onRemove={onRemove} />
@@ -224,11 +224,13 @@ export function ChatComposer({
 			onSend,
 		});
 
-	// Keep this wrapper's classes in sync with its twin in
-	// apps/web/src/components/bridge/terminal-composer.tsx (TerminalComposer's
-	// outer wrapper) — the two composers are styled to match.
+	// Keep this wrapper's classes AND the inner PromptInput's classes in sync
+	// with their twin in apps/web/src/components/bridge/terminal-composer.tsx
+	// (TerminalComposer) — the two composers are styled to match. On <md the box
+	// floats as a glass pill (shadow-lg + backdrop-blur, matching the dock) and
+	// `pb-safe-composer` clears the home indicator; desktop keeps the solid card.
 	return (
-		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-4 sm:px-4">
+		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-safe-composer sm:px-4 md:pb-4">
 			<ComposerBox
 				items={items}
 				onFiles={addFiles}

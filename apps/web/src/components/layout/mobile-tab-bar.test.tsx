@@ -11,12 +11,15 @@ const MORE_LABEL_PATTERN = /More/;
 
 const store = vi.hoisted(() => ({
 	pathname: "/dashboard",
+	search: {} as Record<string, unknown>,
 	setOpenMobileCalls: [] as boolean[],
 }));
 
 vi.mock("@tanstack/react-router", () => ({
 	useRouterState: (opts: { select: (state: unknown) => unknown }) =>
-		opts.select({ location: { pathname: store.pathname } }),
+		opts.select({
+			location: { pathname: store.pathname, search: store.search },
+		}),
 	Link: ({
 		children,
 		to,
@@ -48,6 +51,7 @@ function renderBar() {
 
 afterEach(() => {
 	store.pathname = "/dashboard";
+	store.search = {};
 	store.setOpenMobileCalls.length = 0;
 	cleanup();
 });
@@ -100,4 +104,34 @@ it("opens the sidebar drawer when More is tapped", () => {
 
 	fireEvent.click(view.getByRole("button", { name: MORE_LABEL_PATTERN }));
 	expect(store.setOpenMobileCalls).toEqual([true]);
+});
+
+it("renders the dock on /agents", () => {
+	store.pathname = "/agents";
+	const view = renderBar();
+
+	expect(view.getByRole("navigation", { name: "Primary" })).toBeDefined();
+});
+
+it("keeps the dock on the bare /chat agent-picker grid", () => {
+	store.pathname = "/chat";
+	const view = renderBar();
+
+	expect(view.getByRole("navigation", { name: "Primary" })).toBeDefined();
+});
+
+it("suppresses the dock when /chat has a selected cloud agent", () => {
+	store.pathname = "/chat";
+	store.search = { agentId: "agent-1" };
+	const view = renderBar();
+
+	expect(view.queryByRole("navigation")).toBeNull();
+});
+
+it("suppresses the dock when /chat has a selected local agent", () => {
+	store.pathname = "/chat";
+	store.search = { localAgentId: "token-1" };
+	const view = renderBar();
+
+	expect(view.queryByRole("navigation")).toBeNull();
 });

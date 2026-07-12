@@ -5,6 +5,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { BookMarked, Bot, EllipsisIcon, Gauge } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -128,12 +129,20 @@ function useHideOnScrollDown(): boolean {
  * a "More" tab that opens the existing hamburger drawer (Skills, Integrations,
  * theme, account). Mounted once in the authed shell; content needs matching
  * bottom padding (`pb-tab-bar`) so it doesn't sit underneath. Floats as a
- * rounded pill above the content and slides away on scroll-down. */
+ * rounded pill above the content and slides away on scroll-down.
+ *
+ * Suppressed entirely on an open conversation (<md) — see `useImmersiveChat`:
+ * an open chat is an immersive screen navigated via its header's close button.
+ * This is a static per-route decision, NOT scroll-driven, so it can't oscillate. */
 export function MobileTabBar() {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
+	const immersive = useImmersiveChat();
 	const hidden = useHideOnScrollDown();
+	if (immersive) {
+		return null;
+	}
 	return (
 		<div
 			className={cn(

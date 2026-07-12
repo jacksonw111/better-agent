@@ -2,11 +2,13 @@ import {
 	SidebarInset,
 	SidebarProvider,
 } from "@better-agent/ui/components/sidebar";
+import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
 import { RocketLoader } from "@/components/rocket-loader";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
@@ -52,6 +54,12 @@ function useAuthBootstrap(): boolean {
 }
 
 function AuthedShell() {
+	// An open conversation (<md) is immersive: the dock is suppressed AND its
+	// reserved bottom padding is dropped so the chat uses the full viewport with
+	// no blank strip. This predicate is static per route (pathname + search) —
+	// never reactive to the dock's hidden state — so it can't reintroduce the
+	// scroll/padding oscillation that commit 1d89402 removed.
+	const immersive = useImmersiveChat();
 	return (
 		<SidebarProvider className="h-svh overflow-hidden">
 			<WebSidebar />
@@ -59,9 +67,14 @@ function AuthedShell() {
 				{/* No mobile top bar: the floating dock's "More" tab opens the
 				    sidebar drawer, so a header with a hamburger + app name would
 				    just eat vertical space. Verify-email banner hidden for now.
-				    Bottom padding is CONSTANT (never toggled by the dock) so the
-				    dock hiding can't reflow the scroll area and oscillate. */}
-				<div className="flex min-h-0 flex-1 flex-col overflow-auto pb-tab-bar md:pb-0">
+				    Bottom padding is CONSTANT per route (never toggled by the dock)
+				    so the dock hiding can't reflow the scroll area and oscillate. */}
+				<div
+					className={cn(
+						"flex min-h-0 flex-1 flex-col overflow-auto md:pb-0",
+						immersive ? "pb-0" : "pb-tab-bar"
+					)}
+				>
 					<RouteTransition>
 						<Outlet />
 					</RouteTransition>

@@ -100,6 +100,7 @@ function AgentGridView({ onSelect }: { onSelect: (agent: AgentRow) => void }) {
 
 interface HomeSetters {
 	invalidate: () => Promise<void>;
+	navigate: ReturnType<typeof useNavigate>;
 	setSelectedAgent: (a: AgentRow | null) => void;
 	setSending: (v: boolean) => void;
 	setSessionId: (id: string) => void;
@@ -133,10 +134,14 @@ interface HomeActions {
 }
 
 function useHomeActions(setters: HomeSetters): HomeActions {
-	const { setSelectedAgent, setSessionId } = setters;
+	const { navigate, setSelectedAgent, setSessionId } = setters;
 	const startFresh = (agent: AgentRow) => {
 		setSelectedAgent(agent);
 		setSessionId("");
+		// Mirror the agent into the URL (like the local branch's localAgentId): makes
+		// the cloud chat deep-linkable AND is the signal `useImmersiveChat` reads to
+		// go full-screen (dock suppressed, no reserved bottom padding) on <md.
+		navigate({ search: { agentId: agent.id }, to: "/chat" });
 		createSession(agent, setters).catch(() => undefined);
 	};
 	return {
@@ -144,6 +149,8 @@ function useHomeActions(setters: HomeSetters): HomeActions {
 			clearLastChat();
 			setSelectedAgent(null);
 			setSessionId("");
+			// Back to the bare /chat picker grid — drops the immersive signal.
+			navigate({ search: {}, to: "/chat" });
 		},
 		// Eager flow: "New" must actually create the next session, or the page
 		// would wait forever on an empty sessionId.
@@ -169,6 +176,7 @@ function useHomeState() {
 	const [selectedAgent, setSelectedAgent] = useState<AgentRow | null>(null);
 	const [sessionId, setSessionId] = useState("");
 	const [sending, setSending] = useState(false);
+	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const agentClient = useUserAgentClient(selectedAgent?.id ?? null);
 	const sessions = useUserSessions(selectedAgent?.id ?? null);
@@ -181,6 +189,7 @@ function useHomeState() {
 	);
 	const actions = useHomeActions({
 		invalidate,
+		navigate,
 		setSelectedAgent,
 		setSessionId,
 		setSending,
