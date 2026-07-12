@@ -33,7 +33,7 @@ function UsageRowCard({ row }: { row: LocalAgentUsageRow }) {
 			? "flex items-center gap-4 text-muted-foreground"
 			: "flex items-center gap-4";
 	return (
-		<div className="flex items-center justify-between rounded-lg border bg-card p-4 shadow-sm">
+		<div className="flex items-center justify-between rounded-xl bg-card p-4 ring-1 ring-foreground/10">
 			<div className="flex items-center gap-3">
 				<div className="flex size-8 items-center justify-center rounded-full bg-muted text-muted-foreground">
 					<AgentKindIcon className="size-4" kind={row.agentKind} />

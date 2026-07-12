@@ -226,7 +226,7 @@ export function ActivityHeatmap() {
 	const palette = isDark ? LEVELS_DARK : LEVELS_LIGHT;
 
 	return (
-		<div className="rounded-xl border bg-card p-4 shadow-sm">
+		<div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
 			<p className="mb-3 font-medium text-sm">Activity</p>
 			{isPending ? (
 				<HeatmapSkeleton />

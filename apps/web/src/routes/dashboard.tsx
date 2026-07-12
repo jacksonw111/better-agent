@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { BarChart2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActivityHeatmap } from "@/components/dashboard/activity-heatmap";
@@ -7,12 +8,13 @@ import {
 	DEFAULT_WINDOW,
 	type WindowDays,
 } from "@/components/dashboard/dashboard-constants";
-import { EmptyState } from "@/components/dashboard/empty-state";
 import { StatsPanel } from "@/components/dashboard/stats-panel";
 import { TokenChart } from "@/components/dashboard/token-chart";
 import { UsageOverview } from "@/components/dashboard/usage-overview";
 import { useUsageData } from "@/components/dashboard/use-usage-data";
 import { WindowToggle } from "@/components/dashboard/window-toggle";
+import { EmptyState } from "@/components/layout/empty-state";
+import { PageContainer } from "@/components/layout/page-container";
 
 export const Route = createFileRoute("/dashboard")({
 	component: DashboardPage,
@@ -65,7 +67,11 @@ function DashboardBody({
 		<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 			<div className="flex flex-col gap-4 lg:col-span-2">
 				{isEmpty ? (
-					<EmptyState />
+					<EmptyState
+						body="Start chatting to see your token consumption here."
+						icon={BarChart2}
+						title="No usage yet"
+					/>
 				) : (
 					<>
 						<StatsPanel isPending={isPending} totals={totals} />
@@ -96,7 +102,7 @@ export function DashboardPage() {
 	}, [isError, error]);
 
 	return (
-		<div className="flex flex-col gap-6 p-4 sm:p-6">
+		<PageContainer>
 			<DashboardHeader onWindowChange={setWindowDays} windowDays={windowDays} />
 			<DashboardBody
 				daily={daily}
@@ -105,6 +111,6 @@ export function DashboardPage() {
 				totals={totals}
 				windowDays={windowDays}
 			/>
-		</div>
+		</PageContainer>
 	);
 }

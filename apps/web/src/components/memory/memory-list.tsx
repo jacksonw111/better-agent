@@ -1,8 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ListToolbar } from "@/components/list/list-toolbar";
+import { Pagination } from "@/components/list/pagination";
+import { useListView } from "@/components/list/use-list-view";
 import { orpc } from "@/utils/orpc";
+import { CreateMemoryDialog } from "./create-memory-dialog";
 import { MemoryListSkeleton } from "./memory-skeletons";
 import { MemoryTable } from "./memory-table";
+import type { MemoryRow } from "./memory-types";
 
 function useDeleteMemory() {
 	const queryClient = useQueryClient();
@@ -19,21 +24,43 @@ function useDeleteMemory() {
 	);
 }
 
-/** The user's memories as a table — one row per named knowledge base. Rows
- * link to the memory's detail page; the Actions cell deletes it (cascading its
- * items and assignments) after confirm. */
+function matchMemory(row: MemoryRow, query: string): boolean {
+	return (
+		row.name.toLowerCase().includes(query) ||
+		(row.description ?? "").toLowerCase().includes(query)
+	);
+}
+
+/** The user's memories as a searchable table — one row per named knowledge
+ * base. Rows link to the memory's detail page; the Actions cell deletes it
+ * (cascading its items and assignments) after confirm. */
 export function MemoryList() {
 	const memories = useQuery(orpc.memory.listMemories.queryOptions());
 	const deleteMemory = useDeleteMemory();
+	const view = useListView(memories.data ?? [], { filter: matchMemory });
 
 	if (memories.isPending) {
 		return <MemoryListSkeleton />;
 	}
 
 	return (
-		<MemoryTable
-			memories={memories.data ?? []}
-			onDelete={(id) => deleteMemory.mutate({ id })}
-		/>
+		<div className="flex flex-col gap-3">
+			<ListToolbar
+				action={<CreateMemoryDialog />}
+				onSearch={view.setSearch}
+				placeholder="Search memories…"
+				search={view.search}
+			/>
+			<MemoryTable
+				memories={view.pageRows}
+				onDelete={(id) => deleteMemory.mutate({ id })}
+			/>
+			<Pagination
+				onPage={view.setPage}
+				page={view.page}
+				pageCount={view.pageCount}
+				total={view.total}
+			/>
+		</div>
 	);
 }

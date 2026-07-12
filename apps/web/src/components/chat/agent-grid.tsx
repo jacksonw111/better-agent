@@ -3,6 +3,10 @@ import {
 	AvatarFallback,
 	AvatarImage,
 } from "@better-agent/ui/components/avatar";
+import { Button } from "@better-agent/ui/components/button";
+import { Link } from "@tanstack/react-router";
+import { UsersIcon } from "lucide-react";
+import { EmptyState } from "@/components/layout/empty-state";
 import type { AgentRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 
@@ -46,8 +50,17 @@ export function AgentGrid({
 }) {
 	if (agents.length === 0) {
 		return (
-			<div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-				No agents available.
+			<div className="flex flex-1 items-center justify-center">
+				<EmptyState
+					action={
+						<Button render={<Link to="/agents" />} size="sm">
+							Create an agent
+						</Button>
+					}
+					body="Add an agent to start chatting."
+					icon={UsersIcon}
+					title="No agents available"
+				/>
 			</div>
 		);
 	}

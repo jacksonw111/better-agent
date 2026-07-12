@@ -9,8 +9,10 @@ import {
 	TableRow,
 } from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { PlugIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
@@ -20,7 +22,6 @@ import { orpc } from "@/utils/orpc";
 
 import { AddMcpServerDialog } from "./add-mcp-server-dialog";
 import { EditMcpServerDialog } from "./edit-mcp-server-dialog";
-import { IntegrationsEmptyState } from "./empty-state";
 import { ExportMcpMenu } from "./export-mcp-menu";
 import { McpToolsPreview } from "./mcp-tools-preview";
 
@@ -197,9 +198,10 @@ function McpServersBody({
 
 	if (rows.length === 0) {
 		return (
-			<IntegrationsEmptyState
+			<EmptyState
 				action={<AddMcpServerDialog />}
-				description="Register a remote MCP server (e.g. X's hosted MCP) to give your agents its tools."
+				body="Register a remote MCP server (e.g. X's hosted MCP) to give your agents its tools."
+				icon={PlugIcon}
 				title="No MCP servers yet"
 			/>
 		);

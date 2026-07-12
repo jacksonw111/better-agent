@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ListToolbar } from "@/components/list/list-toolbar";
+import { Pagination } from "@/components/list/pagination";
+import { useListView } from "@/components/list/use-list-view";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
+import { AddLocalAgentDialog } from "./add-local-agent-dialog";
+import { localAgentDisplayName } from "./local-agent-format";
 import { deriveLocalAgentEntries } from "./local-agent-join";
 import { LocalAgentListSkeleton } from "./local-agent-list-skeleton";
 import { withSessionPolling } from "./local-agent-poll";
 import { LocalAgentTable, type LocalAgentTableRow } from "./local-agent-table";
+
+function matchLocalAgent(row: LocalAgentTableRow, query: string): boolean {
+	return (
+		localAgentDisplayName(row.entry).toLowerCase().includes(query) ||
+		row.entry.token.agentKind.toLowerCase().includes(query)
+	);
+}
 
 function countSessionsByToken(
 	sessions: BridgeSessionRow[]
@@ -45,10 +57,6 @@ export function LocalAgentList() {
 	);
 	const deleteAgent = useDeleteAgent();
 
-	if (tokens.isPending || sessions.isPending) {
-		return <LocalAgentListSkeleton />;
-	}
-
 	const sessionData = sessions.data ?? [];
 	const counts = countSessionsByToken(sessionData);
 	const entries = deriveLocalAgentEntries(tokens.data ?? [], sessionData);
@@ -56,11 +64,30 @@ export function LocalAgentList() {
 		entry,
 		sessionCount: counts.get(entry.token.id) ?? 0,
 	}));
+	const view = useListView(rows, { filter: matchLocalAgent });
+
+	if (tokens.isPending || sessions.isPending) {
+		return <LocalAgentListSkeleton />;
+	}
 
 	return (
-		<LocalAgentTable
-			onDelete={(id) => deleteAgent.mutate({ id })}
-			rows={rows}
-		/>
+		<div className="flex flex-col gap-3">
+			<ListToolbar
+				action={<AddLocalAgentDialog />}
+				onSearch={view.setSearch}
+				placeholder="Search local agents…"
+				search={view.search}
+			/>
+			<LocalAgentTable
+				onDelete={(id) => deleteAgent.mutate({ id })}
+				rows={view.pageRows}
+			/>
+			<Pagination
+				onPage={view.setPage}
+				page={view.page}
+				pageCount={view.pageCount}
+				total={view.total}
+			/>
+		</div>
 	);
 }

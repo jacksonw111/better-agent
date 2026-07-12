@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ListToolbar } from "@/components/list/list-toolbar";
+import { Pagination } from "@/components/list/pagination";
+import { useListView } from "@/components/list/use-list-view";
 import { orpc } from "@/utils/orpc";
+import { CreateSkillDialog } from "./create-skill-dialog";
 import { EditSkillDialog } from "./edit-skill-dialog";
 import { SkillListSkeleton } from "./skill-skeletons";
 import { SkillTable } from "./skill-table";
@@ -20,24 +24,44 @@ function useDeleteSkill() {
 	);
 }
 
-/** The user's skills as a table — one row per reusable playbook. Clicking a
- * row's name opens the edit dialog; the Actions cell deletes it (unassigning
- * it from every agent) after confirm. */
+function matchSkill(row: SkillRow, query: string): boolean {
+	return (
+		row.name.toLowerCase().includes(query) ||
+		(row.description ?? "").toLowerCase().includes(query)
+	);
+}
+
+/** The user's skills as a searchable table — one row per reusable playbook.
+ * Clicking a row's name opens the edit dialog; the Actions cell deletes it
+ * (unassigning it from every agent) after confirm. */
 export function SkillList() {
 	const skills = useQuery(orpc.skills.list.queryOptions());
 	const deleteSkill = useDeleteSkill();
 	const [editing, setEditing] = useState<SkillRow | null>(null);
+	const view = useListView(skills.data ?? [], { filter: matchSkill });
 
 	if (skills.isPending) {
 		return <SkillListSkeleton />;
 	}
 
 	return (
-		<>
+		<div className="flex flex-col gap-3">
+			<ListToolbar
+				action={<CreateSkillDialog />}
+				onSearch={view.setSearch}
+				placeholder="Search skills…"
+				search={view.search}
+			/>
 			<SkillTable
 				onDelete={(id) => deleteSkill.mutate({ skillId: id })}
 				onEdit={setEditing}
-				skills={skills.data ?? []}
+				skills={view.pageRows}
+			/>
+			<Pagination
+				onPage={view.setPage}
+				page={view.page}
+				pageCount={view.pageCount}
+				total={view.total}
 			/>
 			{editing ? (
 				<EditSkillDialog
@@ -50,6 +74,6 @@ export function SkillList() {
 					skill={editing}
 				/>
 			) : null}
-		</>
+		</div>
 	);
 }

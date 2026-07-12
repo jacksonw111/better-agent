@@ -111,6 +111,16 @@ function buildTokens(): TokenRow[] {
 	];
 }
 
+// Small factory so each stubbed mutation doesn't need its own multi-line
+// mutationOptions boilerplate (keeps the vi.mock factory below under the
+// max-lines-per-function cap).
+function stubMutation<T>(result: T) {
+	return (opts: Record<string, unknown>) => ({
+		mutationFn: () => Promise.resolve(result),
+		...opts,
+	});
+}
+
 vi.mock("@/utils/orpc", () => {
 	const listSessionsKey = ["bridge", "listSessions"];
 	const listTokensKey = ["bridge", "listTokens"];
@@ -140,17 +150,18 @@ vi.mock("@/utils/orpc", () => {
 					}),
 					key: () => listTokensKey,
 				},
-				endSession: {
-					mutationOptions: (opts: Record<string, unknown>) => ({
-						mutationFn: () => Promise.resolve({ ok: true }),
-						...opts,
+				createToken: {
+					mutationOptions: stubMutation({
+						id: "new-token",
+						token: "bt_new",
+						last4: "_new",
 					}),
 				},
+				endSession: {
+					mutationOptions: stubMutation({ ok: true }),
+				},
 				deleteToken: {
-					mutationOptions: (opts: Record<string, unknown>) => ({
-						mutationFn: () => Promise.resolve({ ok: true }),
-						...opts,
-					}),
+					mutationOptions: stubMutation({ ok: true }),
 				},
 			},
 		},

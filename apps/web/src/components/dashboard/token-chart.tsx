@@ -157,7 +157,7 @@ export function TokenChart({ daily, isPending }: TokenChartProps) {
 		day: formatDay(d.day),
 	}));
 	return (
-		<div className="rounded-xl border bg-card p-4 shadow-sm">
+		<div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
 			<p className="mb-3 font-medium text-sm">Usage Trends</p>
 			<ChartBody data={data} />
 		</div>

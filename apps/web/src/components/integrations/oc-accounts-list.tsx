@@ -8,15 +8,16 @@ import {
 } from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { PlugIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { OpenConnectorAccountRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
-import { IntegrationsEmptyState } from "./empty-state";
 import { AccountsSkeleton } from "./integrations-skeleton";
 import { OcAddAccountDialog } from "./oc-add-account-dialog";
 
@@ -122,9 +123,10 @@ export function OcAccountsList() {
 
 	if (rows.length === 0) {
 		return (
-			<IntegrationsEmptyState
+			<EmptyState
 				action={<OcAddAccountDialog />}
-				description="Add an OpenConnector account with your instance URL and tokens to connect provider tools to your agents."
+				body="Add an OpenConnector account with your instance URL and tokens to connect provider tools to your agents."
+				icon={PlugIcon}
 				title="No OpenConnector accounts yet"
 			/>
 		);

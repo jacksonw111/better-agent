@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { AgentsCard } from "@/components/agents/agents-card";
+import { PageContainer } from "@/components/layout/page-container";
 
 export const Route = createFileRoute("/agents/")({
 	component: AgentsPage,
@@ -8,8 +9,8 @@ export const Route = createFileRoute("/agents/")({
 
 function AgentsPage() {
 	return (
-		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-5 overflow-auto p-4 sm:p-6">
+		<PageContainer>
 			<AgentsCard />
-		</div>
+		</PageContainer>
 	);
 }

@@ -68,8 +68,8 @@ export function TaskCard({ task }: { task: TaskInvocation }) {
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs",
-				isError ? "border-destructive/40" : "border-border"
+				"flex flex-col gap-2 rounded-xl bg-card p-3 ring-1",
+				isError ? "ring-destructive/40" : "ring-foreground/10"
 			)}
 		>
 			<div className="flex items-center gap-2 text-left">

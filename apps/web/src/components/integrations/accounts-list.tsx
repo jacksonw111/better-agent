@@ -8,8 +8,10 @@ import {
 } from "@better-agent/ui/components/table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { PlugIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
@@ -18,7 +20,6 @@ import type { ComposioAccountRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
 import { AddAccountDialog } from "./add-account-dialog";
-import { IntegrationsEmptyState } from "./empty-state";
 import { AccountsSkeleton } from "./integrations-skeleton";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -124,9 +125,10 @@ export function AccountsList() {
 
 	if (rows.length === 0) {
 		return (
-			<IntegrationsEmptyState
+			<EmptyState
 				action={<AddAccountDialog />}
-				description="Add a Composio account with your API key to start connecting tools like Gmail, Slack, or Notion to your agents."
+				body="Add a Composio account with your API key to start connecting tools like Gmail, Slack, or Notion to your agents."
+				icon={PlugIcon}
 				title="No integrations yet"
 			/>
 		);

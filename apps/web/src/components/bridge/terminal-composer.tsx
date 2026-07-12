@@ -118,7 +118,7 @@ function ComposerBox({
 				/>
 			)}
 			<PromptInput
-				className="rounded-2xl border bg-background p-2 shadow-sm"
+				className="rounded-lg border bg-background p-2 shadow-sm"
 				onSubmit={submit}
 			>
 				<PromptInputTextarea

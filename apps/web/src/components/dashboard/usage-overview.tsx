@@ -127,7 +127,7 @@ function UsageOverviewBody({
 export function UsageOverview({ windowDays }: { windowDays: WindowDays }) {
 	const { isEmpty, isPending, rows } = useLocalAgentUsage(windowDays);
 	return (
-		<div className="rounded-xl border bg-card p-4 shadow-sm">
+		<div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
 			<p className="mb-2 font-medium text-sm">Agent Breakdown</p>
 			<UsageOverviewBody isEmpty={isEmpty} isPending={isPending} rows={rows} />
 		</div>

@@ -17,7 +17,7 @@ export function SummaryCard({
 	value,
 }: SummaryCardProps) {
 	return (
-		<div className="flex flex-col gap-2 rounded-lg border bg-card p-4 shadow-sm">
+		<div className="flex flex-col gap-2 rounded-xl bg-card p-4 ring-1 ring-foreground/10">
 			<div className="flex items-center justify-between">
 				<span className="font-medium text-muted-foreground text-sm">
 					{label}

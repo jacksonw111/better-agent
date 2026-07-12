@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AccountsList } from "@/components/integrations/accounts-list";
 import { McpServersSection } from "@/components/integrations/mcp-servers-section";
 import { OcAccountsList } from "@/components/integrations/oc-accounts-list";
+import { PageContainer } from "@/components/layout/page-container";
 
 type SettingsTab = "composio" | "openconnector" | "mcp";
 
@@ -55,17 +56,19 @@ function IntegrationsPage() {
 	const { tab = DEFAULT_TAB } = Route.useSearch();
 
 	return (
-		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 overflow-auto p-4 sm:flex-row sm:p-6">
-			<nav className="flex shrink-0 flex-row gap-1 sm:w-48 sm:flex-col">
-				{TABS.map((t) => (
-					<SettingsTabLink active={t.id === tab} key={t.id} {...t} />
-				))}
-			</nav>
-			<div className="min-w-0 flex-1">
-				{tab === "composio" && <AccountsList />}
-				{tab === "openconnector" && <OcAccountsList />}
-				{tab === "mcp" && <McpServersSection />}
+		<PageContainer>
+			<div className="flex flex-col gap-6 sm:flex-row">
+				<nav className="flex shrink-0 flex-row gap-1 sm:w-48 sm:flex-col">
+					{TABS.map((t) => (
+						<SettingsTabLink active={t.id === tab} key={t.id} {...t} />
+					))}
+				</nav>
+				<div className="min-w-0 flex-1">
+					{tab === "composio" && <AccountsList />}
+					{tab === "openconnector" && <OcAccountsList />}
+					{tab === "mcp" && <McpServersSection />}
+				</div>
 			</div>
-		</div>
+		</PageContainer>
 	);
 }
