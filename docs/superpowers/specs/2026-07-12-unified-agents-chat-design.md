@@ -68,9 +68,9 @@ Common accessors (`rowId`, `rowName`, `rowSubtitle`, `rowCreatedAt`) live next t
 </div>
 ```
 
-- **Header:** one component with slots. Cloud slot: `SessionPicker`, New, close. Local slot: session status, `ContextMiniBar`, Restart/End/Settings (+ existing overflow menu below `sm`). Same typography/height for both.
-- **Feed:** one `ChatFeed` wrapper around the shared `MessageScroller*` (replacing the duplicated `ChatScroller` in `packages/ui/conversation.tsx` and `terminal-feed.tsx`), parameterized by `renderRow`. Cloud rows stay `ChatRow` (flat blocks); local rows stay `BridgeChatRow` (activity spine). This is an accepted per-type difference.
-- **Composer:** one `UnifiedComposer` shell (box, textarea, picker anchoring, submit/stop) with slots: cloud adds attachments + `AgentToolsMenu`; local adds model/permission/thinking selects, busy-send hint, queued chip. The two near-identical pickers (`SkillPickerList` / `SlashPickerList`) merge into one grouped picker fed different item sources.
+- **Header:** the two headers keep their own logic but get identical container styling — same height/padding/`border-b`, same `mx-auto max-w-3xl` alignment, same title typography. Cloud keeps `SessionPicker`/New/close; local keeps session status, `ContextMiniBar`, Restart/End/Settings.
+- **Feed:** both already render the same `MessageScroller*` primitives with the same classes; empty states are unified visually. Cloud rows stay `ChatRow` (flat blocks); local rows stay `BridgeChatRow` (activity spine) — an accepted per-type difference. (A shared `ChatFeed` wrapper is a possible later dedup, not part of this change.)
+- **Composer:** the two composers keep their own feature wiring (cloud: attachments + `AgentToolsMenu`; local: model/permission/thinking selects, busy-send hint, queued chip) but get an identical shell — same outer wrapper, same `rounded-2xl` box, same textarea typography. (Merging `SkillPickerList`/`SlashPickerList` into one grouped picker is a possible later dedup, not part of this change.)
 - **Data:** untouched. Cloud keeps `useChat` + `AgentClient`; local keeps `useBridgeTerminal` + `BridgeTransport` and `useFoldedTurns`. The shell only consumes their outputs.
 - Local-only turn kinds (task/plan/approval/question) keep rendering inside `BridgeChatRow`.
 
