@@ -7,6 +7,7 @@ import { useListView } from "@/components/list/use-list-view";
 import { orpc } from "@/utils/orpc";
 import { CreateSkillDialog } from "./create-skill-dialog";
 import { EditSkillDialog } from "./edit-skill-dialog";
+import { SkillCardList } from "./skill-card-list";
 import { SkillListSkeleton } from "./skill-skeletons";
 import { SkillTable } from "./skill-table";
 import type { SkillRow } from "./skill-types";
@@ -52,11 +53,20 @@ export function SkillList() {
 				placeholder="Search skills…"
 				search={view.search}
 			/>
-			<SkillTable
-				onDelete={(id) => deleteSkill.mutate({ skillId: id })}
-				onEdit={setEditing}
-				skills={view.pageRows}
-			/>
+			<div className="md:hidden">
+				<SkillCardList
+					onDelete={(id) => deleteSkill.mutate({ skillId: id })}
+					onEdit={setEditing}
+					skills={view.pageRows}
+				/>
+			</div>
+			<div className="hidden md:block">
+				<SkillTable
+					onDelete={(id) => deleteSkill.mutate({ skillId: id })}
+					onEdit={setEditing}
+					skills={view.pageRows}
+				/>
+			</div>
 			<Pagination
 				onPage={view.setPage}
 				page={view.page}

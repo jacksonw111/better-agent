@@ -6,8 +6,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@better-agent/ui/components/table";
-import { Wand2Icon } from "lucide-react";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
+import { SkillIdentity } from "./skill-identity";
 import type { SkillRow } from "./skill-types";
 
 const COLUMN_COUNT = 4;
@@ -15,31 +15,6 @@ const COLUMN_COUNT = 4;
 const createdFormatter = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
 });
-
-/** The skill identity cell: its NAME is the only navigation target in the
- * row (same convention as MemoryCell) — clicking it opens the edit dialog
- * rather than navigating, since a skill has no nested sub-resource of its
- * own to warrant a detail page. */
-function SkillCell({
-	skill,
-	onEdit,
-}: {
-	skill: SkillRow;
-	onEdit: (skill: SkillRow) => void;
-}) {
-	return (
-		<div className="flex min-w-0 items-center gap-2">
-			<Wand2Icon className="size-4 shrink-0 text-muted-foreground" />
-			<button
-				className="truncate text-left font-medium hover:underline"
-				onClick={() => onEdit(skill)}
-				type="button"
-			>
-				{skill.name}
-			</button>
-		</div>
-	);
-}
 
 function SkillTableRow({
 	skill,
@@ -53,7 +28,7 @@ function SkillTableRow({
 	return (
 		<TableRow>
 			<TableCell>
-				<SkillCell onEdit={onEdit} skill={skill} />
+				<SkillIdentity onEdit={onEdit} skill={skill} />
 			</TableCell>
 			<TableCell className="max-w-64 truncate text-muted-foreground">
 				{skill.description ?? "—"}

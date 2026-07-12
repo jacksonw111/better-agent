@@ -7,6 +7,7 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AddLocalAgentDialog } from "./add-local-agent-dialog";
 
@@ -19,10 +20,20 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => (opts: Record<string, unknown>) => {
 		store.navigatedTo.push(opts);
 	},
+	Link: ({
+		children,
+		to,
+		...rest
+	}: { children: ReactNode; to: string } & Record<string, unknown>) => (
+		<a href={to} {...rest}>
+			{children}
+		</a>
+	),
 }));
 
 vi.mock("@/utils/orpc", () => {
 	const listTokensKey = ["bridge", "listTokens"];
+	const listMemoriesKey = ["memory", "listMemories"];
 	return {
 		orpc: {
 			bridge: {
@@ -41,6 +52,14 @@ vi.mock("@/utils/orpc", () => {
 					}),
 				},
 			},
+			memory: {
+				listMemories: {
+					queryOptions: () => ({
+						queryKey: listMemoriesKey,
+						queryFn: () => Promise.resolve([]),
+					}),
+				},
+			},
 		},
 	};
 });
@@ -55,6 +74,13 @@ function renderDialog() {
 	return within(container.ownerDocument.body);
 }
 
+// Two triggers open the same dialog now (the toolbar button and the <md
+// floating action button) — both share the accessible name "Add local
+// agent", so open via the first (toolbar) one explicitly.
+function openDialog(view: ReturnType<typeof within>) {
+	fireEvent.click(view.getAllByRole("button", { name: "Add local agent" })[0]);
+}
+
 beforeEach(() => {
 	store.createArgs.length = 0;
 	store.navigatedTo.length = 0;
@@ -66,7 +92,7 @@ afterEach(() => {
 
 it("blocks Create until an agent kind is picked, then sends it", async () => {
 	const view = renderDialog();
-	fireEvent.click(view.getByRole("button", { name: "Add local agent" }));
+	openDialog(view);
 
 	const create = await waitFor(() =>
 		view.getByRole("button", { name: "Create" })
@@ -88,7 +114,7 @@ it("blocks Create until an agent kind is picked, then sends it", async () => {
 
 it("navigates to the new agent's page on success", async () => {
 	const view = renderDialog();
-	fireEvent.click(view.getByRole("button", { name: "Add local agent" }));
+	openDialog(view);
 
 	fireEvent.click(
 		await waitFor(() => view.getByRole("button", { name: "Claude Code" }))

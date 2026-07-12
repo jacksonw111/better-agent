@@ -6,11 +6,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "@better-agent/ui/components/table";
-import { useNavigate } from "@tanstack/react-router";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { localAgentDisplayName } from "./local-agent-format";
+import { LocalAgentIdentity } from "./local-agent-identity";
 import type { LocalAgentEntry } from "./local-agent-join";
-import { AGENT_KIND_LABEL, AgentKindIcon } from "./local-agent-kind-icon";
 import { LocalAgentStatusChip } from "./local-agent-status-chip";
 import { LocalAgentTokenCell } from "./local-agent-token-cell";
 
@@ -23,40 +22,6 @@ const createdFormatter = new Intl.DateTimeFormat(undefined, {
 export interface LocalAgentTableRow {
 	entry: LocalAgentEntry;
 	sessionCount: number;
-}
-
-/** The agent identity cell. Its NAME is the ONLY navigation target in the row
- * (a text-styled button carrying the detail-page link), so the rest of the row
- * — token, status, session count, created date — stays plain and freely
- * selectable/copyable: clicking those no longer jumps to the detail page. */
-function AgentCell({ entry }: { entry: LocalAgentEntry }) {
-	const { token } = entry;
-	const navigate = useNavigate();
-	return (
-		<div className="flex min-w-0 items-center gap-2">
-			<AgentKindIcon
-				className="size-4 shrink-0 text-muted-foreground"
-				kind={token.agentKind}
-			/>
-			<div className="flex min-w-0 flex-col">
-				<button
-					className="truncate text-left font-medium hover:underline"
-					onClick={() =>
-						navigate({
-							params: { tokenId: token.id },
-							to: "/local-agents/$tokenId",
-						})
-					}
-					type="button"
-				>
-					{localAgentDisplayName(entry)}
-				</button>
-				<span className="truncate text-muted-foreground text-xs">
-					{AGENT_KIND_LABEL[token.agentKind]}
-				</span>
-			</div>
-		</div>
-	);
 }
 
 function RowActions({
@@ -85,7 +50,7 @@ function AgentRow({
 	return (
 		<TableRow>
 			<TableCell>
-				<AgentCell entry={entry} />
+				<LocalAgentIdentity entry={entry} />
 			</TableCell>
 			<TableCell>
 				<LocalAgentStatusChip status={entry.status} />

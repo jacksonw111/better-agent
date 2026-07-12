@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { MOBILE_FAB_CLASS } from "@/components/list/mobile-fab-class";
 import { orpc } from "@/utils/orpc";
 import {
 	EMPTY_SKILL_FORM,
@@ -60,6 +61,31 @@ function useCreateSkillDialog() {
 	return { form, isPending: create.isPending, onOpenChange, open, set, submit };
 }
 
+// Two triggers so the FAB (<md) and the toolbar button (desktop) open the
+// same dialog — Base UI's Dialog.Root binds triggers via context, not DOM
+// position, so both can live here as siblings.
+function CreateSkillTriggers() {
+	return (
+		<>
+			<DialogTrigger render={<Button size="sm" />}>
+				<PlusIcon />
+				New skill
+			</DialogTrigger>
+			<DialogTrigger
+				render={
+					<Button
+						aria-label="New skill"
+						className={MOBILE_FAB_CLASS}
+						size="icon"
+					/>
+				}
+			>
+				<PlusIcon className="size-5" />
+			</DialogTrigger>
+		</>
+	);
+}
+
 /**
  * "New skill": name, description, instructions, and optional allowed tools /
  * MCP servers. Mirrors CreateMemoryDialog's self-triggering shape.
@@ -69,10 +95,7 @@ export function CreateSkillDialog() {
 		useCreateSkillDialog();
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogTrigger render={<Button size="sm" />}>
-				<PlusIcon />
-				New skill
-			</DialogTrigger>
+			<CreateSkillTriggers />
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader className="gap-1.5">
 					<DialogTitle>New skill</DialogTitle>

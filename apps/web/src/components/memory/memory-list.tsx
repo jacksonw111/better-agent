@@ -5,6 +5,7 @@ import { Pagination } from "@/components/list/pagination";
 import { useListView } from "@/components/list/use-list-view";
 import { orpc } from "@/utils/orpc";
 import { CreateMemoryDialog } from "./create-memory-dialog";
+import { MemoryCardList } from "./memory-card-list";
 import { MemoryListSkeleton } from "./memory-skeletons";
 import { MemoryTable } from "./memory-table";
 import type { MemoryRow } from "./memory-types";
@@ -51,10 +52,18 @@ export function MemoryList() {
 				placeholder="Search memories…"
 				search={view.search}
 			/>
-			<MemoryTable
-				memories={view.pageRows}
-				onDelete={(id) => deleteMemory.mutate({ id })}
-			/>
+			<div className="md:hidden">
+				<MemoryCardList
+					memories={view.pageRows}
+					onDelete={(id) => deleteMemory.mutate({ id })}
+				/>
+			</div>
+			<div className="hidden md:block">
+				<MemoryTable
+					memories={view.pageRows}
+					onDelete={(id) => deleteMemory.mutate({ id })}
+				/>
+			</div>
 			<Pagination
 				onPage={view.setPage}
 				page={view.page}

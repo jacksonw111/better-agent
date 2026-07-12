@@ -6,9 +6,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@better-agent/ui/components/table";
-import { useNavigate } from "@tanstack/react-router";
-import { BookMarkedIcon } from "lucide-react";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
+import { MemoryIdentity } from "./memory-identity";
 import type { MemoryRow } from "./memory-types";
 
 const COLUMN_COUNT = 4;
@@ -16,30 +15,6 @@ const COLUMN_COUNT = 4;
 const createdFormatter = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
 });
-
-/** The memory identity cell: its NAME is the only navigation target in the
- * row (same convention as the local-agent table), so the description and date
- * stay plain and freely selectable. */
-function MemoryCell({ memory }: { memory: MemoryRow }) {
-	const navigate = useNavigate();
-	return (
-		<div className="flex min-w-0 items-center gap-2">
-			<BookMarkedIcon className="size-4 shrink-0 text-muted-foreground" />
-			<button
-				className="truncate text-left font-medium hover:underline"
-				onClick={() =>
-					navigate({
-						params: { memoryId: memory.id },
-						to: "/memories/$memoryId",
-					})
-				}
-				type="button"
-			>
-				{memory.name}
-			</button>
-		</div>
-	);
-}
 
 function MemoryTableRow({
 	memory,
@@ -51,7 +26,7 @@ function MemoryTableRow({
 	return (
 		<TableRow>
 			<TableCell>
-				<MemoryCell memory={memory} />
+				<MemoryIdentity memory={memory} />
 			</TableCell>
 			<TableCell className="max-w-64 truncate text-muted-foreground">
 				{memory.description ?? "—"}

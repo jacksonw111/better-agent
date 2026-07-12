@@ -16,6 +16,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { MOBILE_FAB_CLASS } from "@/components/list/mobile-fab-class";
 import { assignMemoriesSafely } from "@/components/memory/assign-memories";
 import { MemoryPicker } from "@/components/memory/memory-picker";
 import type { BridgeTokenRow } from "@/utils/api-types";
@@ -199,6 +200,31 @@ function useAddLocalAgentDialog() {
 	};
 }
 
+// Two triggers so the FAB (<md) and the toolbar button (desktop) open the
+// same dialog — Base UI's Dialog.Root binds triggers via context, not DOM
+// position, so both can live here as siblings.
+function AddLocalAgentTriggers() {
+	return (
+		<>
+			<DialogTrigger render={<Button size="sm" />}>
+				<PlusIcon />
+				Add local agent
+			</DialogTrigger>
+			<DialogTrigger
+				render={
+					<Button
+						aria-label="Add local agent"
+						className={MOBILE_FAB_CLASS}
+						size="icon"
+					/>
+				}
+			>
+				<PlusIcon className="size-5" />
+			</DialogTrigger>
+		</>
+	);
+}
+
 /**
  * "Add a local agent": pick which agent this token is for (bound to it for
  * life) and optionally name it, then create. The raw token lives on the new
@@ -220,10 +246,7 @@ export function AddLocalAgentDialog() {
 	} = useAddLocalAgentDialog();
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogTrigger render={<Button size="sm" />}>
-				<PlusIcon />
-				Add local agent
-			</DialogTrigger>
+			<AddLocalAgentTriggers />
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader className="gap-1.5">
 					<DialogTitle>Add local agent</DialogTitle>

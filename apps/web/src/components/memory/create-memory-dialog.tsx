@@ -15,6 +15,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { MOBILE_FAB_CLASS } from "@/components/list/mobile-fab-class";
 import { orpc } from "@/utils/orpc";
 
 function useCreateMemory(onCreated: (memoryId: string) => void) {
@@ -173,6 +174,17 @@ export function CreateMemoryDialog() {
 			<DialogTrigger render={<Button size="sm" />}>
 				<PlusIcon />
 				New memory
+			</DialogTrigger>
+			<DialogTrigger
+				render={
+					<Button
+						aria-label="New memory"
+						className={MOBILE_FAB_CLASS}
+						size="icon"
+					/>
+				}
+			>
+				<PlusIcon className="size-5" />
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader className="gap-1.5">

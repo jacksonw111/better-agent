@@ -1,4 +1,3 @@
-import { CopyAction } from "@better-agent/ui/components/actions";
 import {
 	Avatar,
 	AvatarFallback,
@@ -14,14 +13,18 @@ import {
 	TableRow,
 } from "@better-agent/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
+import { PlusIcon } from "lucide-react";
 import { ListToolbar } from "@/components/list/list-toolbar";
+import { MOBILE_FAB_CLASS } from "@/components/list/mobile-fab-class";
 import { Pagination } from "@/components/list/pagination";
 import { type ListView, useListView } from "@/components/list/use-list-view";
 import type { AgentRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { AgentRowActions } from "./agent-row-actions";
+import { AgentTokenCell } from "./agent-token-cell";
 import { AgentWizard } from "./agent-wizard";
+import { AgentsCardList } from "./agents-card-list";
 import { AgentsSkeleton } from "./agents-skeleton";
 import { TokenRevealDialog } from "./token-reveal-dialog";
 import {
@@ -30,7 +33,6 @@ import {
 	useRevealToken,
 } from "./use-agent-mutations";
 
-const TOKEN_PREVIEW_LEN = 14;
 const AVATAR_INITIALS_LENGTH = 2;
 
 function matchAgent(row: AgentRow, query: string): boolean {
@@ -38,24 +40,6 @@ function matchAgent(row: AgentRow, query: string): boolean {
 		row.name.toLowerCase().includes(query) ||
 		row.providerId.toLowerCase().includes(query) ||
 		row.modelId.toLowerCase().includes(query)
-	);
-}
-
-function TokenCell({ agentId }: { agentId: string }) {
-	const tokenQuery = useQuery(
-		orpc.agents.getToken.queryOptions({ input: { id: agentId } })
-	);
-	const token = tokenQuery.data ?? null;
-	if (!token) {
-		return <span className="text-muted-foreground text-xs">—</span>;
-	}
-	return (
-		<div className="flex items-center gap-1">
-			<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-				{token.slice(0, TOKEN_PREVIEW_LEN)}…
-			</code>
-			<CopyAction label="Copy token" text={token} />
-		</div>
 	);
 }
 
@@ -89,7 +73,7 @@ function AgentRows({
 						{row.providerId}/{row.modelId}
 					</TableCell>
 					<TableCell>
-						<TokenCell agentId={row.id} />
+						<AgentTokenCell agentId={row.id} />
 					</TableCell>
 					<TableCell className="text-right">
 						<AgentRowActions
@@ -117,29 +101,103 @@ function AgentsTable({
 	onTokenRotated: (token: string) => void;
 }) {
 	return (
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead>Name</TableHead>
+					<TableHead>Model</TableHead>
+					<TableHead>Token</TableHead>
+					<TableHead className="text-right">Actions</TableHead>
+				</TableRow>
+			</TableHeader>
+			<AgentRows
+				onDelete={onDelete}
+				onEdit={onEdit}
+				onTokenRotated={onTokenRotated}
+				rows={view.pageRows}
+			/>
+		</Table>
+	);
+}
+
+function AgentsResponsiveViews({
+	view,
+	openEdit,
+	onDelete,
+	onTokenRotated,
+}: {
+	view: ListView<AgentRow>;
+	openEdit: (row: AgentRow) => void;
+	onDelete: (id: string) => void;
+	onTokenRotated: (token: string) => void;
+}) {
+	return (
 		<>
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Name</TableHead>
-						<TableHead>Model</TableHead>
-						<TableHead>Token</TableHead>
-						<TableHead className="text-right">Actions</TableHead>
-					</TableRow>
-				</TableHeader>
-				<AgentRows
+			<div className="md:hidden">
+				<AgentsCardList
 					onDelete={onDelete}
-					onEdit={onEdit}
+					onEdit={openEdit}
 					onTokenRotated={onTokenRotated}
 					rows={view.pageRows}
 				/>
-			</Table>
+			</div>
+			<div className="hidden md:block">
+				<AgentsTable
+					onDelete={onDelete}
+					onEdit={openEdit}
+					onTokenRotated={onTokenRotated}
+					view={view}
+				/>
+			</div>
+		</>
+	);
+}
+
+function AgentsListSection({
+	view,
+	openAdd,
+	openEdit,
+	onDelete,
+	onTokenRotated,
+}: {
+	view: ListView<AgentRow>;
+	openAdd: () => void;
+	openEdit: (row: AgentRow) => void;
+	onDelete: (id: string) => void;
+	onTokenRotated: (token: string) => void;
+}) {
+	return (
+		<>
+			<ListToolbar
+				action={
+					<Button onClick={openAdd} size="sm">
+						Add agent
+					</Button>
+				}
+				onSearch={view.setSearch}
+				placeholder="Search agents…"
+				search={view.search}
+			/>
+			<AgentsResponsiveViews
+				onDelete={onDelete}
+				onTokenRotated={onTokenRotated}
+				openEdit={openEdit}
+				view={view}
+			/>
 			<Pagination
 				onPage={view.setPage}
 				page={view.page}
 				pageCount={view.pageCount}
 				total={view.total}
 			/>
+			<Button
+				aria-label="Add agent"
+				className={MOBILE_FAB_CLASS}
+				onClick={openAdd}
+				size="icon"
+			>
+				<PlusIcon className="size-5" />
+			</Button>
 		</>
 	);
 }
@@ -158,20 +216,11 @@ export function AgentsCard() {
 	}
 	return (
 		<div className="flex flex-col gap-3">
-			<ListToolbar
-				action={
-					<Button onClick={openAdd} size="sm">
-						Add agent
-					</Button>
-				}
-				onSearch={view.setSearch}
-				placeholder="Search agents…"
-				search={view.search}
-			/>
-			<AgentsTable
+			<AgentsListSection
 				onDelete={(id) => remove.mutate({ id })}
-				onEdit={openEdit}
 				onTokenRotated={handleTokenRotated}
+				openAdd={openAdd}
+				openEdit={openEdit}
 				view={view}
 			/>
 			{state.open ? (

@@ -6,6 +6,7 @@ import { useListView } from "@/components/list/use-list-view";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { AddLocalAgentDialog } from "./add-local-agent-dialog";
+import { LocalAgentCardList } from "./local-agent-card-list";
 import { localAgentDisplayName } from "./local-agent-format";
 import { deriveLocalAgentEntries } from "./local-agent-join";
 import { LocalAgentListSkeleton } from "./local-agent-list-skeleton";
@@ -78,10 +79,18 @@ export function LocalAgentList() {
 				placeholder="Search local agents…"
 				search={view.search}
 			/>
-			<LocalAgentTable
-				onDelete={(id) => deleteAgent.mutate({ id })}
-				rows={view.pageRows}
-			/>
+			<div className="md:hidden">
+				<LocalAgentCardList
+					onDelete={(id) => deleteAgent.mutate({ id })}
+					rows={view.pageRows}
+				/>
+			</div>
+			<div className="hidden md:block">
+				<LocalAgentTable
+					onDelete={(id) => deleteAgent.mutate({ id })}
+					rows={view.pageRows}
+				/>
+			</div>
 			<Pagination
 				onPage={view.setPage}
 				page={view.page}

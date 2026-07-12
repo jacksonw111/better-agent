@@ -230,16 +230,19 @@ it("shows one table row per non-revoked token and opens its token-keyed detail",
 	const router = buildTestRouter();
 	const { view } = renderApp(router);
 
-	// One row for token-1, the revoked token has none.
+	// Rendered as a real table with an Actions column. jsdom applies no CSS, so
+	// both the <md card list and the desktop table are present in the DOM —
+	// scope queries to the table to avoid ambiguous duplicate matches.
 	await waitFor(() => {
-		expect(view.getByText("alpha agent")).toBeDefined();
+		expect(view.getByRole("table")).toBeDefined();
 	});
-	expect(view.queryByText("revoked agent")).toBeNull();
-	// Rendered as a real table with an Actions column.
-	expect(view.getByRole("table")).toBeDefined();
-	expect(view.getByRole("columnheader", { name: "Actions" })).toBeDefined();
+	const table = within(view.getByRole("table"));
+	// One row for token-1, the revoked token has none.
+	expect(table.getByText("alpha agent")).toBeDefined();
+	expect(table.queryByText("revoked agent")).toBeNull();
+	expect(table.getByRole("columnheader", { name: "Actions" })).toBeDefined();
 
-	fireEvent.click(view.getByText("alpha agent"));
+	fireEvent.click(table.getByText("alpha agent"));
 
 	await waitFor(() => {
 		expect(router.state.location.pathname).toBe("/local-agents/token-1");
@@ -259,10 +262,12 @@ it("keeps the row when the token has no session yet (keyed by token, not session
 	const { view } = renderApp(router);
 
 	await waitFor(() => {
-		expect(view.getByText("alpha agent")).toBeDefined();
+		expect(view.getByRole("table")).toBeDefined();
 	});
-	expect(view.getByText("Claude Code")).toBeDefined();
-	expect(view.getByText("Not connected")).toBeDefined();
+	const table = within(view.getByRole("table"));
+	expect(table.getByText("alpha agent")).toBeDefined();
+	expect(table.getByText("Claude Code")).toBeDefined();
+	expect(table.getByText("Not connected")).toBeDefined();
 });
 
 it("remounts the terminal onto a newer session when the poll picks one up for the same token", async () => {
