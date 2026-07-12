@@ -1,10 +1,4 @@
 import { Button } from "@better-agent/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@better-agent/ui/components/card";
 import { CheckIcon } from "lucide-react";
 import { useState } from "react";
 import type { QuestionEvent, QuestionItem } from "./bridge-events";
@@ -105,14 +99,14 @@ export function QuestionCard({ answered, event, onAnswer }: QuestionCardProps) {
 	};
 
 	return (
-		<Card className="gap-3 font-sans" size="sm">
-			<CardHeader>
-				<CardTitle className="flex items-center gap-1.5">
+		<div className="overflow-hidden rounded-md border bg-muted/40 font-sans">
+			<div className="px-3 py-2">
+				<p className="flex items-center gap-1.5 font-medium text-sm">
 					<span aria-hidden className="size-1.5 rounded-full bg-amber-500" />
 					{event.title}
-				</CardTitle>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-3">
+				</p>
+			</div>
+			<div className="flex flex-col gap-2 border-t px-3 py-2">
 				{event.questions.map((question, questionIndex) => (
 					<QuestionRow
 						answeredLabel={answered?.[questionIndex]?.[0]}
@@ -133,7 +127,7 @@ export function QuestionCard({ answered, event, onAnswer }: QuestionCardProps) {
 				>
 					Submit
 				</Button>
-			</CardContent>
-		</Card>
+			</div>
+		</div>
 	);
 }

@@ -1,12 +1,5 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@better-agent/ui/components/card";
 import { AlertTriangleIcon, CheckIcon, FileEditIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ApprovalEvent, ErrorEvent, FileEvent } from "./bridge-events";
@@ -112,7 +105,7 @@ function ApprovalCountdown({
 	if (expired) {
 		return (
 			<p
-				className="px-4 text-destructive text-xs group-data-[size=sm]/card:px-3"
+				className="text-destructive text-xs"
 				data-slot="approval-countdown-expired"
 			>
 				已超时，按拒绝处理
@@ -126,7 +119,7 @@ function ApprovalCountdown({
 	);
 	return (
 		<div
-			className="mx-4 h-1 overflow-hidden rounded-full bg-muted group-data-[size=sm]/card:mx-3"
+			className="h-1 overflow-hidden rounded-full bg-muted"
 			data-slot="approval-countdown"
 		>
 			<div
@@ -164,26 +157,28 @@ export function ApprovalLine({
 }: ApprovalLineProps) {
 	const disabled = answeredOptionId !== undefined;
 	return (
-		<Card className="gap-2 font-sans" size="sm">
-			<CardHeader>
-				<CardTitle>{event.title}</CardTitle>
-				{event.detail && <CardDescription>{event.detail}</CardDescription>}
-			</CardHeader>
-			{event.summary && (
-				<p
-					className="px-4 text-muted-foreground text-xs group-data-[size=sm]/card:px-3"
-					data-slot="approval-summary"
-				>
-					{event.summary}
-				</p>
-			)}
-			{event.timeoutAt !== undefined && !disabled && (
-				<ApprovalCountdown
-					timeoutAt={event.timeoutAt}
-					timeoutMs={event.timeoutMs}
-				/>
-			)}
-			<CardContent className="flex flex-wrap gap-2">
+		<div className="overflow-hidden rounded-md border bg-muted/40 font-sans">
+			<div className="flex flex-col gap-1.5 px-3 py-2">
+				<p className="font-medium text-sm">{event.title}</p>
+				{event.detail && (
+					<p className="text-muted-foreground text-xs">{event.detail}</p>
+				)}
+				{event.summary && (
+					<p
+						className="text-muted-foreground text-xs"
+						data-slot="approval-summary"
+					>
+						{event.summary}
+					</p>
+				)}
+				{event.timeoutAt !== undefined && !disabled && (
+					<ApprovalCountdown
+						timeoutAt={event.timeoutAt}
+						timeoutMs={event.timeoutMs}
+					/>
+				)}
+			</div>
+			<div className="flex flex-wrap gap-2 border-t px-3 py-2">
 				{event.options.map((option, index) => {
 					const chosen = answeredOptionId === option.id;
 					return (
@@ -201,7 +196,7 @@ export function ApprovalLine({
 						</Button>
 					);
 				})}
-			</CardContent>
-		</Card>
+			</div>
+		</div>
 	);
 }
