@@ -1,13 +1,6 @@
 import type { NavSection } from "@better-agent/ui/components/app-shell-sidebar";
 import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
-import {
-	BookMarked,
-	Bot,
-	Gauge,
-	Plug,
-	TerminalSquare,
-	Wand2,
-} from "lucide-react";
+import { BookMarked, Bot, Gauge, Plug, Wand2 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
@@ -21,7 +14,12 @@ const SECTIONS: readonly NavSection[] = [
 	},
 	{
 		kind: "item",
-		item: { to: "/agents", label: "Agents", icon: Bot, match: ["/chat"] },
+		item: {
+			to: "/agents",
+			label: "Agents",
+			icon: Bot,
+			match: ["/chat", "/local-agents"],
+		},
 	},
 	{
 		kind: "item",
@@ -34,10 +32,6 @@ const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
 		item: { to: "/integrations", label: "Integrations", icon: Plug },
-	},
-	{
-		kind: "item",
-		item: { to: "/local-agents", label: "Local Agent", icon: TerminalSquare },
 	},
 ];
 

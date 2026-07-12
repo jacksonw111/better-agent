@@ -1,16 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-
-import { LocalAgentList } from "@/components/bridge/local-agent-list";
-import { PageContainer } from "@/components/layout/page-container";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/local-agents/")({
-	component: LocalAgentsPage,
+	beforeLoad: () => {
+		throw redirect({ to: "/agents" });
+	},
 });
-
-function LocalAgentsPage() {
-	return (
-		<PageContainer>
-			<LocalAgentList />
-		</PageContainer>
-	);
-}

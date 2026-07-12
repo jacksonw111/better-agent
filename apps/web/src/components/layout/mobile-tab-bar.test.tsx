@@ -6,7 +6,6 @@ import { MobileTabBar } from "./mobile-tab-bar";
 
 const DASHBOARD_LABEL_PATTERN = /Dashboard/;
 const AGENTS_LABEL_PATTERN = /Agents/;
-const LOCAL_AGENT_LABEL_PATTERN = /Local Agent/;
 const MEMORIES_LABEL_PATTERN = /Memories/;
 const MORE_LABEL_PATTERN = /More/;
 
@@ -61,9 +60,6 @@ it("renders a tab for each primary destination plus More", () => {
 	).toBeDefined();
 	expect(view.getByRole("link", { name: AGENTS_LABEL_PATTERN })).toBeDefined();
 	expect(
-		view.getByRole("link", { name: LOCAL_AGENT_LABEL_PATTERN })
-	).toBeDefined();
-	expect(
 		view.getByRole("link", { name: MEMORIES_LABEL_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("button", { name: MORE_LABEL_PATTERN })).toBeDefined();
@@ -83,6 +79,15 @@ it("tints the tab matching the current route as active", () => {
 
 it("treats /chat as part of the Agents tab's active match", () => {
 	store.pathname = "/chat";
+	const view = renderBar();
+
+	expect(
+		view.getByRole("link", { name: AGENTS_LABEL_PATTERN }).className
+	).toContain("text-primary");
+});
+
+it("treats /local-agents as part of the Agents tab's active match", () => {
+	store.pathname = "/local-agents";
 	const view = renderBar();
 
 	expect(

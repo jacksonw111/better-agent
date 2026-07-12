@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { AgentsCard } from "@/components/agents/agents-card";
+import { UnifiedAgentList } from "@/components/agents/unified-agent-list";
 import { PageContainer } from "@/components/layout/page-container";
 
 export const Route = createFileRoute("/agents/")({
@@ -10,7 +10,7 @@ export const Route = createFileRoute("/agents/")({
 function AgentsPage() {
 	return (
 		<PageContainer>
-			<AgentsCard />
+			<UnifiedAgentList />
 		</PageContainer>
 	);
 }

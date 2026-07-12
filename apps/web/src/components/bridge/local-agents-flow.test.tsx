@@ -8,10 +8,9 @@ import {
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
-import { fireEvent, render, waitFor, within } from "@testing-library/react";
+import { render, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { LocalAgentDetail } from "./local-agent-detail";
-import { LocalAgentList } from "./local-agent-list";
 
 // Loose fixture shapes — just the fields the list/detail/join actually read.
 interface SessionRow {
@@ -186,11 +185,6 @@ vi.mock("./bridge-transport", () => ({
 }));
 
 const rootRoute = createRootRoute({ component: Outlet });
-const indexRoute = createRoute({
-	component: LocalAgentList,
-	getParentRoute: () => rootRoute,
-	path: "/local-agents/",
-});
 const detailRoute = createRoute({
 	component: DetailRouteComponent,
 	getParentRoute: () => rootRoute,
@@ -202,8 +196,8 @@ function DetailRouteComponent() {
 	return <LocalAgentDetail tokenId={tokenId} />;
 }
 
-function buildTestRouter(initialEntry = "/local-agents/") {
-	const routeTree = rootRoute.addChildren([indexRoute, detailRoute]);
+function buildTestRouter(initialEntry = "/local-agents/token-1") {
+	const routeTree = rootRoute.addChildren([detailRoute]);
 	return createRouter({
 		history: createMemoryHistory({ initialEntries: [initialEntry] }),
 		routeTree,
@@ -226,27 +220,10 @@ beforeEach(() => {
 	store.tokens = buildTokens();
 });
 
-it("shows one table row per non-revoked token and opens its token-keyed detail", async () => {
+it("connects the terminal to the token's latest session on load", async () => {
 	const router = buildTestRouter();
 	const { view } = renderApp(router);
 
-	// Rendered as a real table with an Actions column. jsdom applies no CSS, so
-	// both the <md card list and the desktop table are present in the DOM —
-	// scope queries to the table to avoid ambiguous duplicate matches.
-	await waitFor(() => {
-		expect(view.getByRole("table")).toBeDefined();
-	});
-	const table = within(view.getByRole("table"));
-	// One row for token-1, the revoked token has none.
-	expect(table.getByText("alpha agent")).toBeDefined();
-	expect(table.queryByText("revoked agent")).toBeNull();
-	expect(table.getByRole("columnheader", { name: "Actions" })).toBeDefined();
-
-	fireEvent.click(table.getByText("alpha agent"));
-
-	await waitFor(() => {
-		expect(router.state.location.pathname).toBe("/local-agents/token-1");
-	});
 	// The terminal mounted on the token's LATEST session (session-a), not the
 	// older ended session-b.
 	await waitFor(() => {
@@ -256,18 +233,28 @@ it("shows one table row per non-revoked token and opens its token-keyed detail",
 	expect(view.getByText("Connecting…")).toBeDefined();
 });
 
-it("keeps the row when the token has no session yet (keyed by token, not session)", async () => {
+it("shows the waiting-for-CLI panel when the token has no session yet", async () => {
 	store.sessions = [];
 	const router = buildTestRouter();
 	const { view } = renderApp(router);
 
 	await waitFor(() => {
-		expect(view.getByRole("table")).toBeDefined();
+		expect(view.getByText("Waiting for the CLI to connect")).toBeDefined();
 	});
-	const table = within(view.getByRole("table"));
-	expect(table.getByText("alpha agent")).toBeDefined();
-	expect(table.getByText("Claude Code")).toBeDefined();
-	expect(table.getByText("Not connected")).toBeDefined();
+	expect(store.connectedSessionIds).toEqual([]);
+});
+
+it("treats a revoked token as not found (keyed by token, excluded from entries)", async () => {
+	const router = buildTestRouter("/local-agents/token-2");
+	const { view } = renderApp(router);
+
+	await waitFor(() => {
+		expect(
+			view.getByText(
+				"This local agent wasn't found — it may have been removed, or the link is wrong."
+			)
+		).toBeDefined();
+	});
 });
 
 it("remounts the terminal onto a newer session when the poll picks one up for the same token", async () => {
