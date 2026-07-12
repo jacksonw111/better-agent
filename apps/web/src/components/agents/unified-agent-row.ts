@@ -36,6 +36,9 @@ export function rowCreatedAt(row: UnifiedAgentRow): Date {
 	);
 }
 
+/** Filter for useListView — `query` arrives already trimmed + lowercased
+ * (use-list-view.ts does this before calling), same contract as the old
+ * matchAgent/matchLocalAgent. */
 export function matchUnifiedRow(row: UnifiedAgentRow, query: string): boolean {
 	return (
 		rowName(row).toLowerCase().includes(query) ||
