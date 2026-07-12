@@ -4,28 +4,25 @@ import { BrainIcon, ChevronDownIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-// How many sentences the collapsed streaming window shows at once: the newest
-// (possibly still-forming) sentence plus the one before it for context.
-const PREVIEW_LINE_COUNT = 2;
+/** How much of the streaming text's TAIL gets rendered into the ticker. Only
+ * the bottom ~2 wrapped lines are ever visible, so rendering more than this is
+ * pure wasted layout work — capping it keeps per-token reflow cost CONSTANT
+ * no matter how long the reasoning grows (the performance requirement). 400
+ * chars comfortably overfills two lines at any reasonable width, including
+ * narrow mobile. */
+const TAIL_RENDER_CHARS = 400;
 
-/** Sentence/line boundaries for the vertical ticker: hard newlines, plus CJK
- * and latin sentence enders (kept attached to their sentence via lookbehind). */
-const SEGMENT_SPLIT = /\n+|(?<=[。？！；!?;.])\s*/;
-
-/** The reasoning text as trimmed, non-empty sentence segments — the units the
- * collapsed preview scrolls by (one SENTENCE at a time, vertically), per the
- * product requirement: 一句话一句话上下滚动, not a per-character tail. */
-function reasoningSegments(text: string): string[] {
-	return text
-		.split(SEGMENT_SPLIT)
-		.map((segment) => segment.trim())
-		.filter((segment) => segment !== "");
+function renderTail(text: string): string {
+	return text.length > TAIL_RENDER_CHARS
+		? text.slice(-TAIL_RENDER_CHARS)
+		: text;
 }
 
-/** The first sentence, for the "done streaming" collapsed preview — a stable
+/** The first line, for the "done streaming" collapsed preview — a stable
  * snippet rather than a moving window once there's nothing left to stream. */
 function firstLinePreview(text: string): string {
-	return reasoningSegments(text)[0] ?? "";
+	const [firstLine = ""] = text.trim().split("\n", 1);
+	return firstLine;
 }
 
 export function Reasoning({
@@ -61,35 +58,29 @@ export function Reasoning({
 	);
 }
 
-/** The collapsed STREAMING preview: a fixed two-line window over the newest
- * sentences. Each completed sentence keeps its absolute index as its React
- * key, so when a new sentence lands the older one keeps its DOM node and
- * shifts up in flow while the new line animates in from below
- * (`.reasoning-ticker-line`, one-shot CSS entry, disabled under
- * prefers-reduced-motion) — the "sentence-by-sentence scrolls upward" effect,
- * with no JS animation loop. The still-forming tail sentence updates its text
- * in place without re-animating. */
+/** The collapsed STREAMING preview: a fixed-height, bottom-anchored window
+ * over naturally-wrapping text — the teleprompter effect the product asks
+ * for. Characters stream into the current line; when the line fills the
+ * available WIDTH it wraps (plain CSS line-wrapping — no boundary
+ * heuristics), which pushes earlier lines up and out through the top-edge
+ * fade. All of that is native layout: the bottom of the text block is pinned
+ * to the bottom of the window (flex justify-end) and the overflow clips
+ * upward — zero JS measurement, zero animation loop, one text-content update
+ * per token. `renderTail` caps how much text participates in layout so the
+ * per-token reflow cost stays constant on long reasoning. */
 function ReasoningTicker({ text }: { text: string }) {
-	const segments = reasoningSegments(text);
-	if (segments.length === 0) {
+	const tail = renderTail(text);
+	if (tail.trim() === "") {
 		return null;
 	}
-	const visible = segments.slice(-PREVIEW_LINE_COUNT);
-	const baseIndex = segments.length - visible.length;
 	return (
 		<div
 			className="reasoning-ticker mt-1 flex flex-col justify-end overflow-hidden"
 			data-testid="reasoning-ticker"
 		>
-			{visible.map((line, i) => (
-				<p
-					className="reasoning-ticker-line truncate text-muted-foreground text-xs leading-5"
-					// biome-ignore lint/suspicious/noArrayIndexKey: keyed by the segment's ABSOLUTE index — segments are append-only and never reorder, so this is the stable identity that keeps an existing sentence's DOM node while a new one animates in.
-					key={baseIndex + i}
-				>
-					{line}
-				</p>
-			))}
+			<p className="whitespace-pre-wrap break-words text-muted-foreground text-xs leading-5">
+				{tail}
+			</p>
 		</div>
 	);
 }

@@ -215,34 +215,18 @@
 	}
 }
 
-/* Reasoning collapsed streaming preview — a two-line window over the newest
-   sentences. Each NEW sentence slides in from below (one-shot entry animation)
-   pushing the previous one up: 一句话一句话上下滚动. The top edge fades via a
-   mask so the outgoing line dissolves instead of hard-clipping. No animation
-   loop — motion only fires when a sentence boundary lands. */
+/* Reasoning collapsed streaming preview — a fixed two-line, bottom-anchored
+   window over naturally-wrapping text (teleprompter style). Characters stream
+   into the bottom line; when it fills the available width, plain CSS wrapping
+   starts the next line and everything above shifts up, dissolving through the
+   top-edge fade. Pure layout — no keyframes, no JS measurement. */
 .reasoning-ticker {
-	max-height: 2.5rem; /* two text-xs/leading-5 lines */
-	-webkit-mask-image: linear-gradient(to bottom, transparent, black 0.75rem);
-	mask-image: linear-gradient(to bottom, transparent, black 0.75rem);
-}
-
-@keyframes reasoning-line-enter {
-	from {
-		opacity: 0;
-		transform: translateY(100%);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-.reasoning-ticker-line {
-	animation: reasoning-line-enter 0.3s ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.reasoning-ticker-line {
-		animation: none;
-	}
+	height: 2.5rem; /* exactly two text-xs/leading-5 lines */
+	contain: layout paint; /* clipping window — keep its reflows self-contained */
+	-webkit-mask-image: linear-gradient(to bottom, transparent, black 0.9rem);
+	mask-image: linear-gradient(
+		to bottom,
+		transparent,
+		black 0.9rem
+	); /* clipping window — keep its reflows self-contained */
 }

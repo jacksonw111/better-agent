@@ -19,11 +19,10 @@ function renderReasoning(isStreaming: boolean, text: string) {
 	return { container, scope: within(container) };
 }
 
-/** The visible sentence lines of the collapsed streaming ticker, in order. */
-function tickerLines(container: HTMLElement): string[] {
-	return Array.from(
-		container.querySelectorAll(".reasoning-ticker-line"),
-		(line) => line.textContent ?? ""
+/** The naturally-wrapping text inside the collapsed streaming window. */
+function tickerText(container: HTMLElement): string | null {
+	return (
+		container.querySelector(".reasoning-ticker")?.textContent?.trim() ?? null
 	);
 }
 
@@ -35,20 +34,19 @@ it("stays collapsed by default, whether streaming or complete", () => {
 	expect(done.scope.queryByTestId("full-content")).toBeNull();
 });
 
-it("shows the newest sentences as vertical ticker lines while streaming", () => {
+it("streams the raw text into the bottom-anchored ticker window while collapsed", () => {
 	const { container } = renderReasoning(
 		true,
-		"First I look at the tests. Then I read the reducer. Now checking the fold state."
+		"characters flow in and wrap by width, no sentence heuristics"
 	);
-	// A two-line window over the NEWEST sentences — the oldest one scrolled out.
-	expect(tickerLines(container)).toEqual([
-		"Then I read the reducer.",
-		"Now checking the fold state.",
-	]);
+	// The full (short) text participates in layout — wrapping is pure CSS.
+	expect(tickerText(container)).toBe(
+		"characters flow in and wrap by width, no sentence heuristics"
+	);
 });
 
-it("scrolls sentence-by-sentence: a new sentence pushes the window down by one", () => {
-	const first = "Step one done. Step two in progress";
+it("updates the ticker text in place as more characters stream in", () => {
+	const first = "step one in prog";
 	const { container, rerender } = render(
 		<Reasoning isStreaming text={first}>
 			<ReasoningTrigger label="Reasoning" />
@@ -57,13 +55,9 @@ it("scrolls sentence-by-sentence: a new sentence pushes the window down by one",
 			</ReasoningContent>
 		</Reasoning>
 	);
-	expect(tickerLines(container)).toEqual([
-		"Step one done.",
-		"Step two in progress",
-	]);
+	expect(tickerText(container)).toBe("step one in prog");
 
-	// The forming tail sentence grows in place (same window, updated text)…
-	const grown = "Step one done. Step two in progress, almost there.";
+	const grown = "step one in progress, step two next";
 	rerender(
 		<Reasoning isStreaming text={grown}>
 			<ReasoningTrigger label="Reasoning" />
@@ -72,44 +66,31 @@ it("scrolls sentence-by-sentence: a new sentence pushes the window down by one",
 			</ReasoningContent>
 		</Reasoning>
 	);
-	expect(tickerLines(container)).toEqual([
-		"Step one done.",
-		"Step two in progress, almost there.",
-	]);
-
-	// …and a NEW sentence shifts the window: the oldest line scrolls out the top.
-	const next = `${grown} Step three begins`;
-	rerender(
-		<Reasoning isStreaming text={next}>
-			<ReasoningTrigger label="Reasoning" />
-			<ReasoningContent>
-				<p data-testid="full-content">{next}</p>
-			</ReasoningContent>
-		</Reasoning>
-	);
-	expect(tickerLines(container)).toEqual([
-		"Step two in progress, almost there.",
-		"Step three begins",
-	]);
+	expect(tickerText(container)).toBe("step one in progress, step two next");
 });
 
-it("splits CJK sentences on 。！？ boundaries too", () => {
-	const { container } = renderReasoning(
-		true,
-		"先看测试。再读折叠器！现在检查状态"
-	);
-	expect(tickerLines(container)).toEqual(["再读折叠器！", "现在检查状态"]);
+it("caps layout work on long reasoning: only the text TAIL is rendered", () => {
+	const start = "START-OF-REASONING ";
+	const filler = "x".repeat(1000);
+	const end = " LATEST-TAIL";
+	const { container } = renderReasoning(true, `${start}${filler}${end}`);
+	const text = tickerText(container);
+	// Only the visible tail participates in layout — the far-away start never
+	// enters the DOM, keeping per-token reflow cost constant.
+	expect(text?.endsWith("LATEST-TAIL")).toBe(true);
+	expect(text?.includes("START-OF-REASONING")).toBe(false);
+	expect(text?.length ?? 0).toBeLessThanOrEqual(400);
 });
 
-it("shows a stable first-sentence snippet once streaming is done", () => {
+it("shows a stable first-line snippet once streaming is done", () => {
 	const { container } = renderReasoning(
 		false,
-		"The conclusion sentence. More detail follows here."
+		"The first line of thought\nAnd a second line with more detail"
 	);
-	// Done state: no ticker, one stable snippet line from the START.
-	expect(tickerLines(container)).toEqual([]);
-	expect(container.textContent).toContain("The conclusion sentence.");
-	expect(container.textContent).not.toContain("More detail follows");
+	// Done state: no live ticker window, one stable snippet from the START.
+	expect(container.querySelector(".reasoning-ticker")).toBeNull();
+	expect(container.textContent).toContain("The first line of thought");
+	expect(container.textContent).not.toContain("second line with more detail");
 });
 
 it("expands to the full text on click, and collapses again on a second click", () => {
