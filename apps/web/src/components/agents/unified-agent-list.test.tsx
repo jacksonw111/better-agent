@@ -194,13 +194,13 @@ it("cloud name navigates to /chat and cloud rows get full row actions", async ()
 	expect(table.getByText("Not connected")).toBeDefined();
 });
 
-it("local name navigates to the token-keyed local agent detail page", async () => {
+it("local name navigates directly to /chat with the token as localAgentId", async () => {
 	const { table } = await renderReadyTable();
 
 	fireEvent.click(table.getByText("local beta"));
 	expect(store.navigatedTo[0]).toMatchObject({
-		to: "/local-agents/$tokenId",
-		params: { tokenId: "token-1" },
+		to: "/chat",
+		search: { localAgentId: "token-1" },
 	});
 });
 

@@ -224,6 +224,9 @@ export function ChatComposer({
 			onSend,
 		});
 
+	// Keep this wrapper's classes in sync with its twin in
+	// apps/web/src/components/bridge/terminal-composer.tsx (TerminalComposer's
+	// outer wrapper) — the two composers are styled to match.
 	return (
 		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-4 sm:px-4">
 			<ComposerBox
