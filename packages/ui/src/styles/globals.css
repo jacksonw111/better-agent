@@ -215,11 +215,34 @@
 	}
 }
 
-/* Reasoning collapsed-tail preview — single-line, right-aligned so the TAIL of
-   the streaming text stays visible (it "ticks" forward as new content arrives
-   via plain text-content updates, no animation loop). The left edge fades via
-   a mask instead of a hard clip. */
-.reasoning-tail {
-	-webkit-mask-image: linear-gradient(to right, transparent, black 1.5rem);
-	mask-image: linear-gradient(to right, transparent, black 1.5rem);
+/* Reasoning collapsed streaming preview — a two-line window over the newest
+   sentences. Each NEW sentence slides in from below (one-shot entry animation)
+   pushing the previous one up: 一句话一句话上下滚动. The top edge fades via a
+   mask so the outgoing line dissolves instead of hard-clipping. No animation
+   loop — motion only fires when a sentence boundary lands. */
+.reasoning-ticker {
+	max-height: 2.5rem; /* two text-xs/leading-5 lines */
+	-webkit-mask-image: linear-gradient(to bottom, transparent, black 0.75rem);
+	mask-image: linear-gradient(to bottom, transparent, black 0.75rem);
+}
+
+@keyframes reasoning-line-enter {
+	from {
+		opacity: 0;
+		transform: translateY(100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.reasoning-ticker-line {
+	animation: reasoning-line-enter 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.reasoning-ticker-line {
+		animation: none;
+	}
 }
