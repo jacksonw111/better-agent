@@ -194,6 +194,16 @@ it("cloud name navigates to /chat and cloud rows get full row actions", async ()
 	expect(table.getByText("Not connected")).toBeDefined();
 });
 
+it("local name navigates to the token-keyed local agent detail page", async () => {
+	const { table } = await renderReadyTable();
+
+	fireEvent.click(table.getByText("local beta"));
+	expect(store.navigatedTo[0]).toMatchObject({
+		to: "/local-agents/$tokenId",
+		params: { tokenId: "token-1" },
+	});
+});
+
 it("keeps local rows when the cloud query errors", async () => {
 	store.agentsError = true;
 	const { table } = await renderReadyTable();
