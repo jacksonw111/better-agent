@@ -7,6 +7,7 @@
 import type { Adapter, AgentHandle } from "./adapters/types";
 import type { BridgeCliArgs } from "./args";
 import type { AfterIdRef } from "./commands";
+import type { CuaController } from "./cua/cua-controller";
 import type {
 	AgentSessionIdRef,
 	PollOutcome,
@@ -17,9 +18,36 @@ import { runBridgeSession } from "./relay-client";
 export interface RunRestartLoopOptions {
 	adapter: Adapter;
 	args: BridgeCliArgs;
+	/** `--cua` only: the desktop VM lifecycle, driven by the web's Start/Stop
+	 * buttons. Lives here (across restarts) so an in-place agent restart doesn't
+	 * kill the desktop. */
+	cua?: CuaController;
 	handle: AgentHandle;
 	sessionId: string;
 	transport: RelayTransport;
+}
+
+/** Adds `startVm`/`stopVm` to a handle so the CommandSink dispatch can route the
+ * web's Start/Stop desktop commands to the (restart-surviving) CUA controller.
+ * Every other method is inherited from the real handle via the prototype. */
+function withCua(
+	handle: AgentHandle,
+	cua: CuaController | undefined
+): AgentHandle {
+	if (!cua) {
+		return handle;
+	}
+	const wrapped = Object.create(handle) as AgentHandle & {
+		startVm?: () => void;
+		stopVm?: () => void;
+	};
+	wrapped.startVm = () => {
+		cua.startVm().catch(() => undefined);
+	};
+	wrapped.stopVm = () => {
+		cua.stopVm().catch(() => undefined);
+	};
+	return wrapped;
 }
 
 function printConnected(sessionId: string): void {
@@ -104,9 +132,9 @@ async function relaunch(
 export async function runRestartLoop(
 	options: RunRestartLoopOptions
 ): Promise<void> {
-	const { adapter, args, sessionId, transport } = options;
+	const { adapter, args, sessionId, transport, cua } = options;
 	const controller = new AbortController();
-	const handleRef = { current: options.handle };
+	const handleRef = { current: withCua(options.handle, cua) };
 	const agentSessionIdRef: AgentSessionIdRef = {};
 	// Hoisted here (NOT inside `runBridgeSession`) and passed into every
 	// generation below: relay command reads are non-destructive and every
@@ -139,11 +167,9 @@ export async function runRestartLoop(
 		generation += 1;
 		outcome = result.outcome;
 		if (outcome === "restart") {
-			handleRef.current = await relaunch(
-				adapter,
-				args,
-				transport,
-				agentSessionIdRef
+			handleRef.current = withCua(
+				await relaunch(adapter, args, transport, agentSessionIdRef),
+				cua
 			);
 			onStart = printRestarted;
 		}

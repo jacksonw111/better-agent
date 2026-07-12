@@ -9,9 +9,10 @@ import {
 	dispatchTextCommand,
 } from "./command-dispatch";
 import {
-	type ControlAnswerQuestionCommand,
-	parseAnswerQuestionCommand,
-} from "./commands-question";
+	type ControlCommand,
+	isControlRecord,
+	parseControlCommand,
+} from "./commands-control";
 import { parseTextCommand, type TextCommand } from "./commands-text-when";
 import { isRecord } from "./normalize/types";
 
@@ -29,89 +30,6 @@ export interface ApprovalCommand {
 	type: "approval";
 }
 
-/** A server-initiated request to end this session right now — the web UI's
- * "End session" action (see `packages/api/src/routers/bridge.ts`'s
- * `endSession`), relayed as a control command instead of a plain text one so
- * the CLI can tell "stop the agent" apart from "send it this text". */
-export interface ControlStopCommand {
-	action: "stop";
-	type: "control";
-}
-
-/** The Local Agent detail page's Stop/Interrupt button — cancels the
- * in-flight turn but, unlike `ControlStopCommand`, leaves the session (and
- * the underlying agent process) alive so the user can keep chatting. Routed
- * to `CommandSink.interrupt`. */
-export interface ControlInterruptCommand {
-	action: "interrupt";
-	type: "control";
-}
-
-/** The Local Agent detail page's model picker. Routed to
- * `CommandSink.setModel`. */
-export interface ControlSetModelCommand {
-	action: "setModel";
-	model: string;
-	type: "control";
-}
-
-/** The Local Agent detail page's permission-mode dropdown. Routed to
- * `CommandSink.setPermissionMode`. */
-export interface ControlSetPermissionModeCommand {
-	action: "setPermissionMode";
-	mode: string;
-	type: "control";
-}
-
-/** The Local Agent detail page's thinking-effort dropdown (R2-T3 item 2 —
- * pi's `set_thinking_level`). Routed to `CommandSink.setThinking`. */
-export interface ControlSetThinkingCommand {
-	action: "setThinking";
-	level: string;
-	type: "control";
-}
-
-/** The Local Agent detail page's "Past conversations" button — requests the
- * agent's local session list (e.g. claude's `listSessions({dir})`). Routed to
- * `CommandSink.listSessions`; the adapter answers asynchronously by pushing a
- * `session_list` status event, not a direct return value. */
-export interface ControlListSessionsCommand {
-	action: "listSessions";
-	type: "control";
-}
-
-/** The Local Agent detail page's status refresh — asks the agent for a
- * normalized status snapshot (context usage, cost/tokens, MCP servers,
- * running/idle). Routed to `CommandSink.getStatus`; like `listSessions`,
- * fire-and-forget — the adapter answers by PUSHING a `status_snapshot`
- * status event, never a direct return value. */
-export interface ControlGetStatusCommand {
-	action: "getStatus";
-	type: "control";
-}
-
-/** A server-initiated request to reconfigure and relaunch the agent IN
- * PLACE (see `RESTART_CONTROL_COMMAND` in
- * `packages/api/src/routers/bridge-restart.ts`). Unlike `ControlStopCommand`,
- * this must NOT end the bridge session — `restart-loop.ts` tears down the
- * current agent process, re-fetches fresh config, and starts a new one under
- * the SAME bridge sessionId; the process itself never exits. */
-export interface ControlRestartCommand {
-	action: "restart";
-	type: "control";
-}
-
-export type ControlCommand =
-	| ControlAnswerQuestionCommand
-	| ControlGetStatusCommand
-	| ControlInterruptCommand
-	| ControlListSessionsCommand
-	| ControlRestartCommand
-	| ControlSetModelCommand
-	| ControlSetPermissionModeCommand
-	| ControlSetThinkingCommand
-	| ControlStopCommand;
-
 export type ParsedCommand = ApprovalCommand | ControlCommand | TextCommand;
 
 function isApprovalCommand(data: unknown): data is ApprovalCommand {
@@ -123,70 +41,10 @@ function isApprovalCommand(data: unknown): data is ApprovalCommand {
 	);
 }
 
-/** The control actions that carry a required string payload — split out of
- * `parseControlCommand` purely to keep its complexity under the repo's
- * eslint gate (each added action's `&&` check counts against it). */
-function parseControlCommandWithPayload(
-	data: Record<string, unknown>
-): ControlCommand | null {
-	if (data.action === "setModel" && typeof data.model === "string") {
-		return { action: "setModel", model: data.model, type: "control" };
-	}
-	if (data.action === "setPermissionMode" && typeof data.mode === "string") {
-		return { action: "setPermissionMode", mode: data.mode, type: "control" };
-	}
-	if (data.action === "setThinking" && typeof data.level === "string") {
-		return { action: "setThinking", level: data.level, type: "control" };
-	}
-	return null;
-}
-
-/** The control actions with no payload at all — see
- * `parseControlCommandWithPayload` for why this is split out. */
-function parseSimpleControlCommand(
-	data: Record<string, unknown>
-): ControlCommand | null {
-	if (data.action === "stop") {
-		return { action: "stop", type: "control" };
-	}
-	if (data.action === "interrupt") {
-		return { action: "interrupt", type: "control" };
-	}
-	if (data.action === "listSessions") {
-		return { action: "listSessions", type: "control" };
-	}
-	if (data.action === "getStatus") {
-		return { action: "getStatus", type: "control" };
-	}
-	if (data.action === "restart") {
-		return { action: "restart", type: "control" };
-	}
-	return null;
-}
-
-/** Parses a `{ type: "control", ... }` record's `action` (and any
- * action-specific payload) into a `ControlCommand`, or `null` for an
- * unrecognized action or a malformed payload (e.g. `setModel` missing its
- * `model` string). */
-function parseControlCommand(
-	data: Record<string, unknown>
-): ControlCommand | null {
-	return (
-		parseControlCommandWithPayload(data) ??
-		parseAnswerQuestionCommand(data) ??
-		parseSimpleControlCommand(data)
-	);
-}
-
 /**
  * Parses one relayed command's `data` (`unknown` on the wire) into a text
- * send, an approval answer, or a control command. Accepts a bare string or
- * `{ text }` (a plain-text command), `{ type: "approval", requestId,
- * optionId }` (the web UI's reply to an `ApprovalEvent`), and `{ type:
- * "control", action: "stop" | "interrupt" | "setModel" |
- * "setPermissionMode" | "setThinking" | "listSessions" | "getStatus" |
- * "restart", ... }` (session controls); anything else is `null` and left
- * undispatched.
+ * send, an approval answer, or a control command (see `commands-control.ts`).
+ * Anything else is `null` and left undispatched.
  */
 export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (typeof data === "string") {
@@ -195,7 +53,7 @@ export function parseCommandText(data: unknown): ParsedCommand | null {
 	if (isApprovalCommand(data)) {
 		return data;
 	}
-	if (isRecord(data) && data.type === "control") {
+	if (isControlRecord(data)) {
 		return parseControlCommand(data);
 	}
 	if (isRecord(data) && typeof data.text === "string") {
@@ -249,10 +107,16 @@ export interface CommandSink {
 	 * `control: setThinking` command (R2-T3 item 2 — pi's
 	 * `set_thinking_level`). */
 	setThinking?(level: string): void;
+	/** `--cua` only: provision + boot the local VM and open its VNC. Called for
+	 * a `control: startVm` command — the detail page's "Start desktop" button. */
+	startVm?(): void;
 	/** Stops the agent process. Called for a `control: stop` command; see
 	 * `AgentHandle.stop` in `apps/bridge-cli/src/adapters/types.ts`, which the
 	 * real sink (the running session's `handle`) always implements. */
 	stop?(): void;
+	/** `--cua` only: tear the VNC relay down and stop the VM. Called for a
+	 * `control: stopVm` command — the detail page's "Stop desktop" button. */
+	stopVm?(): void;
 }
 
 /** What `dispatchCommands` did with a batch of relayed commands. */

@@ -4,7 +4,8 @@
 // needed a new branch here).
 
 import type { TextWhen } from "./adapters/types";
-import type { CommandSink, ControlCommand } from "./commands";
+import type { CommandSink } from "./commands";
+import type { ControlCommand } from "./commands-control";
 
 // Each of these one-liners exists purely so `dispatchControlCommand`'s own
 // branching doesn't also carry the optional-chaining call itself — eslint's
@@ -30,6 +31,12 @@ function callListSessions(sink: CommandSink): void {
 }
 function callGetStatus(sink: CommandSink): void {
 	sink.getStatus?.();
+}
+function callStartVm(sink: CommandSink): void {
+	sink.startVm?.();
+}
+function callStopVm(sink: CommandSink): void {
+	sink.stopVm?.();
 }
 function callAnswerQuestion(
 	sink: CommandSink,
@@ -64,24 +71,30 @@ export function dispatchTextCommand(
  * layer would make it indistinguishable from an ordinary stop; `pollOnce`
  * (poll-loop.ts) reports `restartRequested` as its own `PollOutcome` AND
  * separately calls `sink.stop()` to actually end the current process. */
+// No-payload actions → their call helper. A lookup (not another if/else arm)
+// keeps `dispatchControlCommand` under eslint's complexity gate as actions grow.
+const NO_ARG_CALLS: Record<string, (sink: CommandSink) => void> = {
+	getStatus: callGetStatus,
+	interrupt: callInterrupt,
+	listSessions: callListSessions,
+	startVm: callStartVm,
+	stop: callStop,
+	stopVm: callStopVm,
+};
+
 export function dispatchControlCommand(
 	command: ControlCommand,
 	sink: CommandSink
 ): void {
-	if (command.action === "stop") {
-		callStop(sink);
-	} else if (command.action === "interrupt") {
-		callInterrupt(sink);
+	const noArg = NO_ARG_CALLS[command.action];
+	if (noArg) {
+		noArg(sink);
 	} else if (command.action === "setModel") {
 		callSetModel(sink, command.model);
 	} else if (command.action === "setPermissionMode") {
 		callSetPermissionMode(sink, command.mode);
 	} else if (command.action === "setThinking") {
 		callSetThinking(sink, command.level);
-	} else if (command.action === "listSessions") {
-		callListSessions(sink);
-	} else if (command.action === "getStatus") {
-		callGetStatus(sink);
 	} else if (command.action === "answerQuestion") {
 		callAnswerQuestion(sink, command.requestId, command.answers);
 	}

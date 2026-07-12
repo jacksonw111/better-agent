@@ -3,7 +3,7 @@ import { AGENT_CLI, selectAdapter } from "./adapters";
 import { findOnPath } from "./adapters/process-io";
 import type { AgentKind } from "./adapters/types";
 import { handleInfoFlags, parseArgs } from "./args";
-import { type CuaSession, startCuaSession } from "./cua/cua-session";
+import { createCuaController } from "./cua/cua-controller";
 import { createRelayTransport } from "./relay-transport";
 import { runRestartLoop } from "./restart-loop";
 import { BRIDGE_CLI_VERSION } from "./version";
@@ -50,22 +50,6 @@ async function startAgentSession(
 	return { sessionId, handle };
 }
 
-/** Starts CUA but never throws: a provisioning/boot failure is logged and
- * yields `undefined` (no remote desktop) instead of taking down the agent. */
-async function startCuaSafely(
-	options: Parameters<typeof startCuaSession>[0]
-): Promise<CuaSession | undefined> {
-	let session: CuaSession | undefined;
-	try {
-		session = await startCuaSession(options);
-	} catch (error) {
-		process.stderr.write(
-			`[cua] ${error instanceof Error ? error.message : String(error)}\n`
-		);
-	}
-	return session;
-}
-
 async function main(): Promise<void> {
 	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
 	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
@@ -92,11 +76,12 @@ async function main(): Promise<void> {
 		adapter,
 		transport
 	);
-	// CUA runs alongside the agent session (VM boot can take a minute, so it
-	// must not block the agent loop). A provisioning failure is logged, not
-	// fatal — the agent still works, just without remote desktop.
-	const cuaPromise: Promise<CuaSession | undefined> = args.cua
-		? startCuaSafely({
+	// --cua: the desktop VM lifecycle, driven by the web's Start/Stop buttons
+	// (control commands) and threaded through the restart loop so an in-place
+	// agent restart never kills it. Auto-started once here for convenience; VM
+	// boot runs in the background and never blocks the agent loop.
+	const cua = args.cua
+		? createCuaController({
 				serverUrl: args.serverUrl,
 				token: args.token,
 				sessionId,
@@ -105,11 +90,12 @@ async function main(): Promise<void> {
 					transport.reportVnc?.({ sessionId, vncEndpoint }) ??
 					Promise.resolve(),
 			})
-		: Promise.resolve(undefined);
+		: undefined;
+	cua?.startVm();
 	try {
-		await runRestartLoop({ adapter, args, handle, sessionId, transport });
+		await runRestartLoop({ adapter, args, cua, handle, sessionId, transport });
 	} finally {
-		await (await cuaPromise)?.stop();
+		await cua?.dispose();
 	}
 }
 

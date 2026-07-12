@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
@@ -14,8 +14,8 @@ import {
 	sortSessionsByRecency,
 	useSessionSelection,
 } from "./local-agent-session-picker";
+import { RemoteDesktopPanel } from "./remote-desktop-panel";
 import { Terminal } from "./terminal";
-import { VncViewer } from "./vnc-viewer";
 
 function useEndSession() {
 	const queryClient = useQueryClient();
@@ -76,17 +76,28 @@ function SessionView({
 	const endSession = useEndSession();
 	const transport = useMemo(() => createBridgeTransport(), []);
 	const { activeSession, select } = useSessionSelection(sessions);
+	// A session is CUA-capable once we've seen it expose a VNC endpoint. Latched
+	// so the Start/Stop panel stays after the VM is stopped (endpoint clears),
+	// and never shows for a plain (non-`--cua`) session.
+	const [cuaSeen, setCuaSeen] = useState(false);
+	const vncEndpoint = activeSession?.vncEndpoint ?? null;
+	useEffect(() => {
+		if (vncEndpoint) {
+			setCuaSeen(true);
+		}
+	}, [vncEndpoint]);
 
 	if (!activeSession) {
 		return <WaitingForCli token={token} />;
 	}
 	return (
 		<div className="flex flex-col gap-4">
-			{activeSession.vncEndpoint ? (
-				<div className="flex flex-col gap-2">
-					<span className="font-medium text-sm">Remote desktop</span>
-					<VncViewer key={activeSession.id} sessionId={activeSession.id} />
-				</div>
+			{cuaSeen ? (
+				<RemoteDesktopPanel
+					sessionId={activeSession.id}
+					transport={transport}
+					vncEndpoint={vncEndpoint}
+				/>
 			) : null}
 			<Terminal
 				activeSessionId={activeSession.id}
