@@ -31,22 +31,22 @@ it("renders a sequence of events in order, never dropping or duplicating on repl
 		fake.current()?.onOpen();
 	});
 	await act(() => {
-		fake.current()?.onEvent(statusRaw(1, "starting"));
-		fake.current()?.onEvent(statusRaw(2, "thinking"));
-		fake.current()?.onEvent(statusRaw(3, "done"));
+		fake.current()?.onEvent(statusRaw(1, "restarting"));
+		fake.current()?.onEvent(statusRaw(2, "restarted"));
+		fake.current()?.onEvent(statusRaw(3, "stopped_by_server"));
 	});
 	// A reconnect replays the whole window, including ids already delivered
 	// live — none of it should re-render or reorder anything.
 	await act(() => {
-		fake.current()?.onEvent(statusRaw(2, "thinking"));
-		fake.current()?.onEvent(statusRaw(3, "done"));
+		fake.current()?.onEvent(statusRaw(2, "restarted"));
+		fake.current()?.onEvent(statusRaw(3, "stopped_by_server"));
 	});
 
 	const lines = within(container).getAllByText(EVENT_TEXT_PATTERN);
 	expect(lines.map((el) => el.textContent)).toEqual([
-		"starting",
-		"thinking",
-		"done",
+		"正在重启 agent…",
+		"agent 已重启",
+		"会话已由服务端结束",
 	]);
 });
 

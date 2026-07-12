@@ -101,7 +101,7 @@ it("renders a user echo and the assistant reply as distinct turns", () => {
 it("closes the assistant bubble at a status boundary, preserving order", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "first" }),
-		ev(2, { kind: "status", status: "turn-end" }),
+		ev(2, { kind: "status", status: "restarting" }),
 		ev(3, { kind: "output", text: "second" }),
 	]);
 	expect(turns.map((t) => t.kind)).toEqual([
@@ -157,35 +157,9 @@ it("keeps reasoning and reply output in separate blocks, with no duplication", (
 	]);
 });
 
-it("hides session_ready/turn_usage/command_catalog AND does not let them fragment the assistant bubble", () => {
-	const turns = foldEventsToTurns([
-		ev(1, { kind: "output", text: "first" }),
-		ev(2, {
-			kind: "status",
-			status: "session_ready",
-			detail: { model: "claude-opus-4-6" },
-		}),
-		ev(3, { kind: "output", text: "second" }),
-		ev(4, {
-			kind: "status",
-			status: "turn_usage",
-			detail: { costUsd: 0.01 },
-		}),
-		ev(5, {
-			kind: "status",
-			status: "command_catalog",
-			detail: { commands: [{ name: "compact" }] },
-		}),
-		ev(6, { kind: "status", status: "some-other-status" }),
-	]);
-	// Hidden non-boundary heartbeats interleave mid-stream (opencode fires one
-	// per session/update) and must NOT split a reply: the two outputs merge
-	// into ONE bubble. Only the displayed status closes it + shows as a turn.
-	expect(turns.map((t) => t.kind)).toEqual(["assistant", "status"]);
-	expect(asAssistant(turns[0]).blocks).toEqual([
-		{ kind: "text", text: "firstsecond" },
-	]);
-});
+// Status-whitelist coverage (curated notices, hidden heartbeats, and the
+// unknown-adapter-status regression test) lives in
+// bridge-turns-status.test.ts — split out to fit the 300-line file limit.
 
 it("flattens an opencode content-array tool output instead of rendering it empty", () => {
 	const turns = foldEventsToTurns([

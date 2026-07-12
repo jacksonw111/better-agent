@@ -86,7 +86,7 @@ it("reviewer's exact repro: a push and a retract landing in the SAME incremental
 			requestId: "req_1",
 			title: "Run `rm`",
 		}),
-		ev(2, { kind: "status", status: "custom-status" }),
+		ev(2, { kind: "status", status: "restarting" }),
 		ev(3, {
 			kind: "approval",
 			cancelled: true,

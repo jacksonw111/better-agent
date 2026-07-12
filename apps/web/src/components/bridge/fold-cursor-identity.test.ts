@@ -72,8 +72,12 @@ it("the R0-T4 brief's scenario: tool started, many unrelated events, tool comple
 	expect(toolTurnAtStart.kind).toBe("assistant");
 
 	// Many later, unrelated events — a full session's worth of other turns.
-	const middleEvents = Array.from({ length: 20 }, (_, i) =>
-		ev(i + 2, { kind: "status", status: `misc-${i}` })
+	// Uses a real curated notice status (not an arbitrary string): an unknown
+	// status is now silently absorbed by `foldStatus` (never a boundary, never
+	// its own turn — see bridge-turns.ts), so it can no longer stand in for
+	// "many unrelated visible turns" here.
+	const middleEvents = Array.from({ length: 20 }, (_, index) =>
+		ev(index + 2, { kind: "status", status: "restarting" })
 	);
 	const afterMiddle = foldIncremental(cursor, [toolStart(1), ...middleEvents]);
 	// The middle batch's first status event is a turn boundary — it closes the

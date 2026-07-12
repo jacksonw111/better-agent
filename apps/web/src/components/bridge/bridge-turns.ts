@@ -7,14 +7,11 @@ import {
 	finalizeAssistantMessage,
 	openAssistant,
 	pushTurn,
-	removeTurns,
 } from "./bridge-assistant-merge";
 import { COMMAND_CATALOG_STATUS } from "./bridge-command-catalog";
 import type {
-	ApprovalEvent,
 	MessageEvent,
 	NormalizedEvent,
-	QuestionEvent,
 	StatusEvent,
 	StreamEvent,
 	ToolEvent,
@@ -27,11 +24,13 @@ import {
 	USAGE_UPDATE_STATUS,
 } from "./bridge-session-status";
 import type { BridgeTurn, PlanTurn, TaskTurn } from "./bridge-turn-types";
+import { foldApproval, foldQuestion } from "./bridge-turns-approval";
 import {
 	applyToolResult,
 	createTaskInvocation,
 	updateTaskInvocation,
 } from "./bridge-turns-tool-task";
+import { STATUS_NOTICE_KINDS } from "./status-line";
 import { parseTodoItems } from "./todo-list";
 
 export type {
@@ -180,6 +179,16 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
  * heartbeat (`usage_update`/`queue_update`/…, which opencode emits between an
  * assistant's own output deltas). Nulling `current` on those fragmented one
  * reply into a bubble per heartbeat — the "sentence-by-sentence" bug.
+ *
+ * Whitelist semantics on the fallthrough: a status must be EXPLICITLY known
+ * (`STATUS_NOTICE_KINDS` — the CLI's own curated lifecycle notices — or
+ * `HIDDEN_STATUS_KINDS` above) to touch `state.current`/render a turn at all.
+ * Anything else — an unrecognized `sessionUpdate` kind from opencode's ACP
+ * normalizer, or any future adapter chatter this codebase hasn't been taught
+ * about yet — is silently absorbed: no status turn, no boundary. Adapters can
+ * add new status kinds at any time (see `normalize/opencode.ts`'s default
+ * case); rendering must always be opt-in via one of the two curated lists,
+ * never opt-out, or a single unrecognized kind fragments the whole reply.
  */
 function foldStatus(state: FoldState, id: number, event: StatusEvent): void {
 	if (event.status === PLAN_STATUS) {
@@ -193,8 +202,12 @@ function foldStatus(state: FoldState, id: number, event: StatusEvent): void {
 		}
 		return;
 	}
-	state.current = null;
-	pushTurn(state, { kind: "status", id, event });
+	if (STATUS_NOTICE_KINDS.has(event.status)) {
+		state.current = null;
+		pushTurn(state, { kind: "status", id, event });
+		return;
+	}
+	// Unknown status kind: never fragment the bubble, never render.
 }
 
 /** Folds ONE event into `state`, mutating it in place — the shared per-event
@@ -234,52 +247,8 @@ export function foldEvent(
 	}
 }
 
-/**
- * RC-T3: an approval event stamped `cancelled: true` retracts a still-open
- * approval card (turn epoch superseded by an interrupt/stop — see
- * `apps/bridge-cli/src/adapters/approvals.ts`'s `retractPendingApprovals`)
- * instead of rendering as a new turn: the matching still-open card (by
- * `requestId`) is removed from the feed rather than left dangling for the
- * user to answer into a dead turn.
- */
-function foldApproval(
-	state: FoldState,
-	id: number,
-	event: ApprovalEvent
-): void {
-	state.current = null;
-	if (event.cancelled) {
-		removeTurns(
-			state,
-			(turn) =>
-				turn.kind === "approval" && turn.event.requestId === event.requestId
-		);
-		return;
-	}
-	pushTurn(state, { kind: "approval", id, event });
-}
-
-/**
- * R3-T3: mirrors `foldApproval` for opencode's `question.asked` — a
- * `cancelled: true` event retracts a still-open question card (by
- * `requestId`) instead of rendering as a new turn.
- */
-function foldQuestion(
-	state: FoldState,
-	id: number,
-	event: QuestionEvent
-): void {
-	state.current = null;
-	if (event.cancelled) {
-		removeTurns(
-			state,
-			(turn) =>
-				turn.kind === "question" && turn.event.requestId === event.requestId
-		);
-		return;
-	}
-	pushTurn(state, { kind: "question", id, event });
-}
+// foldApproval/foldQuestion moved to bridge-turns-approval.ts (see its
+// header comment for why).
 
 /**
  * Folds the ordered, already-deduped bridge feed into renderable turns. Pure

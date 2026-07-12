@@ -124,7 +124,7 @@ it("R1-T1: a late/duplicate id-matched delta AFTER the final is dropped, not app
 it("claude-code/pi: an id-less final message still opens its own fresh bubble (no regression)", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "streamed reply" }),
-		ev(2, { kind: "status", status: "turn-end" }),
+		ev(2, { kind: "status", status: "restarting" }),
 		ev(3, {
 			kind: "message",
 			role: "assistant",

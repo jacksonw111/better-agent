@@ -92,6 +92,17 @@ function humanizeStatus(status: string): string {
 	return status.replace(/_/g, " ");
 }
 
+/** The curated set of `STATUS_NOTICES` keys — exported so `bridge-turns.ts`'s
+ * `foldStatus` can whitelist EXACTLY these as visible, bubble-splitting status
+ * turns. Derived from the table above (not hand-duplicated) so the two can
+ * never drift apart. All 8 are pushed by the bridge CLI's own lifecycle
+ * (restart/stop/watchdog/resume-fallback) — never by an agent adapter — which
+ * is what makes them safe to special-case: unlike an adapter's `sessionUpdate`
+ * kind, no third-party agent build can silently add a 9th one. */
+export const STATUS_NOTICE_KINDS: ReadonlySet<string> = new Set(
+	Object.keys(STATUS_NOTICES)
+);
+
 export function StatusLine({ event }: { event: StatusEvent }) {
 	const notice = STATUS_NOTICES[event.status];
 	const Icon = notice?.icon ?? InfoIcon;

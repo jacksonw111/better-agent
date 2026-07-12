@@ -21,8 +21,8 @@ import {
 it("seeds the feed from persisted history on mount, before any live event arrives", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([
-		{ seq: 1, event: { kind: "status", status: "starting" } },
-		{ seq: 2, event: { kind: "status", status: "thinking" } },
+		{ seq: 1, event: { kind: "status", status: "restarting" } },
+		{ seq: 2, event: { kind: "status", status: "restarted" } },
 	]);
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
@@ -32,7 +32,7 @@ it("seeds the feed from persisted history on mount, before any live event arrive
 	await waitFor(() => {
 		expect(
 			view.getAllByText(EVENT_TEXT_PATTERN).map((el) => el.textContent)
-		).toEqual(["starting", "thinking"]);
+		).toEqual(["正在重启 agent…", "agent 已重启"]);
 	});
 	expect(fake.history).toHaveBeenCalledWith({ sessionId: SESSION.id });
 });
@@ -59,8 +59,8 @@ it("opens the live connection only after history has been seeded", async () => {
 it("doesn't duplicate a live event whose id was already delivered via history", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([
-		{ seq: 1, event: { kind: "status", status: "starting" } },
-		{ seq: 2, event: { kind: "status", status: "thinking" } },
+		{ seq: 1, event: { kind: "status", status: "restarting" } },
+		{ seq: 2, event: { kind: "status", status: "restarted" } },
 	]);
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
@@ -74,21 +74,21 @@ it("doesn't duplicate a live event whose id was already delivered via history", 
 	// The live stream replays id 2 (already seeded from history) alongside a
 	// genuinely new id 3 — only the new one should render.
 	await act(() => {
-		fake.current()?.onEvent(statusRaw(2, "thinking"));
-		fake.current()?.onEvent(statusRaw(3, "done"));
+		fake.current()?.onEvent(statusRaw(2, "restarted"));
+		fake.current()?.onEvent(statusRaw(3, "stopped_by_server"));
 	});
 
 	await waitFor(() => {
 		expect(
 			view.getAllByText(EVENT_TEXT_PATTERN).map((el) => el.textContent)
-		).toEqual(["starting", "thinking", "done"]);
+		).toEqual(["正在重启 agent…", "agent 已重启", "会话已由服务端结束"]);
 	});
 });
 
 it("keeps appending live events normally after the history seed", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([
-		{ seq: 1, event: { kind: "status", status: "starting" } },
+		{ seq: 1, event: { kind: "status", status: "restarting" } },
 	]);
 	const { container } = render(
 		<Terminal session={SESSION} transport={fake.transport} />
@@ -100,20 +100,20 @@ it("keeps appending live events normally after the history seed", async () => {
 	await waitForConnect(fake);
 
 	await act(() => {
-		fake.current()?.onEvent(statusRaw(2, "thinking"));
+		fake.current()?.onEvent(statusRaw(2, "restarted"));
 	});
 	await waitFor(() => {
 		expect(
 			view.getAllByText(EVENT_TEXT_PATTERN).map((el) => el.textContent)
-		).toEqual(["starting", "thinking"]);
+		).toEqual(["正在重启 agent…", "agent 已重启"]);
 	});
 
 	await act(() => {
-		fake.current()?.onEvent(statusRaw(3, "done"));
+		fake.current()?.onEvent(statusRaw(3, "stopped_by_server"));
 	});
 	await waitFor(() => {
 		expect(
 			view.getAllByText(EVENT_TEXT_PATTERN).map((el) => el.textContent)
-		).toEqual(["starting", "thinking", "done"]);
+		).toEqual(["正在重启 agent…", "agent 已重启", "会话已由服务端结束"]);
 	});
 });

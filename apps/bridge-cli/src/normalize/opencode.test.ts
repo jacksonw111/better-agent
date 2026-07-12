@@ -176,8 +176,8 @@ describe("normalizeOpencodeApprovalRequest - empty/unparseable options (RC-T4)",
 // RC-T6: defensive unknown-type audit — an unrecognized top-level JSON-RPC
 // `method` or a non-object/malformed line must drop safely, never throw. An
 // unrecognized `sessionUpdate` INSIDE a real `session/update` notification is
-// deliberately a pass-through (not a drop — see `normalizeAcpUpdate`'s
-// documented default case), so that shape isn't re-asserted here.
+// ALSO dropped (not a pass-through) — see the sentence-by-sentence-bug
+// regression test below and `normalizeAcpUpdate`'s documented default case.
 describe("normalizeOpencode - unknown/malformed input (RC-T6)", () => {
 	it("drops a notification whose method isn't session/update without throwing", () => {
 		expect(() =>
@@ -189,5 +189,19 @@ describe("normalizeOpencode - unknown/malformed input (RC-T6)", () => {
 	it("drops a non-object line without throwing", () => {
 		expect(() => normalizeOpencode("not an object")).not.toThrow();
 		expect(normalizeOpencode(null)).toEqual([]);
+	});
+
+	it("drops an unrecognized sessionUpdate kind instead of passing it through as a status event", () => {
+		// Regression test for the opencode ACP sentence-by-sentence bug: newer
+		// opencode builds emit sessionUpdate kinds this normalizer doesn't know
+		// yet (e.g. "current_mode_update"), interleaved with
+		// agent_message_chunks. Passing them through as status events used to
+		// split every assistant reply into one bubble per unknown status.
+		expect(
+			normalizeOpencode({
+				method: "session/update",
+				params: { update: { sessionUpdate: "current_mode_update" } },
+			})
+		).toEqual([]);
 	});
 });

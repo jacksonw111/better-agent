@@ -49,39 +49,84 @@ function normalizeAcpToolCall(
 	];
 }
 
-/** Maps one ACP `session/update` notification's `update` payload. */
+type AcpUpdateHandler = (update: Record<string, unknown>) => NormalizedEvent[];
+
+function normalizeAcpMessageChunk(
+	update: Record<string, unknown>
+): NormalizedEvent[] {
+	if (!isAcpTextContent(update.content)) {
+		return NO_EVENTS;
+	}
+	// These are streaming CHUNKS (deltas), not whole messages — emit them as
+	// `output` so the UI accumulates them into ONE bubble. Mapping each chunk
+	// to a `message` would render every word as its own bubble.
+	return [
+		{
+			kind: "output",
+			text: update.content.text,
+			reasoning: update.sessionUpdate === "agent_thought_chunk",
+		},
+	];
+}
+
+function normalizeAcpToolCallStarted(
+	update: Record<string, unknown>
+): NormalizedEvent[] {
+	return normalizeAcpToolCall(update, "started");
+}
+
+function normalizeAcpToolCallCompleted(
+	update: Record<string, unknown>
+): NormalizedEvent[] {
+	return normalizeAcpToolCall(update, "completed");
+}
+
+function normalizeAcpPlan(update: Record<string, unknown>): NormalizedEvent[] {
+	return [{ kind: "status", status: "plan", detail: update.entries }];
+}
+
+/** opencode's ACP layer streams per-turn context/cost as a `usage_update`
+ * `session/update` — a curated, known status (see `USAGE_UPDATE_STATUS` in
+ * the web's bridge-session-status.ts and `opencode-status.ts`'s `getStatus`
+ * cache), so it gets its own handler rather than falling into the
+ * unknown-kind default below. */
+function normalizeAcpUsageUpdate(
+	update: Record<string, unknown>
+): NormalizedEvent[] {
+	return [
+		{ kind: "status", status: update.sessionUpdate as string, detail: update },
+	];
+}
+
+/** Dispatch table for every `sessionUpdate` kind this normalizer knows about
+ * — a lookup instead of a `switch` so `normalizeAcpUpdate` itself stays a
+ * flat, low-complexity dispatcher no matter how many kinds get added. */
+const ACP_UPDATE_HANDLERS: Record<string, AcpUpdateHandler> = {
+	agent_message_chunk: normalizeAcpMessageChunk,
+	agent_thought_chunk: normalizeAcpMessageChunk,
+	tool_call: normalizeAcpToolCallStarted,
+	tool_call_update: normalizeAcpToolCallCompleted,
+	plan: normalizeAcpPlan,
+	available_commands_update: normalizeAcpAvailableCommands,
+	usage_update: normalizeAcpUsageUpdate,
+};
+
+/** Maps one ACP `session/update` notification's `update` payload. An
+ * unrecognized `sessionUpdate` kind is DROPPED, mirroring opencode-serve's
+ * documented policy (see `normalize/opencode-serve.ts`'s default case): this
+ * notification stream is server-global and chatty, and newer opencode builds
+ * keep adding sessionUpdate kinds this normalizer hasn't been taught yet.
+ * Passing them through as status events used to flood the web feed AND split
+ * every assistant reply into one bubble per unknown status (the opencode ACP
+ * sentence-by-sentence regression — see bridge-turns.ts's `foldStatus`
+ * docstring on the web side, which now also refuses to fragment on an
+ * unknown status as defense in depth). */
 function normalizeAcpUpdate(update: unknown): NormalizedEvent[] {
 	if (!isRecord(update) || typeof update.sessionUpdate !== "string") {
 		return NO_EVENTS;
 	}
-	switch (update.sessionUpdate) {
-		case "agent_message_chunk":
-		case "agent_thought_chunk": {
-			if (!isAcpTextContent(update.content)) {
-				return NO_EVENTS;
-			}
-			// These are streaming CHUNKS (deltas), not whole messages — emit them
-			// as `output` so the UI accumulates them into ONE bubble. Mapping each
-			// chunk to a `message` rendered every word as its own bubble.
-			return [
-				{
-					kind: "output",
-					text: update.content.text,
-					reasoning: update.sessionUpdate === "agent_thought_chunk",
-				},
-			];
-		}
-		case "tool_call":
-			return normalizeAcpToolCall(update, "started");
-		case "tool_call_update":
-			return normalizeAcpToolCall(update, "completed");
-		case "plan":
-			return [{ kind: "status", status: "plan", detail: update.entries }];
-		case "available_commands_update":
-			return normalizeAcpAvailableCommands(update);
-		default:
-			return [{ kind: "status", status: update.sessionUpdate, detail: update }];
-	}
+	const handler = ACP_UPDATE_HANDLERS[update.sessionUpdate];
+	return handler ? handler(update) : NO_EVENTS;
 }
 
 // --- session_ready: available_commands_update -------------------------------

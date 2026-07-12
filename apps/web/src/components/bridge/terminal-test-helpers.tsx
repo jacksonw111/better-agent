@@ -87,7 +87,15 @@ export function approvalRaw(id: number, requestId: string) {
 	};
 }
 
-export const EVENT_TEXT_PATTERN = /starting|thinking|done/;
+// R6-T1: these three curated `STATUS_NOTICE_KINDS` statuses stand in for
+// "some status event, rendered as its own visible line" in the generic
+// ordering/dedup/replay pipeline tests below — an arbitrary/unknown status
+// string no longer renders at all now that `bridge-turns.ts`'s `foldStatus`
+// only shows a whitelisted notice (see its docstring: unknown statuses must
+// never fragment the assistant bubble, so they're silently dropped instead
+// of rendering a line these tests could assert against).
+export const EVENT_TEXT_PATTERN =
+	/正在重启 agent…|agent 已重启|会话已由服务端结束/;
 export const ALLOW_BUTTON_PATTERN = /Allow/;
 export const DENY_BUTTON_PATTERN = /Deny/;
 export const ALLOW_CHOSEN_BUTTON_PATTERN = /Allow.*chosen/;
