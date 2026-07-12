@@ -6,7 +6,7 @@ const MAX_INDEX_ITEMS = 30;
 
 function IndexCard({ item }: { item: IndexQuoteData }) {
 	return (
-		<div className="flex flex-col gap-1 rounded-lg border bg-card p-3">
+		<div className="flex flex-col gap-1 rounded-md bg-muted/40 p-3">
 			<span className="truncate font-medium text-sm">
 				{item.name || item.code}
 			</span>

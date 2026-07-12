@@ -49,7 +49,7 @@ function RankChangeBadge({ rankChange }: { rankChange: number | null }) {
 
 function HotListRow({ item }: { item: CnHotRowData }) {
 	return (
-		<div className="flex items-center justify-between gap-2 rounded-lg border p-2">
+		<div className="flex items-center justify-between gap-2 px-1 py-2">
 			<div className="flex min-w-0 items-center gap-2">
 				<span className="w-5 shrink-0 text-right font-bold text-sm tabular-nums">
 					{item.rank}
@@ -82,7 +82,7 @@ export function CnHotList({ data }: { data: CnHotRowData[] }) {
 	const hiddenCount = data.length - visible.length;
 	return (
 		<CardShell title="股吧人气榜">
-			<div className="flex flex-col gap-1.5">
+			<div className="flex flex-col divide-y">
 				{visible.map((item) => (
 					<HotListRow item={item} key={item.code} />
 				))}

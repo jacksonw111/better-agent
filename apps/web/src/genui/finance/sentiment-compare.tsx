@@ -96,7 +96,7 @@ function BuzzCompareBars({ data }: { data: ChartRow[] }) {
 
 function BullBearRow({ item }: { item: SentimentCompareData }) {
 	return (
-		<div className="flex items-center justify-between gap-2 rounded-lg border p-2 text-xs">
+		<div className="flex items-center justify-between gap-2 px-1 py-2 text-xs">
 			<div className="flex min-w-0 items-center gap-1.5">
 				<span className="truncate font-medium">{item.name || item.ticker}</span>
 				<span className="shrink-0 text-muted-foreground">{item.ticker}</span>
@@ -130,7 +130,7 @@ export function SentimentCompare({ data }: { data: SentimentCompareData[] }) {
 	return (
 		<CardShell title="舆情对比">
 			<BuzzCompareBars data={chartData} />
-			<div className="flex flex-col gap-1.5">
+			<div className="flex flex-col divide-y border-t">
 				{visible.map((item) => (
 					<BullBearRow item={item} key={item.ticker} />
 				))}

@@ -114,7 +114,7 @@ function BullBearBar({
 
 function TrendingRow({ item }: { item: TrendingSentimentData }) {
 	return (
-		<div className="flex flex-col gap-1.5 rounded-lg border p-2.5">
+		<div className="flex flex-col gap-1.5 py-2.5">
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex min-w-0 items-center gap-1.5">
 					<span className="truncate font-medium text-sm">
@@ -157,7 +157,7 @@ export function SentimentTrending({ data }: { data: TrendingSentimentData[] }) {
 	const hiddenCount = data.length - visible.length;
 	return (
 		<CardShell title="舆情热度榜">
-			<div className="flex flex-col gap-2">
+			<div className="flex flex-col divide-y">
 				{visible.map((item) => (
 					<TrendingRow item={item} key={item.ticker} />
 				))}

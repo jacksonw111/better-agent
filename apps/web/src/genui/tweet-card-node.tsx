@@ -60,7 +60,7 @@ export function TweetCardFromTweet({ tweet }: { tweet: TweetCardTweet }) {
 			rel="noopener noreferrer"
 			target="_blank"
 		>
-			<div className="flex w-full max-w-md flex-col gap-3 rounded-xl border bg-card p-4">
+			<div className="flex w-full max-w-md flex-col gap-3 rounded-md border p-4">
 				<div className="flex items-start justify-between gap-2">
 					<TweetIdentity
 						authorAvatarUrl={tweet.authorAvatarUrl}

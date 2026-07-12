@@ -254,7 +254,7 @@ export function TweetStats({
  * nested card. Reused for both so the two paths never drift. */
 export function EmbeddedTweet({ tweet }: { tweet: EmbeddedTweetData }) {
 	return (
-		<div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
+		<div className="flex flex-col gap-2 border-t pt-3">
 			<TweetIdentity
 				authorAvatarUrl={tweet.authorAvatarUrl}
 				authorName={tweet.authorName}

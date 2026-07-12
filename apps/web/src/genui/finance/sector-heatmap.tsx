@@ -29,7 +29,7 @@ function tileBackground(changePct: number | null): string | undefined {
 function SectorTile({ item }: { item: SectorRowData }) {
 	return (
 		<div
-			className="flex flex-col gap-1 rounded-lg border p-2"
+			className="flex flex-col gap-1 rounded-md p-2"
 			style={{ backgroundColor: tileBackground(item.changePct) }}
 		>
 			<span className="truncate font-medium text-xs">

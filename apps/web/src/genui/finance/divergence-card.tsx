@@ -147,7 +147,7 @@ function CompareColumn({
 	footer: string;
 }) {
 	return (
-		<div className="flex flex-col gap-1.5 rounded-lg border p-3">
+		<div className="flex flex-col gap-1.5">
 			<span className="text-muted-foreground text-xs">{label}</span>
 			<div className="flex items-center gap-1.5">{children}</div>
 			<span className="text-muted-foreground text-xs">{footer}</span>

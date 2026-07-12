@@ -84,7 +84,7 @@ function marketKey(market: PredictionMarketData): string {
 function MarketCard({ market }: { market: PredictionMarketData }) {
 	const id = marketKey(market);
 	return (
-		<div className="flex flex-col gap-2 rounded-lg border p-3">
+		<div className="flex flex-col gap-2 py-2">
 			<p className="font-semibold text-sm">{market.question || "—"}</p>
 			{market.outcomes.length > 0 ? (
 				<div className="flex flex-col gap-1.5">
@@ -119,7 +119,7 @@ export function PredictionMarkets({
 	const hiddenCount = markets.length - visible.length;
 	return (
 		<CardShell title="预测市场 · Polymarket">
-			<div className="flex flex-col gap-2">
+			<div className="flex flex-col divide-y">
 				{visible.map((market) => (
 					<MarketCard key={marketKey(market)} market={market} />
 				))}

@@ -23,7 +23,7 @@ export function UserCard({ profile }: { profile: UserCardProfile }) {
 			rel="noopener noreferrer"
 			target="_blank"
 		>
-			<div className="flex w-full items-center gap-3 rounded-xl border bg-card p-3">
+			<div className="flex w-full items-center gap-3 rounded-md border p-3">
 				<AuthorAvatar
 					name={profile.displayName}
 					url={profile.profileImageUrl ?? ""}

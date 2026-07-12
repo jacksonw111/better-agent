@@ -6,7 +6,7 @@ const MAX_COMMODITY_ITEMS = 30;
 
 function CommodityCard({ item }: { item: CommodityQuoteData }) {
 	return (
-		<div className="flex flex-col gap-1 rounded-lg border bg-card p-3">
+		<div className="flex flex-col gap-1 rounded-md bg-muted/40 p-3">
 			<span className="truncate font-medium text-sm">
 				{item.name || item.key}
 			</span>

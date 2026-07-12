@@ -157,7 +157,7 @@ function ChartCanvas({ candles }: { candles: CandleData[] }) {
 function ChartPlaceholder({ children }: { children: ReactNode }) {
 	return (
 		<div
-			className="flex items-center justify-center rounded-xl border bg-card text-muted-foreground text-sm"
+			className="flex items-center justify-center rounded-md border text-muted-foreground text-sm"
 			style={{ height: CHART_HEIGHT }}
 		>
 			{children}
@@ -188,7 +188,7 @@ export function CandlestickChart({ candles }: { candles: CandleData[] }) {
 	}
 	return (
 		<CardShell subtitle={formatCandleRange(candles)} title="K线">
-			<div className="rounded-xl border bg-card p-2">
+			<div className="rounded-md border p-2">
 				<ChartCanvas candles={candles} />
 			</div>
 		</CardShell>
