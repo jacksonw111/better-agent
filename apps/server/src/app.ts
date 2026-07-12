@@ -16,6 +16,12 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { buildMemoryMcpApp } from "./memory-mcp";
+import { createPdfProxyHandler } from "./pdf-proxy";
+
+// The PDF proxy streams multi-MB report bodies — like the streaming endpoints
+// below it must skip the buffering log middleware, both to avoid locking the
+// body and so a large PDF is never held in memory just to be logged.
+const PDF_PROXY_PATH = "/pdf-proxy";
 
 // Streaming (event-iterator) endpoints must skip the logging middleware: it
 // buffers the response, which locks the body stream and makes the streamed
@@ -29,7 +35,11 @@ const STREAMING_PATHS = new Set([
 const BRIDGE_STREAM_PATH = /^\/bridge\/sessions\/[^/]+\/stream$/;
 
 function isStreamingPath(path: string): boolean {
-	return STREAMING_PATHS.has(path) || BRIDGE_STREAM_PATH.test(path);
+	return (
+		path === PDF_PROXY_PATH ||
+		STREAMING_PATHS.has(path) ||
+		BRIDGE_STREAM_PATH.test(path)
+	);
 }
 
 const HTTP_INTERNAL_SERVER_ERROR = 500;
@@ -209,10 +219,17 @@ function applyBridgeStreamRoute(
 	});
 }
 
+// Public, host-allow-listed proxy for report/research PDFs. Registered before
+// the oRPC catch-all so it terminates here without paying an oRPC dispatch.
+function applyPdfProxyRoute(app: Hono<EvlogVariables>): void {
+	app.get(PDF_PROXY_PATH, createPdfProxyHandler(fetch));
+}
+
 export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	const app = new Hono<EvlogVariables>();
 	applyMiddleware(app);
 	applyBridgeStreamRoute(app, services);
+	applyPdfProxyRoute(app);
 	applyInternalRoutes(app, services);
 	// Registered BEFORE the catch-all oRPC middleware so /mcp/memory requests
 	// terminate here (bridge-token auth) instead of paying an oRPC dispatch.

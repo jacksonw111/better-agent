@@ -1,4 +1,5 @@
 import { Badge } from "@better-agent/ui/components/badge";
+import { PdfLink } from "@/components/pdf/pdf-link";
 import { MAX_RENDERED_ITEMS } from "../tool-renderers";
 import type { ReportData } from "./finance-schemas-fe8";
 import { formatDate } from "./format";
@@ -31,18 +32,7 @@ function ReportRow({ item }: { item: ReportData }) {
 			<div className="flex items-center gap-2 text-muted-foreground text-xs">
 				<span>{formatDate(item.noticeDate)}</span>
 				{item.pdfUrl ? (
-					// pdfUrl is a finance-mcp-relative `/pdf` proxy path (not an
-					// absolute URL) — the consuming app is expected to prepend the
-					// worker origin + auth token before this ever reaches the
-					// browser, so this renders it as a best-effort link as-is.
-					<a
-						className="text-primary hover:underline"
-						href={item.pdfUrl}
-						rel="noopener noreferrer"
-						target="_blank"
-					>
-						PDF
-					</a>
+					<PdfLink label="PDF" pdfUrl={item.pdfUrl} title={item.title} />
 				) : null}
 			</div>
 		</div>

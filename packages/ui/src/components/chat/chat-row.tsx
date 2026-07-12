@@ -79,7 +79,9 @@ function AssistantContent({
 	renderToolResult?: RenderToolResult;
 }) {
 	return (
-		<>
+		// Space the blocks apart so reasoning, tool calls, rendered genui cards,
+		// and answer text read as distinct sections instead of one glued column.
+		<div className="flex flex-col gap-3">
 			{message.blocks.map((block, index) => (
 				<BlockView
 					block={block}
@@ -90,7 +92,7 @@ function AssistantContent({
 					streaming={streaming}
 				/>
 			))}
-		</>
+		</div>
 	);
 }
 

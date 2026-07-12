@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, XIcon } from "lucide-react";
 import { AgentToolsMenu } from "@/components/chat/agent-tools-menu";
 import { saveMessageAsImage } from "@/components/chat/save-message-image";
+import { PdfVaultProvider } from "@/components/pdf/pdf-vault-context";
 import { renderToolResult } from "@/genui/tool-renderers";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { agentAvatar, userAvatar } from "@/utils/avatar";
@@ -96,29 +97,31 @@ export function ChatView({
 		orpc.skills.listAssigned.queryOptions({ input: { agentId: agent.id } })
 	);
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
-			<ChatViewHeader
-				agent={agent}
-				onClose={onClose}
-				onNewSession={onNewSession}
-				onSessionChange={onSessionChange}
-				sessionId={sessionId}
-				sessions={sessions}
-			/>
-			<Conversation
-				agentClient={agentClient}
-				avatars={{
-					user: email ? userAvatar(email) : undefined,
-					assistant: agentAvatar(agent.id),
-				}}
-				composerTools={<AgentToolsMenu agent={agent} />}
-				initialText={initialText}
-				key={sessionId}
-				onSaveImage={saveMessageAsImage}
-				renderToolResult={renderToolResult}
-				sessionId={sessionId}
-				skills={toSkillPickerItems(skills.data)}
-			/>
-		</div>
+		<PdfVaultProvider>
+			<div className="flex min-h-0 flex-1 flex-col">
+				<ChatViewHeader
+					agent={agent}
+					onClose={onClose}
+					onNewSession={onNewSession}
+					onSessionChange={onSessionChange}
+					sessionId={sessionId}
+					sessions={sessions}
+				/>
+				<Conversation
+					agentClient={agentClient}
+					avatars={{
+						user: email ? userAvatar(email) : undefined,
+						assistant: agentAvatar(agent.id),
+					}}
+					composerTools={<AgentToolsMenu agent={agent} />}
+					initialText={initialText}
+					key={sessionId}
+					onSaveImage={saveMessageAsImage}
+					renderToolResult={renderToolResult}
+					sessionId={sessionId}
+					skills={toSkillPickerItems(skills.data)}
+				/>
+			</div>
+		</PdfVaultProvider>
 	);
 }

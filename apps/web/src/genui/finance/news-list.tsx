@@ -1,3 +1,4 @@
+import { cn } from "@better-agent/ui/lib/utils";
 import { MAX_RENDERED_ITEMS } from "../tool-renderers";
 import type { NewsItemData, StockNewsItemData } from "./finance-schemas-fe8";
 import { formatDate } from "./format";
@@ -18,24 +19,10 @@ function newsRowKey(item: NewsListItemData): string {
 	return isFlashNews(item) ? item.id : item.url;
 }
 
-function NewsTitle({ item }: { item: NewsListItemData }) {
-	const title = item.title || "—";
-	if (!isFlashNews(item) && item.url) {
-		return (
-			<a
-				className="font-medium text-sm hover:underline"
-				href={item.url}
-				rel="noopener noreferrer"
-				target="_blank"
-			>
-				{title}
-			</a>
-		);
-	}
-	return <span className="font-medium text-sm">{title}</span>;
-}
+const NEWS_ROW_CLASS =
+	"flex flex-col gap-1 border-b pb-2 last:border-b-0 last:pb-0";
 
-function NewsRow({ item }: { item: NewsListItemData }) {
+function NewsRowBody({ item }: { item: NewsListItemData }) {
 	const body = isFlashNews(item) ? item.summary : item.snippet;
 	const timeLabel = formatDate(isFlashNews(item) ? item.time : item.date);
 	const footer =
@@ -43,12 +30,38 @@ function NewsRow({ item }: { item: NewsListItemData }) {
 			? `${timeLabel} · ${item.source}`
 			: timeLabel;
 	return (
-		<div className="flex flex-col gap-1 border-b pb-2 last:border-b-0 last:pb-0">
-			<NewsTitle item={item} />
+		<>
+			<span className="font-medium text-sm">{item.title || "—"}</span>
 			{body ? (
 				<p className="line-clamp-2 text-muted-foreground text-xs">{body}</p>
 			) : null}
 			<span className="text-muted-foreground text-xs">{footer}</span>
+		</>
+	);
+}
+
+// A news item with a source URL (finance_stock_news) makes the whole card a
+// tap target that opens the original article in a new tab; flash items
+// (finance_news, no URL) stay static.
+function NewsRow({ item }: { item: NewsListItemData }) {
+	if (!isFlashNews(item) && item.url) {
+		return (
+			<a
+				className={cn(
+					NEWS_ROW_CLASS,
+					"-mx-2 rounded-md px-2 transition-colors hover:bg-muted/50"
+				)}
+				href={item.url}
+				rel="noopener noreferrer"
+				target="_blank"
+			>
+				<NewsRowBody item={item} />
+			</a>
+		);
+	}
+	return (
+		<div className={NEWS_ROW_CLASS}>
+			<NewsRowBody item={item} />
 		</div>
 	);
 }

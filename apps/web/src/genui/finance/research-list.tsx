@@ -1,3 +1,4 @@
+import { PdfLink } from "@/components/pdf/pdf-link";
 import { MAX_RENDERED_ITEMS } from "../tool-renderers";
 import type { ResearchReportData } from "./finance-schemas-fe8";
 import { formatDate, formatNum } from "./format";
@@ -45,18 +46,7 @@ function ResearchCard({ item }: { item: ResearchReportData }) {
 				<EpsPeCell eps={item.epsY2} label="后年" pe={item.peY2} />
 			</div>
 			{item.pdfUrl ? (
-				// pdfUrl is a finance-mcp-relative `/pdf` proxy path (not an
-				// absolute URL) — the consuming app is expected to prepend the
-				// worker origin + auth token before this ever reaches the
-				// browser, so this renders it as a best-effort link as-is.
-				<a
-					className="text-primary text-xs hover:underline"
-					href={item.pdfUrl}
-					rel="noopener noreferrer"
-					target="_blank"
-				>
-					研报PDF
-				</a>
+				<PdfLink label="研报PDF" pdfUrl={item.pdfUrl} title={item.title} />
 			) : null}
 		</div>
 	);

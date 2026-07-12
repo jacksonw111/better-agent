@@ -35,9 +35,11 @@
     "nitro": "^3.0.260429-beta",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-pdf": "^10.4.1",
     "recharts": "2.15.3",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.2.2",
+    "vaul": "^1.1.2",
     "zod": "catalog:"
   },
   "devDependencies": {
