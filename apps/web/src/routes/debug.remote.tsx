@@ -205,13 +205,10 @@ function SessionPanel({ session }: { session: BridgeSessionRow }) {
 		<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 			<div className="flex flex-col gap-3">
 				<span className="font-medium text-sm">Live VNC</span>
-				{session.vncEndpoint ? (
-					<VncViewer sessionId={session.id} />
-				) : (
-					<p className="rounded-md border border-dashed p-4 text-muted-foreground text-sm">
-						This session has no VNC endpoint.
-					</p>
-				)}
+				{/* Always attempt the viewer: nothing writes `vncEndpoint` yet, and a
+				    session with a running `agent-cli --cua` producer pairs by id
+				    regardless. With no producer attached it just shows "Connecting…". */}
+				<VncViewer sessionId={session.id} />
 				<EventLog sessionId={session.id} />
 			</div>
 			<div className="flex flex-col gap-6">

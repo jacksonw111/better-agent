@@ -21,6 +21,9 @@ Options:
   --label <text>                   Session label shown in the web Local Agent view
   --resume <id>                    Resume a prior claude-code session id
   --opencode-transport <acp|serve> Protocol driving opencode (default: acp)
+  --cua                            Provision a local VM (auto-installs lume on
+                                   macOS/Apple Silicon) and stream its desktop
+                                   over VNC for remote control
   --debug                          Print verbose command/event logging
   -v, --version                    Print the version and exit
   -h, --help                       Print this help and exit
@@ -45,6 +48,9 @@ export function handleInfoFlags(
 
 export interface BridgeCliArgs {
 	agentKind: AgentKind;
+	/** `--cua`: auto-provision a local lume VM and stream it over VNC (remote
+	 * control). macOS/Apple Silicon only; errors clearly elsewhere. */
+	cua: boolean;
 	debug: boolean;
 	dir: string;
 	label: string | undefined;
@@ -161,6 +167,7 @@ export function parseArgs(
 		opencodeTransport: validateOpencodeTransport(flags.opencodeTransport),
 		resume: flags.resume,
 		debug: argv.includes("--debug"),
+		cua: argv.includes("--cua"),
 	};
 }
 

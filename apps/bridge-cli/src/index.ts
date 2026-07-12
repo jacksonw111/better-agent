@@ -3,6 +3,7 @@ import { AGENT_CLI, selectAdapter } from "./adapters";
 import { findOnPath } from "./adapters/process-io";
 import type { AgentKind } from "./adapters/types";
 import { handleInfoFlags, parseArgs } from "./args";
+import { type CuaSession, startCuaSession } from "./cua/cua-session";
 import { createRelayTransport } from "./relay-transport";
 import { runRestartLoop } from "./restart-loop";
 import { BRIDGE_CLI_VERSION } from "./version";
@@ -49,6 +50,22 @@ async function startAgentSession(
 	return { sessionId, handle };
 }
 
+/** Starts CUA but never throws: a provisioning/boot failure is logged and
+ * yields `undefined` (no remote desktop) instead of taking down the agent. */
+async function startCuaSafely(
+	options: Parameters<typeof startCuaSession>[0]
+): Promise<CuaSession | undefined> {
+	let session: CuaSession | undefined;
+	try {
+		session = await startCuaSession(options);
+	} catch (error) {
+		process.stderr.write(
+			`[cua] ${error instanceof Error ? error.message : String(error)}\n`
+		);
+	}
+	return session;
+}
+
 async function main(): Promise<void> {
 	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
 	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
@@ -75,7 +92,22 @@ async function main(): Promise<void> {
 		adapter,
 		transport
 	);
-	await runRestartLoop({ adapter, args, handle, sessionId, transport });
+	// CUA runs alongside the agent session (VM boot can take a minute, so it
+	// must not block the agent loop). A provisioning failure is logged, not
+	// fatal — the agent still works, just without remote desktop.
+	const cuaPromise: Promise<CuaSession | undefined> = args.cua
+		? startCuaSafely({
+				serverUrl: args.serverUrl,
+				token: args.token,
+				sessionId,
+				log: (message) => process.stdout.write(`[cua] ${message}\n`),
+			})
+		: Promise.resolve(undefined);
+	try {
+		await runRestartLoop({ adapter, args, handle, sessionId, transport });
+	} finally {
+		await (await cuaPromise)?.stop();
+	}
 }
 
 main().catch((error: unknown) => {

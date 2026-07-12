@@ -9,6 +9,7 @@ import { runRestartLoop } from "./restart-loop";
 function fakeArgs(overrides: Partial<BridgeCliArgs> = {}): BridgeCliArgs {
 	return {
 		agentKind: "claude-code",
+		cua: false,
 		debug: false,
 		dir: "/tmp",
 		label: undefined,

@@ -40,6 +40,7 @@ describe("parseArgs - accepted input", () => {
 			opencodeTransport: "acp",
 			resume: "claude-session-abc",
 			debug: false,
+			cua: false,
 		});
 	});
 
