@@ -154,7 +154,7 @@ export function FinTable<T>({
 	getRowKey: (row: T, index: number) => string | number;
 }) {
 	return (
-		<div className="overflow-x-auto rounded-lg border">
+		<div className="overflow-x-auto rounded-md border">
 			<table className="w-full border-collapse text-xs">
 				<FinTableHead columns={columns} />
 				<tbody>
@@ -186,8 +186,8 @@ export function CardShell({
 	children: ReactNode;
 }) {
 	return (
-		<div className="flex w-full flex-col gap-3 rounded-xl border bg-card p-4">
-			<div className="flex items-start justify-between gap-2">
+		<div className="w-full overflow-hidden rounded-md border">
+			<div className="flex items-start justify-between gap-2 bg-muted/40 px-3 py-2">
 				<div className="flex min-w-0 flex-col gap-0.5">
 					<span className="truncate font-semibold text-sm">{title}</span>
 					{subtitle ? (
@@ -198,7 +198,7 @@ export function CardShell({
 				</div>
 				{right ? <div className="shrink-0">{right}</div> : null}
 			</div>
-			{children}
+			<div className="flex flex-col gap-3 border-t px-3 py-2.5">{children}</div>
 		</div>
 	);
 }
