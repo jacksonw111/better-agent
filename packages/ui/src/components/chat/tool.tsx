@@ -77,23 +77,23 @@ function PlainToolView({ tool }: { tool: ToolInvocation }) {
 	return (
 		<Collapsible.Root
 			className={cn(
-				"rounded-md border bg-muted/40 p-2",
+				"overflow-hidden rounded-md border bg-muted/40 text-xs",
 				tool.isError && "border-destructive/40"
 			)}
 			defaultOpen={tool.isError}
 		>
-			<Collapsible.Trigger className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
+			<Collapsible.Trigger className="flex w-full items-center gap-1.5 px-2 py-1.5 text-muted-foreground hover:text-foreground">
 				<WrenchIcon className="size-3.5" />
 				<span className="font-mono">{tool.toolName}</span>
 				<StatusIcon status={tool.status} />
 				<ChevronDownIcon className="ml-auto size-3.5 transition-transform data-[panel-open]:rotate-180" />
 			</Collapsible.Trigger>
 			{tool.isError ? (
-				<p className="mt-1.5 break-words text-destructive text-xs">
+				<p className="break-words border-t px-2 py-1.5 text-destructive">
 					{formatValue(tool.result) || "Tool call failed."}
 				</p>
 			) : null}
-			<Collapsible.Panel className="mt-2 flex flex-col gap-2">
+			<Collapsible.Panel>
 				<ToolSection label="Arguments" value={formatValue(tool.args)} />
 				{tool.status === "running" ? null : (
 					<ToolSection label="Result" value={formatValue(tool.result)} />
@@ -134,11 +134,11 @@ function ToolSection({ label, value }: { label: string; value: string }) {
 		return null;
 	}
 	return (
-		<div className="flex flex-col gap-1">
-			<span className="text-muted-foreground text-xs uppercase tracking-wide">
+		<div className="border-t">
+			<span className="block px-2 pt-1.5 text-muted-foreground uppercase tracking-wide">
 				{label}
 			</span>
-			<pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-muted-foreground text-xs">
+			<pre className="overflow-x-auto whitespace-pre-wrap break-words bg-background/60 px-2 py-1.5 font-mono text-muted-foreground">
 				{value}
 			</pre>
 		</div>
