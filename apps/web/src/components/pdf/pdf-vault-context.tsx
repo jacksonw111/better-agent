@@ -16,9 +16,26 @@ import { proxyPdfUrl } from "./proxy-pdf-url";
 // globals like DOMMatrix at module-eval time). Lazy-load it so none of that is
 // in the SSR module graph — it only loads in the browser, the first time a user
 // actually opens a PDF.
+const importPdfDrawer = () => import("./pdf-drawer");
 const PdfDrawer = lazy(() =>
-	import("./pdf-drawer").then((m) => ({ default: m.PdfDrawer }))
+	importPdfDrawer().then((m) => ({ default: m.PdfDrawer }))
 );
+
+// Warm the drawer chunk ahead of the first click (e.g. as soon as a report card
+// with a PDF renders), so tapping opens the drawer immediately instead of
+// waiting on the chunk download. The bundler caches the module, so lazy()'s
+// later import reuses it. Safe to call repeatedly and pre-mount.
+let warmed = false;
+export function warmPdfDrawer(): void {
+	if (warmed || typeof window === "undefined") {
+		return;
+	}
+	warmed = true;
+	importPdfDrawer().catch(() => {
+		// Prefetch is best-effort; a real open will retry and surface any error.
+		warmed = false;
+	});
+}
 
 export interface PdfVaultValue {
 	/** Open a report/research PDF in the shared full-screen drawer. `pdfUrl` is

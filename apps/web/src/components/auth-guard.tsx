@@ -3,11 +3,15 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@better-agent/ui/components/sidebar";
+import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import {
+	MobileTabBar,
+	useHideOnScrollDown,
+} from "@/components/layout/mobile-tab-bar";
 import { RocketLoader } from "@/components/rocket-loader";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
@@ -53,6 +57,10 @@ function useAuthBootstrap(): boolean {
 }
 
 function AuthedShell() {
+	// One source of truth for the dock's scroll-hide, shared with the content
+	// padding below: when the dock slides away, the reserved dock-height space
+	// must collapse too, or a pinned composer (mobile chat) leaves a blank gap.
+	const dockHidden = useHideOnScrollDown();
 	return (
 		<SidebarProvider className="h-svh overflow-hidden">
 			<WebSidebar />
@@ -62,13 +70,18 @@ function AuthedShell() {
 					<span className="font-medium text-sm">better-agent</span>
 				</header>
 				{/* Verify-email banner hidden for now (re-add when needed). */}
-				<div className="flex min-h-0 flex-1 flex-col overflow-auto pb-tab-bar md:pb-0">
+				<div
+					className={cn(
+						"dock-pad-transition flex min-h-0 flex-1 flex-col overflow-auto md:pb-0",
+						dockHidden ? "pb-safe-bottom" : "pb-tab-bar"
+					)}
+				>
 					<RouteTransition>
 						<Outlet />
 					</RouteTransition>
 				</div>
 			</SidebarInset>
-			<MobileTabBar />
+			<MobileTabBar hidden={dockHidden} />
 		</SidebarProvider>
 	);
 }

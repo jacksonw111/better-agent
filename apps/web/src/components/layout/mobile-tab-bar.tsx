@@ -69,8 +69,11 @@ const SCROLL_DELTA_THRESHOLD = 8;
 /** Hide the floating dock while scrolling down (reading), reveal it while
  * scrolling up (navigating). Listens in the capture phase on document so it
  * works regardless of which nested container actually scrolls — the page
- * shell, a chat message list, the terminal feed, etc. */
-function useHideOnScrollDown(): boolean {
+ * shell, a chat message list, the terminal feed, etc. Exported so the authed
+ * shell can drive both the dock transform AND the content's bottom padding from
+ * one source — otherwise hiding the dock leaves a dock-height gap under a
+ * pinned composer (mobile chat). */
+export function useHideOnScrollDown(): boolean {
 	const [hidden, setHidden] = useState(false);
 	const lastY = useRef(0);
 	const lastTarget = useRef<EventTarget | null>(null);
@@ -107,11 +110,10 @@ function useHideOnScrollDown(): boolean {
  * theme, account). Mounted once in the authed shell; content needs matching
  * bottom padding (`pb-tab-bar`) so it doesn't sit underneath. Floats as a
  * rounded pill above the content and slides away on scroll-down. */
-export function MobileTabBar() {
+export function MobileTabBar({ hidden }: { hidden: boolean }) {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
-	const hidden = useHideOnScrollDown();
 	return (
 		<div
 			className={cn(

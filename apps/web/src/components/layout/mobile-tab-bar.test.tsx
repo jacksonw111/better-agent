@@ -43,7 +43,7 @@ vi.mock("@better-agent/ui/components/sidebar", () => ({
 }));
 
 function renderBar() {
-	const { container } = render(<MobileTabBar />);
+	const { container } = render(<MobileTabBar hidden={false} />);
 	return within(container);
 }
 
