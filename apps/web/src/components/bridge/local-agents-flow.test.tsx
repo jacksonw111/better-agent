@@ -211,7 +211,7 @@ function renderApp(router: ReturnType<typeof buildTestRouter>) {
 			<RouterProvider router={router} />
 		</QueryClientProvider>
 	);
-	return { queryClient, view: within(container) };
+	return { container, queryClient, view: within(container) };
 }
 
 beforeEach(() => {
@@ -231,6 +231,24 @@ it("connects the terminal to the token's latest session on load", async () => {
 	});
 	expect(store.connectedSessionIds).not.toContain("session-b");
 	expect(view.getByText("Connecting…")).toBeDefined();
+});
+
+it("gives the SessionView root the fill-height flex classes so the terminal's feed stays the sole scroller", async () => {
+	const router = buildTestRouter();
+	const { container } = renderApp(router);
+
+	await waitFor(() => {
+		expect(store.connectedSessionIds).toContain("session-a");
+	});
+
+	// SessionView's root wraps the (optional) remote-desktop panel + Terminal;
+	// it must participate in the flex chain (min-h-0 flex-1) or the composer
+	// can end up below the fold instead of pinned to the viewport bottom — see
+	// Task 10.
+	const sessionViewRoot = container.querySelector(
+		".flex.min-h-0.flex-1.flex-col.gap-4"
+	);
+	expect(sessionViewRoot).not.toBeNull();
 });
 
 it("shows the waiting-for-CLI panel when the token has no session yet", async () => {
