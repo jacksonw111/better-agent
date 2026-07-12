@@ -18,7 +18,9 @@ const ERROR_MESSAGE_PATTERN = /network down/;
 const RETRY_CALL_COUNT = 2;
 
 const store = vi.hoisted(() => ({
-	getToken: vi.fn(() => Promise.resolve("bt_cloudtoken1234")),
+	getToken: vi.fn(
+		(): Promise<string | null> => Promise.resolve("bt_cloudtoken1234")
+	),
 }));
 
 vi.mock("@/utils/orpc", () => ({
@@ -100,4 +102,20 @@ it("shows an inline error with a retry button that refetches", async () => {
 		expect(body.getByText(TOKEN)).toBeDefined();
 	});
 	expect(store.getToken).toHaveBeenCalledTimes(RETRY_CALL_COUNT);
+});
+
+it("shows a muted no-token state when getToken resolves null and keeps the chip masked", async () => {
+	store.getToken.mockReset();
+	store.getToken.mockImplementation(() => Promise.resolve(null));
+	const { body, cell } = renderCell();
+
+	act(() => {
+		fireEvent.click(cell.getByRole("button"));
+	});
+
+	await waitFor(() => {
+		expect(body.getByText("No token")).toBeDefined();
+	});
+	expect(body.queryByRole("button", { name: "Copy token" })).toBeNull();
+	expect(cell.getByText(MASKED_PATTERN)).toBeDefined();
 });

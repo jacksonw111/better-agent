@@ -20,7 +20,7 @@ const LAST4_LEN = -4;
 function TokenPopoverBody({
 	tokenQuery,
 }: {
-	tokenQuery: UseQueryResult<string>;
+	tokenQuery: UseQueryResult<string | null>;
 }) {
 	if (tokenQuery.isPending) {
 		return <p className="text-muted-foreground text-xs">Loading…</p>;
@@ -45,7 +45,9 @@ function TokenPopoverBody({
 	}
 	const token = tokenQuery.data;
 	if (!token) {
-		return null;
+		// Loaded, but the agent has no token — mirror LocalAgentTokenCell's
+		// muted missing-token treatment.
+		return <p className="text-muted-foreground text-xs">No token</p>;
 	}
 	return (
 		<div className="flex items-center gap-1.5">
