@@ -13,8 +13,8 @@ initLogger({
 });
 
 const db = createNodeDb(env.DATABASE_URL);
-// Attachments on non-Workers runtimes go through the S3 protocol (same R2
-// bucket the Workers deployment reaches via its native binding).
+// Attachments are stored in an S3-compatible bucket — the server runs as a
+// plain Node process, so there's no native object-store binding to lean on.
 const uploads =
 	env.S3_ENDPOINT &&
 	env.S3_BUCKET &&
@@ -30,9 +30,8 @@ const uploads =
 const services = buildServices(db, undefined, uploads);
 const app = buildApp(services);
 // Session-scoped VNC WebSocket proxy (video plane). Wired here, not in
-// buildApp, because buildApp is shared with the Workers entry (worker.ts),
-// where long-lived WebSockets aren't supported — only this Node/Docker
-// deployment injects the WS upgrade handler onto the http server below.
+// buildApp, so buildApp stays transport-agnostic while this Node entry injects
+// the WS upgrade handler onto the http server below.
 const { injectWebSocket, upgradeWebSocket } = registerVncRoutes(
 	app,
 	createVncRouteDeps(services)

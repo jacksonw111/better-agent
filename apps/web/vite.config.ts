@@ -47,9 +47,10 @@ export default defineConfig({
 		stubPdfOnSsr(),
 		tailwindcss(),
 		// SPA mode: prerender a static shell and let the client do all data
-		// fetching. The frontends run as their own Cloudflare Worker and cannot
-		// reach the API Worker via a server-to-server fetch during SSR, so we
-		// avoid SSR data loading entirely.
+		// fetching. The frontend ships as a static SPA served by its Node/Docker
+		// container, so SSR data loading is deliberately skipped. (SSR is now
+		// technically possible — the API is reachable server-side — but left off;
+		// revisit in the performance pass if it's worth it.)
 		tanstackStart({ spa: { enabled: true } }),
 		nitro(),
 		viteReact(),

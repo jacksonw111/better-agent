@@ -4,7 +4,9 @@ import type {
 	AttachmentMetaStore,
 } from "@better-agent/db/repositories/attachment-meta-store";
 
-// Minimal shape of the Cloudflare R2 bucket binding we rely on.
+// Minimal object-store shape the attachment store depends on — satisfied by
+// the S3-compatible bucket in s3-bucket.ts. (Named R2* for the persisted
+// `r2Key` column it pairs with; the runtime is plain S3-over-HTTP.)
 export interface R2ObjectBody {
 	arrayBuffer(): Promise<ArrayBuffer>;
 }
@@ -27,9 +29,10 @@ function toRow(meta: AttachmentMeta): AttachmentRow {
 }
 
 /**
- * AttachmentStore backed by Postgres (metadata) + R2 (bytes). The R2 binding is
- * optional so the rest of the app works without it; attachment operations throw
- * a clear error when it's missing rather than failing obscurely.
+ * AttachmentStore backed by Postgres (metadata) + an S3-compatible bucket
+ * (bytes). The bucket is optional so the rest of the app works without it;
+ * attachment operations throw a clear error when it's missing rather than
+ * failing obscurely.
  */
 export function createAttachmentStore(
 	meta: AttachmentMetaStore,
@@ -38,7 +41,7 @@ export function createAttachmentStore(
 	const requireBucket = (): R2Bucket => {
 		if (!bucket) {
 			throw new Error(
-				"Attachment storage is unavailable (R2 UPLOADS binding not configured)"
+				"Attachment storage is unavailable (object-store bucket not configured)"
 			);
 		}
 		return bucket;

@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "@better-agent/config": "workspace:*",
-    "@cloudflare/workers-types": "^4.20260625.1",
     "@types/ioredis-mock": "^8.2.7",
     "@types/node": "catalog:",
     "ioredis-mock": "^8.13.1",
