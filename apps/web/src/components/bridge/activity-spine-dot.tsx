@@ -40,6 +40,10 @@ function SpineDot({ tone }: { tone: ActivityTone }) {
 		<span
 			aria-hidden
 			className={cn(
+				// Task 14 borderless sweep: `ring-background` is a same-color halo
+				// cutout (matches the page background, not a visible outline) that
+				// separates the dot from the spine's `border-l` line beneath it —
+				// approved exception, not a card/frame border. Keep.
 				"absolute top-2 -left-3 size-1 -translate-x-1/2 rounded-full ring-2 ring-background",
 				DOT_TONE_CLASS[tone]
 			)}

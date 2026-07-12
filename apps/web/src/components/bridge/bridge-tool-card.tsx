@@ -61,6 +61,20 @@ function previewTail(preview: string | undefined): string {
 	return lines.at(-1) ?? "";
 }
 
+/** A persistent one-line error preview, CSS-truncated to one line — parity
+ * with cloud's `PlainToolView` (packages/ui/chat/tool.tsx), which shows its
+ * destructive error line outside the collapsible panel so a failure stays
+ * visible even collapsed. Grabs the FIRST non-blank line, since that's
+ * usually where the actual error message lives — mirrors `previewTail`'s
+ * "grab one line, let CSS `truncate` do the rest" shape, but from the front
+ * of the text instead of the tail. */
+function errorPreviewLine(result: unknown): string {
+	const lines = cappedOutput(result)
+		.split("\n")
+		.filter((line) => line.trim() !== "");
+	return lines[0] ?? "Tool call failed.";
+}
+
 /** The disclosure body: the inline diff when one's known, else the plain
  * captured output — split out so `ActivityItem` doesn't nest ternaries. */
 function ActivityBody({
@@ -80,6 +94,83 @@ function ActivityBody({
 	);
 }
 
+/** `ActivityBody`, but only rendered once the panel is open AND there's
+ * something to show — split out (rather than an inline `&&` chain) purely to
+ * keep `ActivityItem`'s complexity under the repo's ESLint gate. */
+function ActivityBodyIfOpen({
+	hasBody,
+	open,
+	diffLines,
+	output,
+}: {
+	hasBody: boolean;
+	open: boolean;
+	diffLines: ReturnType<typeof diffFor>;
+	output: string;
+}) {
+	if (!(hasBody && open)) {
+		return null;
+	}
+	return <ActivityBody diffLines={diffLines} output={output} />;
+}
+
+function TailLine({ tail }: { tail: string }) {
+	if (!tail) {
+		return null;
+	}
+	return (
+		<div className="truncate px-2 py-1 font-mono text-muted-foreground text-xs">
+			{tail}
+		</div>
+	);
+}
+
+function ErrorPreviewLine({ text }: { text: string }) {
+	if (!text) {
+		return null;
+	}
+	return (
+		<div className="truncate px-2 py-1.5 text-destructive text-xs">{text}</div>
+	);
+}
+
+function computeDiffLines(
+	category: ToolCategory,
+	tool: ToolInvocation
+): ReturnType<typeof diffFor> {
+	if (category !== "fileEdit" || tool.status !== "complete") {
+		return null;
+	}
+	return diffFor(tool);
+}
+
+function computeOutput(tool: ToolInvocation): string {
+	if (tool.status === "running") {
+		return "";
+	}
+	return cappedOutput(tool.result);
+}
+
+function computeTail(tool: ToolInvocation): string {
+	if (tool.status !== "running") {
+		return "";
+	}
+	return previewTail(tool.preview);
+}
+
+/** Skip the persistent error preview while the panel is open AND there's a
+ * body to show it — otherwise it'd duplicate the same text right below it. */
+function computeErrorLine(
+	tool: ToolInvocation,
+	hasBody: boolean,
+	open: boolean
+): string {
+	if (!tool.isError || (hasBody && open)) {
+		return "";
+	}
+	return errorPreviewLine(tool.result);
+}
+
 /** ActivityItem: the rich card for a categorized tool call (command/
  * fileEdit/fileRead/search). Exported directly for the turn spine renderer;
  * `renderBridgeTool` below wraps it for the shared `ChatRow` seam. */
@@ -90,14 +181,12 @@ export function ActivityItem({
 	category: ToolCategory;
 	tool: ToolInvocation;
 }) {
-	const diffLines =
-		category === "fileEdit" && tool.status === "complete"
-			? diffFor(tool)
-			: null;
-	const output = tool.status === "running" ? "" : cappedOutput(tool.result);
+	const diffLines = computeDiffLines(category, tool);
+	const output = computeOutput(tool);
 	const hasBody = diffLines !== null || output.length > 0;
 	const [open, setOpen] = useState(tool.isError);
-	const tail = tool.status === "running" ? previewTail(tool.preview) : "";
+	const tail = computeTail(tool);
+	const errorLine = computeErrorLine(tool, hasBody, open);
 	return (
 		<div
 			className={cn(
@@ -113,14 +202,14 @@ export function ActivityItem({
 				open={open}
 				tool={tool}
 			/>
-			{tail ? (
-				<div className="truncate px-2 py-1 font-mono text-muted-foreground text-xs">
-					{tail}
-				</div>
-			) : null}
-			{hasBody && open ? (
-				<ActivityBody diffLines={diffLines} output={output} />
-			) : null}
+			<TailLine tail={tail} />
+			<ErrorPreviewLine text={errorLine} />
+			<ActivityBodyIfOpen
+				diffLines={diffLines}
+				hasBody={hasBody}
+				open={open}
+				output={output}
+			/>
 		</div>
 	);
 }

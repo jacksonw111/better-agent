@@ -82,11 +82,11 @@ function PlainToolView({ tool }: { tool: ToolInvocation }) {
 			)}
 			defaultOpen={tool.isError}
 		>
-			<Collapsible.Trigger className="flex w-full items-center gap-1.5 px-2 py-1.5 text-muted-foreground hover:text-foreground">
-				<WrenchIcon className="size-3.5" />
-				<span className="font-mono">{tool.toolName}</span>
+			<Collapsible.Trigger className="flex w-full items-center gap-2 px-2 py-1.5 text-left">
+				<WrenchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="font-mono text-foreground">{tool.toolName}</span>
 				<StatusIcon status={tool.status} />
-				<ChevronDownIcon className="ml-auto size-3.5 transition-transform data-[panel-open]:rotate-180" />
+				<ChevronDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform data-[panel-open]:rotate-180" />
 			</Collapsible.Trigger>
 			{tool.isError ? (
 				<p className="break-words px-2 py-1.5 text-destructive">
@@ -138,7 +138,7 @@ function ToolSection({ label, value }: { label: string; value: string }) {
 			<span className="block px-2 pt-1.5 text-muted-foreground uppercase tracking-wide">
 				{label}
 			</span>
-			<pre className="overflow-x-auto whitespace-pre-wrap break-words bg-background/60 px-2 py-1.5 font-mono text-muted-foreground">
+			<pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-background/60 px-2 py-1.5 font-mono text-muted-foreground">
 				{value}
 			</pre>
 		</div>

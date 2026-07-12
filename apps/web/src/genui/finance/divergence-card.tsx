@@ -31,7 +31,6 @@ const BADGE_ICON_SIZE = 18;
 const TREND_ICON_SIZE = 14;
 const SENTIMENT_DP = 0;
 const BADGE_BG_ALPHA = "1a"; // ~10% opacity hex suffix
-const BADGE_BORDER_ALPHA = "40"; // ~25% opacity hex suffix
 
 interface SignalConfig {
 	color: string | null;
@@ -48,19 +47,25 @@ const SIGNAL_CONFIG: Record<DivergenceSignal, SignalConfig> = {
 	数据不足: { color: null, icon: Minus, label: "数据不足" },
 };
 
-/** The at-a-glance verdict: a colored pill with icon + label, sized to read
- * as the headline of the card rather than another stat among many. */
+/** The at-a-glance verdict: a colored tinted pill with icon + label, sized to
+ * read as the headline of the card rather than another stat among many.
+ * Borderless (Task 14): a `config.color` verdict gets a low-alpha tint of
+ * that color + matching text; the neutral (`color: null`) case falls back to
+ * the standard neutral chip tint, never a bare outlined box. */
 function SignalBadge({ signal }: { signal: DivergenceSignal }) {
 	const config = SIGNAL_CONFIG[signal];
 	const Icon = config.icon;
 	return (
 		<div
-			className="flex w-fit items-center gap-2 rounded-lg border px-3 py-2"
+			className={
+				config.color
+					? "flex w-fit items-center gap-2 rounded-full px-3 py-2"
+					: "flex w-fit items-center gap-2 rounded-full bg-muted/40 px-3 py-2 text-muted-foreground"
+			}
 			style={
 				config.color
 					? {
 							backgroundColor: `${config.color}${BADGE_BG_ALPHA}`,
-							borderColor: `${config.color}${BADGE_BORDER_ALPHA}`,
 							color: config.color,
 						}
 					: undefined

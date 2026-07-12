@@ -164,3 +164,22 @@ it("auto-expands an errored call", () => {
 	expect(scope.getByRole("button").getAttribute("aria-expanded")).toBe("true");
 	expect(scope.getByText("exit code 1")).toBeDefined();
 });
+
+it("keeps a persistent one-line error preview visible after collapsing an errored call (cloud parity)", () => {
+	const scope = renderTool(
+		tool({
+			toolName: "shell",
+			args: "false",
+			status: "error",
+			isError: true,
+			result: "exit code 1",
+		})
+	);
+	// Auto-expanded by default; collapse it and the error text must stay
+	// visible via the persistent preview line rather than disappearing with
+	// the body — matches cloud's PlainToolView, whose destructive error line
+	// lives outside the collapsible panel entirely.
+	fireEvent.click(scope.getByRole("button"));
+	expect(scope.getByRole("button").getAttribute("aria-expanded")).toBe("false");
+	expect(scope.getByText("exit code 1")).toBeDefined();
+});
