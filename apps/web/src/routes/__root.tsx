@@ -39,7 +39,13 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	head: () => ({
 		meta: [
 			{ charSet: "utf-8" },
-			{ name: "viewport", content: "width=device-width, initial-scale=1" },
+			{
+				name: "viewport",
+				// viewport-fit=cover makes env(safe-area-inset-*) resolve to real
+				// device insets (0 without it) — the floating mobile dock relies on
+				// it to clear the home indicator.
+				content: "width=device-width, initial-scale=1, viewport-fit=cover",
+			},
 			{ title: "better-agent" },
 		],
 		links: [{ rel: "stylesheet", href: appCss }],

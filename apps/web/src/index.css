@@ -162,6 +162,13 @@
 	padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
+/* Floating dock hidden state: slide it fully off-screen (its own height covers
+   the safe-area gap; +1rem clears the drop shadow). Arbitrary Tailwind
+   translate values are blocked by the pre-commit hook, so it's hand-written. */
+.dock-hidden {
+	transform: translateY(calc(100% + 1rem));
+}
+
 /* Near-fullscreen sheet height for dialogs on mobile (settings dialog) — only
    below Tailwind's `sm` breakpoint (matches the `max-sm:` variant threshold),
    so desktop keeps the dialog's own height classes. */

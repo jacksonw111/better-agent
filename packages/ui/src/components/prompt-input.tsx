@@ -90,7 +90,9 @@ export function PromptInputTextarea({
 			aria-activedescendant={comboboxAria?.activeDescendant}
 			aria-controls={comboboxAria?.controls}
 			aria-label="Message"
-			className="w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-sm outline-none placeholder:text-muted-foreground"
+			// 16px (text-base) below sm so iOS Safari doesn't auto-zoom the whole
+			// page when the textarea is focused; desktop keeps the compact 14px.
+			className="w-full resize-none overflow-y-auto bg-transparent px-1 py-1 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
 			disabled={disabled}
 			onChange={(event) => {
 				onChange(event.target.value);

@@ -10,6 +10,7 @@ import {
 	TerminalSquare,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -61,27 +62,76 @@ function MoreTabButton() {
 	);
 }
 
-/** The <md app-style bottom tab bar: Dashboard/Agents/Local Agent/Memories
- * plus a "More" tab that opens the existing hamburger drawer (Skills,
- * Integrations, theme, account). Mounted once in the authed shell; content
- * needs matching bottom padding (`pb-tab-bar`) so it doesn't sit underneath. */
+// Ignore scroll jitter below this many pixels so the dock doesn't flicker on
+// tiny momentum wobbles.
+const SCROLL_DELTA_THRESHOLD = 8;
+
+/** Hide the floating dock while scrolling down (reading), reveal it while
+ * scrolling up (navigating). Listens in the capture phase on document so it
+ * works regardless of which nested container actually scrolls — the page
+ * shell, a chat message list, the terminal feed, etc. */
+function useHideOnScrollDown(): boolean {
+	const [hidden, setHidden] = useState(false);
+	const lastY = useRef(0);
+	const lastTarget = useRef<EventTarget | null>(null);
+	useEffect(() => {
+		const onScroll = (event: Event) => {
+			const target = event.target;
+			const y = target instanceof Element ? target.scrollTop : window.scrollY;
+			// A different scroller took over (route change, opened panel): re-anchor
+			// without deciding a direction from an unrelated position.
+			if (target !== lastTarget.current) {
+				lastTarget.current = target;
+				lastY.current = y;
+				return;
+			}
+			const delta = y - lastY.current;
+			if (Math.abs(delta) < SCROLL_DELTA_THRESHOLD) {
+				return;
+			}
+			setHidden(y > 0 && delta > 0);
+			lastY.current = y;
+		};
+		document.addEventListener("scroll", onScroll, {
+			capture: true,
+			passive: true,
+		});
+		return () =>
+			document.removeEventListener("scroll", onScroll, { capture: true });
+	}, []);
+	return hidden;
+}
+
+/** The <md app-style floating dock: Dashboard/Agents/Local Agent/Memories plus
+ * a "More" tab that opens the existing hamburger drawer (Skills, Integrations,
+ * theme, account). Mounted once in the authed shell; content needs matching
+ * bottom padding (`pb-tab-bar`) so it doesn't sit underneath. Floats as a
+ * rounded pill above the content and slides away on scroll-down. */
 export function MobileTabBar() {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
+	const hidden = useHideOnScrollDown();
 	return (
-		<nav
-			aria-label="Primary"
-			className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-background/90 pb-safe-bottom backdrop-blur md:hidden"
+		<div
+			className={cn(
+				"pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-safe-bottom transition-transform duration-300 ease-out md:hidden",
+				hidden && "dock-hidden"
+			)}
 		>
-			{TAB_ITEMS.map((item) => (
-				<TabLink
-					active={isActivePath(pathname, item.to, item.match)}
-					item={item}
-					key={item.to}
-				/>
-			))}
-			<MoreTabButton />
-		</nav>
+			<nav
+				aria-label="Primary"
+				className="pointer-events-auto flex w-full max-w-md items-stretch rounded-2xl border bg-background/80 shadow-lg backdrop-blur-md"
+			>
+				{TAB_ITEMS.map((item) => (
+					<TabLink
+						active={isActivePath(pathname, item.to, item.match)}
+						item={item}
+						key={item.to}
+					/>
+				))}
+				<MoreTabButton />
+			</nav>
+		</div>
 	);
 }
