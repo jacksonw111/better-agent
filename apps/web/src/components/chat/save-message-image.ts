@@ -31,11 +31,36 @@ function downloadDataUrl(dataUrl: string, filename: string): void {
 	link.click();
 }
 
+const DATA_URL_MIME_RE = /:(.*?);/;
+
+function dataUrlToFile(dataUrl: string, filename: string): File {
+	const [header, base64 = ""] = dataUrl.split(",");
+	const mime = header?.match(DATA_URL_MIME_RE)?.[1] ?? "image/png";
+	const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+	return new File([bytes], filename, { type: mime });
+}
+
+/** Saves the PNG. Mobile browsers ignore `<a download>` for a generated image
+ * (the tap just opens it), so where the Web Share sheet can take files — iOS
+ * Safari, Android Chrome — use it (save to Photos/Files); desktop keeps the
+ * plain download. Throws `AbortError` if the user dismisses the share sheet. */
+async function exportPng(dataUrl: string, filename: string): Promise<void> {
+	const file = dataUrlToFile(dataUrl, filename);
+	const share = navigator.canShare?.({ files: [file] })
+		? navigator.share.bind(navigator)
+		: null;
+	if (share) {
+		await share({ files: [file], title: filename });
+		return;
+	}
+	downloadDataUrl(dataUrl, filename);
+}
+
 /** Renders an assistant message's content node (text + any genui charts/
- * tables inside it) to a PNG and downloads it. Matches the `SaveImageHandler`
- * shape expected by `@better-agent/ui`'s `Conversation`/`ChatRow`. Never
- * throws — capture failures (e.g. a tainted canvas from a cross-origin chart
- * image) surface as a toast instead of breaking the chat UI. */
+ * tables inside it) to a PNG and saves it (share sheet on mobile, download on
+ * desktop). Matches the `SaveImageHandler` shape expected by
+ * `@better-agent/ui`'s `Conversation`/`ChatRow`. Never throws — capture
+ * failures surface as a toast; a dismissed share sheet is a silent no-op. */
 export async function saveMessageAsImage({
 	message,
 	node,
@@ -43,19 +68,29 @@ export async function saveMessageAsImage({
 	message: { id: string };
 	node: HTMLElement;
 }): Promise<void> {
+	let dataUrl: string;
 	try {
 		// Loaded on demand — html-to-image only matters when the user actually
 		// exports an answer, so it shouldn't ship in the eager chat bundle.
 		const { toPng } = await import("html-to-image");
 		await waitForPaint();
-		const dataUrl = await toPng(node, {
+		dataUrl = await toPng(node, {
 			backgroundColor: themeBackground(),
 			pixelRatio: EXPORT_PIXEL_RATIO,
 		});
-		downloadDataUrl(dataUrl, `agent-answer-${shortMessageId(message.id)}.png`);
 	} catch {
 		toast.error("Couldn't export image", {
 			description: "Some content in this reply blocked the capture.",
 		});
+		return;
+	}
+	try {
+		await exportPng(dataUrl, `agent-answer-${shortMessageId(message.id)}.png`);
+	} catch (error) {
+		// User dismissed the share sheet — not an error.
+		if (error instanceof DOMException && error.name === "AbortError") {
+			return;
+		}
+		toast.error("Couldn't save image");
 	}
 }

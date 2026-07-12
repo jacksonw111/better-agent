@@ -9,10 +9,10 @@ const MS_PER_DAY = 86_400_000;
 const ISO_DATE_LENGTH = 10;
 const DAYS_PER_WEEK = 7;
 
-/** Max window the `usage.dailyActivity` query accepts (see packages/api's
- * `MAX_DAILY_ACTIVITY_DAYS`) — ~26 week-columns, a real GitHub-style span.
+/** ~3 months of daily activity (13 week-columns) — a GitHub-style span kept
+ * short enough to fit a phone screen without horizontal scrolling.
  * Deliberately independent of the token chart's 3/7/12 `window-toggle`. */
-export const HEATMAP_WINDOW_DAYS = 180;
+export const HEATMAP_WINDOW_DAYS = 90;
 
 // GitHub-style 5-level intensity palette — mirrors TokenTracker's
 // ActivityHeatmap (ebedf0 → 10b981 in light, 30363d → 34d399 in dark).

@@ -215,7 +215,7 @@ function useIsDarkMode(): boolean {
 	);
 }
 
-/** GitHub-style 180-day activity heatmap. Fetches its own wide-window data
+/** GitHub-style ~3-month activity heatmap. Fetches its own wide-window data
  * (`useHeatmapData`) — deliberately independent of the dashboard's 3/7/12
  * `window-toggle`, which only drives the token chart above it. */
 export function ActivityHeatmap() {

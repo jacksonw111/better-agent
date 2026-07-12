@@ -1,7 +1,6 @@
 import {
 	SidebarInset,
 	SidebarProvider,
-	SidebarTrigger,
 } from "@better-agent/ui/components/sidebar";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
@@ -57,12 +56,10 @@ function AuthedShell() {
 		<SidebarProvider className="h-svh overflow-hidden">
 			<WebSidebar />
 			<SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-				<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">
-					<SidebarTrigger />
-					<span className="font-medium text-sm">better-agent</span>
-				</header>
-				{/* Verify-email banner hidden for now (re-add when needed). The
-				    bottom padding is CONSTANT (never toggled by the dock) so the
+				{/* No mobile top bar: the floating dock's "More" tab opens the
+				    sidebar drawer, so a header with a hamburger + app name would
+				    just eat vertical space. Verify-email banner hidden for now.
+				    Bottom padding is CONSTANT (never toggled by the dock) so the
 				    dock hiding can't reflow the scroll area and oscillate. */}
 				<div className="flex min-h-0 flex-1 flex-col overflow-auto pb-tab-bar md:pb-0">
 					<RouteTransition>
