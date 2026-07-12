@@ -1,4 +1,3 @@
-import { toPng } from "html-to-image";
 import { toast } from "sonner";
 
 const EXPORT_PIXEL_RATIO = 2;
@@ -45,6 +44,9 @@ export async function saveMessageAsImage({
 	node: HTMLElement;
 }): Promise<void> {
 	try {
+		// Loaded on demand — html-to-image only matters when the user actually
+		// exports an answer, so it shouldn't ship in the eager chat bundle.
+		const { toPng } = await import("html-to-image");
 		await waitForPaint();
 		const dataUrl = await toPng(node, {
 			backgroundColor: themeBackground(),

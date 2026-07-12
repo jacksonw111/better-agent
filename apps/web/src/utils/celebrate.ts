@@ -1,4 +1,3 @@
-import confetti from "canvas-confetti";
 import { toast } from "sonner";
 
 // A tasteful confetti burst for genuine "you built/created/connected something"
@@ -22,20 +21,28 @@ function celebrate(): void {
 	if (prefersReducedMotion()) {
 		return;
 	}
-	confetti({
-		particleCount: PARTICLE_COUNT,
-		spread: SPREAD,
-		startVelocity: START_VELOCITY,
-		angle: 60,
-		origin: LEFT_ORIGIN,
-	});
-	confetti({
-		particleCount: PARTICLE_COUNT,
-		spread: SPREAD,
-		startVelocity: START_VELOCITY,
-		angle: 120,
-		origin: RIGHT_ORIGIN,
-	});
+	// Loaded on demand — confetti is a rare, purely-visual flourish, so keep
+	// canvas-confetti out of the eager bundle.
+	import("canvas-confetti")
+		.then(({ default: confetti }) => {
+			confetti({
+				particleCount: PARTICLE_COUNT,
+				spread: SPREAD,
+				startVelocity: START_VELOCITY,
+				angle: 60,
+				origin: LEFT_ORIGIN,
+			});
+			confetti({
+				particleCount: PARTICLE_COUNT,
+				spread: SPREAD,
+				startVelocity: START_VELOCITY,
+				angle: 120,
+				origin: RIGHT_ORIGIN,
+			});
+		})
+		.catch(() => {
+			// Confetti is non-essential; ignore load failures.
+		});
 }
 
 /** Success toast + confetti, for creation/connection successes. */
