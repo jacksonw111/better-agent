@@ -28,6 +28,7 @@ export function RestartSessionButton({
 	return (
 		<Button
 			aria-label="Restart local agent session"
+			className="min-h-11 min-w-11 sm:min-h-0 sm:min-w-0"
 			disabled={pending}
 			onClick={() => handleRestart()}
 			size="icon-sm"

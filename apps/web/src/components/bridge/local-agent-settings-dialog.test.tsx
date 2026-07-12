@@ -59,9 +59,6 @@ vi.mock("@tanstack/react-router", () => ({
 	),
 }));
 
-const NOTION_CHECKBOX_RE = /Notion/;
-const LINEAR_CHECKBOX_RE = /Linear/;
-
 const store = vi.hoisted(() => ({
 	saveArgs: [] as Record<string, unknown>[],
 	mcpServers: [
@@ -69,6 +66,8 @@ const store = vi.hoisted(() => ({
 		{ id: "mcp-2", name: "Linear", url: "https://mcp.example.com/linear" },
 	] as { id: string; name: string; url: string }[],
 	// Skills picker coverage lives in local-agent-settings-dialog-skills.test.tsx.
+	// MCP-servers picker coverage (assign/seed flows) lives in
+	// local-agent-settings-dialog-mcp.test.tsx.
 	skills: [] as { id: string; name: string; description: string }[],
 }));
 
@@ -210,34 +209,6 @@ it("flows model + permission-mode edits into the saved payload", async () => {
 	});
 });
 
-it("shows the assigned-MCP-servers picker and flows a pick into the saved payload (R5-a)", async () => {
-	const view = renderDialog(makeToken());
-	fireEvent.click(view.getByRole("tab", { name: "Config" }));
-
-	const notion = await waitFor(() =>
-		view.getByRole("checkbox", { name: NOTION_CHECKBOX_RE })
-	);
-	fireEvent.click(notion);
-	fireEvent.click(view.getByRole("button", { name: "Save" }));
-
-	await waitFor(() => {
-		expect(store.saveArgs).toHaveLength(1);
-	});
-	expect(store.saveArgs[0]?.config).toMatchObject({
-		mcpServerIds: ["mcp-1"],
-	});
-});
-
-it("seeds the MCP-servers picker from the token's already-assigned ids", async () => {
-	const view = renderDialog(makeToken({ config: { mcpServerIds: ["mcp-2"] } }));
-	fireEvent.click(view.getByRole("tab", { name: "Config" }));
-
-	const linear = await waitFor(() =>
-		view.getByRole("checkbox", { name: LINEAR_CHECKBOX_RE })
-	);
-	expect(linear.getAttribute("aria-checked")).toBe("true");
-});
-
 it("shows a plain 'Settings saved' toast when only LIVE fields (model/permission mode) changed", async () => {
 	const { toast } = await import("sonner");
 	const view = renderDialog(makeToken(), "session-1");
@@ -273,6 +244,18 @@ it("shows the restart hint with a 'Restart now' action when a non-LIVE field cha
 			action: expect.objectContaining({ label: "Restart now" }),
 		})
 	);
+});
+
+it("renders the mobile bottom-sheet classes on DialogContent and the responsive-orientation wrapper on Tabs (D4)", () => {
+	renderDialog(makeToken());
+
+	const content = document.querySelector('[data-slot="dialog-content"]');
+	expect(content?.className).toContain("max-sm:inset-x-0");
+	expect(content?.className).toContain("max-sm:max-h-mobile-sheet");
+
+	const tabs = document.querySelector('[data-slot="tabs"]');
+	expect(tabs?.className).toContain("local-agent-settings-tabs");
+	expect(tabs?.getAttribute("data-orientation")).toBe("vertical");
 });
 
 it("shows only the informational restart note (no 'Restart now' action) when there's no live sessionId", async () => {

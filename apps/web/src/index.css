@@ -161,3 +161,43 @@
 .pb-tab-bar {
 	padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
+
+/* Near-fullscreen sheet height for dialogs on mobile (settings dialog) — only
+   below Tailwind's `sm` breakpoint (matches the `max-sm:` variant threshold),
+   so desktop keeps the dialog's own height classes. */
+@media (width < 40rem) {
+	.max-h-mobile-sheet {
+		max-height: 90dvh;
+	}
+}
+
+/* Settings dialog (local-agent-settings-dialog.tsx): the Tabs rail keeps
+   `orientation="vertical"` (correct desktop left-rail semantics), but below
+   `sm` it should read as a horizontal scrollable strip instead. A `max-sm:`
+   Tailwind variant on the TabsList/TabsTrigger can't reliably win that fight
+   — it would be overriding the Tabs primitive's own same-specificity
+   `group-data-vertical/tabs:` utility classes, and relative order between two
+   different variant categories isn't guaranteed by Tailwind's mobile-first
+   assumptions. A plain attribute-selector override here has strictly higher
+   specificity than either, so it wins regardless of stylesheet order. */
+@media (width < 40rem) {
+	.local-agent-settings-tabs[data-orientation="vertical"] {
+		flex-direction: column;
+	}
+
+	.local-agent-settings-tabs[data-orientation="vertical"]
+		[data-slot="tabs-list"] {
+		flex-direction: row;
+		align-items: stretch;
+		width: 100%;
+		height: auto;
+		overflow-x: auto;
+	}
+
+	.local-agent-settings-tabs[data-orientation="vertical"]
+		[data-slot="tabs-trigger"] {
+		flex: none;
+		justify-content: center;
+		width: auto;
+	}
+}

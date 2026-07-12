@@ -1,20 +1,13 @@
-import { CopyAction } from "@better-agent/ui/components/actions";
 import {
 	Dialog,
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
 } from "@better-agent/ui/components/dialog";
-import {
-	Tabs,
-	TabsContent,
-	TabsList,
-	TabsTrigger,
-} from "@better-agent/ui/components/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@better-agent/ui/components/tabs";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AssignedMemories } from "@/components/memory/assigned-memories";
 import type { BridgeTokenRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import {
@@ -23,85 +16,7 @@ import {
 	configFromDraft,
 	toDraft,
 } from "./local-agent-config-form";
-import { AGENT_KIND_LABEL } from "./local-agent-kind-icon";
-
-const CODE_CLASS =
-	"block w-full overflow-x-auto whitespace-nowrap rounded-md border bg-muted px-2 py-1.5 font-mono text-xs";
-
-function Row({
-	label,
-	children,
-}: {
-	label: string;
-	children: React.ReactNode;
-}) {
-	return (
-		<div className="flex items-center gap-3">
-			<dt className="w-32 shrink-0 text-muted-foreground text-xs">{label}</dt>
-			<dd className="min-w-0 flex-1 font-medium text-sm">{children}</dd>
-		</div>
-	);
-}
-
-function formatConfigSummary(config: BridgeTokenRow["config"]): string {
-	if (!config) {
-		return "Defaults";
-	}
-	const parts: string[] = [];
-	if (config.effort) {
-		parts.push(`effort: ${config.effort}`);
-	}
-	if (config.maxTurns !== undefined) {
-		parts.push(`${config.maxTurns} turns`);
-	}
-	if (config.maxBudgetUsd !== undefined) {
-		parts.push(`$${config.maxBudgetUsd} cap`);
-	}
-	return parts.length > 0 ? parts.join(" · ") : "Defaults";
-}
-
-function GeneralTab({ token }: { token: BridgeTokenRow }) {
-	const raw = token.token;
-	const created = new Date(token.createdAt);
-	return (
-		<TabsContent value="general">
-			<dl className="flex flex-col gap-3">
-				<Row label="Agent">{AGENT_KIND_LABEL[token.agentKind]}</Row>
-				<Row label="Name">{token.name ?? "Untitled"}</Row>
-				<Row label="Token">
-					{raw ? (
-						<div className="flex items-center gap-1.5">
-							<code className={CODE_CLASS}>
-								…{token.last4 ?? raw.slice(-4)}
-							</code>
-							<CopyAction label="Copy token" text={raw} />
-						</div>
-					) : (
-						<span className="text-muted-foreground">—</span>
-					)}
-				</Row>
-				<Row label="Token usage">{formatConfigSummary(token.config)}</Row>
-				<Row label="Created">
-					{created.toLocaleDateString(undefined, {
-						year: "numeric",
-						month: "short",
-						day: "numeric",
-					})}
-				</Row>
-			</dl>
-		</TabsContent>
-	);
-}
-
-/** The memories this local agent can search (M1): assign/unassign the user's
- * memories and toggle each link's read/read & write role. */
-function MemoriesTab({ token }: { token: BridgeTokenRow }) {
-	return (
-		<TabsContent value="memories">
-			<AssignedMemories target={{ tokenId: token.id }} />
-		</TabsContent>
-	);
-}
+import { GeneralTab, MemoriesTab } from "./local-agent-settings-general-tab";
 
 /** The mutation that persists the edited config, invalidating the token list so
  * the detail page reflects the saved values. Only mounted while the dialog is
@@ -228,6 +143,49 @@ function useSettingsDraft(
 	return { draft, handleSubmit, pending: save.isPending, setDraft };
 }
 
+/** The tabbed body (rail + panels): split out purely to keep
+ * `LocalAgentSettingsDialog` under the repo's max-lines-per-function gate.
+ * Orientation stays "vertical" (correct desktop rail semantics);
+ * `.local-agent-settings-tabs` in index.css flips the rail to a horizontal
+ * scrollable strip on top of the content below `sm` via a higher-specificity
+ * selector, rather than fighting the Tabs primitive's own group-data-vertical
+ * utility classes with same-specificity Tailwind variants (D4). */
+function SettingsTabs({
+	draft,
+	handleSubmit,
+	pending,
+	setDraft,
+	token,
+}: Pick<
+	ReturnType<typeof useSettingsDraft>,
+	"draft" | "handleSubmit" | "pending" | "setDraft"
+> & { token: BridgeTokenRow }) {
+	return (
+		<Tabs
+			className="local-agent-settings-tabs flex min-h-0 flex-1 gap-4 px-5 pt-3 pb-5"
+			defaultValue="general"
+			orientation="vertical"
+		>
+			<TabsList className="h-fit w-44 shrink-0 flex-col items-stretch">
+				<TabsTrigger value="general">General</TabsTrigger>
+				<TabsTrigger value="config">Config</TabsTrigger>
+				<TabsTrigger value="memories">Memories</TabsTrigger>
+			</TabsList>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+				<GeneralTab token={token} />
+				<MemoriesTab token={token} />
+				<ConfigTab
+					draft={draft}
+					onDraft={setDraft}
+					onSubmit={handleSubmit}
+					pending={pending}
+					token={token}
+				/>
+			</div>
+		</Tabs>
+	);
+}
+
 /**
  * Phase 4 Settings modal for a local agent: left tabs (General + the agent's
  * startup config), right content. Edits the token's persisted `config`
@@ -261,32 +219,19 @@ export function LocalAgentSettingsDialog({
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<DialogContent className="flex h-5/6 w-full flex-col gap-0 p-0 sm:max-w-7xl">
+			{/* <sm: a near-fullscreen bottom sheet (see .max-h-mobile-sheet in
+			 * index.css) instead of the centered desktop modal. */}
+			<DialogContent className="flex w-full flex-col gap-0 p-0 max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:h-auto max-sm:max-h-mobile-sheet max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none sm:h-5/6 sm:max-w-7xl">
 				<DialogHeader className="px-5 pt-5">
 					<DialogTitle>Agent settings</DialogTitle>
 				</DialogHeader>
-				<Tabs
-					className="flex min-h-0 flex-1 flex-row gap-4 px-5 pt-3 pb-5"
-					defaultValue="general"
-					orientation="vertical"
-				>
-					<TabsList className="h-fit w-44 shrink-0 flex-col items-stretch">
-						<TabsTrigger value="general">General</TabsTrigger>
-						<TabsTrigger value="config">Config</TabsTrigger>
-						<TabsTrigger value="memories">Memories</TabsTrigger>
-					</TabsList>
-					<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
-						<GeneralTab token={token} />
-						<MemoriesTab token={token} />
-						<ConfigTab
-							draft={draft}
-							onDraft={setDraft}
-							onSubmit={handleSubmit}
-							pending={pending}
-							token={token}
-						/>
-					</div>
-				</Tabs>
+				<SettingsTabs
+					draft={draft}
+					handleSubmit={handleSubmit}
+					pending={pending}
+					setDraft={setDraft}
+					token={token}
+				/>
 			</DialogContent>
 		</Dialog>
 	);
