@@ -80,3 +80,11 @@ it("shows an empty state when there are no rows", () => {
 
 	expect(list.getByText("No memories yet")).toBeDefined();
 });
+
+it("falls back to '—' for a missing description, matching MemoryTable's fallback", () => {
+	const { list } = renderList(() => {
+		// no-op
+	}, [makeMemory({ description: null })]);
+
+	expect(list.getByText("—")).toBeDefined();
+});

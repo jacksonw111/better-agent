@@ -8,13 +8,13 @@ import {
 } from "@better-agent/ui/components/table";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { MemoryIdentity } from "./memory-identity";
-import type { MemoryRow } from "./memory-types";
+import {
+	type MemoryRow,
+	memoryCreatedFormatter,
+	memoryDescription,
+} from "./memory-types";
 
 const COLUMN_COUNT = 4;
-
-const createdFormatter = new Intl.DateTimeFormat(undefined, {
-	dateStyle: "medium",
-});
 
 function MemoryTableRow({
 	memory,
@@ -29,10 +29,10 @@ function MemoryTableRow({
 				<MemoryIdentity memory={memory} />
 			</TableCell>
 			<TableCell className="max-w-64 truncate text-muted-foreground">
-				{memory.description ?? "—"}
+				{memoryDescription(memory)}
 			</TableCell>
 			<TableCell className="text-muted-foreground tabular-nums">
-				{createdFormatter.format(new Date(memory.createdAt))}
+				{memoryCreatedFormatter.format(new Date(memory.createdAt))}
 			</TableCell>
 			<TableCell className="text-right">
 				<DeleteConfirm

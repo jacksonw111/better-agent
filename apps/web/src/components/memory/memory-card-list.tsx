@@ -6,11 +6,11 @@ import {
 import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { MemoryIdentity } from "./memory-identity";
-import type { MemoryRow } from "./memory-types";
-
-const createdFormatter = new Intl.DateTimeFormat(undefined, {
-	dateStyle: "medium",
-});
+import {
+	type MemoryRow,
+	memoryCreatedFormatter,
+	memoryDescription,
+} from "./memory-types";
 
 function MemoryCard({
 	memory,
@@ -24,10 +24,10 @@ function MemoryCard({
 			<CardContent className="flex flex-col gap-2">
 				<MemoryIdentity memory={memory} />
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-xs">
-					<span className="truncate">
-						{memory.description ?? "No description"}
+					<span className="truncate">{memoryDescription(memory)}</span>
+					<span>
+						{memoryCreatedFormatter.format(new Date(memory.createdAt))}
 					</span>
-					<span>{createdFormatter.format(new Date(memory.createdAt))}</span>
 				</div>
 			</CardContent>
 			<CardFooter className="justify-end">

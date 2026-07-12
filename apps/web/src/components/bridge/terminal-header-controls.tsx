@@ -29,6 +29,14 @@ export interface TerminalHeaderActionsProps {
 	listSessions: () => void;
 	onEnd?: () => void;
 	onSelectSession?: (sessionId: string) => void;
+	/** Controls the Settings dialog's open state from OUTSIDE `SessionControls`
+	 * — used by the <sm overflow menu, which hoists the dialog (and this
+	 * state) to its own top level, sibling of the DropdownMenu, so the dialog
+	 * survives Base UI unmounting `DropdownMenuContent` when the menu closes
+	 * (D4 fix). Left unset for the sm-and-up desktop cluster, where
+	 * `SessionControls` isn't nested in anything that can unmount it, so it
+	 * keeps owning the state itself. */
+	onSettingsOpenChange?: (open: boolean) => void;
 	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
 	 * wired to the Restart button, gated the same as End (hidden once the
 	 * session has ended). */
@@ -39,6 +47,7 @@ export interface TerminalHeaderActionsProps {
 	 * conversation the terminal follows (Phase 4 follow-up: the picker moved
 	 * out of a standalone bar above the terminal into the session chrome). */
 	sessions?: BridgeSessionRow[];
+	settingsOpen?: boolean;
 	status: TerminalConnectionStatus;
 	/** The latest `status_snapshot` detail — passed straight to the Status
 	 * button's popover. */
@@ -52,21 +61,92 @@ export interface TerminalHeaderActionsProps {
 	usageUpdate: UsageUpdateDetail | null;
 }
 
+/** A boolean that's owned locally UNLESS the caller passes `onChange`, in
+ * which case the caller owns it instead (controlled) — factored out of
+ * `SessionControls` purely to keep that function under the repo's
+ * max-lines/complexity gates. Also reports whether it ended up controlled,
+ * since `SessionControls` needs that to decide whether IT should render the
+ * Settings dialog or leave that to the (now hoisting) caller. */
+function useControllableOpen(
+	valueProp: boolean | undefined,
+	onChange: ((open: boolean) => void) | undefined
+): [boolean, (open: boolean) => void, boolean] {
+	const [internal, setInternal] = useState(false);
+	if (onChange) {
+		return [valueProp ?? false, onChange, true];
+	}
+	return [internal, setInternal, false];
+}
+
+/** The Settings button + its dialog — split out of `SessionControls` purely
+ * to keep that function under the repo's max-lines gate. When `controlled`
+ * (the <sm overflow menu, D4 fix) the caller renders the dialog itself
+ * elsewhere, hoisted somewhere that survives the menu closing — this only
+ * renders the trigger button in that case. */
+function SettingsControl({
+	activeSessionId,
+	controlled,
+	setSettingsOpen,
+	settingsOpen,
+	token,
+}: {
+	activeSessionId?: string | null;
+	controlled: boolean;
+	setSettingsOpen: (open: boolean) => void;
+	settingsOpen: boolean;
+	token: BridgeTokenRow;
+}) {
+	return (
+		<>
+			<Button
+				aria-label="Settings"
+				onClick={() => setSettingsOpen(true)}
+				size="icon-sm"
+				variant="ghost"
+			>
+				<SettingsIcon className="size-4" />
+			</Button>
+			{!controlled && settingsOpen && (
+				<LocalAgentSettingsDialog
+					onOpenChange={setSettingsOpen}
+					open={settingsOpen}
+					sessionId={activeSessionId ?? undefined}
+					token={token}
+				/>
+			)}
+		</>
+	);
+}
+
 /** The session picker + Settings entry — the detail-page-level controls that
  * now live in the session's top-right (Phase 4 follow-up). Settings is
- * lazy-mounted so the react-query wiring only spins up once opened. */
+ * lazy-mounted so the react-query wiring only spins up once opened.
+ *
+ * The dialog's open state is normally owned right here (uncontrolled) — fine
+ * for the sm-and-up desktop cluster, which renders this directly and is
+ * never unmounted out from under it. When `onSettingsOpenChange` is passed
+ * (the <sm overflow menu, D4 fix), that state is CONTROLLED by the caller
+ * instead, and the caller — not this component — renders the dialog itself,
+ * hoisted somewhere that survives the menu closing. */
 export function SessionControls({
 	activeSessionId,
 	onSelectSession,
+	onSettingsOpenChange,
 	sessions,
+	settingsOpen: settingsOpenProp,
 	token,
 }: {
 	activeSessionId?: string | null;
 	onSelectSession?: (sessionId: string) => void;
+	onSettingsOpenChange?: (open: boolean) => void;
 	sessions?: BridgeSessionRow[];
+	settingsOpen?: boolean;
 	token?: BridgeTokenRow;
 }) {
-	const [settingsOpen, setSettingsOpen] = useState(false);
+	const [settingsOpen, setSettingsOpen, controlled] = useControllableOpen(
+		settingsOpenProp,
+		onSettingsOpenChange
+	);
 	return (
 		<>
 			{sessions && onSelectSession && sessions.length > 0 && (
@@ -77,24 +157,13 @@ export function SessionControls({
 				/>
 			)}
 			{token && (
-				<>
-					<Button
-						aria-label="Settings"
-						onClick={() => setSettingsOpen(true)}
-						size="icon-sm"
-						variant="ghost"
-					>
-						<SettingsIcon className="size-4" />
-					</Button>
-					{settingsOpen && (
-						<LocalAgentSettingsDialog
-							onOpenChange={setSettingsOpen}
-							open={settingsOpen}
-							sessionId={activeSessionId ?? undefined}
-							token={token}
-						/>
-					)}
-				</>
+				<SettingsControl
+					activeSessionId={activeSessionId}
+					controlled={controlled}
+					setSettingsOpen={setSettingsOpen}
+					settingsOpen={settingsOpen}
+					token={token}
+				/>
 			)}
 		</>
 	);
