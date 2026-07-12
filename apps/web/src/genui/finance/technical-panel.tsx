@@ -45,7 +45,7 @@ const RSI_METER_FILL_CLASS: Record<RsiTone, string> = {
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
 	return (
-		<div className="flex flex-col gap-1.5 border-t pt-3">
+		<div className="flex flex-col gap-1.5 pt-1">
 			<span className="text-muted-foreground text-xs uppercase tracking-wide">
 				{label}
 			</span>

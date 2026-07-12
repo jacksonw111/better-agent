@@ -101,7 +101,7 @@ const ALIGN_CLASS: Record<
 function FinTableHead<T>({ columns }: { columns: FinTableColumn<T>[] }) {
 	return (
 		<thead>
-			<tr className="border-b bg-muted/40">
+			<tr className="bg-muted/40">
 				{columns.map((col) => (
 					<th
 						className={cn(
@@ -126,7 +126,7 @@ function FinTableRow<T>({
 	columns: FinTableColumn<T>[];
 }) {
 	return (
-		<tr className="border-b last:border-b-0 even:bg-muted/20">
+		<tr className="border-border/40 border-b last:border-b-0 even:bg-muted/20">
 			{columns.map((col) => (
 				<td
 					className={cn(
@@ -154,7 +154,7 @@ export function FinTable<T>({
 	getRowKey: (row: T, index: number) => string | number;
 }) {
 	return (
-		<div className="overflow-x-auto rounded-md border">
+		<div className="overflow-x-auto rounded-md">
 			<table className="w-full border-collapse text-xs">
 				<FinTableHead columns={columns} />
 				<tbody>
@@ -171,9 +171,10 @@ export function FinTable<T>({
 	);
 }
 
-/** The consistent bordered card wrapper every finance component renders
- * inside — header row (title + optional subtitle + right-aligned slot) plus
- * body. Matches the density of tweet-card-node.tsx's card shell. */
+/** The consistent borderless card wrapper every finance component renders
+ * inside — a tinted header strip (title + optional subtitle + right-aligned
+ * slot) over a plain body, separated by background tint and spacing, no frame.
+ * Matches the density of tweet-card-node.tsx's card shell. */
 export function CardShell({
 	title,
 	subtitle,
@@ -186,7 +187,7 @@ export function CardShell({
 	children: ReactNode;
 }) {
 	return (
-		<div className="w-full overflow-hidden rounded-md border">
+		<div className="w-full overflow-hidden rounded-md">
 			<div className="flex items-start justify-between gap-2 bg-muted/40 px-3 py-2">
 				<div className="flex min-w-0 flex-col gap-0.5">
 					<span className="truncate font-semibold text-sm">{title}</span>
@@ -198,7 +199,7 @@ export function CardShell({
 				</div>
 				{right ? <div className="shrink-0">{right}</div> : null}
 			</div>
-			<div className="flex flex-col gap-3 border-t px-3 py-2.5">{children}</div>
+			<div className="flex flex-col gap-3 px-3 py-2.5">{children}</div>
 		</div>
 	);
 }

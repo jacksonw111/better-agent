@@ -99,14 +99,14 @@ export function QuestionCard({ answered, event, onAnswer }: QuestionCardProps) {
 	};
 
 	return (
-		<div className="overflow-hidden rounded-md border bg-muted/40 font-sans">
-			<div className="px-3 py-2">
+		<div className="overflow-hidden rounded-md bg-muted/40 font-sans">
+			<div className="px-3 pt-2">
 				<p className="flex items-center gap-1.5 font-medium text-sm">
 					<span aria-hidden className="size-1.5 rounded-full bg-amber-500" />
 					{event.title}
 				</p>
 			</div>
-			<div className="flex flex-col gap-2 border-t px-3 py-2">
+			<div className="flex flex-col gap-2 px-3 py-2">
 				{event.questions.map((question, questionIndex) => (
 					<QuestionRow
 						answeredLabel={answered?.[questionIndex]?.[0]}

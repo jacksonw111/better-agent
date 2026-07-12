@@ -19,8 +19,7 @@ function newsRowKey(item: NewsListItemData): string {
 	return isFlashNews(item) ? item.id : item.url;
 }
 
-const NEWS_ROW_CLASS =
-	"flex flex-col gap-1 border-b pb-2 last:border-b-0 last:pb-0";
+const NEWS_ROW_CLASS = "flex flex-col gap-1 pb-2 last:pb-0";
 
 function NewsRowBody({ item }: { item: NewsListItemData }) {
 	const body = isFlashNews(item) ? item.summary : item.snippet;

@@ -6,7 +6,7 @@ import type { DiffLine } from "./activity-diff";
 
 export function ActivityDiffView({ lines }: { lines: DiffLine[] }) {
 	return (
-		<div className="max-h-64 overflow-auto border-t bg-background/60 font-mono text-xs leading-relaxed">
+		<div className="max-h-64 overflow-auto rounded-md bg-background/60 font-mono text-xs leading-relaxed">
 			{lines.map((line, index) => (
 				<div
 					className={cn(

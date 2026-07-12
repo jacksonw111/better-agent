@@ -157,8 +157,8 @@ export function ApprovalLine({
 }: ApprovalLineProps) {
 	const disabled = answeredOptionId !== undefined;
 	return (
-		<div className="overflow-hidden rounded-md border bg-muted/40 font-sans">
-			<div className="flex flex-col gap-1.5 px-3 py-2">
+		<div className="overflow-hidden rounded-md bg-muted/40 font-sans">
+			<div className="flex flex-col gap-1.5 px-3 pt-2">
 				<p className="font-medium text-sm">{event.title}</p>
 				{event.detail && (
 					<p className="text-muted-foreground text-xs">{event.detail}</p>
@@ -178,7 +178,7 @@ export function ApprovalLine({
 					/>
 				)}
 			</div>
-			<div className="flex flex-wrap gap-2 border-t px-3 py-2">
+			<div className="flex flex-wrap gap-2 px-3 py-2">
 				{event.options.map((option, index) => {
 					const chosen = answeredOptionId === option.id;
 					return (

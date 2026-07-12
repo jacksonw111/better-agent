@@ -45,7 +45,7 @@ export function Reasoning({
 	const [open, setOpen] = useState(false);
 	return (
 		<Collapsible.Root
-			className={cn("rounded-md border bg-muted/40 p-2", className)}
+			className={cn("rounded-md bg-muted/40 p-2", className)}
 			onOpenChange={setOpen}
 			open={open}
 		>

@@ -74,7 +74,7 @@ function ActivityBody({
 		return <ActivityDiffView lines={diffLines} />;
 	}
 	return (
-		<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words border-t bg-background/60 px-2 py-1.5 font-mono text-muted-foreground text-xs leading-relaxed">
+		<pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-background/60 px-2 py-1.5 font-mono text-muted-foreground text-xs leading-relaxed">
 			{output}
 		</pre>
 	);
@@ -101,8 +101,8 @@ export function ActivityItem({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-md border bg-muted/40 text-xs",
-				tool.isError && "border-destructive/40"
+				"overflow-hidden rounded-md bg-muted/40 text-xs",
+				tool.isError && "bg-destructive/10"
 			)}
 		>
 			<ToolCardHeader
@@ -114,7 +114,7 @@ export function ActivityItem({
 				tool={tool}
 			/>
 			{tail ? (
-				<div className="truncate border-t px-2 py-1 font-mono text-muted-foreground text-xs">
+				<div className="truncate px-2 py-1 font-mono text-muted-foreground text-xs">
 					{tail}
 				</div>
 			) : null}

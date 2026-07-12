@@ -33,7 +33,7 @@ function researchKey(item: ResearchReportData, index: number): string {
 
 function ResearchCard({ item }: { item: ResearchReportData }) {
 	return (
-		<div className="flex flex-col gap-2 border-b pb-3 last:border-b-0 last:pb-0">
+		<div className="flex flex-col gap-2 pb-3 last:pb-0">
 			<div className="flex flex-col gap-0.5">
 				<span className="font-medium text-sm">{item.title || "—"}</span>
 				<span className="text-muted-foreground text-xs">

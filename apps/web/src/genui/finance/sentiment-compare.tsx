@@ -130,7 +130,7 @@ export function SentimentCompare({ data }: { data: SentimentCompareData[] }) {
 	return (
 		<CardShell title="舆情对比">
 			<BuzzCompareBars data={chartData} />
-			<div className="flex flex-col divide-y border-t">
+			<div className="flex flex-col gap-1.5">
 				{visible.map((item) => (
 					<BullBearRow item={item} key={item.ticker} />
 				))}

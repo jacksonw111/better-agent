@@ -77,8 +77,8 @@ function PlainToolView({ tool }: { tool: ToolInvocation }) {
 	return (
 		<Collapsible.Root
 			className={cn(
-				"overflow-hidden rounded-md border bg-muted/40 text-xs",
-				tool.isError && "border-destructive/40"
+				"overflow-hidden rounded-md bg-muted/40 text-xs",
+				tool.isError && "bg-destructive/10"
 			)}
 			defaultOpen={tool.isError}
 		>
@@ -89,7 +89,7 @@ function PlainToolView({ tool }: { tool: ToolInvocation }) {
 				<ChevronDownIcon className="ml-auto size-3.5 transition-transform data-[panel-open]:rotate-180" />
 			</Collapsible.Trigger>
 			{tool.isError ? (
-				<p className="break-words border-t px-2 py-1.5 text-destructive">
+				<p className="break-words px-2 py-1.5 text-destructive">
 					{formatValue(tool.result) || "Tool call failed."}
 				</p>
 			) : null}
@@ -134,7 +134,7 @@ function ToolSection({ label, value }: { label: string; value: string }) {
 		return null;
 	}
 	return (
-		<div className="border-t">
+		<div>
 			<span className="block px-2 pt-1.5 text-muted-foreground uppercase tracking-wide">
 				{label}
 			</span>

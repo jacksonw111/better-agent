@@ -52,7 +52,7 @@ it("expanding a complete tool reveals Arguments and Result with formatted values
 	expect(scope.getByText("sunny, mild")).toBeDefined();
 });
 
-it("an errored tool defaults open with the error text and destructive border", () => {
+it("an errored tool defaults open with the error text and destructive tint", () => {
 	const tool = baseTool({
 		isError: true,
 		result: "boom: tool failed",
@@ -62,7 +62,8 @@ it("an errored tool defaults open with the error text and destructive border", (
 	// No click needed: defaultOpen shows the banner and the raw sections.
 	expect(scope.getAllByText("boom: tool failed").length).toBeGreaterThan(0);
 	expect(scope.getByText("Arguments")).toBeDefined();
-	expect(container.querySelector('[class*="border-destructive/40"]')).not.toBe(
+	// Borderless: the error state is a background tint, never a colored border.
+	expect(container.querySelector('[class*="bg-destructive/10"]')).not.toBe(
 		null
 	);
 });

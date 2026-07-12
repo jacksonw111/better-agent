@@ -109,7 +109,7 @@ function DepthLadder({
 		return null;
 	}
 	return (
-		<div className="flex flex-col gap-0.5 border-t pt-2">
+		<div className="flex flex-col gap-0.5 pt-2">
 			{askRows.map((row) => (
 				<DepthRowLine
 					key={row.label}

@@ -58,7 +58,7 @@ function TaskStatusIcon({ status }: { status: TaskInvocation["status"] }) {
  * title (with a small robot icon), a collapsible body with the subagent's
  * result (XML wrapper stripped), and the running/complete/error status.
  * Matches the visual language of the plain tool card in `packages/ui`'s
- * `ToolGroup` (border, muted background, collapsible panel) — it can't
+ * `ToolGroup` (borderless, muted background tint, collapsible panel) — it can't
  * render through that component directly, since `ToolGroup` only shows a
  * rich body once a call is both complete and non-error, and a task's
  * running/failed states need the card too.
@@ -68,8 +68,8 @@ export function TaskCard({ task }: { task: TaskInvocation }) {
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-2 rounded-xl bg-card p-3 ring-1",
-				isError ? "ring-destructive/40" : "ring-foreground/10"
+				"flex flex-col gap-2 rounded-xl bg-muted/40 p-3",
+				isError && "bg-destructive/10"
 			)}
 		>
 			<div className="flex items-center gap-2 text-left">

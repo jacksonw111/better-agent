@@ -19,7 +19,7 @@ function ReportTypeBadge({ reportType }: { reportType: string }) {
 
 function ReportRow({ item }: { item: ReportData }) {
 	return (
-		<div className="flex flex-col gap-1 border-b pb-2 last:border-b-0 last:pb-0">
+		<div className="flex flex-col gap-1 pb-2 last:pb-0">
 			<div className="flex items-start justify-between gap-2">
 				<span
 					className="min-w-0 flex-1 truncate font-medium text-sm"

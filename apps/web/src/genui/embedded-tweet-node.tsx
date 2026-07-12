@@ -250,11 +250,11 @@ export function TweetStats({
 	);
 }
 
-/** The source tweet embedded inside a retweet or quote — a quieter, bordered
- * nested card. Reused for both so the two paths never drift. */
+/** The source tweet embedded inside a retweet or quote — a quieter, tinted
+ * nested block. Reused for both so the two paths never drift. */
 export function EmbeddedTweet({ tweet }: { tweet: EmbeddedTweetData }) {
 	return (
-		<div className="flex flex-col gap-2 border-t pt-3">
+		<div className="flex flex-col gap-2 rounded-md bg-muted/30 p-2.5">
 			<TweetIdentity
 				authorAvatarUrl={tweet.authorAvatarUrl}
 				authorName={tweet.authorName}
