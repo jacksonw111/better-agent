@@ -65,6 +65,13 @@ function MoreTabButton() {
 // Ignore scroll jitter below this many pixels so the dock doesn't flicker on
 // tiny momentum wobbles.
 const SCROLL_DELTA_THRESHOLD = 8;
+// After the dock flips, showing/hiding it reflows the page (the content's
+// reserved bottom padding animates, and a follow-bottom chat scroller re-pins),
+// which itself emits scroll events in the OPPOSITE direction. Ignore scroll for
+// a beat afterward — longer than the 300ms padding transition — so that
+// self-induced reflow can't flip the dock straight back. Without this, scrolling
+// near the bottom oscillates forever.
+const FLIP_COOLDOWN_MS = 450;
 
 /** Hide the floating dock while scrolling down (reading), reveal it while
  * scrolling up (navigating). Listens in the capture phase on document so it
@@ -75,8 +82,10 @@ const SCROLL_DELTA_THRESHOLD = 8;
  * pinned composer (mobile chat). */
 export function useHideOnScrollDown(): boolean {
 	const [hidden, setHidden] = useState(false);
+	const hiddenRef = useRef(false);
 	const lastY = useRef(0);
 	const lastTarget = useRef<EventTarget | null>(null);
+	const cooldownUntil = useRef(0);
 	useEffect(() => {
 		const onScroll = (event: Event) => {
 			const target = event.target;
@@ -88,12 +97,25 @@ export function useHideOnScrollDown(): boolean {
 				lastY.current = y;
 				return;
 			}
+			const now = performance.now();
+			// Within the post-flip cooldown, keep the anchor moving with the reflow
+			// but never decide a new direction — this absorbs the opposite-direction
+			// scroll the flip itself caused.
+			if (now < cooldownUntil.current) {
+				lastY.current = y;
+				return;
+			}
 			const delta = y - lastY.current;
 			if (Math.abs(delta) < SCROLL_DELTA_THRESHOLD) {
 				return;
 			}
-			setHidden(y > 0 && delta > 0);
 			lastY.current = y;
+			const next = y > 0 && delta > 0;
+			if (next !== hiddenRef.current) {
+				hiddenRef.current = next;
+				cooldownUntil.current = now + FLIP_COOLDOWN_MS;
+				setHidden(next);
+			}
 		};
 		document.addEventListener("scroll", onScroll, {
 			capture: true,
