@@ -105,7 +105,7 @@ function ComposerBox({
 	toolbar,
 }: ComposerBoxProps) {
 	return (
-		<div className="relative w-full">
+		<div className="relative mx-auto max-w-3xl">
 			{hint}
 			{picker.open && (
 				<SlashPickerList
@@ -118,7 +118,7 @@ function ComposerBox({
 				/>
 			)}
 			<PromptInput
-				className="rounded-lg border bg-background p-2 shadow-sm"
+				className="rounded-2xl border bg-background p-2 shadow-sm"
 				onSubmit={submit}
 			>
 				<PromptInputTextarea
@@ -226,7 +226,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 	);
 
 	return (
-		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 py-3 sm:px-4">
+		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-4 sm:px-4">
 			<ComposerBox
 				disabled={disabled}
 				hint={hint}

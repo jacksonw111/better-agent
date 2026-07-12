@@ -170,7 +170,7 @@ function ComposerBox({
 	toolsSlot,
 }: ComposerBoxProps) {
 	return (
-		<div className="relative mx-auto w-full max-w-3xl">
+		<div className="relative mx-auto max-w-3xl">
 			{picker.open && (
 				<SkillPickerList
 					activeIndex={picker.activeIndex}
@@ -225,7 +225,7 @@ export function ChatComposer({
 		});
 
 	return (
-		<div className="shrink-0 px-3 pb-4 sm:px-4">
+		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-4 sm:px-4">
 			<ComposerBox
 				items={items}
 				onFiles={addFiles}

@@ -33,36 +33,40 @@ function ChatViewHeader({
 	onNewSession,
 }: Omit<ChatViewProps, "agentClient" | "initialText">) {
 	return (
-		<header className="flex h-12 shrink-0 items-center gap-2 border-b px-3 sm:gap-3 sm:px-4">
-			<div className="flex min-w-0 flex-1 items-baseline gap-2">
-				<span className="truncate font-medium text-sm">{agent.name}</span>
-				<span className="hidden truncate font-mono text-muted-foreground text-xs sm:inline">
-					{agent.providerId}/{agent.modelId}
-				</span>
-			</div>
-			<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-				<SessionPicker
-					onChange={onSessionChange}
-					sessions={sessions}
-					value={sessionId}
-				/>
-				<Button
-					className="gap-1"
-					onClick={onNewSession}
-					size="sm"
-					variant="outline"
-				>
-					<PlusIcon className="size-3.5" />
-					<span className="hidden sm:inline">New</span>
-				</Button>
-				<Button
-					aria-label="Back to composer"
-					onClick={onClose}
-					size="icon"
-					variant="ghost"
-				>
-					<XIcon className="size-4" />
-				</Button>
+		<header className="shrink-0 border-b">
+			{/* Inner column matches the bridge terminal's header/feed `max-w-3xl
+			 * mx-auto` so the two chats' chrome sits on the same grid lines. */}
+			<div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
+				<div className="flex min-w-0 flex-1 items-baseline gap-2">
+					<span className="truncate font-medium text-sm">{agent.name}</span>
+					<span className="hidden truncate font-mono text-muted-foreground text-xs sm:inline">
+						{agent.providerId}/{agent.modelId}
+					</span>
+				</div>
+				<div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+					<SessionPicker
+						onChange={onSessionChange}
+						sessions={sessions}
+						value={sessionId}
+					/>
+					<Button
+						className="gap-1"
+						onClick={onNewSession}
+						size="sm"
+						variant="outline"
+					>
+						<PlusIcon className="size-3.5" />
+						<span className="hidden sm:inline">New</span>
+					</Button>
+					<Button
+						aria-label="Back to composer"
+						onClick={onClose}
+						size="icon"
+						variant="ghost"
+					>
+						<XIcon className="size-4" />
+					</Button>
+				</div>
 			</div>
 		</header>
 	);

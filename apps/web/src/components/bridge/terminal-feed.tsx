@@ -1,4 +1,5 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
+import { RevealText } from "@better-agent/ui/components/chat/reveal-text";
 import {
 	MessageScroller,
 	MessageScrollerButton,
@@ -16,10 +17,15 @@ import type { BridgeTurn } from "./bridge-turns";
 
 function EmptyTerminal() {
 	return (
-		<div className="flex flex-1 items-center justify-center py-24 text-center">
-			<p className="text-muted-foreground text-sm">
-				No output yet — waiting for the agent…
-			</p>
+		<div className="flex flex-col items-center justify-center py-24 text-center">
+			<RevealText>
+				<p className="t-stagger-line t-stagger-line--1 font-medium text-sm">
+					No output yet — waiting for the agent…
+				</p>
+				<p className="t-stagger-line t-stagger-line--2 text-muted-foreground text-sm">
+					Send a message to begin.
+				</p>
+			</RevealText>
 		</div>
 	);
 }
