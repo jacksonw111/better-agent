@@ -25,6 +25,7 @@ import { Route as AgentsIndexRouteImport } from './routes/agents.index'
 import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryId'
 import { Route as LocalAgentsTokenIdRouteImport } from './routes/local-agents.$tokenId'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
+import { Route as DebugRemoteRouteImport } from './routes/debug.remote'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as IntegrationsOcAccountIdRouteImport } from './routes/integrations.oc.$accountId'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
@@ -109,6 +110,11 @@ const IntegrationsAccountIdRoute = IntegrationsAccountIdRouteImport.update({
   path: '/integrations/$accountId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DebugRemoteRoute = DebugRemoteRouteImport.update({
+  id: '/debug/remote',
+  path: '/debug/remote',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthVerifyRoute = AuthVerifyRouteImport.update({
   id: '/auth/verify',
   path: '/auth/verify',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
+  '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
+  '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
+  '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
@@ -200,6 +209,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/auth/verify'
+    | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
     | '/memories/$memoryId'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/auth/verify'
+    | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
     | '/memories/$memoryId'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/auth/verify'
+    | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
     | '/memories/$memoryId'
@@ -264,6 +276,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
+  DebugRemoteRoute: typeof DebugRemoteRoute
   IntegrationsAccountIdRoute: typeof IntegrationsAccountIdRoute
   LocalAgentsTokenIdRoute: typeof LocalAgentsTokenIdRoute
   MemoriesMemoryIdRoute: typeof MemoriesMemoryIdRoute
@@ -391,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsAccountIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/debug/remote': {
+      id: '/debug/remote'
+      path: '/debug/remote'
+      fullPath: '/debug/remote'
+      preLoaderRoute: typeof DebugRemoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/verify': {
       id: '/auth/verify'
       path: '/auth/verify'
@@ -424,6 +444,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   AuthVerifyRoute: AuthVerifyRoute,
+  DebugRemoteRoute: DebugRemoteRoute,
   IntegrationsAccountIdRoute: IntegrationsAccountIdRoute,
   LocalAgentsTokenIdRoute: LocalAgentsTokenIdRoute,
   MemoriesMemoryIdRoute: MemoriesMemoryIdRoute,

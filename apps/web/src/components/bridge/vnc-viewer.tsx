@@ -4,7 +4,7 @@
 // (Lane B) behind the cua/vnc capability; created here so it compiles standalone.
 
 import { env } from "@better-agent/env/web";
-import RFB from "@novnc/novnc/core/rfb.js";
+import RFB from "@novnc/novnc";
 import { useEffect, useRef, useState } from "react";
 
 type ConnectionState = "connecting" | "connected" | "disconnected";
