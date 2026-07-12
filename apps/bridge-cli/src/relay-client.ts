@@ -63,6 +63,13 @@ export interface RelayTransport {
 		 * the same batch, so the relay can dedup a resend whose ack was lost. */
 		idempotencyKeys?: string[];
 	}): Promise<void>;
+	/** Records (or clears, with null) the session's live VNC endpoint. Optional
+	 * so transports/test fakes that don't implement it behave as before — only
+	 * the `--cua` path calls it. */
+	reportVnc?(input: {
+		sessionId: string;
+		vncEndpoint: string | null;
+	}): Promise<void>;
 	startSession(input: { agentKind: string; label?: string }): Promise<{
 		config: AgentStartConfig | null;
 		mcpServers: ResolvedMcpServer[];

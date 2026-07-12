@@ -30,6 +30,9 @@ const VM_VNC_POLL_ATTEMPTS = 120;
 
 export interface CuaSessionOptions {
 	log?: (message: string) => void;
+	/** Reports the live VNC endpoint (or null to clear) so the web mounts the
+	 * viewer. No-op if omitted. */
+	reportVnc?: (vncEndpoint: string | null) => Promise<void>;
 	serverUrl: string;
 	sessionId: string;
 	token: string;
@@ -153,6 +156,8 @@ export async function startCuaSession(
 		},
 		relayDeps(log)
 	);
+	// Signal the web that this session now has a live desktop to watch.
+	await options.reportVnc?.(vncUrl);
 	let stopped = false;
 	return {
 		stop: async () => {
@@ -162,10 +167,11 @@ export async function startCuaSession(
 			stopped = true;
 			relay.stop();
 			try {
+				await options.reportVnc?.(null);
 				await lume.stop(vmName);
 			} catch {
-				// Best-effort: the relay is already down; a lume stop failure on
-				// teardown shouldn't surface as a CLI error.
+				// Best-effort: the relay is already down; a lume stop / report
+				// failure on teardown shouldn't surface as a CLI error.
 			}
 		},
 	};

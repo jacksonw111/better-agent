@@ -214,7 +214,6 @@ export type {
 
 export interface BridgeSessionRow {
 	agentKind: BridgeAgentKind;
-	/** Local agent's own conversation id; null until `session_ready` (or always). */
 	agentSessionId: string | null;
 	createdAt: Date;
 	id: string;
@@ -237,7 +236,7 @@ export interface BridgeSessionStore {
 	get(id: string): Promise<BridgeSessionRow | null>;
 	listByUser(userId: string): Promise<BridgeSessionRow[]>;
 	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
-	/** Bumps lastSeenAt (bridge heartbeats while relaying output). */
+	setVncEndpoint(id: string, vncEndpoint: string | null): Promise<void>;
 	touch(id: string): Promise<void>;
 }
 

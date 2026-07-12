@@ -131,6 +131,25 @@ export const bridgeRouter = {
 		}),
 
 	fetchConfig,
+	// The `--cua` CLI reports (or clears, with null) its live VNC endpoint for
+	// the session so the web knows to mount the viewer. Bridge-token + owner
+	// scoped, same as the other CLI-side endpoints.
+	reportVnc: bridgeProcedure
+		.input(
+			z.object({ sessionId: z.uuid(), vncEndpoint: z.string().nullable() })
+		)
+		.handler(async ({ input, context }) => {
+			await requireOwnedBridgeSession(
+				context,
+				context.authedBridgeToken.userId,
+				input.sessionId
+			);
+			await context.services.stores.bridgeSession.setVncEndpoint(
+				input.sessionId,
+				input.vncEndpoint
+			);
+			return { ok: true };
+		}),
 	pollCommands: bridgeProcedure
 		.input(pollInput)
 		.handler(async ({ input, context }) => {

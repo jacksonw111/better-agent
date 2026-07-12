@@ -15,6 +15,7 @@ import {
 	useSessionSelection,
 } from "./local-agent-session-picker";
 import { Terminal } from "./terminal";
+import { VncViewer } from "./vnc-viewer";
 
 function useEndSession() {
 	const queryClient = useQueryClient();
@@ -80,18 +81,26 @@ function SessionView({
 		return <WaitingForCli token={token} />;
 	}
 	return (
-		<Terminal
-			activeSessionId={activeSession.id}
-			ending={endSession.isPending}
-			key={activeSession.id}
-			onEnd={() => endSession.mutate({ sessionId: activeSession.id })}
-			onSelectSession={select}
-			session={activeSession}
-			sessions={sessions}
-			token={token}
-			transport={transport}
-			userAvatarUrl={userAvatarUrl}
-		/>
+		<div className="flex flex-col gap-4">
+			{activeSession.vncEndpoint ? (
+				<div className="flex flex-col gap-2">
+					<span className="font-medium text-sm">Remote desktop</span>
+					<VncViewer key={activeSession.id} sessionId={activeSession.id} />
+				</div>
+			) : null}
+			<Terminal
+				activeSessionId={activeSession.id}
+				ending={endSession.isPending}
+				key={activeSession.id}
+				onEnd={() => endSession.mutate({ sessionId: activeSession.id })}
+				onSelectSession={select}
+				session={activeSession}
+				sessions={sessions}
+				token={token}
+				transport={transport}
+				userAvatarUrl={userAvatarUrl}
+			/>
+		</div>
 	);
 }
 

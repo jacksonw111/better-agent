@@ -159,6 +159,13 @@ export function memoryBridgeSessionStore(
 			}
 			return Promise.resolve();
 		},
+		setVncEndpoint(id, vncEndpoint) {
+			const row = rows.get(id);
+			if (row) {
+				rows.set(id, { ...row, vncEndpoint });
+			}
+			return Promise.resolve();
+		},
 	};
 }
 

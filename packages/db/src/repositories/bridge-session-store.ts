@@ -2,7 +2,7 @@ import type {
 	BridgeSessionRow,
 	BridgeSessionStore,
 } from "@better-agent/agent/ports";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -17,6 +17,7 @@ type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 // threshold is ~30s, so a connected-but-quiet agent's lastSeenAt is never
 // more than TOUCH_THROTTLE_SECONDS stale.
 const TOUCH_THROTTLE_SECONDS = 15;
+const MS_PER_SECOND = 1000;
 
 function toRow(
 	row: typeof schema.bridgeSessions.$inferSelect
@@ -36,16 +37,22 @@ function toRow(
 }
 
 // A single guarded UPDATE (not a read-then-write) so the throttle check and
-// the write stay atomic under concurrent pollers: `now()` is evaluated
-// server-side for both the SET and the WHERE guard, avoiding app-clock skew.
+// the write stay atomic under concurrent pollers. App-side timestamps (the db
+// layer forbids raw `sql`); the throttle window (15s) and the web's ~30s
+// live/idle threshold are coarse enough that app/server clock skew is
+// immaterial.
 async function touchSession(db: Db, id: string): Promise<void> {
+	const now = new Date();
+	const staleBefore = new Date(
+		now.getTime() - TOUCH_THROTTLE_SECONDS * MS_PER_SECOND
+	);
 	await db
 		.update(schema.bridgeSessions)
-		.set({ lastSeenAt: sql`now()` })
+		.set({ lastSeenAt: now })
 		.where(
 			and(
 				eq(schema.bridgeSessions.id, id),
-				sql`${schema.bridgeSessions.lastSeenAt} < now() - (${TOUCH_THROTTLE_SECONDS} * interval '1 second')`
+				lt(schema.bridgeSessions.lastSeenAt, staleBefore)
 			)
 		);
 }
@@ -58,6 +65,17 @@ async function setSessionAgentSessionId(
 	await db
 		.update(schema.bridgeSessions)
 		.set({ agentSessionId })
+		.where(eq(schema.bridgeSessions.id, id));
+}
+
+async function setSessionVncEndpoint(
+	db: Db,
+	id: string,
+	vncEndpoint: string | null
+): Promise<void> {
+	await db
+		.update(schema.bridgeSessions)
+		.set({ vncEndpoint })
 		.where(eq(schema.bridgeSessions.id, id));
 }
 
@@ -107,6 +125,8 @@ export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 		touch: (id) => touchSession(db, id),
 		setAgentSessionId: (id, agentSessionId) =>
 			setSessionAgentSessionId(db, id, agentSessionId),
+		setVncEndpoint: (id, vncEndpoint) =>
+			setSessionVncEndpoint(db, id, vncEndpoint),
 		end: (id, userId) => endSession(db, id, userId),
 	};
 }

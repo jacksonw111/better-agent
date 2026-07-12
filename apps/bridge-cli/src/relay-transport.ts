@@ -65,6 +65,9 @@ export function createRelayTransport(
 		pushEvents: async (input) => {
 			await client.bridge.pushEvents(input);
 		},
+		reportVnc: async (input) => {
+			await client.bridge.reportVnc(input);
+		},
 		pollCommands: (input) => client.bridge.pollCommands(input),
 		fetchConfig: () => client.bridge.fetchConfig(),
 		openDuplex: (input): Promise<DuplexChannel | null> =>

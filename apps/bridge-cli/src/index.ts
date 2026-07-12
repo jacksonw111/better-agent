@@ -101,6 +101,9 @@ async function main(): Promise<void> {
 				token: args.token,
 				sessionId,
 				log: (message) => process.stdout.write(`[cua] ${message}\n`),
+				reportVnc: (vncEndpoint) =>
+					transport.reportVnc?.({ sessionId, vncEndpoint }) ??
+					Promise.resolve(),
 			})
 		: Promise.resolve(undefined);
 	try {
