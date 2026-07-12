@@ -158,9 +158,14 @@ function AddLocalAgentForm({
 	);
 }
 
-function useAddLocalAgentDialog() {
+function useAddLocalAgentDialog(
+	controlledOpen?: boolean,
+	controlledOnOpenChange?: (open: boolean) => void
+) {
 	const navigate = useNavigate();
-	const [open, setOpen] = useState(false);
+	const [internalOpen, setInternalOpen] = useState(false);
+	const open = controlledOpen ?? internalOpen;
+	const setOpen = controlledOnOpenChange ?? setInternalOpen;
 	const [name, setName] = useState("");
 	const [kind, setKind] = useState<AgentKind | null>(null);
 	const [memoryIds, setMemoryIds] = useState<string[]>([]);
@@ -230,8 +235,21 @@ function AddLocalAgentTriggers() {
  * life) and optionally name it, then create. The raw token lives on the new
  * agent's own page — we navigate there on success rather than revealing it
  * once here.
+ *
+ * Standalone (no props) it owns its own open state and renders the toolbar +
+ * FAB triggers. Pass `open`/`onOpenChange` to drive it from a parent (e.g. the
+ * merged agents list's Add menu) and `hideTrigger` to suppress the built-in
+ * triggers.
  */
-export function AddLocalAgentDialog() {
+export function AddLocalAgentDialog({
+	open: controlledOpen,
+	onOpenChange: controlledOnOpenChange,
+	hideTrigger = false,
+}: {
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	hideTrigger?: boolean;
+} = {}) {
 	const {
 		isPending,
 		kind,
@@ -243,10 +261,10 @@ export function AddLocalAgentDialog() {
 		setName,
 		submit,
 		open,
-	} = useAddLocalAgentDialog();
+	} = useAddLocalAgentDialog(controlledOpen, controlledOnOpenChange);
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
-			<AddLocalAgentTriggers />
+			{hideTrigger ? null : <AddLocalAgentTriggers />}
 			<DialogContent className="sm:max-w-lg">
 				<DialogHeader className="gap-1.5">
 					<DialogTitle>Add local agent</DialogTitle>
