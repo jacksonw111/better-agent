@@ -1,3 +1,5 @@
+import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
+import type { ToolRegistry } from "@better-agent/ui/components/chat/tool-registry";
 import type { ReactNode } from "react";
 import type { ZodType } from "zod";
 import { FINANCE_RENDERERS } from "./finance/finance-renderers";
@@ -188,8 +190,8 @@ export const TOOL_RESULT_RENDERERS: Record<string, ToolResultRenderer> = {
 	...FINANCE_RENDERERS,
 };
 
-/** The `renderToolResult` hook threaded into the chat UI: null/undefined
- * means "no rich render available" — the tool block keeps its raw-JSON UI. */
+/** Rich-result dispatch: null means "no rich render available" — the tool
+ * block keeps its raw-JSON UI. Wrapped by `cloudToolRegistry` below. */
 export function renderToolResult(
 	toolName: string,
 	result: unknown
@@ -201,3 +203,25 @@ export function renderToolResult(
 	const data = renderer.parse(result);
 	return data === null ? null : renderer.render(data);
 }
+
+/** A registered genui card only ever runs against a completed, successful
+ * call — errored and in-flight calls keep the plain JSON block (or its error
+ * banner). Exact tool-name match; a result the entry's schema rejects makes
+ * `render` return null, which the registry treats as "unclaimed" → default
+ * card. Same gating `richResult` in packages/ui's tool.tsx used to apply. */
+function matchesCloudGenui(tool: ToolInvocation): boolean {
+	return (
+		tool.status === "complete" &&
+		!tool.isError &&
+		tool.toolName in TOOL_RESULT_RENDERERS
+	);
+}
+
+/** The cloud chat's tool-card registry (P1-T1) — threaded into the shared
+ * chat components via `Conversation`'s `toolRegistry` prop. */
+export const cloudToolRegistry: ToolRegistry = [
+	{
+		match: matchesCloudGenui,
+		render: (tool) => renderToolResult(tool.toolName, tool.result),
+	},
+];

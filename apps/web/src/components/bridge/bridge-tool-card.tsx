@@ -1,6 +1,9 @@
 import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
-import type { RenderTool } from "@better-agent/ui/components/chat/chat-row";
 import { ToolGroup } from "@better-agent/ui/components/chat/tool";
+import {
+	renderFromRegistry,
+	type ToolRegistry,
+} from "@better-agent/ui/components/chat/tool-registry";
 import { cn } from "@better-agent/ui/lib/utils";
 import { useState } from "react";
 import { diffFor } from "./activity-diff";
@@ -173,7 +176,7 @@ function computeErrorLine(
 
 /** ActivityItem: the rich card for a categorized tool call (command/
  * fileEdit/fileRead/search). Exported directly for the turn spine renderer;
- * `renderBridgeTool` below wraps it for the shared `ChatRow` seam. */
+ * `bridgeToolRegistry` below wraps it for the shared `ChatRow` seam. */
 export function ActivityItem({
 	category,
 	tool,
@@ -214,24 +217,29 @@ export function ActivityItem({
 	);
 }
 
-/** ChatRow `renderTool` for the local-agent terminal: rich cards for shell/
- * edit/read/search executions; null (default card) for anything else. */
-export const renderBridgeTool: RenderTool = (tool) => {
-	const category = categoryOf(tool.toolName);
-	if (!category) {
-		return null;
-	}
-	return <ActivityItem category={category} tool={tool} />;
-};
+/** The local-agent terminal's tool-card registry (P1-T1): rich terminal
+ * cards for shell/edit/read/search executions; an uncategorized tool is
+ * unclaimed (null), so a `ChatRow`/`ToolGroup` given this registry falls
+ * back to the default plain collapsible block. */
+export const bridgeToolRegistry: ToolRegistry = [
+	{
+		match: (tool) => categoryOf(tool.toolName) !== null,
+		render: (tool) => {
+			const category = categoryOf(tool.toolName);
+			if (!category) {
+				return null;
+			}
+			return <ActivityItem category={category} tool={tool} />;
+		},
+	},
+];
 
 /** The turn spine's direct renderer (assistant-turn-block.tsx / activity-
- * group.tsx): unlike `renderBridgeTool`, an uncategorized tool never falls
+ * group.tsx): unlike the `ChatRow` seam, an uncategorized tool never falls
  * through to null — it renders `ToolGroup`'s plain collapsible block itself,
  * since there's no `ChatRow` seam left to fall back to. */
 export function renderActivityTool(tool: ToolInvocation) {
-	const category = categoryOf(tool.toolName);
-	if (!category) {
-		return <ToolGroup tools={[tool]} />;
-	}
-	return <ActivityItem category={category} tool={tool} />;
+	return (
+		renderFromRegistry(bridgeToolRegistry, tool) ?? <ToolGroup tools={[tool]} />
+	);
 }

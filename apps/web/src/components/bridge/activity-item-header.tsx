@@ -1,14 +1,12 @@
 import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
+import { ToolStatusIcon } from "@better-agent/ui/components/chat/tool-status-icon";
 import { cn } from "@better-agent/ui/lib/utils";
 import {
-	CheckIcon,
 	ChevronRightIcon,
 	FileTextIcon,
-	Loader2Icon,
 	PencilIcon,
 	SearchIcon,
 	TerminalIcon,
-	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DiffLine } from "./activity-diff";
@@ -103,14 +101,26 @@ export function primaryLine(
 	};
 }
 
-function StatusIcon({ tool }: { tool: ToolInvocation }) {
+/** Same precedence the old local copy applied: a running call always shows
+ * the spinner; a settled call with `isError` shows the error glyph even on a
+ * nominally `complete` status. */
+function iconStatus(tool: ToolInvocation): ToolInvocation["status"] {
 	if (tool.status === "running") {
-		return <Loader2Icon className="size-3.5 animate-spin text-blue-500" />;
+		return "running";
 	}
-	if (tool.isError || tool.status === "error") {
-		return <XIcon className="size-3.5 text-destructive" />;
-	}
-	return <CheckIcon className="size-3.5 text-emerald-500" />;
+	return tool.isError ? "error" : tool.status;
+}
+
+/** Shared `ToolStatusIcon` skeleton (packages/ui), with the terminal's own
+ * accent colors kept as-is (blue spinner / emerald check vs the plain chat
+ * card's muted pair). */
+function StatusIcon({ tool }: { tool: ToolInvocation }) {
+	return (
+		<ToolStatusIcon
+			colors={{ complete: "text-emerald-500", running: "text-blue-500" }}
+			status={iconStatus(tool)}
+		/>
+	);
 }
 
 function DiffCounts({ lines }: { lines: DiffLine[] }) {

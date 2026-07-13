@@ -15,8 +15,8 @@ import { ChatComposer } from "./chat-composer";
 import {
 	type ChatAvatars,
 	ChatRow,
-	type RenderToolResult,
 	type SaveImageHandler,
+	type ToolRegistry,
 } from "./chat-row";
 import { RevealText } from "./reveal-text";
 import type { SkillPickerItem } from "./skill-picker";
@@ -43,13 +43,13 @@ function ChatScroller({
 	messages,
 	agentClient,
 	avatars,
-	renderToolResult,
+	toolRegistry,
 	onSaveImage,
 }: {
 	messages: ChatMessage[];
 	agentClient: AgentClient;
 	avatars?: ChatAvatars;
-	renderToolResult?: RenderToolResult;
+	toolRegistry?: ToolRegistry;
 	onSaveImage?: SaveImageHandler;
 }) {
 	return (
@@ -74,7 +74,7 @@ function ChatScroller({
 										avatars={avatars}
 										message={message}
 										onSaveImage={onSaveImage}
-										renderToolResult={renderToolResult}
+										toolRegistry={toolRegistry}
 									/>
 								</MessageScrollerItem>
 							))
@@ -117,7 +117,7 @@ export function Conversation({
 	initialText,
 	avatars,
 	composerTools,
-	renderToolResult,
+	toolRegistry,
 	onSaveImage,
 	skills,
 }: {
@@ -126,7 +126,9 @@ export function Conversation({
 	initialText?: string;
 	avatars?: ChatAvatars;
 	composerTools?: ReactNode;
-	renderToolResult?: RenderToolResult;
+	/** The app's rich tool-card registry — see `ChatRow`'s prop of the same
+	 * name. The web-agent chat passes `cloudToolRegistry`. */
+	toolRegistry?: ToolRegistry;
 	/** App-supplied "save as image" export — see `SaveImageHandler` in
 	 * `chat-row.tsx`. Omitted, the action doesn't render. */
 	onSaveImage?: SaveImageHandler;
@@ -144,7 +146,7 @@ export function Conversation({
 				avatars={avatars}
 				messages={messages}
 				onSaveImage={onSaveImage}
-				renderToolResult={renderToolResult}
+				toolRegistry={toolRegistry}
 			/>
 			<ChatComposer
 				agentClient={agentClient}

@@ -2,7 +2,8 @@
 import { fireEvent, render, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import type { ToolInvocation } from "./chat-blocks";
-import { type RenderToolResult, ToolGroup } from "./tool";
+import { ToolGroup } from "./tool";
+import type { ToolRegistry } from "./tool-registry";
 
 const PRETTY_PRINTED_ARGS = /"city": "berlin"/;
 
@@ -22,12 +23,9 @@ function baseTool(overrides: Partial<ToolInvocation>): ToolInvocation {
 // the global `screen`: this repo's vitest config doesn't enable test globals,
 // so @testing-library/react never auto-registers its afterEach(cleanup) and
 // DOM from earlier tests in this file would otherwise still be attached.
-function renderTools(
-	tools: ToolInvocation[],
-	renderToolResult?: RenderToolResult
-) {
+function renderTools(tools: ToolInvocation[], toolRegistry?: ToolRegistry) {
 	const { container } = render(
-		<ToolGroup renderToolResult={renderToolResult} tools={tools} />
+		<ToolGroup toolRegistry={toolRegistry} tools={tools} />
 	);
 	return { container, scope: within(container) };
 }
@@ -76,11 +74,21 @@ it("a running tool renders no Result section", () => {
 	expect(scope.queryByText("Result")).toBeNull();
 });
 
-it("a claiming renderToolResult replaces the plain block entirely", () => {
+it("a claiming registry entry replaces the plain block entirely", () => {
 	const tool = baseTool({ result: { temperature: "21C" } });
-	const { scope } = renderTools([tool], () => <p>rich weather view</p>);
+	const registry: ToolRegistry = [
+		{ match: () => true, render: () => <p>rich weather view</p> },
+	];
+	const { scope } = renderTools([tool], registry);
 	expect(scope.getByText("rich weather view")).toBeDefined();
 	// The raw disclosure (wrench + name + button) must not render alongside it.
 	expect(scope.queryByText("get_weather")).toBeNull();
 	expect(scope.queryByRole("button")).toBeNull();
+});
+
+it("a registry entry that declines (render → null) keeps the plain block", () => {
+	const tool = baseTool({ result: "sunny, mild" });
+	const registry: ToolRegistry = [{ match: () => true, render: () => null }];
+	const { scope } = renderTools([tool], registry);
+	expect(scope.getByText("get_weather")).toBeDefined();
 });

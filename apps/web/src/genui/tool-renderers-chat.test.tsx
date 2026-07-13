@@ -3,7 +3,7 @@ import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-block
 import { ToolGroup } from "@better-agent/ui/components/chat/tool";
 import { fireEvent, render, within } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { MAX_RENDERED_ITEMS, renderToolResult } from "./tool-renderers";
+import { cloudToolRegistry, MAX_RENDERED_ITEMS } from "./tool-renderers";
 
 const TWEET_FIXTURE = {
 	authorScreenName: "jack",
@@ -43,7 +43,7 @@ function baseTool(overrides: Partial<ToolInvocation>): ToolInvocation {
 // so DOM from earlier tests in this file would otherwise still be attached.
 function renderTool(tool: ToolInvocation) {
 	const { container } = render(
-		<ToolGroup renderToolResult={renderToolResult} tools={[tool]} />
+		<ToolGroup toolRegistry={cloudToolRegistry} tools={[tool]} />
 	);
 	return within(container);
 }

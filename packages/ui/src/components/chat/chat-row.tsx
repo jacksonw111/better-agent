@@ -25,21 +25,19 @@ import {
 } from "./assistant-actions-row";
 import { AttachmentImage } from "./attachment-image";
 import { type ChatBlock, type ChatMessage, messageText } from "./chat-blocks";
-import type { RenderTool, RenderToolResult } from "./tool";
 import { ToolGroup } from "./tool";
+import type { ToolRegistry } from "./tool-registry";
 
 export type { SaveImageHandler } from "./assistant-actions-row";
 
 function BlockView({
 	block,
 	streaming,
-	renderTool,
-	renderToolResult,
+	toolRegistry,
 }: {
 	block: ChatBlock;
 	streaming: boolean;
-	renderTool?: RenderTool;
-	renderToolResult?: RenderToolResult;
+	toolRegistry?: ToolRegistry;
 }) {
 	if (block.kind === "reasoning") {
 		return (
@@ -52,13 +50,7 @@ function BlockView({
 		);
 	}
 	if (block.kind === "tool") {
-		return (
-			<ToolGroup
-				renderTool={renderTool}
-				renderToolResult={renderToolResult}
-				tools={[block.tool]}
-			/>
-		);
+		return <ToolGroup toolRegistry={toolRegistry} tools={[block.tool]} />;
 	}
 	if (block.kind === "text") {
 		return <Response isAnimating={streaming}>{block.text}</Response>;
@@ -70,13 +62,11 @@ function BlockView({
 function AssistantContent({
 	message,
 	streaming,
-	renderTool,
-	renderToolResult,
+	toolRegistry,
 }: {
 	message: ChatMessage;
 	streaming: boolean;
-	renderTool?: RenderTool;
-	renderToolResult?: RenderToolResult;
+	toolRegistry?: ToolRegistry;
 }) {
 	return (
 		// Space the blocks apart so reasoning, tool calls, rendered genui cards,
@@ -87,9 +77,8 @@ function AssistantContent({
 					block={block}
 					// biome-ignore lint/suspicious/noArrayIndexKey: blocks are append-only and never reorder
 					key={`${index}-${block.kind}`}
-					renderTool={renderTool}
-					renderToolResult={renderToolResult}
 					streaming={streaming}
+					toolRegistry={toolRegistry}
 				/>
 			))}
 		</div>
@@ -108,13 +97,11 @@ function isThinking(message: ChatMessage): boolean {
 
 function AssistantBody({
 	message,
-	renderTool,
-	renderToolResult,
+	toolRegistry,
 	onSaveImage,
 }: {
 	message: ChatMessage;
-	renderTool?: RenderTool;
-	renderToolResult?: RenderToolResult;
+	toolRegistry?: ToolRegistry;
 	onSaveImage?: SaveImageHandler;
 }) {
 	const streaming = message.status === "streaming";
@@ -135,9 +122,8 @@ function AssistantBody({
 			<div ref={contentRef}>
 				<AssistantContent
 					message={message}
-					renderTool={renderTool}
-					renderToolResult={renderToolResult}
 					streaming={streaming}
+					toolRegistry={toolRegistry}
 				/>
 			</div>
 			{message.status === "stopped" ? (
@@ -244,15 +230,17 @@ export function ChatRow({
 	message,
 	agentClient,
 	avatars,
-	renderTool,
-	renderToolResult,
+	toolRegistry,
 	onSaveImage,
 }: {
 	message: ChatMessage;
 	agentClient?: AgentClient;
 	avatars?: ChatAvatars;
-	renderTool?: RenderTool;
-	renderToolResult?: RenderToolResult;
+	/** The app's rich tool-card registry (P1-T1's single seam) — cloud passes
+	 * `cloudToolRegistry` (genui result cards), the local terminal passes
+	 * `bridgeToolRegistry` (terminal-style ActivityItems). Unset or unclaimed,
+	 * tools keep the default plain collapsible block. */
+	toolRegistry?: ToolRegistry;
 	onSaveImage?: SaveImageHandler;
 }) {
 	if (message.role === "user") {
@@ -269,8 +257,7 @@ export function ChatRow({
 						<AssistantBody
 							message={message}
 							onSaveImage={onSaveImage}
-							renderTool={renderTool}
-							renderToolResult={renderToolResult}
+							toolRegistry={toolRegistry}
 						/>
 					</BubbleContent>
 				</Bubble>
@@ -279,4 +266,4 @@ export function ChatRow({
 	);
 }
 
-export type { RenderTool, RenderToolResult } from "./tool";
+export type { ToolRegistry, ToolRegistryEntry } from "./tool-registry";

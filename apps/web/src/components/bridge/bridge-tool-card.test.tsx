@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
+import { renderFromRegistry } from "@better-agent/ui/components/chat/tool-registry";
 import { fireEvent, render, within } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { renderBridgeTool } from "./bridge-tool-card";
+import { bridgeToolRegistry } from "./bridge-tool-card";
 
 function tool(partial: Partial<ToolInvocation>): ToolInvocation {
 	return {
@@ -13,6 +14,12 @@ function tool(partial: Partial<ToolInvocation>): ToolInvocation {
 		status: "complete",
 		...partial,
 	};
+}
+
+/** The `ChatRow`-seam dispatch: the bridge registry claims categorized
+ * tools, and an uncategorized one comes back null (default card). */
+function renderBridgeTool(t: ToolInvocation) {
+	return renderFromRegistry(bridgeToolRegistry, t);
 }
 
 function renderTool(t: ToolInvocation) {
