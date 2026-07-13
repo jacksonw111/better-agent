@@ -25,11 +25,14 @@ const BRIDGE_TOKEN_PREFIX = "bt_";
 
 function extractBearerToken(options: CreateContextOptions): string | null {
 	const header = options.context.req.header("authorization");
-	if (!header?.startsWith(BEARER_PREFIX)) {
-		return null;
+	if (header?.startsWith(BEARER_PREFIX)) {
+		const token = header.slice(BEARER_PREFIX.length).trim();
+		return token === "" ? null : token;
 	}
-	const token = header.slice(BEARER_PREFIX.length).trim();
-	return token === "" ? null : token;
+	// Native WebSocket/EventSource upgrades (e.g. the VNC viewer) can't set an
+	// Authorization header, so those clients pass the bearer via ?access_token=.
+	const query = options.context.req.query("access_token")?.trim();
+	return query ? query : null;
 }
 
 function looksLikeJwt(token: string): boolean {

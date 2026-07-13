@@ -10,11 +10,13 @@ import { expect, it } from "vitest";
 import { createContext } from "./context";
 import type { AgentServices } from "./services";
 
-function fakeHono(authHeader?: string) {
+function fakeHono(authHeader?: string, accessToken?: string) {
 	return {
 		req: {
 			header: (name: string) =>
 				name.toLowerCase() === "authorization" ? authHeader : undefined,
+			query: (name: string) =>
+				name === "access_token" ? accessToken : undefined,
 		},
 	} as never;
 }
@@ -55,6 +57,15 @@ it("authedAgent is null with no header", async () => {
 	const { services } = await setup();
 	const ctx = await createContext({ context: fakeHono(undefined), services });
 	expect(ctx.authedAgent).toBeNull();
+});
+
+it("falls back to the ?access_token= query when there's no header", async () => {
+	const { services, token, agentId } = await setup();
+	const ctx = await createContext({
+		context: fakeHono(undefined, token),
+		services,
+	});
+	expect(ctx.authedAgent?.id).toBe(agentId);
 });
 
 it("authedAgent is null for an unknown token", async () => {

@@ -21,5 +21,11 @@ declare module "@novnc/novnc" {
 		resizeSession: boolean;
 		background: string;
 		disconnect(): void;
+		/** Answer a `credentialsrequired` event (RFB VNC auth). */
+		sendCredentials(credentials: {
+			password?: string;
+			target?: string;
+			username?: string;
+		}): void;
 	}
 }
