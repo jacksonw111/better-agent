@@ -1,9 +1,13 @@
-import { Badge } from "@better-agent/ui/components/badge";
 import { PdfLink } from "@/components/pdf/pdf-link";
 import { MAX_RENDERED_ITEMS } from "../tool-renderers";
 import type { ReportData } from "./finance-schemas-fe8";
-import { formatDate } from "./format";
-import { CardShell } from "./primitives";
+import { FeedMoreFooter, NewsFeed } from "./news-feed";
+import type { FeedItem, NewsFeedFilter } from "./news-feed-types";
+
+// finance_list_reports → 定期报告, rendered through the shared `NewsFeed`
+// archetype (design doc §8.10). No free-text body exists to expand into —
+// the report-type tag is the row's `badge`, and `PdfLink` is always-visible
+// `meta` content.
 
 const REPORT_TYPE_LABEL: Record<string, string> = {
 	annual: "年报",
@@ -12,36 +16,45 @@ const REPORT_TYPE_LABEL: Record<string, string> = {
 	q3: "三季报",
 };
 
-function ReportTypeBadge({ reportType }: { reportType: string }) {
-	const label = REPORT_TYPE_LABEL[reportType] ?? (reportType || "—");
-	return <Badge variant="outline">{label}</Badge>;
+function reportTypeLabel(reportType: string): string {
+	return REPORT_TYPE_LABEL[reportType] ?? (reportType || "—");
 }
 
-function ReportRow({ item }: { item: ReportData }) {
-	return (
-		<div className="flex flex-col gap-1 pb-2 last:pb-0">
-			<div className="flex items-start justify-between gap-2">
-				<span
-					className="min-w-0 flex-1 truncate font-medium text-sm"
-					title={item.title}
-				>
-					{item.title || "—"}
-				</span>
-				<ReportTypeBadge reportType={item.reportType} />
-			</div>
-			<div className="flex items-center gap-2 text-muted-foreground text-xs">
-				<span>{formatDate(item.noticeDate)}</span>
-				{item.pdfUrl ? (
-					<PdfLink label="PDF" pdfUrl={item.pdfUrl} title={item.title} />
-				) : null}
-			</div>
-		</div>
-	);
+function toFeedItem(item: ReportData): FeedItem {
+	return {
+		badge: reportTypeLabel(item.reportType),
+		id: item.artCode,
+		meta: item.pdfUrl ? (
+			<PdfLink label="PDF" pdfUrl={item.pdfUrl} title={item.title} />
+		) : undefined,
+		time: item.noticeDate,
+		title: item.title,
+	};
+}
+
+/** Filters by 报告类型 (annual/H1/Q1/Q3) — the row's `badge` field doubles as
+ * the filter predicate's match target since both are derived from the same
+ * label lookup. */
+function typeFilters(items: ReportData[]): NewsFeedFilter[] {
+	const types = new Set<string>();
+	for (const item of items) {
+		if (item.reportType) {
+			types.add(item.reportType);
+		}
+	}
+	return [...types].map((reportType) => {
+		const label = reportTypeLabel(reportType);
+		return {
+			id: reportType,
+			label,
+			predicate: (feedItem) => feedItem.badge === label,
+		};
+	});
 }
 
 /** finance_list_reports → 定期报告 (annual / H1 / Q1 / Q3), newest
- * `noticeDate` first (the tool already returns rows in that order), capped
- * at MAX_RENDERED_ITEMS. */
+ * `noticeDate` first (NewsFeed's default time Sort), capped at
+ * MAX_RENDERED_ITEMS. */
 export function ReportsList({ data }: { data: ReportData[] }) {
 	if (data.length === 0) {
 		return null;
@@ -49,15 +62,11 @@ export function ReportsList({ data }: { data: ReportData[] }) {
 	const visible = data.slice(0, MAX_RENDERED_ITEMS);
 	const hiddenCount = data.length - visible.length;
 	return (
-		<CardShell title="定期报告">
-			<div className="flex flex-col gap-2">
-				{visible.map((item) => (
-					<ReportRow item={item} key={item.artCode} />
-				))}
-			</div>
-			{hiddenCount > 0 ? (
-				<p className="text-muted-foreground text-xs">+{hiddenCount} more</p>
-			) : null}
-		</CardShell>
+		<NewsFeed
+			filters={typeFilters(visible)}
+			footer={hiddenCount > 0 ? <FeedMoreFooter count={hiddenCount} /> : null}
+			items={visible.map(toFeedItem)}
+			title="定期报告"
+		/>
 	);
 }
