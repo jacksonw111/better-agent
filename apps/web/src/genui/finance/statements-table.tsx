@@ -1,191 +1,86 @@
+"use client";
+
+import { DataTable } from "./data-table";
+import type { DataTableColumn, DataTablePeriod } from "./data-table-types";
 import type { StatementRowData } from "./finance-schemas";
-import { formatCompact, formatDate, formatRatio } from "./format";
-import { FinTable, type FinTableColumn } from "./primitives";
+import { StatGrid, type StatGridItem } from "./primitives";
+import {
+	detectStatementKind,
+	STATEMENT_TITLES,
+	statementColumns,
+} from "./statements-columns";
 
-type StatementKind = "income" | "balance" | "cashflow";
+// Phase 1 Task 2 — the `financial_statements` flagship DataTable (design doc
+// §8.1's worked example): reportDate rows × income/balance/cashflow metric
+// columns, Pivot-able to a multi-metric line chart, Period-able to 年报/季报.
+// This is the exemplar the remaining 11 DataTable tools (§9) copy — keep the
+// shape (kind-detection → column set → DataTable props) obvious.
 
-const INCOME_KEYS = [
-	"revenue",
-	"operatingCost",
-	"operatingProfit",
-	"totalProfit",
-	"netProfit",
-	"netProfitDeducted",
-] as const;
+/** A reportDate ending 12-31 is the annual report; anything else (03-31,
+ * 06-30, 09-30, …) is a quarterly one. This is the standard A-share reporting
+ * calendar convention, not a payload-declared field, so it's derived rather
+ * than trusted from a discriminator — reliable enough to filter on. */
+const ANNUAL_REPORT_SUFFIX = "-12-31";
+const ALL_PERIOD_ID = "all";
 
-const BALANCE_KEYS = [
-	"totalAssets",
-	"totalLiabilities",
-	"totalEquity",
-	"cash",
-	"debtRatio",
-] as const;
+const STATEMENT_PERIODS: DataTablePeriod<StatementRowData>[] = [
+	{ id: ALL_PERIOD_ID, label: "全部", predicate: () => true },
+	{
+		id: "annual",
+		label: "年报",
+		predicate: (row) => row.reportDate.endsWith(ANNUAL_REPORT_SUFFIX),
+	},
+	{
+		id: "quarter",
+		label: "季报",
+		predicate: (row) => !row.reportDate.endsWith(ANNUAL_REPORT_SUFFIX),
+	},
+];
 
-const CASHFLOW_KEYS = [
-	"operatingCashflow",
-	"investingCashflow",
-	"financingCashflow",
-	"netCashChange",
-] as const;
-
-function countNonNull(
-	rows: StatementRowData[],
-	keys: readonly (keyof StatementRowData)[]
-): number {
-	let count = 0;
-	for (const row of rows) {
-		for (const key of keys) {
-			if (row[key] !== null) {
-				count += 1;
-			}
+/** Expand (§3): every non-null metric field for the single reporting period
+ * the user drilled into, rendered with the same formatter as its column. */
+function expandedFields(
+	columns: DataTableColumn<StatementRowData>[],
+	row: StatementRowData
+): StatGridItem[] {
+	const items: StatGridItem[] = [];
+	for (const col of columns) {
+		if (!(col.isMetric && col.value)) {
+			continue;
 		}
+		const raw = col.value(row);
+		if (raw === null) {
+			continue;
+		}
+		items.push({ label: col.label, value: col.render?.(row) ?? raw });
 	}
-	return count;
+	return items;
 }
 
-/** A StatementRow only ever carries the numeric keys for its own
- * statement=income|balance|cashflow request (see StatementRow's index
- * signature) — every other field is nullable in the schema, so the actual
- * shape is detected by which key group has data, not by a discriminator
- * field. Ties fall back to "income", the default statement. */
-function detectStatementKind(rows: StatementRowData[]): StatementKind {
-	const balanceCount = countNonNull(rows, BALANCE_KEYS);
-	const cashflowCount = countNonNull(rows, CASHFLOW_KEYS);
-	const incomeCount = countNonNull(rows, INCOME_KEYS);
-	if (balanceCount > incomeCount && balanceCount > cashflowCount) {
-		return "balance";
-	}
-	if (cashflowCount > incomeCount && cashflowCount > balanceCount) {
-		return "cashflow";
-	}
-	return "income";
-}
-
-const REPORT_DATE_COLUMN: FinTableColumn<StatementRowData> = {
-	key: "reportDate",
-	label: "报告期",
-	render: (row) => formatDate(row.reportDate),
-};
-
-const STATEMENT_COLUMNS: Record<
-	StatementKind,
-	FinTableColumn<StatementRowData>[]
-> = {
-	balance: [
-		REPORT_DATE_COLUMN,
-		{
-			align: "right",
-			key: "totalAssets",
-			label: "总资产",
-			render: (row) => formatCompact(row.totalAssets),
-		},
-		{
-			align: "right",
-			key: "totalLiabilities",
-			label: "总负债",
-			render: (row) => formatCompact(row.totalLiabilities),
-		},
-		{
-			align: "right",
-			key: "totalEquity",
-			label: "股东权益",
-			render: (row) => formatCompact(row.totalEquity),
-		},
-		{
-			align: "right",
-			key: "cash",
-			label: "货币资金",
-			render: (row) => formatCompact(row.cash),
-		},
-		{
-			align: "right",
-			key: "debtRatio",
-			label: "资产负债率",
-			render: (row) => formatRatio(row.debtRatio),
-		},
-	],
-	cashflow: [
-		REPORT_DATE_COLUMN,
-		{
-			align: "right",
-			key: "operatingCashflow",
-			label: "经营活动现金流",
-			render: (row) => formatCompact(row.operatingCashflow),
-		},
-		{
-			align: "right",
-			key: "investingCashflow",
-			label: "投资活动现金流",
-			render: (row) => formatCompact(row.investingCashflow),
-		},
-		{
-			align: "right",
-			key: "financingCashflow",
-			label: "筹资活动现金流",
-			render: (row) => formatCompact(row.financingCashflow),
-		},
-		{
-			align: "right",
-			key: "netCashChange",
-			label: "现金净增加额",
-			render: (row) => formatCompact(row.netCashChange),
-		},
-	],
-	income: [
-		REPORT_DATE_COLUMN,
-		{
-			align: "right",
-			key: "revenue",
-			label: "营业收入",
-			render: (row) => formatCompact(row.revenue),
-		},
-		{
-			align: "right",
-			key: "operatingCost",
-			label: "营业成本",
-			render: (row) => formatCompact(row.operatingCost),
-		},
-		{
-			align: "right",
-			key: "operatingProfit",
-			label: "营业利润",
-			render: (row) => formatCompact(row.operatingProfit),
-		},
-		{
-			align: "right",
-			key: "totalProfit",
-			label: "利润总额",
-			render: (row) => formatCompact(row.totalProfit),
-		},
-		{
-			align: "right",
-			key: "netProfit",
-			label: "归母净利润",
-			render: (row) => formatCompact(row.netProfit),
-		},
-		{
-			align: "right",
-			key: "netProfitDeducted",
-			label: "扣非净利润",
-			render: (row) => formatCompact(row.netProfitDeducted),
-		},
-	],
-};
-
-/** finance_financial_statements → one FinTable row per reporting period,
- * newest first (the tool already returns rows in that order). Column set is
- * picked from the detected income/balance/cashflow kind since the result
- * doesn't carry an explicit statement-type field. */
+/** finance_financial_statements → one DataTable row per reporting period.
+ * Column set (income/balance/cashflow) is picked from the detected kind since
+ * the payload carries no explicit statement-type field (see
+ * statements-columns.ts). Rows arrive newest-first; DataTable itself handles
+ * chronological reversal for the chart Pivot, so this never pre-sorts. */
 export function StatementsTable({ data }: { data: StatementRowData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
-	const columns = STATEMENT_COLUMNS[detectStatementKind(data)];
+	const kind = detectStatementKind(data);
+	const columns = statementColumns(kind);
 	return (
-		<FinTable
+		<DataTable<StatementRowData>
+			categoryKey="reportDate"
+			chartKind="line"
 			columns={columns}
 			getRowKey={(row) => row.reportDate}
+			periods={STATEMENT_PERIODS}
+			renderExpanded={(row) => (
+				<StatGrid cols={2} items={expandedFields(columns, row)} />
+			)}
 			rows={data}
+			subtitle={`${data.length} 期`}
+			title={STATEMENT_TITLES[kind]}
 		/>
 	);
 }
