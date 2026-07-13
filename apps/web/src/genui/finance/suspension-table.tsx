@@ -1,40 +1,18 @@
+"use client";
+
+import { DataTable } from "./data-table";
 import type { SuspensionRowData } from "./finance-schemas-fe15";
 import { formatDate } from "./format";
-import { CardShell, FinTable, type FinTableColumn } from "./primitives";
+import { StatGrid } from "./primitives";
+import {
+	suspensionColumns,
+	suspensionExpandedItems,
+} from "./suspension-columns";
 
-const SUSPENSION_COLUMNS: FinTableColumn<SuspensionRowData>[] = [
-	{ key: "name", label: "名称", render: (row) => row.name || row.code || "—" },
-	{ key: "code", label: "代码", render: (row) => row.code || "—" },
-	{
-		key: "suspendStart",
-		label: "停牌起",
-		render: (row) => formatDate(row.suspendStart),
-	},
-	{
-		key: "suspendEnd",
-		label: "复牌",
-		render: (row) => (row.suspendEnd ? formatDate(row.suspendEnd) : "—"),
-	},
-	{
-		key: "expire",
-		label: "期限",
-		render: (row) => row.expire || "—",
-	},
-	{
-		key: "reason",
-		label: "原因",
-		render: (row) => (
-			<span className="line-clamp-2 max-w-56" title={row.reason ?? undefined}>
-				{row.reason || "—"}
-			</span>
-		),
-	},
-	{
-		key: "predictResume",
-		label: "预计复牌",
-		render: (row) => (row.predictResume ? formatDate(row.predictResume) : "—"),
-	},
-];
+// Phase 1 Batch B3 — `suspension` on the `DataTable` primitive (design doc
+// §9): one row per 停复牌 event, categoryKey `suspendStart`. See
+// suspension-columns.tsx for the isMetric/filters judgment calls. Copies
+// statements-table.tsx's shape otherwise.
 
 /** finance_suspension → 停复牌, newest `suspendStart` first (the tool already
  * returns rows in that order). */
@@ -42,13 +20,19 @@ export function SuspensionTable({ data }: { data: SuspensionRowData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
+	const columns = suspensionColumns();
 	return (
-		<CardShell title="停复牌">
-			<FinTable
-				columns={SUSPENSION_COLUMNS}
-				getRowKey={(row, index) => `${row.code}-${row.suspendStart}-${index}`}
-				rows={data}
-			/>
-		</CardShell>
+		<DataTable<SuspensionRowData>
+			categoryFormat={formatDate}
+			categoryKey="suspendStart"
+			columns={columns}
+			getRowKey={(row, index) => `${row.code}-${row.suspendStart}-${index}`}
+			renderExpanded={(row) => (
+				<StatGrid cols={2} items={suspensionExpandedItems(columns, row)} />
+			)}
+			rows={data}
+			subtitle={`${data.length} 笔`}
+			title="停复牌"
+		/>
 	);
 }

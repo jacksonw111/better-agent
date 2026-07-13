@@ -1,39 +1,18 @@
-import { Badge } from "@better-agent/ui/components/badge";
-import type { ConvertibleBondRowData } from "./finance-schemas-fe13";
-import { formatCompact, formatDate } from "./format";
-import { CardShell, FinTable, type FinTableColumn } from "./primitives";
+"use client";
 
-const CONVERTIBLE_BOND_COLUMNS: FinTableColumn<ConvertibleBondRowData>[] = [
-	{ key: "code", label: "债券代码", render: (row) => row.code || "—" },
-	{ key: "name", label: "债券名称", render: (row) => row.name || "—" },
-	{
-		key: "stockCode",
-		label: "正股代码",
-		render: (row) => row.stockCode || "—",
-	},
-	{
-		key: "rating",
-		label: "评级",
-		render: (row) =>
-			row.rating ? <Badge variant="outline">{row.rating}</Badge> : "—",
-	},
-	{
-		key: "listingDate",
-		label: "上市日",
-		render: (row) => formatDate(row.listingDate),
-	},
-	{
-		key: "expireDate",
-		label: "到期日",
-		render: (row) => formatDate(row.expireDate),
-	},
-	{
-		align: "right",
-		key: "issueScale",
-		label: "发行规模",
-		render: (row) => formatCompact(row.issueScale, { cny: true }),
-	},
-];
+import {
+	bondExpandedItems,
+	convertibleBondColumns,
+} from "./convertible-bonds-columns";
+import { DataTable } from "./data-table";
+import type { ConvertibleBondRowData } from "./finance-schemas-fe13";
+import { StatGrid } from "./primitives";
+
+// Phase 1 Batch B3 — `convertible_bonds` on the `DataTable` primitive (design
+// doc §9): a bond-registry-flavored table, one row per convertible bond,
+// leading with `code` (not a date/period) as the pre-DataTable component did
+// — see convertible-bonds-columns.tsx for the isMetric/expand reasoning this
+// drives. Copies statements-table.tsx's shape otherwise.
 
 /** finance_convertible_bonds → 可转债, newest `listingDate` first (the tool
  * already returns rows in that order). */
@@ -45,13 +24,17 @@ export function ConvertibleBondsTable({
 	if (data.length === 0) {
 		return null;
 	}
+	const columns = convertibleBondColumns();
 	return (
-		<CardShell title="可转债">
-			<FinTable
-				columns={CONVERTIBLE_BOND_COLUMNS}
-				getRowKey={(row, index) => `${row.code}-${index}`}
-				rows={data}
-			/>
-		</CardShell>
+		<DataTable<ConvertibleBondRowData>
+			categoryKey="code"
+			columns={columns}
+			getRowKey={(row, index) => `${row.code}-${index}`}
+			renderExpanded={(row) => (
+				<StatGrid cols={2} items={bondExpandedItems(columns, row)} />
+			)}
+			rows={data}
+			title="可转债"
+		/>
 	);
 }
