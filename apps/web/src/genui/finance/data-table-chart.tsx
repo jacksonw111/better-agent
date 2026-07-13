@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
 	Bar,
 	BarChart,
@@ -61,9 +62,11 @@ function toChartData<T>(
 }
 
 function SeriesMarks({
+	isAnimationActive,
 	kind,
 	series,
 }: {
+	isAnimationActive: boolean;
 	kind: DataTableChartKind;
 	series: ChartSeries[];
 }) {
@@ -71,7 +74,13 @@ function SeriesMarks({
 		return (
 			<>
 				{series.map((s) => (
-					<Bar dataKey={s.key} fill={s.color} key={s.key} name={s.label} />
+					<Bar
+						dataKey={s.key}
+						fill={s.color}
+						isAnimationActive={isAnimationActive}
+						key={s.key}
+						name={s.label}
+					/>
 				))}
 			</>
 		);
@@ -82,6 +91,7 @@ function SeriesMarks({
 				<Line
 					dataKey={s.key}
 					dot={false}
+					isAnimationActive={isAnimationActive}
 					key={s.key}
 					name={s.label}
 					stroke={s.color}
@@ -95,10 +105,12 @@ function SeriesMarks({
 
 function ChartInner({
 	data,
+	isAnimationActive,
 	kind,
 	series,
 }: {
 	data: Record<string, number | string | null>[];
+	isAnimationActive: boolean;
 	kind: DataTableChartKind;
 	series: ChartSeries[];
 }) {
@@ -118,23 +130,46 @@ function ChartInner({
 					cursor={rechartsCursorProps}
 					formatter={(value) => formatCompact(Number(value))}
 				/>
-				<SeriesMarks kind={kind} series={series} />
+				<SeriesMarks
+					isAnimationActive={isAnimationActive}
+					kind={kind}
+					series={series}
+				/>
 			</ChartRoot>
 		</ResponsiveContainer>
 	);
+}
+
+/** Guardrail 1 (§6): the draw-in animation must fire only when the chart
+ * view is (re-)entered — first mount or a Pivot toggle back into chart —
+ * never on a data re-slice (filter/period/series change) while already in
+ * chart view. `ViewSwitch` keys its wrapper by Pivot `view`, so this
+ * component remounts (and `hasAnimated` resets to false) on every chart-view
+ * entry; a data-only re-render leaves the existing mount — and `hasAnimated`
+ * — untouched, so recharts is told to skip the replay. */
+function useHasAnimated(): boolean {
+	const [hasAnimated, setHasAnimated] = useState(false);
+	useEffect(() => {
+		setHasAnimated(true);
+	}, []);
+	return hasAnimated;
 }
 
 export function DataTableChart<T>({
 	categoryKey,
 	chartKind,
 	metrics,
+	reduced,
 	rows,
 }: {
 	categoryKey: string;
 	chartKind: DataTableChartKind;
 	metrics: (DataTableColumn<T> & { color: string })[];
+	reduced: boolean;
 	rows: T[];
 }) {
+	const hasAnimated = useHasAnimated();
+	const isAnimationActive = !(hasAnimated || reduced);
 	const series: ChartSeries[] = metrics.map((m) => ({
 		color: m.color,
 		key: m.key,
@@ -145,7 +180,12 @@ export function DataTableChart<T>({
 	return (
 		<div aria-label={CHART_ACCESSIBLE_LABEL} role="img">
 			<ChartFrame empty={empty}>
-				<ChartInner data={data} kind={chartKind} series={series} />
+				<ChartInner
+					data={data}
+					isAnimationActive={isAnimationActive}
+					kind={chartKind}
+					series={series}
+				/>
 			</ChartFrame>
 		</div>
 	);

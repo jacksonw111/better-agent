@@ -100,8 +100,55 @@ const RAMP_SATURATION_PCT = 70;
 const RAMP_LIGHTNESS_DEEPEST_PCT = 32; // largest-magnitude series (超大单)
 const RAMP_LIGHTNESS_LIGHTEST_PCT = 78; // smallest-magnitude series (小单)
 
+const HEX_RADIX = 16;
+const HEX_BYTE_LEN = 2;
+const RGB_MAX = 255;
+const HUE_SEGMENT_DEG = 60;
+const HUE_FULL_CIRCLE_DEG = 360;
+const HUE_SEGMENT_COUNT = 6;
+
+/** HSL → `#rrggbb`, so the ramp can feed the same hex-alpha-concat convention
+ * (`${color}1a`) used by VerdictPill/ProportionBar — `Chip`'s active tint
+ * concatenates an 8-digit hex alpha suffix onto `tone`, which only produces
+ * valid CSS when `tone` is already hex, not `hsl(...)`. */
+function hslToHex(
+	hueDeg: number,
+	saturationPct: number,
+	lightnessPct: number
+): string {
+	const s = saturationPct / 100;
+	const l = lightnessPct / 100;
+	const c = (1 - Math.abs(2 * l - 1)) * s;
+	const hPrime =
+		(((hueDeg % HUE_FULL_CIRCLE_DEG) + HUE_FULL_CIRCLE_DEG) %
+			HUE_FULL_CIRCLE_DEG) /
+		HUE_SEGMENT_DEG;
+	const x = c * (1 - Math.abs((hPrime % 2) - 1));
+	const m = l - c / 2;
+	let [r1, g1, b1] = [0, 0, 0];
+	const segment = Math.floor(hPrime) % HUE_SEGMENT_COUNT;
+	if (segment === 0) {
+		[r1, g1, b1] = [c, x, 0];
+	} else if (segment === 1) {
+		[r1, g1, b1] = [x, c, 0];
+	} else if (segment === 2) {
+		[r1, g1, b1] = [0, c, x];
+	} else if (segment === 3) {
+		[r1, g1, b1] = [0, x, c];
+	} else if (segment === 4) {
+		[r1, g1, b1] = [x, 0, c];
+	} else {
+		[r1, g1, b1] = [c, 0, x];
+	}
+	const toHexByte = (channel: number) =>
+		Math.round((channel + m) * RGB_MAX)
+			.toString(HEX_RADIX)
+			.padStart(HEX_BYTE_LEN, "0");
+	return `#${toHexByte(r1)}${toHexByte(g1)}${toHexByte(b1)}`;
+}
+
 function rampColor(lightnessPct: number): string {
-	return `hsl(${RAMP_HUE} ${RAMP_SATURATION_PCT}% ${lightnessPct}%)`;
+	return hslToHex(RAMP_HUE, RAMP_SATURATION_PCT, lightnessPct);
 }
 
 /** N shades of one hue, deep → light, for a "composition" grouped bar chart

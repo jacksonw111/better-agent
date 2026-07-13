@@ -80,3 +80,22 @@ it("never mutates the input array", () => {
 	act(() => result.current.toggleSort("value"));
 	expect(ROWS).toEqual(original);
 });
+
+it("sorts by a per-key accessor instead of row[key] when one is provided, nulls last", () => {
+	// A derived/metric column keyed "doubled" has no such row field — only
+	// an accessor deriving it from `value`. Without the accessor wired up,
+	// sorting on "doubled" would read the missing `row.doubled` and silently
+	// no-op (Fix #3).
+	const doubledKey = "doubled" as keyof Row;
+	const accessors: Partial<Record<keyof Row, (row: Row) => number | null>> = {
+		[doubledKey]: (row: Row) => (row.value == null ? null : row.value * 2),
+	};
+	const { result } = renderHook(() =>
+		useSort<Row>(ROWS, { accessors, initialKey: doubledKey })
+	);
+	const values = result.current.sorted.map((row) => row.value);
+	// desc by doubled(value): 10, 3, 3, then nulls/NaN/undefined last.
+	expect(values.slice(0, 3)).toEqual([10, 3, 3]);
+	const lastIds = result.current.sorted.slice(-3).map((row) => row.id);
+	expect(lastIds.sort()).toEqual(["c", "d", "f"]);
+});

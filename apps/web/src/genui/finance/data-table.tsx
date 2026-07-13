@@ -60,6 +60,24 @@ function buildMetricColors<T>(
 	return metrics.map((col, index) => ({ ...col, color: ramp[index] }));
 }
 
+/** Fix #3 (§8.1): a metric/derived column's numeric `value` accessor doubles
+ * as its sort accessor, so a column whose `key` doesn't name a real row field
+ * (e.g. `key: "foo", value: (r) => r.bar`) still sorts correctly instead of
+ * silently no-op'ing on the missing `row.foo`. */
+function buildSortAccessors<T>(
+	columns: DataTableColumn<T>[]
+): Partial<Record<keyof T, (row: T) => number | string | null>> {
+	const accessors: Partial<
+		Record<keyof T, (row: T) => number | string | null>
+	> = {};
+	for (const col of columns) {
+		if (col.value) {
+			accessors[col.key as keyof T] = col.value;
+		}
+	}
+	return accessors;
+}
+
 /** The fully-derived interaction state the DataTable hooks produce, bundled so
  * the `DataTable` component body stays under the line cap and DataTableBody can
  * fan it out into the strip/view prop shapes. */
@@ -138,6 +156,15 @@ export function DataTable<T>(props: DataTableProps<T>) {
 		[props.columns]
 	);
 	const filterMode = props.filterMode ?? "single";
+	// Fix #4: a fresh `[]` on every render (when `props.filters` is omitted)
+	// defeats `useFilter`'s `useMemo` dep check, cascading into `useSort`'s
+	// input (`filter.filtered`) also changing identity every render.
+	const filters = useMemo(() => props.filters ?? [], [props.filters]);
+	const sortAccessors = useMemo(
+		() => buildSortAccessors(props.columns),
+		[props.columns]
+	);
+	const seriesIds = useMemo(() => metrics.map((m) => m.key), [metrics]);
 
 	const periodIds = (props.periods ?? []).map((p) => p.id);
 	const period = usePeriod(periodIds.length ? periodIds : [FALLBACK_PERIOD_ID]);
@@ -146,11 +173,13 @@ export function DataTable<T>(props: DataTableProps<T>) {
 		return active ? props.rows.filter(active.predicate) : props.rows;
 	}, [props.rows, props.periods, period.period]);
 
-	const filter = useFilter(periodRows, props.filters ?? [], {
-		mode: filterMode,
-	});
-	const sort = useSort(filter.filtered);
-	const series = useSeriesSelect(metrics.map((m) => m.key));
+	const filter = useFilter(periodRows, filters, { mode: filterMode });
+	const sort = useSort(filter.filtered, { accessors: sortAccessors });
+	const series = useSeriesSelect(seriesIds);
+	const selectedMetrics = useMemo(
+		() => metrics.filter((m) => series.selected.includes(m.key)),
+		[metrics, series.selected]
+	);
 	const pivot = usePivot({ initial: initialView(props.defaultView, metrics) });
 	const expand = useExpand({ mode: "single" });
 
@@ -163,7 +192,7 @@ export function DataTable<T>(props: DataTableProps<T>) {
 		period,
 		pivot,
 		reduced,
-		selectedMetrics: metrics.filter((m) => series.isSelected(m.key)),
+		selectedMetrics,
 		series,
 		sort,
 	};

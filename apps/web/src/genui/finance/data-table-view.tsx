@@ -77,6 +77,7 @@ export function ViewSwitch<T>(props: ViewProps<T>) {
 					categoryKey={props.categoryKey}
 					chartKind={props.chartKind ?? "line"}
 					metrics={props.selectedMetrics}
+					reduced={props.reduced}
 					rows={props.filteredRows}
 				/>
 			) : (

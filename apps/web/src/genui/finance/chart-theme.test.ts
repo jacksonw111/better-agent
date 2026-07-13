@@ -18,8 +18,19 @@ import {
 } from "./format";
 
 const COMPOSITION_SERIES_COUNT = 4; // money_flow's 超大/大/中/小单
-const RAMP_HUE_RE = /^hsl\(217 /;
-const LIGHTNESS_RE = /(\d+(?:\.\d+)?)%\)$/;
+// Hex so `Chip`'s `${tone}${alpha}` hex-alpha-concat tint (matching
+// VerdictPill/ProportionBar) produces valid CSS instead of `hsl(...)26`.
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/;
+
+/** Approximate relative luminance from a hex color, standing in for HSL
+ * lightness now that the ramp emits hex — still strictly ascending
+ * deep→light across the ramp. */
+function luminanceOf(hex: string): number {
+	const r = Number.parseInt(hex.slice(1, 3), 16);
+	const g = Number.parseInt(hex.slice(3, 5), 16);
+	const b = Number.parseInt(hex.slice(5, 7), 16);
+	return 0.299 * r + 0.587 * g + 0.114 * b;
+}
 
 it("re-exports the price axis from format.ts by identity, never redeclaring it", () => {
 	expect(UP_COLOR).toBe(FORMAT_UP_COLOR);
@@ -42,24 +53,20 @@ it("has the specified verdict semantic colors", () => {
 	expect(VERDICT_BOTTOM_DIVERGENCE).toBe("#3b82f6");
 });
 
-it("compositionHueRamp returns N distinct shades of one hue for N composition series", () => {
+it("compositionHueRamp returns N distinct hex shades of one hue for N composition series", () => {
 	const shades = compositionHueRamp(COMPOSITION_SERIES_COUNT);
 	expect(shades).toHaveLength(COMPOSITION_SERIES_COUNT);
 	expect(new Set(shades).size).toBe(COMPOSITION_SERIES_COUNT);
 	for (const shade of shades) {
-		expect(shade).toMatch(RAMP_HUE_RE);
+		expect(shade).toMatch(HEX_COLOR_RE);
 	}
 });
 
-it("compositionHueRamp goes deep to light (ascending lightness)", () => {
+it("compositionHueRamp goes deep to light (ascending luminance)", () => {
 	const shades = compositionHueRamp(COMPOSITION_SERIES_COUNT);
-	const lightnessOf = (shade: string) => {
-		const match = shade.match(LIGHTNESS_RE);
-		return match ? Number(match[1]) : Number.NaN;
-	};
-	const lightnesses = shades.map(lightnessOf);
-	for (let i = 1; i < lightnesses.length; i++) {
-		expect(lightnesses[i]).toBeGreaterThan(lightnesses[i - 1] as number);
+	const luminances = shades.map(luminanceOf);
+	for (let i = 1; i < luminances.length; i++) {
+		expect(luminances[i]).toBeGreaterThan(luminances[i - 1] as number);
 	}
 });
 

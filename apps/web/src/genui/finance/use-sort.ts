@@ -13,6 +13,12 @@ export type SortDirection = "asc" | "desc";
 const DEFAULT_SORT_DIRECTION: SortDirection = "desc";
 
 interface UseSortOptions<T> {
+	/** Per-key value accessors for columns whose sortable value isn't a raw
+	 * `row[key]` field — e.g. a derived/metric column with `value: (row) =>
+	 * row.bar` under `key: "foo"`. When the active `sortKey` has an entry
+	 * here, `accessor(row)` is compared instead of `row[key]`; keys without
+	 * an accessor fall back to the existing `row[key]` behavior unchanged. */
+	accessors?: Partial<Record<keyof T, (row: T) => number | string | null>>;
 	initialDir?: SortDirection;
 	initialKey?: keyof T;
 }
@@ -71,11 +77,13 @@ export function useSort<T>(
 		if (sortKey === undefined) {
 			return [...rows];
 		}
+		const accessor = opts.accessors?.[sortKey];
+		const getValue = accessor ? accessor : (row: T) => row[sortKey];
 		// `Array.prototype.sort` is spec-guaranteed stable (ES2019+).
 		return [...rows].sort((a, b) =>
-			compareValues(a[sortKey], b[sortKey], sortDir)
+			compareValues(getValue(a), getValue(b), sortDir)
 		);
-	}, [rows, sortKey, sortDir]);
+	}, [rows, sortKey, sortDir, opts.accessors]);
 
 	const toggleSort = (key: keyof T) => {
 		if (key === sortKey) {
