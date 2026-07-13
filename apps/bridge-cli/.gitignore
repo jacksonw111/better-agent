@@ -1,0 +1,3 @@
+# Standalone binary produced by `pnpm compile` (bun --compile). Local build
+# artifact — distributed by copying the file, not committed.
+agent-cli

@@ -29,6 +29,8 @@ const VM_VNC_POLL_INTERVAL_MS = 1000;
 const VM_VNC_POLL_ATTEMPTS = 120;
 
 export interface CuaSessionOptions {
+	/** Image to pull only when the VM is absent (`--cua-image`). */
+	image?: string;
 	log?: (message: string) => void;
 	/** Reports the live VNC endpoint (or null to clear) so the web mounts the
 	 * viewer. No-op if omitted. */
@@ -36,6 +38,8 @@ export interface CuaSessionOptions {
 	serverUrl: string;
 	sessionId: string;
 	token: string;
+	/** Use this existing VM name (`--cua-vm`); pull skipped if it exists. */
+	vmName?: string;
 	/** Relay this VNC directly (skip lume provisioning + boot) — the lume-free
 	 * test path (`--cua-vnc-url`). */
 	vncUrlOverride?: string;
@@ -155,7 +159,10 @@ async function provisionVnc(
 		return { vncUrl: options.vncUrlOverride, stopVm: () => Promise.resolve() };
 	}
 	const lume = createLumeClient();
-	const { vmName } = await ensureCuaEnvironment(buildBootstrapDeps(lume, log));
+	const { vmName } = await ensureCuaEnvironment(buildBootstrapDeps(lume, log), {
+		vmName: options.vmName,
+		image: options.image,
+	});
 	log(`starting VM "${vmName}"…`);
 	await lume.run(vmName);
 	const vncUrl = await waitForVmVnc(lume, vmName);

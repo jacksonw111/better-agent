@@ -11,6 +11,8 @@ function fakeArgs(overrides: Partial<BridgeCliArgs> = {}): BridgeCliArgs {
 		agentKind: "claude-code",
 		cua: false,
 		cuaVncUrl: undefined,
+		cuaVm: undefined,
+		cuaImage: undefined,
 		debug: false,
 		dir: "/tmp",
 		label: undefined,

@@ -9,11 +9,15 @@
 import { type CuaSession, startCuaSession } from "./cua-session";
 
 export interface CuaControllerOptions {
+	/** `--cua-image`: image to pull only when the VM is absent. */
+	image?: string;
 	log: (message: string) => void;
 	reportVnc?: (vncEndpoint: string | null) => Promise<void>;
 	serverUrl: string;
 	sessionId: string;
 	token: string;
+	/** `--cua-vm`: use this existing VM (skips the pull if it exists). */
+	vmName?: string;
 	/** `--cua-vnc-url`: relay this VNC directly instead of provisioning a VM. */
 	vncUrlOverride?: string;
 }
@@ -37,6 +41,8 @@ export function createCuaController(opts: CuaControllerOptions): CuaController {
 				log: opts.log,
 				reportVnc: opts.reportVnc,
 				vncUrlOverride: opts.vncUrlOverride,
+				vmName: opts.vmName,
+				image: opts.image,
 			});
 		} catch (error) {
 			opts.log(error instanceof Error ? error.message : String(error));

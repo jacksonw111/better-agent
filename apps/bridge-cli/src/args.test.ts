@@ -42,6 +42,8 @@ describe("parseArgs - accepted input", () => {
 			debug: false,
 			cua: false,
 			cuaVncUrl: undefined,
+			cuaVm: undefined,
+			cuaImage: undefined,
 		});
 	});
 

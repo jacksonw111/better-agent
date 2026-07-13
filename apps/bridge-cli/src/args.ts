@@ -24,6 +24,10 @@ Options:
   --cua                            Provision a local VM (auto-installs lume on
                                    macOS/Apple Silicon) and stream its desktop
                                    over VNC for remote control
+  --cua-vm <name>                  Use this existing lume VM (skips the image
+                                   pull if it already exists)
+  --cua-image <image:tag>          Image to pull only when the VM is absent
+                                   (default: macos-sequoia-cua:latest)
   --cua-vnc-url <host:port>        Skip lume/VM provisioning and relay this VNC
                                    directly (testing — e.g. localhost:5900 for
                                    macOS Screen Sharing). Implies --cua.
@@ -54,6 +58,11 @@ export interface BridgeCliArgs {
 	/** `--cua`: auto-provision a local lume VM and stream it over VNC (remote
 	 * control). macOS/Apple Silicon only; errors clearly elsewhere. */
 	cua: boolean;
+	/** `--cua-image <image:tag>`: image to pull ONLY when the VM is absent. */
+	cuaImage: string | undefined;
+	/** `--cua-vm <name>`: use this existing lume VM instead of the default —
+	 * if it already exists, nothing is pulled. */
+	cuaVm: string | undefined;
 	/** `--cua-vnc-url <host:port>`: relay this VNC directly instead of
 	 * provisioning a lume VM — a lume-free test path (implies CUA). */
 	cuaVncUrl: string | undefined;
@@ -75,6 +84,8 @@ export interface BridgeCliArgs {
 
 const FLAG_TO_FIELD = {
 	"--agent": "agentKind",
+	"--cua-image": "cuaImage",
+	"--cua-vm": "cuaVm",
 	"--cua-vnc-url": "cuaVncUrl",
 	"--dir": "dir",
 	"--label": "label",
@@ -176,6 +187,8 @@ export function parseArgs(
 		debug: argv.includes("--debug"),
 		cua: argv.includes("--cua"),
 		cuaVncUrl: flags.cuaVncUrl,
+		cuaVm: flags.cuaVm,
+		cuaImage: flags.cuaImage,
 	};
 }
 

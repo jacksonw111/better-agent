@@ -40,17 +40,27 @@ outbound connection — never internet-exposed.
 - A reachable **server** (the deployed test environment, or local dev) and a
   **bridge token**.
 
-### ⚠️ You must build `agent-cli` from source
+### ⚠️ You must build `agent-cli` yourself
 
 The `--cua` support lives on the `dev` branch and is **not published to npm**.
-The `agent-cli` you get from `npm i -g` does **not** have `--cua`. Build it:
+The `agent-cli` you get from `npm i -g` does **not** have it.
+
+**Recommended — a standalone binary** (single file, no Node needed on the target
+machine; macOS/Apple Silicon):
 
 ```bash
 cd better-agent
 pnpm install
-pnpm --filter @jacksonw111/better-agent-bridge build
-# → apps/bridge-cli/dist/index.mjs   (run this with `node`)
+pnpm --filter @jacksonw111/better-agent-bridge compile   # needs `bun` installed
+# → apps/bridge-cli/agent-cli   (a ~60MB Mach-O arm64 executable)
 ```
+
+Copy `apps/bridge-cli/agent-cli` to wherever you'll test and run it directly:
+`./agent-cli --agent … --cua-vnc-url …`. (Don't have bun? `curl -fsSL
+https://bun.sh/install | bash`.)
+
+Alternatively, `pnpm --filter @jacksonw111/better-agent-bridge build` produces
+`apps/bridge-cli/dist/index.mjs`, run via `node …` (needs Node on the target).
 
 ### Get a bridge token
 
@@ -62,13 +72,18 @@ and note the server URL it shows.
 ## Full test (real VM)
 
 ```bash
-node apps/bridge-cli/dist/index.mjs \
+./agent-cli \
   --agent claude-code \
   --server https://<your-server-url> \
   --token bt_xxxxxxxx \
   --dir ~/some/project \
   --cua --debug
 ```
+
+**Already have lume + a VM image?** Point at your existing VM with
+`--cua-vm <name>` — if that VM already exists nothing is pulled (the bootstrap
+skips install/serve/pull for anything already present). `--cua-image <img:tag>`
+overrides what's pulled only when the VM is absent.
 
 What to expect:
 
@@ -96,7 +111,7 @@ of Phase 1 in minutes:
 2. Run it (note: `--cua-vnc-url` implies `--cua`, no separate `--cua` needed):
 
    ```bash
-   node apps/bridge-cli/dist/index.mjs \
+   ./agent-cli \
      --agent claude-code \
      --server https://<your-server-url> \
      --token bt_xxxxxxxx \

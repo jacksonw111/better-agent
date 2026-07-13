@@ -22,6 +22,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "compile": "bun build --compile --minify --target=bun-darwin-arm64 ./src/index.ts --outfile agent-cli",
     "check-types": "tsc -b",
     "dev": "tsx src/index.ts",
     "test": "vitest run"

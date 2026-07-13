@@ -87,6 +87,8 @@ async function main(): Promise<void> {
 				token: args.token,
 				sessionId,
 				vncUrlOverride: args.cuaVncUrl,
+				vmName: args.cuaVm,
+				image: args.cuaImage,
 				log: (message) => process.stdout.write(`[cua] ${message}\n`),
 				reportVnc: (vncEndpoint) =>
 					transport.reportVnc?.({ sessionId, vncEndpoint }) ??
