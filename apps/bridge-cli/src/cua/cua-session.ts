@@ -36,6 +36,9 @@ export interface CuaSessionOptions {
 	serverUrl: string;
 	sessionId: string;
 	token: string;
+	/** Relay this VNC directly (skip lume provisioning + boot) — the lume-free
+	 * test path (`--cua-vnc-url`). */
+	vncUrlOverride?: string;
 }
 
 export interface CuaSession {
@@ -135,18 +138,47 @@ async function waitForVmVnc(lume: LumeClient, vmName: string): Promise<string> {
 	throw new Error("VM did not expose a VNC endpoint in time");
 }
 
-/** Provisions lume, boots the VM, and opens the VNC relay for `sessionId`.
- * Rejects (with a clear message) on any prerequisite/boot failure; the caller
- * logs it without killing the agent session. */
-export async function startCuaSession(
-	options: CuaSessionOptions
-): Promise<CuaSession> {
-	const log = options.log ?? (() => undefined);
+interface Provisioned {
+	stopVm: () => Promise<void>;
+	vncUrl: string;
+}
+
+/** Resolves the VNC to relay: the `--cua-vnc-url` override (skip lume entirely
+ * — the test path) or a freshly provisioned + booted lume VM. `stopVm` tears
+ * down whatever it created (a no-op for the override). */
+async function provisionVnc(
+	options: CuaSessionOptions,
+	log: (m: string) => void
+): Promise<Provisioned> {
+	if (options.vncUrlOverride) {
+		log(`relaying provided VNC (no lume): ${options.vncUrlOverride}`);
+		return { vncUrl: options.vncUrlOverride, stopVm: () => Promise.resolve() };
+	}
 	const lume = createLumeClient();
 	const { vmName } = await ensureCuaEnvironment(buildBootstrapDeps(lume, log));
 	log(`starting VM "${vmName}"…`);
 	await lume.run(vmName);
 	const vncUrl = await waitForVmVnc(lume, vmName);
+	return {
+		vncUrl,
+		stopVm: async () => {
+			try {
+				await lume.stop(vmName);
+			} catch {
+				// Best-effort teardown; a lume stop failure shouldn't surface.
+			}
+		},
+	};
+}
+
+/** Provisions the VNC (lume VM or `--cua-vnc-url` override) and opens the VNC
+ * relay for `sessionId`. Rejects (with a clear message) on any prerequisite/
+ * boot failure; the caller logs it without killing the agent session. */
+export async function startCuaSession(
+	options: CuaSessionOptions
+): Promise<CuaSession> {
+	const log = options.log ?? (() => undefined);
+	const { vncUrl, stopVm } = await provisionVnc(options, log);
 	const relay = startVncRelay(
 		{
 			serverUrl: options.serverUrl,
@@ -166,13 +198,8 @@ export async function startCuaSession(
 			}
 			stopped = true;
 			relay.stop();
-			try {
-				await options.reportVnc?.(null);
-				await lume.stop(vmName);
-			} catch {
-				// Best-effort: the relay is already down; a lume stop / report
-				// failure on teardown shouldn't surface as a CLI error.
-			}
+			await options.reportVnc?.(null).catch(() => undefined);
+			await stopVm();
 		},
 	};
 }

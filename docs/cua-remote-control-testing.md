@@ -83,21 +83,33 @@ What to expect:
 
 ---
 
-## Lighter test (no lume, no giant image) — *proposed, not yet implemented*
+## Lighter test (no lume, no giant image) — **recommended first**
 
 The whole video plane (CLI relay ⇄ server proxy ⇄ web viewer) is independent of
-lume — lume only produces "a VM with a VNC". A small escape hatch would let you
-validate ~90% of Phase 1 in minutes against **any** VNC server, skipping the VM:
+lume — lume only produces "a VM with a VNC". `--cua-vnc-url <host:port>` skips
+lume/VM provisioning and relays **any** VNC directly, so you can validate ~90%
+of Phase 1 in minutes:
 
 1. Turn on macOS **Screen Sharing** (System Settings → General → Sharing →
-   Screen Sharing) — it's a VNC server on `:5900`.
-2. Run `agent-cli … --cua --cua-vnc-url localhost:5900` (bypasses lume, relays
-   your own desktop's VNC).
-3. Watch your desktop appear in the web Local Agent view.
+   Screen Sharing) — it's a VNC server on `:5900`. (Set a VNC password under
+   "Computer Settings…" if prompted; noVNC will ask for it.)
+2. Run it (note: `--cua-vnc-url` implies `--cua`, no separate `--cua` needed):
+
+   ```bash
+   node apps/bridge-cli/dist/index.mjs \
+     --agent claude-code \
+     --server https://<your-server-url> \
+     --token bt_xxxxxxxx \
+     --dir ~/some/project \
+     --cua-vnc-url localhost:5900 --debug
+   ```
+
+3. In the web Local Agent view, the Remote Desktop panel should show **your own
+   Mac's screen**; Stop/Start desktop just drops/re-opens the relay (no VM).
 
 This exercises the relay, server pairing/auth, the web viewer, and Start/Stop —
-everything except lume itself. **This `--cua-vnc-url` flag does not exist yet;**
-it's a suggested next step to make Phase 1 testable without a full VM.
+everything except lume itself. Once this works, the only unverified piece left
+for the full run is lume + the VM image.
 
 ---
 

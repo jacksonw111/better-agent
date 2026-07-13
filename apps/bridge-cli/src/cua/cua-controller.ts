@@ -14,6 +14,8 @@ export interface CuaControllerOptions {
 	serverUrl: string;
 	sessionId: string;
 	token: string;
+	/** `--cua-vnc-url`: relay this VNC directly instead of provisioning a VM. */
+	vncUrlOverride?: string;
 }
 
 export interface CuaController {
@@ -34,6 +36,7 @@ export function createCuaController(opts: CuaControllerOptions): CuaController {
 				sessionId: opts.sessionId,
 				log: opts.log,
 				reportVnc: opts.reportVnc,
+				vncUrlOverride: opts.vncUrlOverride,
 			});
 		} catch (error) {
 			opts.log(error instanceof Error ? error.message : String(error));

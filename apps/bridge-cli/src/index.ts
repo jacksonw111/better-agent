@@ -80,11 +80,13 @@ async function main(): Promise<void> {
 	// (control commands) and threaded through the restart loop so an in-place
 	// agent restart never kills it. Auto-started once here for convenience; VM
 	// boot runs in the background and never blocks the agent loop.
-	const cua = args.cua
+	const cuaEnabled = args.cua || args.cuaVncUrl !== undefined;
+	const cua = cuaEnabled
 		? createCuaController({
 				serverUrl: args.serverUrl,
 				token: args.token,
 				sessionId,
+				vncUrlOverride: args.cuaVncUrl,
 				log: (message) => process.stdout.write(`[cua] ${message}\n`),
 				reportVnc: (vncEndpoint) =>
 					transport.reportVnc?.({ sessionId, vncEndpoint }) ??

@@ -41,6 +41,7 @@ describe("parseArgs - accepted input", () => {
 			resume: "claude-session-abc",
 			debug: false,
 			cua: false,
+			cuaVncUrl: undefined,
 		});
 	});
 
@@ -66,6 +67,14 @@ describe("parseArgs - accepted input", () => {
 			{}
 		);
 		expect(args.agentKind).toBe("pi");
+	});
+});
+
+describe("parseArgs - cua", () => {
+	it("sets cua and cuaVncUrl from their flags", () => {
+		expect(parseArgs([...BASE, "--cua"], {}).cua).toBe(true);
+		const withUrl = parseArgs([...BASE, "--cua-vnc-url", "localhost:5900"], {});
+		expect(withUrl.cuaVncUrl).toBe("localhost:5900");
 	});
 });
 

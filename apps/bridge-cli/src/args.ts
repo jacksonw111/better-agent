@@ -24,6 +24,9 @@ Options:
   --cua                            Provision a local VM (auto-installs lume on
                                    macOS/Apple Silicon) and stream its desktop
                                    over VNC for remote control
+  --cua-vnc-url <host:port>        Skip lume/VM provisioning and relay this VNC
+                                   directly (testing — e.g. localhost:5900 for
+                                   macOS Screen Sharing). Implies --cua.
   --debug                          Print verbose command/event logging
   -v, --version                    Print the version and exit
   -h, --help                       Print this help and exit
@@ -51,6 +54,9 @@ export interface BridgeCliArgs {
 	/** `--cua`: auto-provision a local lume VM and stream it over VNC (remote
 	 * control). macOS/Apple Silicon only; errors clearly elsewhere. */
 	cua: boolean;
+	/** `--cua-vnc-url <host:port>`: relay this VNC directly instead of
+	 * provisioning a lume VM — a lume-free test path (implies CUA). */
+	cuaVncUrl: string | undefined;
 	debug: boolean;
 	dir: string;
 	label: string | undefined;
@@ -69,6 +75,7 @@ export interface BridgeCliArgs {
 
 const FLAG_TO_FIELD = {
 	"--agent": "agentKind",
+	"--cua-vnc-url": "cuaVncUrl",
 	"--dir": "dir",
 	"--label": "label",
 	"--opencode-transport": "opencodeTransport",
@@ -168,6 +175,7 @@ export function parseArgs(
 		resume: flags.resume,
 		debug: argv.includes("--debug"),
 		cua: argv.includes("--cua"),
+		cuaVncUrl: flags.cuaVncUrl,
 	};
 }
 
