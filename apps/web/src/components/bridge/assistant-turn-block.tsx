@@ -79,7 +79,7 @@ function TurnElementView({
 	}
 	return (
 		<SpineItem tone={toneOfGroup(element.tools)}>
-			<ActivityGroup tools={element.tools} />
+			<ActivityGroup toolName={element.sameToolName} tools={element.tools} />
 		</SpineItem>
 	);
 }
@@ -106,11 +106,14 @@ export function AssistantTurnBlock({
 								className="flex flex-col gap-1.5 border-l pl-3"
 								ref={contentRef}
 							>
-								{elements.map((element, index) => (
+								{elements.map((element) => (
 									<TurnElementView
+										// P1-T2: `element.key` is group-aware and stable across
+										// streaming (see activity-blocks.ts) — loose tools folding
+										// into a group no longer remounts every later sibling, and
+										// a growing group keeps its expand state.
 										element={element}
-										// biome-ignore lint/suspicious/noArrayIndexKey: derived fresh from append-only blocks each render, never reordered
-										key={`${index}-${element.kind}`}
+										key={element.key}
 										streaming={streaming}
 									/>
 								))}

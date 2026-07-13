@@ -4,7 +4,7 @@ import type {
 	ChatMessage,
 	ToolInvocation,
 } from "@better-agent/ui/components/chat/chat-blocks";
-import { render, within } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { AssistantTurnBlock } from "./assistant-turn-block";
 
@@ -20,6 +20,13 @@ function tool(
 		toolName: "Bash",
 		...partial,
 	};
+}
+
+function toolBlocks(count: number): ChatBlock[] {
+	return Array.from({ length: count }, (_, i) => ({
+		kind: "tool" as const,
+		tool: tool(`c${i}`),
+	}));
 }
 
 function message(
@@ -44,17 +51,42 @@ it("renders text and a single activity item hanging off a left-border spine", ()
 	expect(container.querySelector(".border-l")).not.toBeNull();
 });
 
-it("collapses a run of more than 5 tool blocks into an ActivityGroup disclosure", () => {
+it("collapses 3+ same-tool blocks into a named ActivityGroup disclosure", () => {
+	const { container } = render(
+		<AssistantTurnBlock message={message(toolBlocks(4))} />
+	);
+	const scope = within(container);
+	expect(scope.getByText("Bash")).toBeDefined();
+	expect(scope.getByText("×4")).toBeDefined();
+	expect(scope.queryByText("step c0")).toBeNull();
+});
+
+it("collapses a long mixed-name run into the generic count disclosure", () => {
 	const blocks: ChatBlock[] = Array.from({ length: 6 }, (_, i) => ({
 		kind: "tool" as const,
-		tool: tool(`c${i}`),
+		tool: tool(`c${i}`, {
+			args: { pattern: `find ${i}` },
+			toolName: i % 2 === 0 ? "Grep" : "WebFetch",
+		}),
 	}));
 	const { container } = render(
 		<AssistantTurnBlock message={message(blocks)} />
 	);
+	expect(within(container).getByText("执行了 6 个操作")).toBeDefined();
+});
+
+it("keeps a manually expanded group open when a new call joins it", () => {
+	const { container, rerender } = render(
+		<AssistantTurnBlock message={message(toolBlocks(3), "streaming")} />
+	);
 	const scope = within(container);
-	expect(scope.getByText("执行了 6 个操作")).toBeDefined();
-	expect(scope.queryByText("step c0")).toBeNull();
+	fireEvent.click(scope.getByText("×3"));
+	expect(scope.getByText("step c0")).toBeDefined();
+	rerender(
+		<AssistantTurnBlock message={message(toolBlocks(4), "streaming")} />
+	);
+	expect(scope.getByText("step c0")).toBeDefined();
+	expect(scope.getByText("step c3")).toBeDefined();
 });
 
 it("renders a reasoning block as a collapsible", () => {
