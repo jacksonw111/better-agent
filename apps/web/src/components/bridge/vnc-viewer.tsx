@@ -1,9 +1,11 @@
-// Read-only-ish noVNC viewer for a cua/computer-use bridge session. Opens a
-// binary WebSocket to the server's VNC proxy route (bearer passed via
-// ?access_token= — browsers can't set WS headers) and lets a noVNC `RFB`
-// instance paint the remote desktop. The RFB credentials (if the VM/host
-// requires them) are prompted for here — the relay is byte-transparent, so auth
-// negotiates end-to-end between noVNC and the VNC server.
+// noVNC viewer for a cua/computer-use bridge session. Owns a binary WebSocket
+// to the server's VNC proxy route (bearer passed via ?access_token= — browsers
+// can't set WS headers) and hands it to a noVNC `RFB` instance to paint the
+// remote desktop. We own the socket (rather than passing a URL) so we can read
+// the exact close code/reason — noVNC's 'disconnect' event hides it — and show
+// it, which is the difference between "auth rejected" and "transient drop". The
+// RFB credentials (if the VM/host requires them) are prompted for here; the
+// relay is byte-transparent, so auth negotiates end-to-end with the VNC server.
 
 import { env } from "@better-agent/env/web";
 import { Button } from "@better-agent/ui/components/button";
@@ -33,12 +35,94 @@ const STATUS_LABEL: Record<ConnectionState, string> = {
 	disconnected: "Disconnected",
 };
 
+/** Opens the viewer WebSocket and reports its close code/reason via `onClose`
+ * (a 1008 means the server rejected auth; 1005/1006 is an abnormal/relay drop). */
+function openViewerSocket(
+	sessionId: string,
+	onClose: (info: string) => void
+): WebSocket {
+	const socket = new WebSocket(viewerUrl(sessionId));
+	socket.binaryType = "arraybuffer";
+	socket.addEventListener("close", (event) => {
+		const reason = event.reason ? ` · ${event.reason}` : "";
+		onClose(`socket closed (code ${event.code}${reason})`);
+	});
+	return socket;
+}
+
+interface VncCallbacks {
+	setCredentialTypes: (types: string[] | null) => void;
+	setDetail: (detail: string | null) => void;
+	setState: (state: ConnectionState) => void;
+}
+
+// noVNC tells us which credentials the server's security type needs — VNC auth
+// wants ['password']; Apple/ARD (macOS Screen Sharing) wants ['username',
+// 'password']. Honor it, or auth silently stalls (noVNC sends nothing until it
+// has every field it asked for).
+function rfbListeners(cb: VncCallbacks): [string, EventListener][] {
+	return [
+		[
+			"connect",
+			() => {
+				cb.setState("connected");
+				cb.setDetail(null);
+			},
+		],
+		["disconnect", () => cb.setState("disconnected")],
+		[
+			"credentialsrequired",
+			(event) => {
+				const types = (event as CustomEvent<{ types?: string[] }>).detail
+					?.types;
+				cb.setCredentialTypes(types ?? ["password"]);
+			},
+		],
+		[
+			"securityfailure",
+			(event) => {
+				const reason = (event as CustomEvent<{ reason?: string }>).detail
+					?.reason;
+				cb.setDetail(reason ? `auth failed: ${reason}` : "auth failed");
+				cb.setState("disconnected");
+			},
+		],
+	];
+}
+
+function connectRfb(
+	screen: HTMLDivElement,
+	sessionId: string,
+	cb: VncCallbacks
+): { rfb: RFB; dispose: () => void } {
+	const socket = openViewerSocket(sessionId, cb.setDetail);
+	const rfb = new RFB(screen, socket);
+	rfb.viewOnly = false;
+	rfb.scaleViewport = true;
+	rfb.background = "transparent";
+	const listeners = rfbListeners(cb);
+	for (const [type, fn] of listeners) {
+		rfb.addEventListener(type, fn);
+	}
+	return {
+		rfb,
+		dispose: () => {
+			for (const [type, fn] of listeners) {
+				rfb.removeEventListener(type, fn);
+			}
+			rfb.disconnect();
+		},
+	};
+}
+
 function useVncConnection(sessionId: string) {
 	const screenRef = useRef<HTMLDivElement>(null);
 	const rfbRef = useRef<RFB | null>(null);
 	const [state, setState] = useState<ConnectionState>("connecting");
 	// null = no prompt; otherwise the credential fields noVNC asked for.
 	const [credentialTypes, setCredentialTypes] = useState<string[] | null>(null);
+	// Human-readable reason for the last failure, surfaced for diagnosis.
+	const [detail, setDetail] = useState<string | null>(null);
 
 	useEffect(() => {
 		const screen = screenRef.current;
@@ -48,32 +132,16 @@ function useVncConnection(sessionId: string) {
 		}
 		setState("connecting");
 		setCredentialTypes(null);
-		const rfb = new RFB(screen, viewerUrl(sessionId));
+		setDetail(null);
+		const { rfb, dispose } = connectRfb(screen, sessionId, {
+			setState,
+			setCredentialTypes,
+			setDetail,
+		});
 		rfbRef.current = rfb;
-		rfb.viewOnly = false;
-		rfb.scaleViewport = true;
-		rfb.background = "transparent";
-		const onConnect = () => setState("connected");
-		const onDisconnect = () => setState("disconnected");
-		// noVNC tells us which credentials the server's security type needs — VNC
-		// auth wants ['password']; Apple/ARD (macOS Screen Sharing) wants
-		// ['username','password']. Honor it, or auth silently stalls (noVNC sends
-		// nothing until it has every field it asked for).
-		const onCreds = (event: Event) => {
-			const detail = (event as CustomEvent<{ types?: string[] }>).detail;
-			setCredentialTypes(detail?.types ?? ["password"]);
-		};
-		rfb.addEventListener("connect", onConnect);
-		rfb.addEventListener("disconnect", onDisconnect);
-		rfb.addEventListener("credentialsrequired", onCreds);
-		rfb.addEventListener("securityfailure", onDisconnect);
 		return () => {
-			rfb.removeEventListener("connect", onConnect);
-			rfb.removeEventListener("disconnect", onDisconnect);
-			rfb.removeEventListener("credentialsrequired", onCreds);
-			rfb.removeEventListener("securityfailure", onDisconnect);
 			rfbRef.current = null;
-			rfb.disconnect();
+			dispose();
 		};
 	}, [sessionId]);
 
@@ -83,7 +151,7 @@ function useVncConnection(sessionId: string) {
 		setState("connecting");
 	}, []);
 
-	return { screenRef, state, credentialTypes, submitCredentials };
+	return { screenRef, state, credentialTypes, submitCredentials, detail };
 }
 
 function CredentialField({
@@ -157,7 +225,7 @@ function CredentialsOverlay({
 }
 
 export function VncViewer({ sessionId }: { sessionId: string }) {
-	const { screenRef, state, credentialTypes, submitCredentials } =
+	const { screenRef, state, credentialTypes, submitCredentials, detail } =
 		useVncConnection(sessionId);
 	const isConnected = state === "connected";
 	const needsCredentials = credentialTypes !== null;
@@ -189,6 +257,7 @@ export function VncViewer({ sessionId }: { sessionId: string }) {
 				role="status"
 			>
 				{STATUS_LABEL[state]}
+				{detail ? ` — ${detail}` : ""}
 			</p>
 		</div>
 	);
