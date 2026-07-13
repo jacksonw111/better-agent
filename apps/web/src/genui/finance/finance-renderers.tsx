@@ -78,7 +78,7 @@ import { lazyChart } from "./lazy-chart";
 import { LockupTable } from "./lockup-table";
 import { NewsList } from "./news-list";
 import { OptionChain } from "./option-chain";
-import { PreannounceList } from "./preannounce-list";
+import { PreannounceTable } from "./preannounce-table";
 import { PredictionMarkets } from "./prediction-markets";
 import { QuoteCard } from "./quote-card";
 import { ReportsList } from "./reports-list";
@@ -122,7 +122,7 @@ import { TopHoldersTable } from "./top-holders-table";
 // finance_prediction_markets outcomes (prediction-markets.tsx). FE-12 adds
 // finance_sentiment_compare (sentiment-compare.tsx), finance_holder_count
 // (holder-count-chart.tsx), and finance_cn_hot (cn-hot-list.tsx). FE-13 adds
-// finance_earnings_preannounce (preannounce-list.tsx), finance_lockup
+// finance_earnings_preannounce (preannounce-table.tsx), finance_lockup
 // (lockup-table.tsx), finance_convertible_bonds
 // (convertible-bonds-table.tsx), and finance_ipo (ipo-table.tsx). FE-14
 // (V6b) adds finance_index_weights (index-weights.tsx), finance_etf_list
@@ -194,7 +194,7 @@ export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 		<ForecastTable data={rows} />
 	)),
 	finance_earnings_preannounce: listEntry(PreannounceRowSchema, (rows) => (
-		<PreannounceList data={rows} />
+		<PreannounceTable data={rows} />
 	)),
 	finance_economic_calendar: listEntry(CalendarEventSchema, (rows) => (
 		<CalendarList data={rows} />

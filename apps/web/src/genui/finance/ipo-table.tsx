@@ -1,56 +1,15 @@
-import { Badge } from "@better-agent/ui/components/badge";
-import type { IpoRowData } from "./finance-schemas-fe13";
-import { formatCompact, formatDate, formatNum } from "./format";
-import { CardShell, FinTable, type FinTableColumn } from "./primitives";
+"use client";
 
-const IPO_COLUMNS: FinTableColumn<IpoRowData>[] = [
-	{ key: "name", label: "名称", render: (row) => row.name || row.code || "—" },
-	{
-		key: "applyCode",
-		label: "申购代码",
-		render: (row) => row.applyCode || "—",
-	},
-	{
-		key: "applyDate",
-		label: "申购日",
-		render: (row) => formatDate(row.applyDate),
-	},
-	{
-		key: "listingDate",
-		label: "上市日",
-		render: (row) => formatDate(row.listingDate),
-	},
-	{
-		key: "market",
-		label: "板块",
-		render: (row) =>
-			row.market ? <Badge variant="outline">{row.market}</Badge> : "—",
-	},
-	{
-		align: "right",
-		key: "issuePrice",
-		label: "发行价",
-		render: (row) => formatNum(row.issuePrice),
-	},
-	{
-		align: "right",
-		key: "applyUpper",
-		label: "申购上限",
-		render: (row) => formatCompact(row.applyUpper),
-	},
-	{
-		align: "right",
-		key: "afterPe",
-		label: "发行PE",
-		render: (row) => formatNum(row.afterPe),
-	},
-	{
-		align: "right",
-		key: "industryPe",
-		label: "行业PE",
-		render: (row) => formatNum(row.industryPe),
-	},
-];
+import { DataTable } from "./data-table";
+import type { IpoRowData } from "./finance-schemas-fe13";
+import { formatDate } from "./format";
+import { ipoColumns, ipoExpandedItems } from "./ipo-columns";
+import { StatGrid } from "./primitives";
+
+// Phase 1 Batch B4 — `ipo` on the `DataTable` primitive (design doc §9): one
+// row per 新股申购 event, categoryKey `applyDate`. See ipo-columns.tsx for
+// the isMetric/filters judgment calls. Copies statements-table.tsx's shape
+// otherwise.
 
 /** finance_ipo → 新股申购日历, newest `applyDate` first (the tool already
  * returns rows in that order). */
@@ -58,13 +17,19 @@ export function IpoTable({ data }: { data: IpoRowData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
+	const columns = ipoColumns();
 	return (
-		<CardShell title="新股申购">
-			<FinTable
-				columns={IPO_COLUMNS}
-				getRowKey={(row, index) => `${row.code}-${row.applyDate}-${index}`}
-				rows={data}
-			/>
-		</CardShell>
+		<DataTable<IpoRowData>
+			categoryFormat={formatDate}
+			categoryKey="applyDate"
+			columns={columns}
+			getRowKey={(row, index) => `${row.code}-${row.applyDate}-${index}`}
+			renderExpanded={(row) => (
+				<StatGrid cols={2} items={ipoExpandedItems(columns, row)} />
+			)}
+			rows={data}
+			subtitle={`${data.length} 只`}
+			title="新股申购"
+		/>
 	);
 }
