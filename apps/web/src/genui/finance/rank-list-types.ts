@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { ProportionBarTone } from "./proportion-bar";
+import type { ProportionBarSegment, ProportionBarTone } from "./proportion-bar";
 
 // Phase 3 Task 5 — shared types for the `RankList` archetype (design doc
 // §8.6, contract So·F·E·I): ranked entities, each row = rank + entity name +
@@ -50,6 +50,13 @@ export interface RankListProps<T> {
 	/** Label for the auto-added headline-metric Sort option and the
 	 * ProportionBar's left-side label (e.g. "热度", "成交额", "涨跌幅"). */
 	metricLabel: string;
+	/** When supplied, the headline line renders as a multi-segment SPLIT
+	 * ProportionBar (e.g. sentiment_compare's 看多/看空 bull/bear split, design
+	 * doc §9) instead of the single-value `metricTone`/`metricValue` fill —
+	 * `metricTone` is then ignored (`ProportionBar` already prioritizes
+	 * `segments` over `tone`/`value`). `rankMetric` still drives Sort and the
+	 * row's rank order; only the bar's visual changes. */
+	metricSegments?: (item: T) => ProportionBarSegment[];
 	/** Fixed tone, or a per-row resolver for metrics whose direction varies by
 	 * row (e.g. sector_constituents' |涨跌幅| — price tone IS correct there
 	 * because the metric literally IS a price move). Every other tool in

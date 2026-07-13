@@ -2,7 +2,11 @@ import { cn } from "@better-agent/ui/lib/utils";
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { EASE_OUT, rowItemVariants, TRANSITION_MS } from "./motion";
-import { ProportionBar, type ProportionBarTone } from "./proportion-bar";
+import {
+	ProportionBar,
+	type ProportionBarSegment,
+	type ProportionBarTone,
+} from "./proportion-bar";
 
 // Phase 3 Task 5 — a single `RankList` row (design doc §8.6): rank badge +
 // `renderPrimary` (entity name) on the header line, `renderSecondary` +
@@ -174,6 +178,7 @@ interface RankListRowProps<T> {
 	item: T;
 	max: number;
 	metricLabel: string;
+	metricSegments?: (item: T) => ProportionBarSegment[];
 	metricTone?: ProportionBarTone | ((item: T) => ProportionBarTone);
 	metricValue?: (item: T) => ReactNode;
 	onToggleExpand: () => void;
@@ -190,6 +195,7 @@ export function RankListRow<T>({
 	item,
 	max,
 	metricLabel,
+	metricSegments,
 	metricTone,
 	metricValue,
 	onToggleExpand,
@@ -220,6 +226,7 @@ export function RankListRow<T>({
 			<ProportionBar
 				label={metricLabel}
 				max={max}
+				segments={metricSegments?.(item)}
 				tone={resolveTone(metricTone, item)}
 				value={metric}
 				valueLabel={metricValue?.(item)}

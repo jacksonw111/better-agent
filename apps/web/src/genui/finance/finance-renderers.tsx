@@ -71,6 +71,7 @@ import {
 import { ForecastTable } from "./forecast-table";
 import { HolderCountChart } from "./holder-count-chart";
 import { IndexGrid } from "./index-grid";
+import { IndexWeights } from "./index-weights";
 import { IndicatorsTable } from "./indicators-table";
 import { InsiderTable } from "./insider-table";
 import { IpoTable } from "./ipo-table";
@@ -88,6 +89,7 @@ import { ResearchList } from "./research-list";
 import { SearchList } from "./search-list";
 import { SectorHeatmap } from "./sector-heatmap";
 import { SectorStocksList } from "./sector-stocks-list";
+import { SentimentCompare } from "./sentiment-compare";
 import { SentimentMarket } from "./sentiment-market";
 import { SentimentTrending } from "./sentiment-trending";
 import { StatementsTable } from "./statements-table";
@@ -132,22 +134,20 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // (etf-list.tsx), and finance_option_chain (option-chain.tsx). FE-15 (V7)
 // adds finance_block_trades (block-trades-table.tsx), finance_insider_trades
 // (insider-table.tsx), and finance_suspension (suspension-table.tsx).
-// recharts-backed cards, loaded on demand so recharts stays out of the eager
-// chat bundle (see lazy-chart.tsx).
+// Phase 3 Task 6 ports finance_index_weights and finance_sentiment_compare
+// onto the `RankList` archetype (index-weights.tsx / sentiment-compare.tsx)
+// — neither imports recharts any more, so both moved from the `lazyChart`
+// map below to a direct import above alongside their RankList siblings.
+// Remaining recharts-backed cards stay lazy, loaded on demand so recharts
+// stays out of the eager chat bundle (see lazy-chart.tsx).
 const HsgtTable = lazyChart(() =>
 	import("./hsgt-table").then((m) => ({ default: m.HsgtTable }))
-);
-const IndexWeights = lazyChart(() =>
-	import("./index-weights").then((m) => ({ default: m.IndexWeights }))
 );
 const MacroPanel = lazyChart(() =>
 	import("./macro-panel").then((m) => ({ default: m.MacroPanel }))
 );
 const MoneyFlowChart = lazyChart(() =>
 	import("./money-flow-chart").then((m) => ({ default: m.MoneyFlowChart }))
-);
-const SentimentCompare = lazyChart(() =>
-	import("./sentiment-compare").then((m) => ({ default: m.SentimentCompare }))
 );
 const SentimentTicker = lazyChart(() =>
 	import("./sentiment-ticker").then((m) => ({ default: m.SentimentTicker }))

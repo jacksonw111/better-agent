@@ -61,9 +61,10 @@ function buildSortAccessors<T>(
 
 /** All Sort/Filter/Expand state + the derived `rendered` set and its bar
  * `max` — kept as one hook, entirely separate from row/grid rendering, so
- * the future Heatmap 2D variant (sector_list) can call this same hook and
- * plug its own grid-cell renderer in place of `RankListRows` below. */
-function useRankListOrchestration<T>({
+ * the Heatmap 2D variant (sector-heatmap.tsx, design doc §8.6 "Heatmap 变体")
+ * calls this same hook and plugs its own grid-cell renderer in place of
+ * `RankListRows` below. Exported for exactly that reuse. */
+export function useRankListOrchestration<T>({
 	filterMode,
 	filters,
 	items,
@@ -104,6 +105,7 @@ type RowsProps<T> = Pick<
 	RankListProps<T>,
 	| "getRowKey"
 	| "metricLabel"
+	| "metricSegments"
 	| "metricTone"
 	| "metricValue"
 	| "rankMetric"
@@ -125,6 +127,7 @@ function RankListRows<T>({
 	items,
 	max,
 	metricLabel,
+	metricSegments,
 	metricTone,
 	metricValue,
 	rankMetric,
@@ -144,6 +147,7 @@ function RankListRows<T>({
 						key={key}
 						max={max}
 						metricLabel={metricLabel}
+						metricSegments={metricSegments}
 						metricTone={metricTone}
 						metricValue={metricValue}
 						onToggleExpand={() => expand.toggle(String(key))}

@@ -1,37 +1,37 @@
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { MAX_RENDERED_ITEMS } from "../tool-renderers";
+import {
+	SENTIMENT_BEAR,
+	SENTIMENT_BULL,
+	SENTIMENT_NEUTRAL,
+} from "./chart-theme";
 import type { TrendingSentimentData } from "./finance-schemas-fe10";
-import { formatCompact, formatNum } from "./format";
-import { CardShell } from "./primitives";
+import { formatCompact, formatNum, formatRatio } from "./format";
+import { ProportionBar } from "./proportion-bar";
+import { RankList, RankListMoreFooter } from "./rank-list";
+import type { RankListSortOption } from "./rank-list-types";
 
-// finance_sentiment_trending → 舆情热度榜: one row per trending ticker, a
-// buzz bar (width = buzzScore, tinted by sentiment) plus a bull/bear split
-// bar. Sentiment uses a neutral emerald/rose palette rather than 红涨绿跌 —
-// bullish/bearish is a distinct axis from price direction and reusing the
-// price-change colors here would be actively misleading.
+// finance_sentiment_trending → 舆情热度榜, ported onto the `RankList`
+// archetype (design doc §8.6/§9, contract So·F·E·I). Headline metric = buzz/
+// 热度 (ProportionBar, "probability" tone — a magnitude, not itself a signed
+// sentiment, §5.2 axis purity). A second bull/bear split ProportionBar
+// (SENTIMENT_BULL|SENTIMENT_BEAR from chart-theme's sentiment axis — never
+// the price axis's red/green) lives in the row's Expand region alongside
+// mentions/uniquePosts, since RankListRow's header + headline-bar slots are
+// already spoken for by rank/name/trend/buzz.
 
-const BULLISH_COLOR = "#10b981"; // emerald
-const BEARISH_COLOR = "#f43f5e"; // rose
-const NEUTRAL_COLOR = "#9ca3af"; // gray
-const BULLISH_THRESHOLD = 0.05;
-const BEARISH_THRESHOLD = -0.05;
-const PCT_MAX = 100;
 const ICON_SIZE = 14;
 const BUZZ_DP = 0;
+const PCT_DP = 0;
+const PCT_MAX = 100;
 
-function sentimentColor(score: number): string {
-	if (score > BULLISH_THRESHOLD) {
-		return BULLISH_COLOR;
-	}
-	if (score < BEARISH_THRESHOLD) {
-		return BEARISH_COLOR;
-	}
-	return NEUTRAL_COLOR;
-}
-
-function clampPct(n: number): number {
-	return Math.min(Math.max(n, 0), PCT_MAX);
-}
+const SORT_OPTIONS: RankListSortOption<TrendingSentimentData>[] = [
+	{
+		accessor: (row) => row.sentimentScore,
+		id: "sentimentScore",
+		label: "情绪分",
+	},
+];
 
 function isRisingTrend(trend: string): boolean {
 	const lower = trend.toLowerCase();
@@ -50,121 +50,112 @@ function isFallingTrend(trend: string): boolean {
 function TrendIcon({ trend }: { trend: string }) {
 	if (isRisingTrend(trend)) {
 		return (
-			<TrendingUp className="shrink-0" color={BULLISH_COLOR} size={ICON_SIZE} />
+			<TrendingUp
+				className="shrink-0"
+				color={SENTIMENT_BULL}
+				size={ICON_SIZE}
+			/>
 		);
 	}
 	if (isFallingTrend(trend)) {
 		return (
 			<TrendingDown
 				className="shrink-0"
-				color={BEARISH_COLOR}
+				color={SENTIMENT_BEAR}
 				size={ICON_SIZE}
 			/>
 		);
 	}
-	return <Minus className="shrink-0" color={NEUTRAL_COLOR} size={ICON_SIZE} />;
+	return (
+		<Minus className="shrink-0" color={SENTIMENT_NEUTRAL} size={ICON_SIZE} />
+	);
 }
 
-function BuzzBar({
-	buzzScore,
-	sentimentScore,
-}: {
-	buzzScore: number;
-	sentimentScore: number;
-}) {
+function toFraction(pct: number): number {
+	return Math.min(Math.max(pct, 0), PCT_MAX) / PCT_MAX;
+}
+
+function TrendingPrimary({ item }: { item: TrendingSentimentData }) {
 	return (
-		<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-			<div
-				className="h-full rounded-full"
-				style={{
-					backgroundColor: sentimentColor(sentimentScore),
-					width: `${clampPct(buzzScore)}%`,
-				}}
-			/>
+		<div className="flex min-w-0 items-center gap-1.5">
+			<span className="truncate font-medium text-sm">
+				{item.name || item.ticker}
+			</span>
+			<span className="shrink-0 text-muted-foreground text-xs">
+				{item.ticker}
+			</span>
 		</div>
 	);
 }
 
-function BullBearBar({
-	bullishPct,
-	bearishPct,
-}: {
-	bullishPct: number;
-	bearishPct: number;
-}) {
+function TrendingSecondary({ item }: { item: TrendingSentimentData }) {
 	return (
-		<div className="flex h-1 w-full overflow-hidden rounded-full bg-muted">
-			<div
-				className="h-full"
-				style={{
-					backgroundColor: BULLISH_COLOR,
-					width: `${clampPct(bullishPct)}%`,
-				}}
-			/>
-			<div
-				className="h-full"
-				style={{
-					backgroundColor: BEARISH_COLOR,
-					width: `${clampPct(bearishPct)}%`,
-				}}
-			/>
-		</div>
+		<>
+			<TrendIcon trend={item.trend} />
+			<span className="text-muted-foreground text-xs">
+				{formatCompact(item.mentions)} 提及
+			</span>
+		</>
 	);
 }
 
-function TrendingRow({ item }: { item: TrendingSentimentData }) {
+function TrendingExpanded({ item }: { item: TrendingSentimentData }) {
 	return (
-		<div className="flex flex-col gap-1.5 py-2.5">
-			<div className="flex items-center justify-between gap-2">
-				<div className="flex min-w-0 items-center gap-1.5">
-					<span className="truncate font-medium text-sm">
-						{item.name || item.ticker}
-					</span>
-					<span className="shrink-0 text-muted-foreground text-xs">
-						{item.ticker}
-					</span>
-				</div>
-				<div className="flex shrink-0 items-center gap-1.5">
-					<TrendIcon trend={item.trend} />
-					<span className="font-semibold text-sm tabular-nums">
-						{formatNum(item.buzzScore, BUZZ_DP)}
-					</span>
-				</div>
-			</div>
-			<BuzzBar
-				buzzScore={item.buzzScore}
-				sentimentScore={item.sentimentScore}
-			/>
-			<div className="flex items-center justify-between gap-2 text-muted-foreground text-xs">
-				<span>{formatCompact(item.mentions)} 提及</span>
-				<span>
-					看多 {formatNum(item.bullishPct, BUZZ_DP)}% · 看空{" "}
-					{formatNum(item.bearishPct, BUZZ_DP)}%
+		<div className="flex flex-col gap-1.5">
+			<div className="flex items-center justify-between text-xs">
+				<span style={{ color: SENTIMENT_BULL }}>
+					看多 {formatRatio(item.bullishPct, PCT_DP)}
+				</span>
+				<span style={{ color: SENTIMENT_BEAR }}>
+					看空 {formatRatio(item.bearishPct, PCT_DP)}
 				</span>
 			</div>
-			<BullBearBar bearishPct={item.bearishPct} bullishPct={item.bullishPct} />
+			<ProportionBar
+				segments={[
+					{
+						color: SENTIMENT_BULL,
+						fraction: toFraction(item.bullishPct),
+						key: "bull",
+					},
+					{
+						color: SENTIMENT_BEAR,
+						fraction: toFraction(item.bearishPct),
+						key: "bear",
+					},
+				]}
+			/>
+			<span className="text-muted-foreground text-xs">
+				{formatCompact(item.uniquePosts)} 独立发帖
+			</span>
 		</div>
 	);
 }
 
-/** finance_sentiment_trending → 舆情热度榜, capped at MAX_RENDERED_ITEMS —
- * this renders inline in chat, not a full leaderboard. */
+/** finance_sentiment_trending → 舆情热度榜, ranked by buzz (headline metric),
+ * capped at MAX_RENDERED_ITEMS. */
 export function SentimentTrending({ data }: { data: TrendingSentimentData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
 	const visible = data.slice(0, MAX_RENDERED_ITEMS);
 	const hiddenCount = data.length - visible.length;
+
 	return (
-		<CardShell title="舆情热度榜">
-			<div className="flex flex-col divide-y">
-				{visible.map((item) => (
-					<TrendingRow item={item} key={item.ticker} />
-				))}
-			</div>
-			{hiddenCount > 0 ? (
-				<p className="text-muted-foreground text-xs">+{hiddenCount} more</p>
-			) : null}
-		</CardShell>
+		<RankList
+			footer={
+				hiddenCount > 0 ? <RankListMoreFooter count={hiddenCount} /> : null
+			}
+			getRowKey={(item, index) => `${item.ticker}-${index}`}
+			items={visible}
+			metricLabel="热度"
+			metricTone="probability"
+			metricValue={(item) => formatNum(item.buzzScore, BUZZ_DP)}
+			rankMetric={(item) => item.buzzScore}
+			renderExpanded={(item) => <TrendingExpanded item={item} />}
+			renderPrimary={(item) => <TrendingPrimary item={item} />}
+			renderSecondary={(item) => <TrendingSecondary item={item} />}
+			sortOptions={SORT_OPTIONS}
+			title="舆情热度榜"
+		/>
 	);
 }
