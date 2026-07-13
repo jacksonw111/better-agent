@@ -70,6 +70,7 @@ import {
 } from "./finance-schemas-fe15";
 import { ForecastTable } from "./forecast-table";
 import { IndexGrid } from "./index-grid";
+import { IndicatorsTable } from "./indicators-table";
 import { InsiderTable } from "./insider-table";
 import { IpoTable } from "./ipo-table";
 import { KeyMetricsCard } from "./key-metrics-card";
@@ -138,9 +139,6 @@ const HsgtTable = lazyChart(() =>
 );
 const IndexWeights = lazyChart(() =>
 	import("./index-weights").then((m) => ({ default: m.IndexWeights }))
-);
-const IndicatorsTable = lazyChart(() =>
-	import("./indicators-table").then((m) => ({ default: m.IndicatorsTable }))
 );
 const MacroPanel = lazyChart(() =>
 	import("./macro-panel").then((m) => ({ default: m.MacroPanel }))

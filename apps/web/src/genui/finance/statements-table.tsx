@@ -1,10 +1,11 @@
 "use client";
 
 import { DataTable } from "./data-table";
-import type { DataTableColumn, DataTablePeriod } from "./data-table-types";
+import type { DataTablePeriod } from "./data-table-types";
 import type { StatementRowData } from "./finance-schemas";
 import { formatDate } from "./format";
-import { StatGrid, type StatGridItem } from "./primitives";
+import { expandedMetricFields } from "./metric-expand";
+import { StatGrid } from "./primitives";
 import {
 	detectStatementKind,
 	STATEMENT_TITLES,
@@ -38,26 +39,6 @@ const STATEMENT_PERIODS: DataTablePeriod<StatementRowData>[] = [
 	},
 ];
 
-/** Expand (§3): every non-null metric field for the single reporting period
- * the user drilled into, rendered with the same formatter as its column. */
-function expandedFields(
-	columns: DataTableColumn<StatementRowData>[],
-	row: StatementRowData
-): StatGridItem[] {
-	const items: StatGridItem[] = [];
-	for (const col of columns) {
-		if (!(col.isMetric && col.value)) {
-			continue;
-		}
-		const raw = col.value(row);
-		if (raw === null) {
-			continue;
-		}
-		items.push({ label: col.label, value: col.render?.(row) ?? raw });
-	}
-	return items;
-}
-
 /** finance_financial_statements → one DataTable row per reporting period.
  * Column set (income/balance/cashflow) is picked from the detected kind since
  * the payload carries no explicit statement-type field (see
@@ -78,7 +59,7 @@ export function StatementsTable({ data }: { data: StatementRowData[] }) {
 			getRowKey={(row) => row.reportDate}
 			periods={STATEMENT_PERIODS}
 			renderExpanded={(row) => (
-				<StatGrid cols={2} items={expandedFields(columns, row)} />
+				<StatGrid cols={2} items={expandedMetricFields(columns, row)} />
 			)}
 			rows={data}
 			subtitle={`${data.length} 期`}

@@ -1,48 +1,32 @@
+"use client";
+
+import { DataTable } from "./data-table";
 import type { ForecastRowData } from "./finance-schemas-fe8";
-import { formatCompact, formatNum } from "./format";
-import { CardShell, FinTable, type FinTableColumn } from "./primitives";
+import { forecastColumns } from "./forecast-columns";
 
-const FORECAST_COLUMNS: FinTableColumn<ForecastRowData>[] = [
-	{ key: "year", label: "年度", render: (row) => row.year || "—" },
-	{
-		align: "right",
-		key: "eps",
-		label: "EPS",
-		render: (row) => formatNum(row.eps),
-	},
-	{
-		align: "right",
-		key: "pe",
-		label: "PE",
-		render: (row) => formatNum(row.pe),
-	},
-	{
-		align: "right",
-		key: "revenue",
-		label: "营收",
-		render: (row) =>
-			row.revenue === null ? "—" : formatCompact(row.revenue, { cny: true }),
-	},
-];
+// Phase 1 Batch B1 — `earnings_forecast` on the `DataTable` primitive (design
+// doc §9): one sortable row per fiscal year (this FY / next / +2). No Pivot
+// chart or row expand — see forecast-columns.ts for why the metric columns
+// stay sortable-but-not-`isMetric`, and every field here is already a
+// visible column, so there's nothing left to reveal via `renderExpanded`.
 
-/** finance_earnings_forecast → 盈利预测(一致预期), one row per fiscal year
- * (this FY / next / +2). The 营收 column only renders when at least one row
- * actually carries `revenue` — it's optional on ForecastRow. */
+/** finance_earnings_forecast → 盈利预测(一致预期), one row per fiscal year.
+ * The 营收 column only renders when at least one row actually carries
+ * `revenue` — it's optional on ForecastRow. */
 export function ForecastTable({ data }: { data: ForecastRowData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
 	const hasRevenue = data.some((row) => row.revenue !== null);
-	const columns = hasRevenue
-		? FORECAST_COLUMNS
-		: FORECAST_COLUMNS.filter((col) => col.key !== "revenue");
+	const columns = forecastColumns(hasRevenue);
 	return (
-		<CardShell title="盈利预测(一致预期)">
-			<FinTable
-				columns={columns}
-				getRowKey={(row, index) => `${row.year}-${index}`}
-				rows={data}
-			/>
-		</CardShell>
+		<DataTable<ForecastRowData>
+			categoryKey="year"
+			columns={columns}
+			getRowKey={(row, index) => `${row.year}-${index}`}
+			rows={data}
+			subtitle={`${data.length} 年`}
+			title="盈利预测(一致预期)"
+		/>
 	);
 }
