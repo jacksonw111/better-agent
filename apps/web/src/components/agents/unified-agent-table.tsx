@@ -3,7 +3,6 @@ import {
 	AvatarFallback,
 	AvatarImage,
 } from "@better-agent/ui/components/avatar";
-import { Badge } from "@better-agent/ui/components/badge";
 import {
 	Table,
 	TableBody,
@@ -27,12 +26,11 @@ import {
 	rowCreatedAt,
 	rowId,
 	rowSubtitle,
-	TYPE_LABEL,
 	type UnifiedAgentRow,
 } from "./unified-agent-row";
 
 const AVATAR_INITIALS_LENGTH = 2;
-const COLUMN_COUNT = 6;
+const COLUMN_COUNT = 5;
 
 const createdFormatter = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
@@ -49,12 +47,11 @@ export interface UnifiedRowCallbacks {
 
 type CloudRow = Extract<UnifiedAgentRow, { type: "cloud" }>;
 
-function TypeBadge({ type }: { type: UnifiedAgentRow["type"] }) {
-	return (
-		<Badge className="font-normal text-muted-foreground" variant="outline">
-			{TYPE_LABEL[type]}
-		</Badge>
-	);
+/** The empty-state copy each page passes in — /agents and /local render
+ * single-type lists, so the generic "cloud or local" line no longer fits. */
+export interface AgentListEmptyCopy {
+	body: string;
+	title: string;
 }
 
 /** The cloud agent's identity block — avatar + a name button that navigates to
@@ -151,9 +148,6 @@ function DesktopRow({
 				<AgentIdentity row={row} />
 			</TableCell>
 			<TableCell>
-				<TypeBadge type={row.type} />
-			</TableCell>
-			<TableCell>
 				<StatusCell row={row} />
 			</TableCell>
 			<TableCell className="text-muted-foreground tabular-nums">
@@ -169,24 +163,22 @@ function DesktopRow({
 	);
 }
 
-const EMPTY_COPY =
-	"No agents yet — add a cloud agent or connect a local one to get started.";
-
-/** Desktop view: one row per unified agent across the fixed columns
- * Agent · Type · Status · Created · Token · Actions. */
+/** Desktop view: one row per agent across the fixed columns
+ * Agent · Status · Created · Token · Actions. */
 export function UnifiedAgentTable({
 	rows,
 	callbacks,
+	empty,
 }: {
 	rows: UnifiedAgentRow[];
 	callbacks: UnifiedRowCallbacks;
+	empty: AgentListEmptyCopy;
 }) {
 	return (
 		<Table>
 			<TableHeader>
 				<TableRow>
 					<TableHead>Agent</TableHead>
-					<TableHead>Type</TableHead>
 					<TableHead>Status</TableHead>
 					<TableHead>Created</TableHead>
 					<TableHead>Token</TableHead>
@@ -200,7 +192,7 @@ export function UnifiedAgentTable({
 							className="h-24 text-center text-muted-foreground"
 							colSpan={COLUMN_COUNT}
 						>
-							{EMPTY_COPY}
+							{`${empty.title} — ${empty.body}`}
 						</TableCell>
 					</TableRow>
 				) : (
@@ -224,7 +216,6 @@ function MobileItem({
 		<div className="flex flex-col gap-2 p-3">
 			<AgentIdentity row={row} />
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-xs">
-				<TypeBadge type={row.type} />
 				{row.type === "local" ? (
 					<LocalAgentStatusChip status={row.entry.status} />
 				) : null}
@@ -243,17 +234,14 @@ function MobileItem({
 export function UnifiedAgentMobileList({
 	rows,
 	callbacks,
+	empty,
 }: {
 	rows: UnifiedAgentRow[];
 	callbacks: UnifiedRowCallbacks;
+	empty: AgentListEmptyCopy;
 }) {
 	if (rows.length === 0) {
-		return (
-			<EmptyState
-				body="Add a cloud agent or connect a local one to get started."
-				title="No agents yet"
-			/>
-		);
+		return <EmptyState body={empty.body} title={empty.title} />;
 	}
 	return (
 		<div className="flex flex-col divide-y rounded-md border">

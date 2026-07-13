@@ -7,20 +7,19 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type {
 	AgentRow,
 	BridgeSessionRow,
 	BridgeTokenRow,
 } from "@/utils/api-types";
-import { UnifiedAgentList } from "./unified-agent-list";
+import { CloudAgentList, LocalAgentList } from "./unified-agent-list";
 
 const store = vi.hoisted(() => ({
 	agents: [] as AgentRow[],
 	tokens: [] as BridgeTokenRow[],
 	sessions: [] as BridgeSessionRow[],
-	agentsError: false,
 	navigatedTo: [] as Record<string, unknown>[],
 }));
 
@@ -55,16 +54,7 @@ function query<T>(key: string[], read: () => T) {
 
 function agentsMock() {
 	return {
-		list: {
-			queryOptions: () => ({
-				queryKey: ["agents", "list"],
-				queryFn: () =>
-					store.agentsError
-						? Promise.reject(new Error("boom"))
-						: Promise.resolve(store.agents),
-			}),
-			key: () => ["agents", "list"],
-		},
+		list: query(["agents", "list"], () => store.agents),
 		getToken: {
 			queryOptions: ({ input }: { input: { id: string } }) => ({
 				queryKey: ["agents", "getToken", input.id],
@@ -139,23 +129,18 @@ function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 	};
 }
 
-function renderList() {
+function renderList(list: ReactElement) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
 	const { container } = render(
-		<QueryClientProvider client={queryClient}>
-			<UnifiedAgentList />
-		</QueryClientProvider>
+		<QueryClientProvider client={queryClient}>{list}</QueryClientProvider>
 	);
-	return {
-		body: within(container.ownerDocument.body),
-		view: within(container),
-	};
+	return { view: within(container) };
 }
 
-async function renderReadyTable() {
-	const rendered = renderList();
+async function renderReadyTable(list: ReactElement) {
+	const rendered = renderList(list);
 	const table = await waitFor(() => within(rendered.view.getByRole("table")));
 	return { ...rendered, table };
 }
@@ -164,72 +149,73 @@ beforeEach(() => {
 	store.agents = [makeAgent()];
 	store.tokens = [makeToken()];
 	store.sessions = [];
-	store.agentsError = false;
 	store.navigatedTo.length = 0;
 });
 
 afterEach(cleanup);
 
-it("renders rows from both sources with a type badge each", async () => {
-	const { table } = await renderReadyTable();
+it("cloud list renders only cloud rows, with the full row-action cluster", async () => {
+	const { table } = await renderReadyTable(<CloudAgentList />);
 
 	expect(table.getByText("cloud alpha")).toBeDefined();
-	expect(table.getByText("local beta")).toBeDefined();
-	expect(table.getByText("Cloud Agent")).toBeDefined();
-	expect(table.getByText("Local Agent")).toBeDefined();
+	expect(table.queryByText("local beta")).toBeNull();
+	expect(table.getByRole("button", { name: "Edit agent" })).toBeDefined();
+	expect(table.getByRole("button", { name: "Regenerate token" })).toBeDefined();
 });
 
-it("cloud name navigates to /chat and cloud rows get full row actions", async () => {
-	const { table } = await renderReadyTable();
+it("cloud name navigates to /chat with the agent id", async () => {
+	const { table } = await renderReadyTable(<CloudAgentList />);
 
 	fireEvent.click(table.getByText("cloud alpha"));
 	expect(store.navigatedTo[0]).toMatchObject({
 		to: "/chat",
 		search: { agentId: "agent-1" },
 	});
-	// Cloud rows carry the edit/regenerate cluster; local rows only delete.
-	expect(table.getByRole("button", { name: "Edit agent" })).toBeDefined();
-	expect(table.getByRole("button", { name: "Regenerate token" })).toBeDefined();
+});
+
+it("local list renders only local rows, with the status chip", async () => {
+	const { table } = await renderReadyTable(<LocalAgentList />);
+
+	expect(table.getByText("local beta")).toBeDefined();
+	expect(table.queryByText("cloud alpha")).toBeNull();
 	// The token-less local entry shows its status chip.
 	expect(table.getByText("Not connected")).toBeDefined();
 });
 
-it("local name navigates directly to /chat with the token as localAgentId", async () => {
-	const { table } = await renderReadyTable();
+it("local name navigates to the /local workspace with the token id", async () => {
+	const { table } = await renderReadyTable(<LocalAgentList />);
 
 	fireEvent.click(table.getByText("local beta"));
 	expect(store.navigatedTo[0]).toMatchObject({
-		to: "/chat",
-		search: { localAgentId: "token-1" },
+		to: "/local/$tokenId",
+		params: { tokenId: "token-1" },
 	});
 });
 
-it("keeps local rows when the cloud query errors", async () => {
-	store.agentsError = true;
-	const { table } = await renderReadyTable();
-
-	await waitFor(() => {
-		expect(table.getByText("local beta")).toBeDefined();
-	});
-	expect(table.queryByText("cloud alpha")).toBeNull();
-});
-
-it("filters to only local rows when searching 'local'", async () => {
-	const { view, table } = await renderReadyTable();
+it("filters local rows by name", async () => {
+	store.tokens = [
+		makeToken(),
+		makeToken({ id: "token-2", name: "gamma", last4: "5678" }),
+	];
+	const { view, table } = await renderReadyTable(<LocalAgentList />);
 
 	fireEvent.change(view.getByPlaceholderText("Search agents…"), {
-		target: { value: "local" },
+		target: { value: "gamma" },
 	});
 
-	expect(table.getByText("local beta")).toBeDefined();
-	expect(table.queryByText("cloud alpha")).toBeNull();
+	expect(table.getByText("gamma")).toBeDefined();
+	expect(table.queryByText("local beta")).toBeNull();
 });
 
-it("offers both agent types in the Add menu", async () => {
-	const { body, view } = await renderReadyTable();
+it("each page offers its own add entry point", async () => {
+	const cloud = await renderReadyTable(<CloudAgentList />);
+	expect(
+		cloud.view.getAllByRole("button", { name: "Add agent" }).length
+	).toBeGreaterThan(0);
+	cleanup();
 
-	fireEvent.click(view.getAllByRole("button", { name: "Add agent" })[0]);
-
-	expect(body.getByRole("menuitem", { name: "Cloud Agent" })).toBeDefined();
-	expect(body.getByRole("menuitem", { name: "Local Agent" })).toBeDefined();
+	const local = await renderReadyTable(<LocalAgentList />);
+	expect(
+		local.view.getAllByRole("button", { name: "Connect agent" }).length
+	).toBeGreaterThan(0);
 });

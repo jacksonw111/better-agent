@@ -18,11 +18,13 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SkillsIndexRouteImport } from './routes/skills.index'
 import { Route as MemoriesIndexRouteImport } from './routes/memories.index'
+import { Route as LocalIndexRouteImport } from './routes/local.index'
 import { Route as LocalAgentsIndexRouteImport } from './routes/local-agents.index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
 import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
 import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryId'
+import { Route as LocalTokenIdRouteImport } from './routes/local.$tokenId'
 import { Route as LocalAgentsTokenIdRouteImport } from './routes/local-agents.$tokenId'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
 import { Route as DebugRemoteRouteImport } from './routes/debug.remote'
@@ -75,6 +77,11 @@ const MemoriesIndexRoute = MemoriesIndexRouteImport.update({
   path: '/memories/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocalIndexRoute = LocalIndexRouteImport.update({
+  id: '/local/',
+  path: '/local/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocalAgentsIndexRoute = LocalAgentsIndexRouteImport.update({
   id: '/local-agents/',
   path: '/local-agents/',
@@ -98,6 +105,11 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
 const MemoriesMemoryIdRoute = MemoriesMemoryIdRouteImport.update({
   id: '/memories/$memoryId',
   path: '/memories/$memoryId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LocalTokenIdRoute = LocalTokenIdRouteImport.update({
+  id: '/local/$tokenId',
+  path: '/local/$tokenId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LocalAgentsTokenIdRoute = LocalAgentsTokenIdRouteImport.update({
@@ -143,11 +155,13 @@ export interface FileRoutesByFullPath {
   '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
+  '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/local-agents/': typeof LocalAgentsIndexRoute
+  '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
   '/skills/': typeof SkillsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
@@ -165,11 +179,13 @@ export interface FileRoutesByTo {
   '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
+  '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
   '/agents': typeof AgentsIndexRoute
   '/bridge': typeof BridgeIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
   '/local-agents': typeof LocalAgentsIndexRoute
+  '/local': typeof LocalIndexRoute
   '/memories': typeof MemoriesIndexRoute
   '/skills': typeof SkillsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
@@ -188,11 +204,13 @@ export interface FileRoutesById {
   '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
+  '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/local-agents/': typeof LocalAgentsIndexRoute
+  '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
   '/skills/': typeof SkillsIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
@@ -212,11 +230,13 @@ export interface FileRouteTypes {
     | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
+    | '/local/$tokenId'
     | '/memories/$memoryId'
     | '/agents/'
     | '/bridge/'
     | '/integrations/'
     | '/local-agents/'
+    | '/local/'
     | '/memories/'
     | '/skills/'
     | '/auth/google/callback'
@@ -234,11 +254,13 @@ export interface FileRouteTypes {
     | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
+    | '/local/$tokenId'
     | '/memories/$memoryId'
     | '/agents'
     | '/bridge'
     | '/integrations'
     | '/local-agents'
+    | '/local'
     | '/memories'
     | '/skills'
     | '/auth/google/callback'
@@ -256,11 +278,13 @@ export interface FileRouteTypes {
     | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
+    | '/local/$tokenId'
     | '/memories/$memoryId'
     | '/agents/'
     | '/bridge/'
     | '/integrations/'
     | '/local-agents/'
+    | '/local/'
     | '/memories/'
     | '/skills/'
     | '/auth/google/callback'
@@ -279,11 +303,13 @@ export interface RootRouteChildren {
   DebugRemoteRoute: typeof DebugRemoteRoute
   IntegrationsAccountIdRoute: typeof IntegrationsAccountIdRoute
   LocalAgentsTokenIdRoute: typeof LocalAgentsTokenIdRoute
+  LocalTokenIdRoute: typeof LocalTokenIdRoute
   MemoriesMemoryIdRoute: typeof MemoriesMemoryIdRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   BridgeIndexRoute: typeof BridgeIndexRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
   LocalAgentsIndexRoute: typeof LocalAgentsIndexRoute
+  LocalIndexRoute: typeof LocalIndexRoute
   MemoriesIndexRoute: typeof MemoriesIndexRoute
   SkillsIndexRoute: typeof SkillsIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
@@ -355,6 +381,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemoriesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/local/': {
+      id: '/local/'
+      path: '/local'
+      fullPath: '/local/'
+      preLoaderRoute: typeof LocalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/local-agents/': {
       id: '/local-agents/'
       path: '/local-agents'
@@ -388,6 +421,13 @@ declare module '@tanstack/react-router' {
       path: '/memories/$memoryId'
       fullPath: '/memories/$memoryId'
       preLoaderRoute: typeof MemoriesMemoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/local/$tokenId': {
+      id: '/local/$tokenId'
+      path: '/local/$tokenId'
+      fullPath: '/local/$tokenId'
+      preLoaderRoute: typeof LocalTokenIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/local-agents/$tokenId': {
@@ -447,11 +487,13 @@ const rootRouteChildren: RootRouteChildren = {
   DebugRemoteRoute: DebugRemoteRoute,
   IntegrationsAccountIdRoute: IntegrationsAccountIdRoute,
   LocalAgentsTokenIdRoute: LocalAgentsTokenIdRoute,
+  LocalTokenIdRoute: LocalTokenIdRoute,
   MemoriesMemoryIdRoute: MemoriesMemoryIdRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   BridgeIndexRoute: BridgeIndexRoute,
   IntegrationsIndexRoute: IntegrationsIndexRoute,
   LocalAgentsIndexRoute: LocalAgentsIndexRoute,
+  LocalIndexRoute: LocalIndexRoute,
   MemoriesIndexRoute: MemoriesIndexRoute,
   SkillsIndexRoute: SkillsIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,

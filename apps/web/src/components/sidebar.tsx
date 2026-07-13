@@ -1,12 +1,14 @@
 import type { NavSection } from "@better-agent/ui/components/app-shell-sidebar";
 import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
-import { BookMarked, Bot, Gauge, Plug, Wand2 } from "lucide-react";
+import { BookMarked, Bot, Gauge, Laptop, Plug, Wand2 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 
 // Chat is not a top-level nav item — you open a chat from an agent (its row's
 // chat action → /chat?agentId=…). Keep Agents highlighted while a chat is open.
+// Local agents are a separate destination (P0 route split): /local's prefix
+// match also covers /local/$tokenId and the legacy /local-agents redirects.
 const SECTIONS: readonly NavSection[] = [
 	{
 		kind: "item",
@@ -18,8 +20,12 @@ const SECTIONS: readonly NavSection[] = [
 			to: "/agents",
 			label: "Agents",
 			icon: Bot,
-			match: ["/chat", "/local-agents"],
+			match: ["/chat"],
 		},
+	},
+	{
+		kind: "item",
+		item: { to: "/local", label: "Local Agents", icon: Laptop },
 	},
 	{
 		kind: "item",

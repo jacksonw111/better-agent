@@ -173,7 +173,7 @@ function useAddLocalAgentDialog(
 	const create = useCreateBridgeToken(async (tokenId) => {
 		await assignMemoriesSafely({ tokenId }, memoryIds);
 		setOpen(false);
-		navigate({ search: { localAgentId: tokenId }, to: "/chat" });
+		navigate({ params: { tokenId }, to: "/local/$tokenId" });
 	});
 
 	const onOpenChange = (next: boolean) => {

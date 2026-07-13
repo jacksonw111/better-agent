@@ -2,7 +2,7 @@ import { isActivePath } from "@better-agent/ui/components/app-shell-nav";
 import { useSidebar } from "@better-agent/ui/components/sidebar";
 import { cn } from "@better-agent/ui/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookMarked, Bot, EllipsisIcon, Gauge } from "lucide-react";
+import { BookMarked, Bot, EllipsisIcon, Gauge, Laptop } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
@@ -16,7 +16,7 @@ interface TabItem {
 	to: string;
 }
 
-// A deliberate subset of the sidebar's full nav — the 3 destinations worth a
+// A deliberate subset of the sidebar's full nav — the destinations worth a
 // thumb-reachable slot, plus "More" for everything else (Skills,
 // Integrations, theme, account) via the existing hamburger drawer.
 const TAB_ITEMS: readonly TabItem[] = [
@@ -25,8 +25,11 @@ const TAB_ITEMS: readonly TabItem[] = [
 		to: "/agents",
 		label: "Agents",
 		icon: Bot,
-		match: ["/chat", "/local-agents"],
+		match: ["/chat"],
 	},
+	// `to` prefix-matching covers /local/$tokenId and the legacy /local-agents
+	// links (both share the /local prefix), so no extra `match` needed.
+	{ to: "/local", label: "Local", icon: Laptop },
 	{ to: "/memories", label: "Memories", icon: BookMarked },
 ];
 

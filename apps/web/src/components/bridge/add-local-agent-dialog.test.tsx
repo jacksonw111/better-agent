@@ -112,7 +112,7 @@ it("blocks Create until an agent kind is picked, then sends it", async () => {
 	expect(store.createArgs[0]?.agentKind).toBe("codex");
 });
 
-it("navigates directly to /chat with the new agent's token on success", async () => {
+it("navigates to the new agent's /local workspace on success", async () => {
 	const view = renderDialog();
 	openDialog(view);
 
@@ -125,7 +125,7 @@ it("navigates directly to /chat with the new agent's token on success", async ()
 		expect(store.navigatedTo).toHaveLength(1);
 	});
 	expect(store.navigatedTo[0]).toMatchObject({
-		to: "/chat",
-		search: { localAgentId: "new-token" },
+		to: "/local/$tokenId",
+		params: { tokenId: "new-token" },
 	});
 });

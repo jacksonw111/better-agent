@@ -5,9 +5,7 @@ import { AGENT_KIND_LABEL, AgentKindIcon } from "./local-agent-kind-icon";
 
 /** The agent identity block shared by the table row and the mobile card: its
  * NAME is the ONLY navigation target (a text-styled button carrying the
- * chat link), so both views navigate identically and can't drift. Navigates
- * straight to /chat rather than through the /local-agents/$tokenId redirect
- * shim, avoiding a double navigation. */
+ * workspace link), so both views navigate identically and can't drift. */
 export function LocalAgentIdentity({ entry }: { entry: LocalAgentEntry }) {
 	const { token } = entry;
 	const navigate = useNavigate();
@@ -22,8 +20,8 @@ export function LocalAgentIdentity({ entry }: { entry: LocalAgentEntry }) {
 					className="truncate text-left font-medium hover:underline"
 					onClick={() =>
 						navigate({
-							search: { localAgentId: token.id },
-							to: "/chat",
+							params: { tokenId: token.id },
+							to: "/local/$tokenId",
 						})
 					}
 					type="button"

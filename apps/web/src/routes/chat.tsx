@@ -1,15 +1,12 @@
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import type { AgentClient } from "@jacksonw111/agent-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { deriveLocalAgentEntries } from "@/components/bridge/local-agent-join";
-import { withSessionPolling } from "@/components/bridge/local-agent-poll";
 import { AgentGrid } from "@/components/chat/agent-grid";
 import { clearLastChat, saveLastChat } from "@/components/chat/chat-session";
 import { ChatView } from "@/components/chat/chat-view";
-import { LocalChatPanel } from "@/components/chat/local-chat-panel";
 import { useRestoreChat } from "@/components/chat/use-restore-chat";
 import { RocketLoader } from "@/components/rocket-loader";
 import { StepTransition } from "@/components/step-transition";
@@ -18,7 +15,18 @@ import { userAgentClient } from "@/utils/chat-client";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/chat")({
-	component: HomePage,
+	// Local agents moved to their own route tree (P0 route split). The
+	// `localAgentId` search param survives only as a legacy alias so old
+	// links/bookmarks land on the new workspace instead of 404-ing here.
+	beforeLoad: ({ search }) => {
+		if (search.localAgentId) {
+			throw redirect({
+				params: { tokenId: search.localAgentId },
+				to: "/local/$tokenId",
+			});
+		}
+	},
+	component: CloudHome,
 	validateSearch: (
 		search: Record<string, unknown>
 	): { agentId?: string; localAgentId?: string } => ({
@@ -68,32 +76,15 @@ function AgentGridSkeleton() {
 	);
 }
 
-function useLocalAgentEntries() {
-	const tokens = useQuery(orpc.bridge.listTokens.queryOptions());
-	const sessions = useQuery(
-		withSessionPolling(orpc.bridge.listSessions.queryOptions())
-	);
-	return deriveLocalAgentEntries(tokens.data ?? [], sessions.data ?? []);
-}
-
 function AgentGridView({ onSelect }: { onSelect: (agent: AgentRow) => void }) {
-	const navigate = useNavigate();
 	const agentsQuery = useQuery(orpc.agents.list.queryOptions());
-	const localEntries = useLocalAgentEntries();
 	const agents = agentsQuery.data ?? [];
 	if (agentsQuery.isPending) {
 		return <AgentGridSkeleton />;
 	}
 	return (
 		<div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">
-			<AgentGrid
-				agents={agents}
-				localEntries={localEntries}
-				onSelect={onSelect}
-				onSelectLocal={(entry) =>
-					navigate({ search: { localAgentId: entry.token.id }, to: "/chat" })
-				}
-			/>
+			<AgentGrid agents={agents} onSelect={onSelect} />
 		</div>
 	);
 }
@@ -270,8 +261,8 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 	);
 }
 
-// The cloud chat experience (agent picker → session). Split out so its hooks
-// never run on the local-agent branch, which renders a different subtree.
+// The cloud chat experience (agent picker → session). Local agents render on
+// /local/$tokenId — the beforeLoad redirect keeps them out of this subtree.
 function CloudHome() {
 	const home = useHomeState();
 	const step =
@@ -281,19 +272,4 @@ function CloudHome() {
 			<HomeContent home={home} />
 		</StepTransition>
 	);
-}
-
-function HomePage() {
-	const { localAgentId } = Route.useSearch();
-	const navigate = useNavigate();
-	// localAgentId wins when both are present: its branch is checked first.
-	if (localAgentId) {
-		return (
-			<LocalChatPanel
-				onClose={() => navigate({ search: {}, to: "/chat" })}
-				tokenId={localAgentId}
-			/>
-		);
-	}
-	return <CloudHome />;
 }

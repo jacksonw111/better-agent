@@ -5,7 +5,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { MobileTabBar } from "./mobile-tab-bar";
 
 const DASHBOARD_LABEL_PATTERN = /Dashboard/;
-const AGENTS_LABEL_PATTERN = /Agents/;
+const AGENTS_LABEL_PATTERN = /^Agents/;
+const LOCAL_LABEL_PATTERN = /Local/;
 const MEMORIES_LABEL_PATTERN = /Memories/;
 const MORE_LABEL_PATTERN = /More/;
 
@@ -63,6 +64,7 @@ it("renders a tab for each primary destination plus More", () => {
 		view.getByRole("link", { name: DASHBOARD_LABEL_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("link", { name: AGENTS_LABEL_PATTERN })).toBeDefined();
+	expect(view.getByRole("link", { name: LOCAL_LABEL_PATTERN })).toBeDefined();
 	expect(
 		view.getByRole("link", { name: MEMORIES_LABEL_PATTERN })
 	).toBeDefined();
@@ -90,12 +92,23 @@ it("treats /chat as part of the Agents tab's active match", () => {
 	).toContain("text-primary");
 });
 
-it("treats /local-agents as part of the Agents tab's active match", () => {
-	store.pathname = "/local-agents";
-	const view = renderBar();
-
+it("activates the Local tab on the /local list and a token workspace alike", () => {
+	store.pathname = "/local";
+	let view = renderBar();
+	expect(
+		view.getByRole("link", { name: LOCAL_LABEL_PATTERN }).className
+	).toContain("text-primary");
 	expect(
 		view.getByRole("link", { name: AGENTS_LABEL_PATTERN }).className
+	).not.toContain("text-primary");
+
+	cleanup();
+	store.pathname = "/local-agents";
+	view = renderBar();
+	// Legacy /local-agents links share the /local prefix, so the Local tab
+	// (not Agents) lights up during their redirect.
+	expect(
+		view.getByRole("link", { name: LOCAL_LABEL_PATTERN }).className
 	).toContain("text-primary");
 });
 
@@ -128,9 +141,15 @@ it("suppresses the dock when /chat has a selected cloud agent", () => {
 	expect(view.queryByRole("navigation")).toBeNull();
 });
 
-it("suppresses the dock when /chat has a selected local agent", () => {
-	store.pathname = "/chat";
-	store.search = { localAgentId: "token-1" };
+it("keeps the dock on the /local agent list", () => {
+	store.pathname = "/local";
+	const view = renderBar();
+
+	expect(view.getByRole("navigation", { name: "Primary" })).toBeDefined();
+});
+
+it("suppresses the dock inside a local agent's workspace", () => {
+	store.pathname = "/local/token-1";
 	const view = renderBar();
 
 	expect(view.queryByRole("navigation")).toBeNull();

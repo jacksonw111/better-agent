@@ -1,7 +1,7 @@
 import { XIcon } from "lucide-react";
 import { LocalAgentDetail } from "@/components/bridge/local-agent-detail";
 
-/** The /chat body for a local agent: same fill-height column as the cloud
+/** The /local/$tokenId body: same fill-height column as the cloud chat
  * panel so the composer stays pinned to the viewport bottom. */
 export function LocalChatPanel({
 	onClose,
