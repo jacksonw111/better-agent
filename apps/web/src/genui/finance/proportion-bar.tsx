@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { PROBABILITY, SENTIMENT_NEUTRAL } from "./chart-theme";
 import { DOWN_COLOR, UP_COLOR } from "./format";
 import { DRAW_IN_MS, EASE_OUT, useReducedMotion } from "./motion";
+import { OverlayFill, SplitTrack } from "./proportion-bar-variants";
 
 // One proportional-bar primitive covering every finance-genui bar shape (§2
 // Primitive Kit): depth-ladder overlay, bull/bear split, odds bar, hue-ramp rows.
@@ -14,12 +15,11 @@ const MS_PER_SECOND = 1000;
  * instead of replaying a from-zero draw (§6 Guardrail 1). */
 const DRAW_IN_SECONDS = DRAW_IN_MS / MS_PER_SECOND;
 const INSTANT_SECONDS = 0;
-const OVERLAY_FILL_OPACITY = 0.08;
 const LABEL_CLASS = "w-20 shrink-0 truncate text-muted-foreground text-xs";
 const VALUE_LABEL_CLASS =
 	"w-12 shrink-0 text-right font-medium text-xs tabular-nums";
 
-const TRACK_HEIGHT_CLASS: Record<"sm" | "md", string> = {
+export const TRACK_HEIGHT_CLASS: Record<"sm" | "md", string> = {
 	md: "h-2",
 	sm: "h-1.5",
 };
@@ -50,7 +50,7 @@ function toFraction(fraction?: number, value?: number, max?: number): number {
 	return 0;
 }
 
-function toPercent(fraction: number): number {
+export function toPercent(fraction: number): number {
 	if (!Number.isFinite(fraction)) {
 		return 0;
 	}
@@ -86,14 +86,14 @@ export interface ProportionBarProps {
 	variant?: "track" | "overlay";
 }
 
-function fillTransition(reduced: boolean) {
+export function fillTransition(reduced: boolean) {
 	return {
 		duration: reduced ? INSTANT_SECONDS : DRAW_IN_SECONDS,
 		ease: EASE_OUT,
 	};
 }
 
-function BarFill({
+export function BarFill({
 	color,
 	direction,
 	opacity,
@@ -121,68 +121,6 @@ function BarFill({
 			style={{ backgroundColor: color, opacity }}
 			transition={fillTransition(reduced)}
 		/>
-	);
-}
-
-function SplitTrack({
-	reduced,
-	segments,
-	size,
-}: {
-	reduced: boolean;
-	segments: ProportionBarSegment[];
-	size: "sm" | "md";
-}) {
-	return (
-		<div
-			className={cn(
-				"flex min-w-0 flex-1 overflow-hidden rounded-full bg-muted",
-				TRACK_HEIGHT_CLASS[size]
-			)}
-		>
-			{segments.map((segment) => (
-				<motion.div
-					animate={{ width: `${toPercent(segment.fraction)}%` }}
-					className="h-full"
-					initial={reduced ? false : { width: 0 }}
-					key={segment.key}
-					style={{ backgroundColor: segment.color }}
-					transition={fillTransition(reduced)}
-				/>
-			))}
-		</div>
-	);
-}
-
-type OverlayFillProps = Pick<
-	ProportionBarProps,
-	"children" | "className" | "direction"
-> & {
-	color: string;
-	percent: number;
-	reduced: boolean;
-};
-
-function OverlayFill({
-	children,
-	className,
-	color,
-	direction = "start",
-	percent,
-	reduced,
-}: OverlayFillProps) {
-	return (
-		<div className={cn("relative overflow-hidden", className)}>
-			<BarFill
-				color={color}
-				direction={direction}
-				opacity={OVERLAY_FILL_OPACITY}
-				percent={percent}
-				reduced={reduced}
-				rounded={false}
-			/>
-			{children ? <div className="relative z-10">{children}</div> : null}
-		</div>
 	);
 }
 
