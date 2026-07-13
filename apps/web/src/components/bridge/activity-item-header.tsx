@@ -12,10 +12,10 @@ import type { ReactNode } from "react";
 import type { DiffLine } from "./activity-diff";
 import { formatDurationMs } from "./activity-format";
 
-// R1-T3: ActivityItem's header row (icon, primary text, diff counts,
-// duration, status, disclosure chevron) plus the agent-shape-agnostic input
-// parsing it needs — split out of bridge-tool-card.tsx to keep that file
-// under the repo's 300-line cap.
+// R1-T3: ActivityItem's header row + the input parsing it needs. P1-T3
+// widened it into the shared parts bin for BOTH activity cards — the
+// output-shaping helpers moved here so bash-command-card.tsx reuses them
+// without an import cycle against bridge-tool-card.tsx.
 
 export type ToolCategory = "command" | "fileEdit" | "fileRead" | "search";
 
@@ -31,9 +31,9 @@ function firstString(...values: unknown[]): string | undefined {
 	);
 }
 
-/** The command string for a shell tool — a bare string input (codex) or the
+/** A shell tool's command — a bare string input (codex) or the
  * `command`/`cmd`/`script` field of an object input (claude/opencode). */
-function commandText(input: unknown): string {
+export function commandText(input: unknown): string {
 	if (typeof input === "string") {
 		return input;
 	}
@@ -101,9 +101,8 @@ export function primaryLine(
 	};
 }
 
-/** Same precedence the old local copy applied: a running call always shows
- * the spinner; a settled call with `isError` shows the error glyph even on a
- * nominally `complete` status. */
+/** A running call always shows the spinner; a settled call with `isError`
+ * shows the error glyph even on a nominally `complete` status. */
 function iconStatus(tool: ToolInvocation): ToolInvocation["status"] {
 	if (tool.status === "running") {
 		return "running";
@@ -111,10 +110,9 @@ function iconStatus(tool: ToolInvocation): ToolInvocation["status"] {
 	return tool.isError ? "error" : tool.status;
 }
 
-/** Shared `ToolStatusIcon` skeleton (packages/ui), with the terminal's own
- * accent colors kept as-is (blue spinner / emerald check vs the plain chat
- * card's muted pair). */
-function StatusIcon({ tool }: { tool: ToolInvocation }) {
+/** Shared `ToolStatusIcon` skeleton (packages/ui) with the terminal's own
+ * accent colors (blue spinner / emerald check vs the chat card's muted pair). */
+export function StatusIcon({ tool }: { tool: ToolInvocation }) {
 	return (
 		<ToolStatusIcon
 			colors={{ complete: "text-emerald-500", running: "text-blue-500" }}
@@ -150,7 +148,11 @@ function HeaderLabel({ label }: { label: string | undefined }) {
 	);
 }
 
-function HeaderDuration({ durationMs }: { durationMs: number | undefined }) {
+export function HeaderDuration({
+	durationMs,
+}: {
+	durationMs: number | undefined;
+}) {
 	if (durationMs === undefined) {
 		return null;
 	}
@@ -161,7 +163,13 @@ function HeaderDuration({ durationMs }: { durationMs: number | undefined }) {
 	);
 }
 
-function HeaderChevron({ hasBody, open }: { hasBody: boolean; open: boolean }) {
+export function HeaderChevron({
+	hasBody,
+	open,
+}: {
+	hasBody: boolean;
+	open: boolean;
+}) {
 	if (!hasBody) {
 		return null;
 	}

@@ -13,15 +13,22 @@ import {
 	ToolCardHeader,
 	type ToolCategory,
 } from "./activity-item-header";
-import { flattenToolResult } from "./tool-result-text";
+import { BashCommandCard } from "./bash-command-card";
+import {
+	computeErrorLine,
+	computeOutput,
+	computeTail,
+	ErrorPreviewLine,
+	TailLine,
+} from "./tool-output-preview";
 
 // R-refactor (Bug 3) / R1-T3: renders a LOCAL agent's real CLI tool
 // executions — shell commands, file edits, reads, searches — as compact
 // terminal-style ActivityItem cards, instead of the generic JSON `ToolGroup`
 // fallback. An uncategorized tool returns null so the caller falls back to
-// the default card. The web-agent chat doesn't use this.
-
-const OUTPUT_CHAR_CAP = 4000;
+// the default card. The web-agent chat doesn't use this. P1-T3: the command
+// category routes to its own richer `BashCommandCard`; the output-shaping
+// helpers both cards share live in activity-item-header.tsx.
 
 const COMMAND_RE = /bash|shell|\bsh\b|zsh|exec|command|\brun\b|terminal/;
 const FILE_EDIT_RE = /edit|write|create|patch|replace/;
@@ -43,39 +50,6 @@ export function categoryOf(name: string): ToolCategory | null {
 		return "search";
 	}
 	return null;
-}
-
-function cappedOutput(result: unknown): string {
-	const text = flattenToolResult(result).trimEnd();
-	return text.length > OUTPUT_CHAR_CAP
-		? `${text.slice(0, OUTPUT_CHAR_CAP)}\n…(truncated)`
-		: text;
-}
-
-/** The last non-blank line of a running call's live `preview` — shown as a
- * single-line muted tail under the header, terminal-style. REPLACE
- * semantics: `preview` already holds the latest snapshot (see
- * `bridge-events.ts`), so this just re-derives from whatever's current. */
-function previewTail(preview: string | undefined): string {
-	if (!preview) {
-		return "";
-	}
-	const lines = preview.split("\n").filter((line) => line.trim() !== "");
-	return lines.at(-1) ?? "";
-}
-
-/** A persistent one-line error preview, CSS-truncated to one line — parity
- * with cloud's `PlainToolView` (packages/ui/chat/tool.tsx), which shows its
- * destructive error line outside the collapsible panel so a failure stays
- * visible even collapsed. Grabs the FIRST non-blank line, since that's
- * usually where the actual error message lives — mirrors `previewTail`'s
- * "grab one line, let CSS `truncate` do the rest" shape, but from the front
- * of the text instead of the tail. */
-function errorPreviewLine(result: unknown): string {
-	const lines = cappedOutput(result)
-		.split("\n")
-		.filter((line) => line.trim() !== "");
-	return lines[0] ?? "Tool call failed.";
 }
 
 /** The disclosure body: the inline diff when one's known, else the plain
@@ -117,26 +91,6 @@ function ActivityBodyIfOpen({
 	return <ActivityBody diffLines={diffLines} output={output} />;
 }
 
-function TailLine({ tail }: { tail: string }) {
-	if (!tail) {
-		return null;
-	}
-	return (
-		<div className="truncate px-2 py-1 font-mono text-muted-foreground text-xs">
-			{tail}
-		</div>
-	);
-}
-
-function ErrorPreviewLine({ text }: { text: string }) {
-	if (!text) {
-		return null;
-	}
-	return (
-		<div className="truncate px-2 py-1.5 text-destructive text-xs">{text}</div>
-	);
-}
-
 function computeDiffLines(
 	category: ToolCategory,
 	tool: ToolInvocation
@@ -147,35 +101,9 @@ function computeDiffLines(
 	return diffFor(tool);
 }
 
-function computeOutput(tool: ToolInvocation): string {
-	if (tool.status === "running") {
-		return "";
-	}
-	return cappedOutput(tool.result);
-}
-
-function computeTail(tool: ToolInvocation): string {
-	if (tool.status !== "running") {
-		return "";
-	}
-	return previewTail(tool.preview);
-}
-
-/** Skip the persistent error preview while the panel is open AND there's a
- * body to show it — otherwise it'd duplicate the same text right below it. */
-function computeErrorLine(
-	tool: ToolInvocation,
-	hasBody: boolean,
-	open: boolean
-): string {
-	if (!tool.isError || (hasBody && open)) {
-		return "";
-	}
-	return errorPreviewLine(tool.result);
-}
-
-/** ActivityItem: the rich card for a categorized tool call (command/
- * fileEdit/fileRead/search). Exported directly for the turn spine renderer;
+/** ActivityItem: the rich card for a categorized tool call (fileEdit/
+ * fileRead/search — a command renders `BashCommandCard` instead, see the
+ * registry below). Exported directly for the turn spine renderer;
  * `bridgeToolRegistry` below wraps it for the shared `ChatRow` seam. */
 export function ActivityItem({
 	category,
@@ -220,7 +148,9 @@ export function ActivityItem({
 /** The local-agent terminal's tool-card registry (P1-T1): rich terminal
  * cards for shell/edit/read/search executions; an uncategorized tool is
  * unclaimed (null), so a `ChatRow`/`ToolGroup` given this registry falls
- * back to the default plain collapsible block. */
+ * back to the default plain collapsible block. P1-T3: a command claims the
+ * dedicated `BashCommandCard` ($-prefixed, inline output, late-output
+ * auto-expand-once); the other categories keep `ActivityItem`. */
 export const bridgeToolRegistry: ToolRegistry = [
 	{
 		match: (tool) => categoryOf(tool.toolName) !== null,
@@ -228,6 +158,9 @@ export const bridgeToolRegistry: ToolRegistry = [
 			const category = categoryOf(tool.toolName);
 			if (!category) {
 				return null;
+			}
+			if (category === "command") {
+				return <BashCommandCard tool={tool} />;
 			}
 			return <ActivityItem category={category} tool={tool} />;
 		},

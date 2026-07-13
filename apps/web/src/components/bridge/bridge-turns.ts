@@ -29,6 +29,7 @@ import { foldApproval, foldQuestion } from "./bridge-turns-approval";
 import {
 	applyToolResult,
 	createTaskInvocation,
+	recordSubagentActivity,
 	updateTaskInvocation,
 } from "./bridge-turns-tool-task";
 import { STATUS_NOTICE_KINDS } from "./status-line";
@@ -159,15 +160,24 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
 	if (existing) {
 		applyToolResult(existing.tool, event);
 		state.touched.add(existing.turn);
+		// P1-T3: mirror the settle into the running task's tool history too
+		// (only ever updates a run this task already started — see
+		// recordSubagentActivity).
+		recordSubagentActivity(state, event);
 		return;
 	}
 	// A subagent "Task" tool: identified by input shape (subagent_type, or
 	// description+prompt) OR by claude's fixed tool name "Task" — the name
 	// fallback catches calls whose args arrive late, folding into a TaskCard.
+	// (Checked BEFORE recordSubagentActivity so a second, parallel task is
+	// never recorded as a tool run of the first.)
 	if (event.name === "Task" || isTaskToolInput(event.input)) {
 		foldTaskTool(state, id, event);
 		return;
 	}
+	// P1-T3: a plain tool starting while a (sole) task runs is presumed to be
+	// that subagent's own execution — mirrored into the task's history.
+	recordSubagentActivity(state, event);
 	const turn = openAssistant(state, id);
 	const tool: ToolInvocation = {
 		callId: event.id,

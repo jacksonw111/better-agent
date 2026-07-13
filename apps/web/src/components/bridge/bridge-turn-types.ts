@@ -6,7 +6,7 @@ import type {
 	QuestionEvent,
 	StatusEvent,
 } from "./bridge-events";
-import type { TaskInvocation } from "./task-card";
+import type { TaskInvocation } from "./task-invocation";
 import type { TodoItem } from "./todo-list";
 
 /**

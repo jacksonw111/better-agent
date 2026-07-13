@@ -158,28 +158,33 @@ it("falls back to the raw output view for a completed Edit call with no diff inf
 	expect(scope.getByText("ok")).toBeDefined();
 });
 
-it("auto-expands an errored call", () => {
+// Command-card behavior (error auto-expand, late-output expand-once, copy,
+// line counts) is specified in bash-command-card.test.tsx — the registry
+// routes the command category there now. The error contract of the OTHER
+// categories' ActivityItem stays covered here via a search tool:
+
+it("auto-expands an errored non-command call", () => {
 	const scope = renderTool(
 		tool({
-			toolName: "shell",
-			args: "false",
+			toolName: "Grep",
+			args: { pattern: "TODO" },
 			status: "error",
 			isError: true,
-			result: "exit code 1",
+			result: "ripgrep crashed",
 		})
 	);
 	expect(scope.getByRole("button").getAttribute("aria-expanded")).toBe("true");
-	expect(scope.getByText("exit code 1")).toBeDefined();
+	expect(scope.getByText("ripgrep crashed")).toBeDefined();
 });
 
 it("keeps a persistent one-line error preview visible after collapsing an errored call (cloud parity)", () => {
 	const scope = renderTool(
 		tool({
-			toolName: "shell",
-			args: "false",
+			toolName: "Grep",
+			args: { pattern: "TODO" },
 			status: "error",
 			isError: true,
-			result: "exit code 1",
+			result: "ripgrep crashed",
 		})
 	);
 	// Auto-expanded by default; collapse it and the error text must stay
@@ -188,5 +193,10 @@ it("keeps a persistent one-line error preview visible after collapsing an errore
 	// lives outside the collapsible panel entirely.
 	fireEvent.click(scope.getByRole("button"));
 	expect(scope.getByRole("button").getAttribute("aria-expanded")).toBe("false");
-	expect(scope.getByText("exit code 1")).toBeDefined();
+	expect(scope.getByText("ripgrep crashed")).toBeDefined();
+});
+
+it("routes the command category to the $-prefixed BashCommandCard", () => {
+	const scope = renderTool(tool({ toolName: "Bash", args: { command: "ls" } }));
+	expect(scope.getByText("$")).toBeDefined();
 });
