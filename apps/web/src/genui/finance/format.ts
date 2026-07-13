@@ -6,8 +6,10 @@
 // green. `changeColor` is the single source of truth for this — every
 // finance component must go through it rather than hardcoding a color.
 
-const UP_COLOR = "#ef4444";
-const DOWN_COLOR = "#16a34a";
+// Exported so chart-theme.ts can re-export these as the price axis's single
+// source (§5.2) instead of redeclaring the literals.
+export const UP_COLOR = "#ef4444";
+export const DOWN_COLOR = "#16a34a";
 
 const WAN = 1e4; // 万
 const YI = 1e8; // 亿
