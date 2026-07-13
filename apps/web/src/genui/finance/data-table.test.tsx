@@ -1,9 +1,46 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, within } from "@testing-library/react";
-import { beforeAll, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { beforeAll, expect, it, vi } from "vitest";
 import { DataTable } from "./data-table";
 import type { DataTableColumn, DataTableProps } from "./data-table-types";
+
+// jsdom's zero-size layout means recharts never lays out real ticks (its
+// ResponsiveContainer measures 0×0 via getBoundingClientRect), so the axis/
+// tooltip formatter tests below stub the handful of recharts primitives
+// data-table-chart.tsx uses and invoke the `tickFormatter`/`labelFormatter`
+// props it wires up directly — this asserts the wiring, not recharts' own
+// layout engine.
+vi.mock("recharts", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("recharts")>();
+	return {
+		...actual,
+		Bar: () => null,
+		BarChart: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+		CartesianGrid: () => null,
+		Line: () => null,
+		LineChart: ({ children }: { children?: ReactNode }) => (
+			<div>{children}</div>
+		),
+		ResponsiveContainer: ({ children }: { children?: ReactNode }) => (
+			<div>{children}</div>
+		),
+		Tooltip: ({
+			labelFormatter,
+		}: {
+			labelFormatter?: (raw: string) => ReactNode;
+		}) => (
+			<div data-testid="chart-tooltip-label">{labelFormatter?.("2023")}</div>
+		),
+		XAxis: ({ tickFormatter }: { tickFormatter?: (raw: string) => string }) => (
+			<div data-testid="chart-xaxis-tick">
+				{tickFormatter ? tickFormatter("2023") : "2023"}
+			</div>
+		),
+		YAxis: () => null,
+	};
+});
 
 // jsdom lacks ResizeObserver (recharts' ResponsiveContainer needs it) and
 // matchMedia; the latter also lets us pin prefers-reduced-motion so the kit's
@@ -169,6 +206,23 @@ it("pivots between the table grid and the chart view", () => {
 	const toTable = within(container).getByRole("button", { name: "表" });
 	fireEvent.click(toTable);
 	expect(container.querySelector("table")).not.toBeNull();
+});
+
+it("applies categoryFormat to the chart axis tick and tooltip label", () => {
+	const categoryFormat = (raw: string) => `FY${raw}`;
+	const { container } = renderTable({ categoryFormat });
+	fireEvent.click(within(container).getByRole("button", { name: "图" }));
+	const scope = within(container);
+	expect(scope.getByTestId("chart-xaxis-tick").textContent).toBe("FY2023");
+	expect(scope.getByTestId("chart-tooltip-label").textContent).toBe("FY2023");
+});
+
+it("falls back to the raw category string when categoryFormat is omitted", () => {
+	const { container } = renderTable();
+	fireEvent.click(within(container).getByRole("button", { name: "图" }));
+	const scope = within(container);
+	expect(scope.getByTestId("chart-xaxis-tick").textContent).toBe("2023");
+	expect(scope.getByTestId("chart-tooltip-label").textContent).toBe("2023");
 });
 
 it("expands a row inline to reveal its detail", () => {

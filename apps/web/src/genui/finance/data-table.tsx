@@ -117,6 +117,7 @@ function toViewProps<T>(
 	state: Orchestration<T>
 ): ViewProps<T> {
 	return {
+		categoryFormat: source.categoryFormat,
 		categoryKey: source.categoryKey,
 		chartKind: source.chartKind,
 		columns: source.columns,

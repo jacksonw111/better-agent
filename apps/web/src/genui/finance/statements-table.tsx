@@ -3,6 +3,7 @@
 import { DataTable } from "./data-table";
 import type { DataTableColumn, DataTablePeriod } from "./data-table-types";
 import type { StatementRowData } from "./finance-schemas";
+import { formatDate } from "./format";
 import { StatGrid, type StatGridItem } from "./primitives";
 import {
 	detectStatementKind,
@@ -70,6 +71,7 @@ export function StatementsTable({ data }: { data: StatementRowData[] }) {
 	const columns = statementColumns(kind);
 	return (
 		<DataTable<StatementRowData>
+			categoryFormat={formatDate}
 			categoryKey="reportDate"
 			chartKind="line"
 			columns={columns}

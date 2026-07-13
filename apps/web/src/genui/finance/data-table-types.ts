@@ -52,6 +52,12 @@ export type DataTableChartKind = "line" | "bar";
 export type DataTableView = "table" | "chart";
 
 export interface DataTableProps<T> {
+	/** Formats the chart's category axis ticks + tooltip label (e.g. a date
+	 * string → a locale-formatted label). Display-only — the raw
+	 * `row[categoryKey]` value still drives the chart data key and the
+	 * chronological reversal. Omitted → raw string, unchanged default
+	 * behavior. */
+	categoryFormat?: (raw: string) => string;
 	categoryKey: string;
 	chartKind?: DataTableChartKind;
 	columns: DataTableColumn<T>[];

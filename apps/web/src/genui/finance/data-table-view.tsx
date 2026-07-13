@@ -20,6 +20,7 @@ const MS_PER_SECOND = 1000;
 const VIEW_FADE_SECONDS = TRANSITION_MS / MS_PER_SECOND;
 
 export interface ViewProps<T> {
+	categoryFormat: DataTableProps<T>["categoryFormat"];
 	categoryKey: string;
 	chartKind: DataTableProps<T>["chartKind"];
 	columns: DataTableColumn<T>[];
@@ -74,6 +75,7 @@ export function ViewSwitch<T>(props: ViewProps<T>) {
 		>
 			{props.view === "chart" ? (
 				<DataTableChart
+					categoryFormat={props.categoryFormat}
 					categoryKey={props.categoryKey}
 					chartKind={props.chartKind ?? "line"}
 					metrics={props.selectedMetrics}

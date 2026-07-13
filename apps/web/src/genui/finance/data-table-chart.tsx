@@ -104,22 +104,29 @@ function SeriesMarks({
 }
 
 function ChartInner({
+	categoryFormat,
 	data,
 	isAnimationActive,
 	kind,
 	series,
 }: {
+	categoryFormat?: (raw: string) => string;
 	data: Record<string, number | string | null>[];
 	isAnimationActive: boolean;
 	kind: DataTableChartKind;
 	series: ChartSeries[];
 }) {
 	const ChartRoot = kind === "bar" ? BarChart : LineChart;
+	const formatCategory = (raw: string) => categoryFormat?.(raw) ?? raw;
 	return (
 		<ResponsiveContainer height="100%" width="100%">
 			<ChartRoot data={data} margin={CHART_MARGIN}>
 				<CartesianGrid {...rechartsGridProps} />
-				<XAxis dataKey={CATEGORY_FIELD} {...rechartsAxisTheme} />
+				<XAxis
+					dataKey={CATEGORY_FIELD}
+					tickFormatter={formatCategory}
+					{...rechartsAxisTheme}
+				/>
 				<YAxis
 					{...rechartsAxisTheme}
 					tickFormatter={(value: number) => formatCompact(value)}
@@ -129,6 +136,7 @@ function ChartInner({
 					contentStyle={TOOLTIP_STYLE}
 					cursor={rechartsCursorProps}
 					formatter={(value) => formatCompact(Number(value))}
+					labelFormatter={formatCategory}
 				/>
 				<SeriesMarks
 					isAnimationActive={isAnimationActive}
@@ -156,12 +164,14 @@ function useHasAnimated(): boolean {
 }
 
 export function DataTableChart<T>({
+	categoryFormat,
 	categoryKey,
 	chartKind,
 	metrics,
 	reduced,
 	rows,
 }: {
+	categoryFormat?: (raw: string) => string;
 	categoryKey: string;
 	chartKind: DataTableChartKind;
 	metrics: (DataTableColumn<T> & { color: string })[];
@@ -181,6 +191,7 @@ export function DataTableChart<T>({
 		<div aria-label={CHART_ACCESSIBLE_LABEL} role="img">
 			<ChartFrame empty={empty}>
 				<ChartInner
+					categoryFormat={categoryFormat}
 					data={data}
 					isAnimationActive={isAnimationActive}
 					kind={chartKind}
