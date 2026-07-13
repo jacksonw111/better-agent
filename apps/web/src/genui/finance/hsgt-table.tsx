@@ -21,7 +21,7 @@ import type { FinTableColumn } from "./primitives";
 // EastMoney reports HSGT flow amounts in 万元 (ten-thousand-yuan units); scale
 // up to raw yuan before handing to `formatCompact`, which auto-picks the
 // 万/亿/万亿 suffix from the magnitude.
-const WAN_TO_YUAN = 1e4;
+export const WAN_TO_YUAN = 1e4;
 
 interface HsgtChartRow {
 	gangguTongHu: number | null; // 港股通(沪) (南向)
@@ -71,11 +71,25 @@ function buildChartRows(rows: HsgtRowData[]): HsgtChartRow[] {
 	return [...byDate.values()];
 }
 
-const HSGT_SERIES: BarSeriesSeries<HsgtChartRow>[] = [
-	{ key: "huguTong", label: "沪股通" },
-	{ key: "shenguTong", label: "深股通" },
-	{ key: "gangguTongHu", label: "港股通(沪)" },
-	{ key: "gangguTongShen", label: "港股通(深)" },
+/** Scales a 万元 chart field to raw yuan, mirroring `NetFlowCell`'s table-branch
+ * scaling — `BarSeries` defaults `value` to the raw `row[key]` (万-scale) when
+ * omitted, which would disagree with the table by 10,000x. */
+function toYuan(field: ChartField): (row: HsgtChartRow) => number | null {
+	return (row) => {
+		const raw = row[field];
+		return raw === null ? null : raw * WAN_TO_YUAN;
+	};
+}
+
+export const HSGT_SERIES: BarSeriesSeries<HsgtChartRow>[] = [
+	{ key: "huguTong", label: "沪股通", value: toYuan("huguTong") },
+	{ key: "shenguTong", label: "深股通", value: toYuan("shenguTong") },
+	{ key: "gangguTongHu", label: "港股通(沪)", value: toYuan("gangguTongHu") },
+	{
+		key: "gangguTongShen",
+		label: "港股通(深)",
+		value: toYuan("gangguTongShen"),
+	},
 ];
 
 function netCellStyle(value: number | null): { color?: string } {

@@ -4,7 +4,7 @@ import { fireEvent, render, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeAll, expect, it, vi } from "vitest";
 import type { HsgtRowData } from "./finance-schemas";
-import { HsgtTable } from "./hsgt-table";
+import { HSGT_SERIES, HsgtTable, WAN_TO_YUAN } from "./hsgt-table";
 
 const POSITIVE_HUGUTONG_RE = /5678\.90万/;
 const NEGATIVE_GANGGUTONG_RE = /-¥2000\.00万/;
@@ -132,6 +132,18 @@ const ROWS: HsgtRowData[] = [
 		tradeDate: "2026-07-08",
 	}),
 ];
+
+it("HSGT_SERIES value accessors scale 万元 fields to yuan, matching NetFlowCell's table branch", () => {
+	const chartRow = {
+		gangguTongHu: 5678.9,
+		gangguTongShen: null,
+		huguTong: null,
+		shenguTong: null,
+		tradeDate: "2026-07-08",
+	};
+	const series = HSGT_SERIES.find((s) => s.key === "gangguTongHu");
+	expect(series?.value?.(chartRow)).toBe(5678.9 * WAN_TO_YUAN);
+});
 
 it("renders nothing for an empty payload", () => {
 	const { container } = render(<HsgtTable data={[]} />);
