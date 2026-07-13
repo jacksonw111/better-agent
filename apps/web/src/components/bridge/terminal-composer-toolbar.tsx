@@ -46,6 +46,7 @@ function SendOrStopButton({
 				aria-label="Stop"
 				onClick={onInterrupt}
 				size="icon-sm"
+				title="Stop (esc)"
 				type="button"
 				variant="destructive"
 			>

@@ -162,6 +162,31 @@ function shouldShowBusyHint(props: TerminalComposerProps): boolean {
 	return (props.turnInFlight ?? false) && (props.busyModes?.length ?? 0) > 1;
 }
 
+/** P1-T5: Esc cancels an interruptible in-flight turn — keyboard parity with
+ * the toolbar's Stop button. Document-level so the composer needn't hold
+ * focus; inert for presses something else already handled (an open picker's
+ * own Esc arrives defaultPrevented) and for modified keys. */
+function useEscInterrupt(props: TerminalComposerProps): void {
+	const { canInterrupt, onInterrupt, turnInFlight } = props;
+	const enabled = (turnInFlight ?? false) && (canInterrupt ?? false);
+	useEffect(() => {
+		if (!(enabled && onInterrupt)) {
+			return () => {
+				// nothing to clean up: no listener was attached
+			};
+		}
+		const onKeyDown = (keyEvent: KeyboardEvent) => {
+			const modified = keyEvent.metaKey || keyEvent.ctrlKey || keyEvent.altKey;
+			if (keyEvent.key !== "Escape" || keyEvent.defaultPrevented || modified) {
+				return;
+			}
+			onInterrupt();
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [enabled, onInterrupt]);
+}
+
 interface BusySendResult {
 	setWhen: (when: TextWhen) => void;
 	submit: () => void;
@@ -214,6 +239,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		text,
 	});
 	const { setWhen, submit, when } = useBusySend(props, text, setText);
+	useEscInterrupt(props);
 
 	const toolbar = <ComposerToolbar {...resolveToolbarProps(props, text)} />;
 	const hint = shouldShowBusyHint(props) && (

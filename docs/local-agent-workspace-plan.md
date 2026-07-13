@@ -53,7 +53,7 @@
 4. **Subagent 折叠卡**：claude Task 工具 → 紫色左条 + "Currently: {tool}" 实时指示 + 工具历史 + 结果 clamp。
 5. **计划审批内联**：claude plan mode 的 ExitPlanMode 审批不进 banner，内联在计划卡底部 Revise / Build(⌘↩)。
 6. **QuestionCard → 分步向导**：多问题进度点、数字键 1-9/0=Other/Enter/Esc、Other 内联输入（现有 opencode QuestionCard 升级，pi extension_ui 复用同壳）。
-7. `interactive_prompt` 琥珀选项卡（codex/CLI 文本菜单 `❯ 1. Yes` 解析成可点选项）。
+7. ~~`interactive_prompt` 琥珀选项卡~~ **移到 P4**：我们的归一化 wire 上没有 interactive_prompt 事件（pi 的对话框已是 extension_ui 表单卡）；CLI 文本菜单解析需要 CLI 侧先产出该事件，与 P4 的 CLI 通道一起做。
 8. ActivityIndicator：shimmer 动作词轮换 + 计时 + Stop(esc)。
 
 **验收**：四 agent 各跑一轮真实会话，工具卡形态符合注册表定义；cloud chat 工具渲染回归无视觉 diff；2000 事件长会话滚动无卡顿。

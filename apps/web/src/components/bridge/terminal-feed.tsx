@@ -8,6 +8,8 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
+import { useEffect, useState } from "react";
+import { formatElapsed } from "./activity-format";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type { BridgeTurn } from "./bridge-turns";
 
@@ -39,7 +41,28 @@ function EmptyTerminal() {
  * deleted from index.css) so the web's two "still producing" placeholders
  * (this one, and `StreamingSkeleton` in bridge-chat-row.tsx) read as the same
  * visual language. */
+/** P1-T5: the shimmer verb rotates on a slow cycle and an elapsed counter
+ * ticks up beside it, so a minutes-long turn reads as alive rather than
+ * frozen. Both derive from one interval keyed to this mount — the skeleton
+ * mounts when the turn starts and unmounts when it settles. */
+const WORKING_VERBS = ["Thinking…", "Working…", "Reasoning…", "Still at it…"];
+const VERB_ROTATE_MS = 6000;
+const TICK_MS = 1000;
+
 function WorkingSkeleton() {
+	const [elapsedMs, setElapsedMs] = useState(0);
+	useEffect(() => {
+		const startedAt = Date.now();
+		const timer = setInterval(
+			() => setElapsedMs(Date.now() - startedAt),
+			TICK_MS
+		);
+		return () => clearInterval(timer);
+	}, []);
+	const verb =
+		WORKING_VERBS[
+			Math.floor(elapsedMs / VERB_ROTATE_MS) % WORKING_VERBS.length
+		];
 	return (
 		<div
 			aria-label="Agent is working"
@@ -48,7 +71,12 @@ function WorkingSkeleton() {
 			role="status"
 		>
 			<div className="size-7 shrink-0 rounded-full bg-muted" />
-			<span className="shimmer font-medium text-sm">Thinking…</span>
+			<span className="shimmer font-medium text-sm">{verb}</span>
+			{elapsedMs >= TICK_MS && (
+				<span className="text-muted-foreground text-xs tabular-nums">
+					{formatElapsed(elapsedMs)}
+				</span>
+			)}
 		</div>
 	);
 }
