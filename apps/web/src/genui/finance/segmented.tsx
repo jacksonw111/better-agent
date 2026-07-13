@@ -2,7 +2,7 @@ import { cn } from "@better-agent/ui/lib/utils";
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { useId } from "react";
-import { SPRING_POP, useReducedMotion } from "./motion";
+import { POP_TRANSITION, SPRING_POP, useReducedMotion } from "./motion";
 
 // Phase 0 Task E — `Segmented`, the primary (left) control of the shared
 // `ControlStrip` (design doc §3 "主 segmented: Period / Pivot"). Presentational
@@ -74,7 +74,7 @@ function SegmentLabel({
 		<motion.span
 			animate={pop && !reduced ? { scale: [1, POP_SCALE, 1] } : undefined}
 			className="relative z-10"
-			transition={reduced ? { duration: 0 } : SPRING_POP}
+			transition={reduced ? { duration: 0 } : POP_TRANSITION}
 		>
 			{children}
 		</motion.span>

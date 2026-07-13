@@ -26,6 +26,8 @@ export const TRANSITION_MS = 200;
 export const DRAW_IN_MS = 400;
 /** Per-row stagger delay in list/table cascades (~30ms per §6). */
 export const ROW_STAGGER_MS = 30;
+/** Selection "pop" tween duration (1 → 1.03 → 1) on chip/segment select. */
+export const POP_MS = 200;
 
 /** Vertical offset a card travels on entrance, in px (§6: translateY 6px→0). */
 const ENTRANCE_TRANSLATE_Y = 6;
@@ -45,10 +47,12 @@ export const EASE_OUT: Transition["ease"] = [
 	EASE_OUT_Y2,
 ];
 
-/** Spring config for the selection "pop" (1 → 1.03 → 1) on chip/segment
- * select. Values chosen for a snappy, slightly overshooting settle that
- * reads as "individual" per the §6 "丰富而有个性" (rich, has personality)
- * directive without feeling bouncy/toy-like. */
+/** Spring config for single-target layout/settle animations — e.g. the
+ * segmented control's sliding indicator (`layoutId`). Values chosen for a
+ * snappy, slightly overshooting settle that reads as "individual" per the
+ * §6 "丰富而有个性" (rich, has personality) directive without feeling
+ * bouncy/toy-like. `motion` springs only support two keyframes, so this
+ * must NOT be used for the three-keyframe scale pop below. */
 export const SPRING_POP: Transition = {
 	type: "spring",
 	stiffness: 500,
@@ -59,6 +63,17 @@ export const SPRING_POP: Transition = {
 const MS_PER_S = 1000;
 const entranceSeconds = ENTRANCE_MS / MS_PER_S;
 const staggerSeconds = ROW_STAGGER_MS / MS_PER_S;
+const popSeconds = POP_MS / MS_PER_S;
+
+/** Tween for the selection "pop" (1 → 1.03 → 1) on chip/segment select — a
+ * three-keyframe scale animation, which `motion` springs cannot express
+ * (springs support exactly two keyframes). Ease-out in, ease-out back per
+ * `times` so the overshoot settles rather than snapping. */
+export const POP_TRANSITION: Transition = {
+	duration: popSeconds,
+	times: [0, 0.5, 1],
+	ease: EASE_OUT,
+};
 
 /** Card entrance: fade + translateY 6px→0, ~200ms ease-out. Pass
  * `reduced = true` (from `useReducedMotion()`) to drop the transform and

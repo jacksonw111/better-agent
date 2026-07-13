@@ -1,7 +1,7 @@
 import { cn } from "@better-agent/ui/lib/utils";
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
-import { SPRING_POP, useReducedMotion } from "./motion";
+import { POP_TRANSITION, useReducedMotion } from "./motion";
 
 // Phase 0 Task E — `Chip`, the secondary (right) control of the shared
 // `ControlStrip` (design doc §3 "metric chips" — Series/Filter). Presentational
@@ -89,7 +89,7 @@ export function Chip({
 		>
 			<motion.span
 				animate={active && !reduced ? { scale: [1, POP_SCALE, 1] } : undefined}
-				transition={reduced ? { duration: 0 } : SPRING_POP}
+				transition={reduced ? { duration: 0 } : POP_TRANSITION}
 			>
 				{label}
 			</motion.span>
