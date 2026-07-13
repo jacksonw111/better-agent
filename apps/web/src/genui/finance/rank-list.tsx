@@ -51,9 +51,8 @@ function buildSortAccessors<T>(
 ): Partial<Record<keyof T, (row: T) => number | string | null>> {
 	const accessors: Partial<
 		Record<keyof T, (row: T) => number | string | null>
-	> = {
-		[RANK_METRIC_SORT_ID as keyof T]: rankMetric,
-	};
+	> = {};
+	accessors[RANK_METRIC_SORT_ID as keyof T] = rankMetric;
 	for (const option of sortOptions ?? []) {
 		accessors[option.id as keyof T] = option.accessor;
 	}
