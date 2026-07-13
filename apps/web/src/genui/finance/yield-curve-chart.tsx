@@ -32,7 +32,8 @@ function yieldValueFormat(value: number): string {
 // match neither, so it silently falls back to source row order instead. Wide
 // rows are pre-sorted here rather than relying on that fallback.
 const DAYS_PER_MONTH = 30;
-const WEEKS_PER_MONTH = DAYS_PER_MONTH / 7;
+const DAYS_PER_WEEK = 7;
+const WEEKS_PER_MONTH = DAYS_PER_MONTH / DAYS_PER_WEEK;
 const MONTHS_PER_YEAR = 12;
 const TENOR_UNIT_MONTHS: Record<string, number> = {
 	D: 1 / DAYS_PER_MONTH,
