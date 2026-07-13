@@ -106,6 +106,25 @@ describe("createVncProxyRegistry lifecycle", () => {
 		expect(producer.sent).toEqual(["later-input"]);
 	});
 
+	it("buffers producer bytes sent before a consumer attaches (RFB server-speaks-first)", () => {
+		const registry = createVncProxyRegistry();
+		const producer = fakeSocket();
+		registry.attachProducer(SESSION, producer.socket);
+
+		// The VNC server sends its version string the instant it connects — before
+		// any viewer. It must be buffered, not dropped, or the handshake deadlocks.
+		producer.emit("RFB 003.008\n");
+
+		const consumer = fakeSocket();
+		registry.attachConsumer(SESSION, consumer.socket);
+		expect(consumer.sent).toEqual(["RFB 003.008\n"]);
+
+		// The backlog is one-shot: a replacement consumer doesn't get it again.
+		const consumer2 = fakeSocket();
+		registry.attachConsumer(SESSION, consumer2.socket);
+		expect(consumer2.sent).toEqual([]);
+	});
+
 	it("replaces a duplicate producer: the stale one is closed, the new one is live", () => {
 		const registry = createVncProxyRegistry();
 		const first = fakeSocket();

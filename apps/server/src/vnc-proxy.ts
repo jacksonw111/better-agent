@@ -5,6 +5,12 @@ import type { EvlogVariables } from "evlog/hono";
 import type { Hono, Context as HonoContext } from "hono";
 import type { WSContext } from "hono/ws";
 import type { AgentServices } from "./app";
+import {
+	type Backlog,
+	bufferByte,
+	flushBacklog,
+	newBacklog,
+} from "./vnc-proxy-backlog";
 
 /** RFB payload flowing across the video plane. Never inspected — piped as-is. */
 export type VncData = string | ArrayBuffer | Uint8Array;
@@ -22,6 +28,7 @@ export interface ProxySocket {
 }
 
 interface Pair {
+	backlog: Backlog;
 	consumer: ProxySocket | null;
 	producer: ProxySocket | null;
 }
@@ -51,7 +58,7 @@ function getPair(pairs: Map<string, Pair>, sessionId: string): Pair {
 	if (existing) {
 		return existing;
 	}
-	const fresh: Pair = { consumer: null, producer: null };
+	const fresh: Pair = { consumer: null, producer: null, backlog: newBacklog() };
 	pairs.set(sessionId, fresh);
 	return fresh;
 }
@@ -85,9 +92,20 @@ function attachSide(
 	setSide(pair, role, socket);
 	// Superseded before close(), so the stale socket's onClose is a no-op.
 	previous?.close();
+	// A newly-attached consumer gets any producer bytes that arrived first
+	// (the RFB version string), so the handshake doesn't deadlock.
+	if (role === "consumer") {
+		flushBacklog(pair.backlog, (data) => socket.send(data));
+	}
 	socket.onMessage((data) => {
-		if (selfOf(pair, role) === socket) {
-			counterpartOf(pair, role)?.send(data);
+		if (selfOf(pair, role) !== socket) {
+			return;
+		}
+		const counterpart = counterpartOf(pair, role);
+		if (counterpart) {
+			counterpart.send(data);
+		} else if (role === "producer") {
+			bufferByte(pair.backlog, data);
 		}
 	});
 	socket.onClose(() => {
@@ -112,14 +130,10 @@ export interface VncProxyRegistry {
  * consumer→producer is client input. Teardown is symmetric — when either side
  * closes, the other is closed and the pair is dropped.
  *
- * Design decisions:
- * - A consumer message that arrives while no producer is attached is DROPPED,
- *   not buffered. RFB has no meaningful client traffic before the server-side
- *   stream exists, and buffering would only grow unbounded on a half-open pair.
- * - A duplicate producer (or consumer) REPLACES the previous one: the stale
- *   socket is closed and the newcomer takes over the live pair. This makes a
- *   CLI/browser reconnect self-heal instead of being rejected against a dead
- *   socket.
+ * Design decisions: a consumer message before any producer is DROPPED (RFB has
+ * no meaningful client-first traffic); producer bytes before any consumer are
+ * BUFFERED (see vnc-proxy-backlog.ts — the server sends its version first). A
+ * duplicate producer/consumer REPLACES the previous one (reconnect self-heals).
  */
 export function createVncProxyRegistry(): VncProxyRegistry {
 	const pairs = new Map<string, Pair>();
