@@ -1,12 +1,17 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { cn } from "@better-agent/ui/lib/utils";
 import type { DepthLevelData, QuoteData } from "./finance-schemas";
-import { changeColor, formatCompact, formatNum } from "./format";
+import {
+	changeColor,
+	DOWN_COLOR,
+	formatCompact,
+	formatNum,
+	UP_COLOR,
+} from "./format";
 import { CardShell, ChangePct, StatGrid } from "./primitives";
+import { ProportionBar } from "./proportion-bar";
 
 const MAX_DEPTH_LEVELS = 5;
-const DEPTH_BAR_OPACITY = 0.08;
-const PERCENT_MAX = 100;
 
 const MARKET_LABELS: Record<string, string> = {
 	a: "A股",
@@ -50,11 +55,19 @@ function maxDepthVolume(rows: DepthRow[]): number {
 
 type DepthSide = "ask" | "bid";
 
-const DEPTH_BAR_COLOR: Record<DepthSide, string> = {
-	ask: "#16a34a",
-	bid: "#ef4444",
+// Depth ladder colors come from the price axis (§5.2): asks 卖 use
+// DOWN_COLOR (green), bids 买 use UP_COLOR (red) — matches the existing
+// 红涨绿跌 depth-ladder convention, sourced from format.ts instead of a
+// locally hardcoded hex pair.
+const DEPTH_TONE: Record<DepthSide, "up" | "down"> = { ask: "down", bid: "up" };
+const DEPTH_TEXT_COLOR: Record<DepthSide, string> = {
+	ask: DOWN_COLOR,
+	bid: UP_COLOR,
 };
 
+/** One 盘口 row: the row's own background fill (width ∝ volume share of the
+ * ladder's max) is delegated to `ProportionBar`'s overlay variant instead of
+ * a locally hand-rolled absolutely-positioned bar. */
 function DepthRowLine({
 	row,
 	side,
@@ -65,30 +78,28 @@ function DepthRowLine({
 	maxVolume: number;
 }) {
 	const { level } = row;
-	const volume = level.volume ?? 0;
-	const widthPct =
-		maxVolume > 0
-			? Math.min(PERCENT_MAX, (volume / maxVolume) * PERCENT_MAX)
-			: 0;
-	const color = DEPTH_BAR_COLOR[side];
+	const textColor = DEPTH_TEXT_COLOR[side];
 	return (
-		<div className="relative grid grid-cols-[2.5rem_1fr_1fr] items-center overflow-hidden rounded px-1.5 py-0.5 text-xs">
-			<div
-				className="absolute inset-y-0 left-0"
-				style={{
-					backgroundColor: color,
-					opacity: DEPTH_BAR_OPACITY,
-					width: `${widthPct}%`,
-				}}
-			/>
-			<span className="relative z-10 text-muted-foreground">{row.label}</span>
-			<span className="relative z-10 text-right tabular-nums" style={{ color }}>
-				{formatNum(level.price)}
-			</span>
-			<span className="relative z-10 text-right text-muted-foreground tabular-nums">
-				{formatCompact(level.volume)}
-			</span>
-		</div>
+		<ProportionBar
+			className="rounded px-1.5 py-0.5 text-xs"
+			max={maxVolume}
+			tone={DEPTH_TONE[side]}
+			value={level.volume ?? 0}
+			variant="overlay"
+		>
+			{/* ProportionBar's overlay variant wraps `children` in its own div,
+			 * so the 3-column layout has to live inside that wrapper rather than
+			 * on ProportionBar's own className (which sizes the fill's track). */}
+			<div className="grid grid-cols-[2.5rem_1fr_1fr] items-center">
+				<span className="text-muted-foreground">{row.label}</span>
+				<span className="text-right tabular-nums" style={{ color: textColor }}>
+					{formatNum(level.price)}
+				</span>
+				<span className="text-right text-muted-foreground tabular-nums">
+					{formatCompact(level.volume)}
+				</span>
+			</div>
+		</ProportionBar>
 	);
 }
 

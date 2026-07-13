@@ -1,41 +1,27 @@
 import type { CommodityQuoteData } from "./finance-schemas";
-import { formatNum } from "./format";
-import { ChangePct } from "./primitives";
+import { formatDate, formatNum } from "./format";
+import type { StatGridItem } from "./primitives";
+import { QuoteGrid } from "./quote-grid";
+import type { QuoteTileData } from "./quote-tile";
 
-const MAX_COMMODITY_ITEMS = 30;
-
-function CommodityCard({ item }: { item: CommodityQuoteData }) {
-	return (
-		<div className="flex flex-col gap-1 rounded-md bg-muted/40 p-3">
-			<span className="truncate font-medium text-sm">
-				{item.name || item.key}
-			</span>
-			<span className="font-semibold text-lg tabular-nums">
-				{formatNum(item.last)}
-			</span>
-			<ChangePct value={item.changePct} />
-		</div>
-	);
+function toTile(item: CommodityQuoteData): QuoteTileData {
+	const expandItems: StatGridItem[] = [
+		{ label: "最高", value: formatNum(item.high) },
+		{ label: "最低", value: formatNum(item.low) },
+		{ label: "昨收", value: formatNum(item.prevClose) },
+		{ label: "时间", value: formatDate(item.time) },
+	];
+	return {
+		changePct: item.changePct,
+		expandItems,
+		id: item.key,
+		last: item.last,
+		name: item.name || item.key,
+	};
 }
 
-/** finance_commodity → a small responsive grid of commodity cards. Caps at
- * MAX_COMMODITY_ITEMS — this renders inline in chat, not a full page. */
+/** finance_commodity → QuoteGrid tiles: name + last + change, with
+ * high/low/prevClose/time on expand. */
 export function CommodityGrid({ items }: { items: CommodityQuoteData[] }) {
-	if (items.length === 0) {
-		return null;
-	}
-	const visible = items.slice(0, MAX_COMMODITY_ITEMS);
-	const hiddenCount = items.length - visible.length;
-	return (
-		<div className="flex w-full flex-col gap-2">
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-				{visible.map((item) => (
-					<CommodityCard item={item} key={item.key} />
-				))}
-			</div>
-			{hiddenCount > 0 ? (
-				<p className="text-muted-foreground text-xs">+{hiddenCount} more</p>
-			) : null}
-		</div>
-	);
+	return <QuoteGrid items={items.map(toTile)} />;
 }

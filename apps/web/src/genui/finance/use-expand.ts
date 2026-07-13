@@ -14,7 +14,7 @@ interface UseExpandOptions {
 	mode?: ExpandMode;
 }
 
-interface UseExpandResult {
+export interface UseExpandResult {
 	collapseAll: () => void;
 	expandedIds: string[];
 	isExpanded: (id: string) => boolean;
