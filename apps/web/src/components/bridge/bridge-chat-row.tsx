@@ -6,7 +6,13 @@ import {
 import { memo } from "react";
 import { AssistantTurnBlock } from "./assistant-turn-block";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
-import { ApprovalLine, ErrorLine, FileLine } from "./event-line";
+import {
+	ApprovalLine,
+	type ApprovalLineProps,
+	ErrorLine,
+	FileLine,
+} from "./event-line";
+import { isExitPlanModeApproval, PlanApprovalCard } from "./plan-approval-card";
 import { QuestionCard } from "./question-card";
 import { StatusLine } from "./status-line";
 import { TaskCard } from "./task-card";
@@ -107,6 +113,33 @@ function AssistantWithSkeleton({
 	);
 }
 
+/** P1-T4: an approval turn's row — claude's ExitPlanMode permission request
+ * renders as the inline plan card (Build/Revise over the plan markdown), every
+ * other approval keeps the generic `ApprovalLine`. Both answer through the
+ * same `onAnswer` decision channel. */
+function ApprovalTurnRow({
+	answeredOptionId,
+	event,
+	onAnswer,
+}: ApprovalLineProps) {
+	if (isExitPlanModeApproval(event)) {
+		return (
+			<PlanApprovalCard
+				answeredOptionId={answeredOptionId}
+				event={event}
+				onAnswer={onAnswer}
+			/>
+		);
+	}
+	return (
+		<ApprovalLine
+			answeredOptionId={answeredOptionId}
+			event={event}
+			onAnswer={onAnswer}
+		/>
+	);
+}
+
 function BridgeChatRowImpl({
 	answered,
 	answeredQuestions,
@@ -141,7 +174,7 @@ function BridgeChatRowImpl({
 			return <TodoList items={turn.items} />;
 		case "approval":
 			return (
-				<ApprovalLine
+				<ApprovalTurnRow
 					answeredOptionId={answered[turn.event.requestId]}
 					event={turn.event}
 					onAnswer={onAnswerApproval}

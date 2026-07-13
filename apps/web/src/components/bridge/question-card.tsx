@@ -1,62 +1,72 @@
-import { Button } from "@better-agent/ui/components/button";
-import { CheckIcon } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { QuestionEvent, QuestionItem } from "./bridge-events";
+import {
+	MAX_DIGIT_OPTIONS,
+	NO_SELECTION,
+	StackedCard,
+	WizardCard,
+} from "./question-card-views";
 
-const NO_SELECTION = -1;
-
-interface QuestionRowProps {
-	answeredLabel?: string;
-	disabled: boolean;
-	onChoose: (optionIndex: number) => void;
-	picked: number;
-	question: QuestionItem;
+/** Builds the `string[][]` payload `onAnswer` sends — one single-element
+ * array per question, in question order. */
+function buildAnswers(questions: QuestionItem[], picks: number[]): string[][] {
+	return questions.map((question, index) => [question.options[picks[index]]]);
 }
 
-/** One question's text plus its single-select option buttons — split out of
- * `QuestionCard` purely to keep that component under the repo's
- * max-lines-per-function gate. Mirrors `ApprovalLine`'s option-button row. */
-function QuestionRow({
-	answeredLabel,
-	disabled,
-	onChoose,
-	picked,
-	question,
-}: QuestionRowProps) {
+/** `true` when the key press happened inside a text-entry control (the
+ * composer, a dialog input…) — the card's document-level shortcuts must never
+ * hijack typing. */
+function isEditableTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof HTMLElement)) {
+		return false;
+	}
 	return (
-		<div className="flex flex-col gap-1.5">
-			<p className="text-sm">{question.text}</p>
-			<div className="flex flex-wrap gap-2">
-				{question.options.map((option, optionIndex) => {
-					const chosen = disabled
-						? answeredLabel === option
-						: picked === optionIndex;
-					return (
-						<Button
-							aria-pressed={chosen}
-							disabled={disabled}
-							// biome-ignore lint/suspicious/noArrayIndexKey: fixed snapshot from one event, never reordered — index only disambiguates two options sharing a label (R3-4 finding 5)
-							key={`${optionIndex}-${option}`}
-							onClick={() => onChoose(optionIndex)}
-							size="sm"
-							type="button"
-							variant={chosen ? "default" : "outline"}
-						>
-							{chosen && <CheckIcon className="size-3.5" />}
-							{option}
-						</Button>
-					);
-				})}
-			</div>
-		</div>
+		target instanceof HTMLInputElement ||
+		target instanceof HTMLTextAreaElement ||
+		target.isContentEditable
 	);
 }
 
-/** Builds the `string[][]` payload `onAnswer` sends — one single-element
- * array per question, in question order. Split out of `QuestionCard` purely
- * to keep that component under the repo's max-lines-per-function gate. */
-function buildAnswers(questions: QuestionItem[], picks: number[]): string[][] {
-	return questions.map((question, index) => [question.options[picks[index]]]);
+interface QuestionKeyHandlers {
+	enabled: boolean;
+	onDigit: (optionIndex: number) => void;
+	onEnter: () => void;
+}
+
+/** P1-T4 keyboard layer: digits 1-9 pick the current question's option,
+ * Enter advances to the next question (or submits on the last). Document-
+ * level so the card doesn't need focus; only armed while the card is still
+ * pending, and inert while typing in an input or holding a modifier. */
+function useQuestionKeys({
+	enabled,
+	onDigit,
+	onEnter,
+}: QuestionKeyHandlers): void {
+	useEffect(() => {
+		if (!enabled) {
+			return () => {
+				// nothing to clean up: no listener was attached
+			};
+		}
+		const onKeyDown = (keyEvent: KeyboardEvent) => {
+			const modified = keyEvent.metaKey || keyEvent.ctrlKey || keyEvent.altKey;
+			if (isEditableTarget(keyEvent.target) || modified) {
+				return;
+			}
+			if (keyEvent.key === "Enter") {
+				keyEvent.preventDefault();
+				onEnter();
+				return;
+			}
+			const digit = Number.parseInt(keyEvent.key, 10);
+			if (digit >= 1 && digit <= MAX_DIGIT_OPTIONS) {
+				keyEvent.preventDefault();
+				onDigit(digit - 1);
+			}
+		};
+		document.addEventListener("keydown", onKeyDown);
+		return () => document.removeEventListener("keydown", onKeyDown);
+	}, [enabled, onDigit, onEnter]);
 }
 
 export interface QuestionCardProps {
@@ -70,64 +80,94 @@ export interface QuestionCardProps {
 	onAnswer?: (requestId: string, answers: string[][]) => void;
 }
 
-/**
- * R3-T3: opencode's `question.asked` card — one or more questions, each with
- * single-select option buttons, stacked in order. A Submit button (disabled
- * until every question has a pick) sends the chosen answers back as
- * `string[][]` — one single-element array per question, mirroring the CLI's
- * `ControlAnswerQuestionCommand.answers`. Once `answered` is set the whole
- * card disables and shows the previously-chosen option per question, exactly
- * like `ApprovalLine` does for `answeredOptionId`.
- */
-export function QuestionCard({ answered, event, onAnswer }: QuestionCardProps) {
+/** `QuestionCard`'s picks/step state plus every derived callback — split out
+ * of the component purely to keep it under the repo's max-lines-per-function
+ * gate. */
+function useQuestionCardState(
+	event: QuestionEvent,
+	onAnswer: QuestionCardProps["onAnswer"]
+) {
 	const [picks, setPicks] = useState<number[]>(() =>
 		event.questions.map(() => NO_SELECTION)
 	);
-	const disabled = answered !== undefined;
-	const allPicked = picks.every((pick) => pick !== NO_SELECTION);
-
-	const choose = (questionIndex: number, optionIndex: number): void => {
+	const [step, setStep] = useState(0);
+	const lastStep = step >= event.questions.length - 1;
+	const choose = useCallback((questionIndex: number, optionIndex: number) => {
 		setPicks((prev) =>
 			prev.map((pick, index) => (index === questionIndex ? optionIndex : pick))
 		);
-	};
-
-	const submit = (): void => {
-		if (allPicked) {
+	}, []);
+	const submit = useCallback(() => {
+		if (picks.every((pick) => pick !== NO_SELECTION)) {
 			onAnswer?.(event.requestId, buildAnswers(event.questions, picks));
 		}
-	};
+	}, [event.questions, event.requestId, onAnswer, picks]);
+	const advance = useCallback(() => {
+		if (picks[step] === NO_SELECTION) {
+			return;
+		}
+		if (lastStep) {
+			submit();
+			return;
+		}
+		setStep((prev) => prev + 1);
+	}, [lastStep, picks, step, submit]);
+	const back = useCallback(() => setStep((prev) => Math.max(prev - 1, 0)), []);
+	const pickByDigit = useCallback(
+		(optionIndex: number) => {
+			if (optionIndex < event.questions[step].options.length) {
+				choose(step, optionIndex);
+			}
+		},
+		[choose, event.questions, step]
+	);
+	return { advance, back, choose, lastStep, pickByDigit, picks, step, submit };
+}
 
+/**
+ * R3-T3: opencode's `question.asked` card. P1-T4 upgrades a pending
+ * MULTI-question card into a step-by-step wizard (one question per screen,
+ * progress dots, Back); a single-question card and every answered replay keep
+ * the original stacked layout. Digits 1-9 pick an option, Enter advances /
+ * submits. Answers still go back as `string[][]` — one single-element array
+ * per question, mirroring the CLI's `ControlAnswerQuestionCommand.answers`;
+ * no protocol change.
+ */
+export function QuestionCard({ answered, event, onAnswer }: QuestionCardProps) {
+	const disabled = answered !== undefined;
+	const { advance, back, choose, lastStep, pickByDigit, picks, step, submit } =
+		useQuestionCardState(event, onAnswer);
+	const allPicked = picks.every((pick) => pick !== NO_SELECTION);
+	useQuestionKeys({
+		enabled: !disabled,
+		onDigit: pickByDigit,
+		onEnter: advance,
+	});
+
+	if (!disabled && event.questions.length > 1) {
+		return (
+			<WizardCard
+				allPicked={allPicked}
+				event={event}
+				lastStep={lastStep}
+				onAdvance={advance}
+				onBack={back}
+				onChoose={(optionIndex) => choose(step, optionIndex)}
+				picks={picks}
+				step={step}
+			/>
+		);
+	}
 	return (
-		<div className="overflow-hidden rounded-md bg-muted/40 font-sans">
-			<div className="px-3 pt-2">
-				<p className="flex items-center gap-1.5 font-medium text-sm">
-					<span aria-hidden className="size-1.5 rounded-full bg-amber-500" />
-					{event.title}
-				</p>
-			</div>
-			<div className="flex flex-col gap-2 px-3 py-2">
-				{event.questions.map((question, questionIndex) => (
-					<QuestionRow
-						answeredLabel={answered?.[questionIndex]?.[0]}
-						disabled={disabled}
-						// biome-ignore lint/suspicious/noArrayIndexKey: fixed snapshot from one event, never reordered — index only disambiguates two questions sharing text (R3-4 finding 5)
-						key={`${questionIndex}-${question.text}`}
-						onChoose={(optionIndex) => choose(questionIndex, optionIndex)}
-						picked={picks[questionIndex]}
-						question={question}
-					/>
-				))}
-				<Button
-					className="self-start"
-					disabled={disabled || !allPicked}
-					onClick={submit}
-					size="sm"
-					type="button"
-				>
-					Submit
-				</Button>
-			</div>
-		</div>
+		<StackedCard
+			answered={answered}
+			disabled={disabled}
+			event={event}
+			numbered={!disabled}
+			onChoose={choose}
+			onSubmit={submit}
+			picks={picks}
+			submitDisabled={disabled || !allPicked}
+		/>
 	);
 }

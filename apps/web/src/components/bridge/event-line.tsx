@@ -87,8 +87,11 @@ function countdownWidthPercent(remainingMs: number, totalMs: number): number {
  * R3-4 review finding 4: the initial (pre-shrink) width is the REMAINING
  * fraction of `timeoutMs` (falling back to `DEFAULT_APPROVAL_WINDOW_MS`), not
  * a hardcoded 100% — otherwise a remount mid-window (e.g. a page reload while
- * a card is still pending) redraws a full bar despite elapsed time. */
-function ApprovalCountdown({
+ * a card is still pending) redraws a full bar despite elapsed time.
+ *
+ * P1-T4: exported so `PlanApprovalCard` (plan-approval-card.tsx) reuses the
+ * exact same pending-window bar. */
+export function ApprovalCountdown({
 	timeoutAt,
 	timeoutMs,
 }: {
