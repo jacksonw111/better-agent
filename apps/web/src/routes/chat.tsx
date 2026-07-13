@@ -138,10 +138,10 @@ function useHomeActions(setters: HomeSetters): HomeActions {
 	const startFresh = (agent: AgentRow) => {
 		setSelectedAgent(agent);
 		setSessionId("");
-		// Mirror the agent into the URL (like the local branch's localAgentId): makes
-		// the cloud chat deep-linkable AND is the signal `useImmersiveChat` reads to
-		// go full-screen (dock suppressed, no reserved bottom padding) on <md.
-		navigate({ search: { agentId: agent.id }, to: "/chat" });
+		// Mirror the agent into the URL (like the local branch's localAgentId) —
+		// the `useImmersiveChat` signal. `replace`: no intermediate /chat history
+		// entry, so browser back can't desync URL from the state-rendered view.
+		navigate({ replace: true, search: { agentId: agent.id }, to: "/chat" });
 		createSession(agent, setters).catch(() => undefined);
 	};
 	return {
@@ -149,8 +149,8 @@ function useHomeActions(setters: HomeSetters): HomeActions {
 			clearLastChat();
 			setSelectedAgent(null);
 			setSessionId("");
-			// Back to the bare /chat picker grid — drops the immersive signal.
-			navigate({ search: {}, to: "/chat" });
+			// Back to the bare /chat grid; `replace` so back exits /chat cleanly.
+			navigate({ replace: true, search: {}, to: "/chat" });
 		},
 		// Eager flow: "New" must actually create the next session, or the page
 		// would wait forever on an empty sessionId.
