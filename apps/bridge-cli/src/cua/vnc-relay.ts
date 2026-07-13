@@ -79,8 +79,28 @@ export function agentWsUrl(serverUrl: string, sessionId: string): string {
 	return `${base}/bridge/vnc/agent/${sessionId}`;
 }
 
-function pipe(from: RelaySocket, to: RelaySocket): void {
-	from.onData((data) => to.send(data));
+/** How many chunks per direction get a size log before we go quiet — enough to
+ * see the whole RFB handshake (version → security → challenge → response →
+ * ServerInit) without flooding once the framebuffer streams. */
+const CHUNK_LOG_LIMIT = 80;
+
+function pipe(
+	from: RelaySocket,
+	to: RelaySocket,
+	label: string,
+	log: (message: string) => void
+): void {
+	let count = 0;
+	from.onData((data) => {
+		count += 1;
+		if (count <= CHUNK_LOG_LIMIT) {
+			const size = typeof data === "string" ? data.length : data.byteLength;
+			log(`${label} ${size}B (#${count})`);
+		} else if (count === CHUNK_LOG_LIMIT + 1) {
+			log(`${label} …streaming (further chunk logs silenced)`);
+		}
+		to.send(data);
+	});
 }
 
 export interface VncRelay {
@@ -116,8 +136,10 @@ export function startVncRelay(
 		tcp.close();
 	};
 
-	pipe(ws, tcp);
-	pipe(tcp, ws);
+	// viewer→VM carries client input + the RFB auth response; VM→viewer carries
+	// the server's version/challenge/framebuffer. Logging both bisects a stall.
+	pipe(ws, tcp, "viewer→VM", log);
+	pipe(tcp, ws, "VM→viewer", log);
 	ws.onClose(() => {
 		log("VNC server socket closed");
 		stop();
