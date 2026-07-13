@@ -69,6 +69,7 @@ import {
 	SuspensionRowSchema,
 } from "./finance-schemas-fe15";
 import { ForecastTable } from "./forecast-table";
+import { HolderCountChart } from "./holder-count-chart";
 import { IndexGrid } from "./index-grid";
 import { IndicatorsTable } from "./indicators-table";
 import { InsiderTable } from "./insider-table";
@@ -76,6 +77,7 @@ import { IpoTable } from "./ipo-table";
 import { KeyMetricsCard } from "./key-metrics-card";
 import { lazyChart } from "./lazy-chart";
 import { LockupTable } from "./lockup-table";
+import { MarginChart } from "./margin-chart";
 import { NewsList } from "./news-list";
 import { OptionChain } from "./option-chain";
 import { PreannounceTable } from "./preannounce-table";
@@ -131,9 +133,6 @@ import { TopHoldersTable } from "./top-holders-table";
 // (insider-table.tsx), and finance_suspension (suspension-table.tsx).
 // recharts-backed cards, loaded on demand so recharts stays out of the eager
 // chat bundle (see lazy-chart.tsx).
-const HolderCountChart = lazyChart(() =>
-	import("./holder-count-chart").then((m) => ({ default: m.HolderCountChart }))
-);
 const HsgtTable = lazyChart(() =>
 	import("./hsgt-table").then((m) => ({ default: m.HsgtTable }))
 );
@@ -142,9 +141,6 @@ const IndexWeights = lazyChart(() =>
 );
 const MacroPanel = lazyChart(() =>
 	import("./macro-panel").then((m) => ({ default: m.MacroPanel }))
-);
-const MarginChart = lazyChart(() =>
-	import("./margin-chart").then((m) => ({ default: m.MarginChart }))
 );
 const MoneyFlowChart = lazyChart(() =>
 	import("./money-flow-chart").then((m) => ({ default: m.MoneyFlowChart }))

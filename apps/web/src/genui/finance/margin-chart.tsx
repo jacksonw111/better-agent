@@ -1,79 +1,27 @@
 "use client";
 
-import {
-	CartesianGrid,
-	Line,
-	LineChart,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis,
-} from "recharts";
 import type { MarginRowData } from "./finance-schemas-fe11";
 import { formatCompact, formatDate, formatRatio } from "./format";
-import { CardShell, FinTable, type FinTableColumn } from "./primitives";
+import { LineSeries } from "./line-series";
+import type { LineSeriesSeriesConfig } from "./line-series-types";
+import type { FinTableColumn } from "./primitives";
 
-const CHART_HEIGHT = 220;
-const TICK_FONT_SIZE = 11;
-const LINE_STROKE_WIDTH = 2;
-const DOT_RADIUS = 3;
-// Neutral amber — 融资余额 is a balance level, not a signed change series, so
-// 红涨绿跌 doesn't apply here (same reasoning as yield-curve-chart.tsx).
-const LINE_COLOR = "#f59e0b";
-const GRID_COLOR = "var(--border)";
-const AXIS_LABEL_LENGTH = 5; // "MM-DD" tail of the formatted date
+// Phase 2 Task 3 — `margin` (融资融券) on the `LineSeries` archetype (design
+// doc §9: LineSeries · I·Se·P·C). Two lines — 融资余额 and 融券余额 — each a
+// distinct composition-ramp hue; the Series chips (§3 "Se") toggle 融资/融券
+// on and off, multiple selected overlays them for comparison (§3 "C"). The
+// tool already returns both balances in raw yuan (confirmed against the
+// finance_margin registry fixture: financingBalance ~1.5e12), so — unlike
+// hsgt_flow's 万元-scale fields — no unit scaling is needed here; `value`
+// accessors default to the raw `row[key]` read.
 
-const TOOLTIP_STYLE = {
-	background: "var(--popover)",
-	border: "1px solid var(--border)",
-	borderRadius: "8px",
-	fontSize: "12px",
-} as const;
+const MARGIN_SERIES: LineSeriesSeriesConfig<MarginRowData>[] = [
+	{ key: "financingBalance", label: "融资余额" },
+	{ key: "securitiesBalance", label: "融券余额" },
+];
 
-interface ChartRow {
-	date: string;
-	financingBalance: number;
-}
-
-function formatAxisTick(date: string): string {
-	return formatDate(date).slice(-AXIS_LABEL_LENGTH);
-}
-
-function MarginBalanceLine({ data }: { data: ChartRow[] }) {
-	return (
-		<ResponsiveContainer height={CHART_HEIGHT} width="100%">
-			<LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-				<CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" />
-				<XAxis
-					dataKey="date"
-					stroke="var(--muted-foreground)"
-					tick={{ fontSize: TICK_FONT_SIZE }}
-					tickFormatter={formatAxisTick}
-				/>
-				<YAxis
-					domain={["auto", "auto"]}
-					stroke="var(--muted-foreground)"
-					tick={{ fontSize: TICK_FONT_SIZE }}
-					tickFormatter={(value: number) => formatCompact(value)}
-				/>
-				<Tooltip
-					contentStyle={TOOLTIP_STYLE}
-					formatter={(value) => [
-						formatCompact(Number(value), { cny: true }),
-						"融资余额",
-					]}
-					labelFormatter={(label: string) => formatDate(label)}
-				/>
-				<Line
-					dataKey="financingBalance"
-					dot={{ fill: LINE_COLOR, r: DOT_RADIUS }}
-					stroke={LINE_COLOR}
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-				/>
-			</LineChart>
-		</ResponsiveContainer>
-	);
+function marginValueFormat(value: number): string {
+	return formatCompact(value, { cny: true });
 }
 
 const MARGIN_COLUMNS: FinTableColumn<MarginRowData>[] = [
@@ -105,25 +53,22 @@ const MARGIN_COLUMNS: FinTableColumn<MarginRowData>[] = [
 ];
 
 /** finance_margin → 融资融券, newest `date` first (the tool already returns
- * rows in that order). Renders a line chart of 融资余额 (financing balance)
- * over time — reversed to chronological order for the x-axis — plus a
- * compact table of the same rows in source (newest-first) order. */
+ * rows in that order; LineSeries reorders the chart branch to chronological
+ * internally and leaves the table branch in source order). */
 export function MarginChart({ data }: { data: MarginRowData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
-	const chartData: ChartRow[] = [...data].reverse().map((row) => ({
-		date: row.date,
-		financingBalance: row.financingBalance,
-	}));
 	return (
-		<CardShell title="融资融券">
-			<MarginBalanceLine data={chartData} />
-			<FinTable
-				columns={MARGIN_COLUMNS}
-				getRowKey={(row, index) => `${row.date}-${index}`}
-				rows={data}
-			/>
-		</CardShell>
+		<LineSeries<MarginRowData>
+			categoryFormat={formatDate}
+			categoryKey="date"
+			getRowKey={(row, index) => `${row.date}-${index}`}
+			rows={data}
+			series={MARGIN_SERIES}
+			tableColumns={MARGIN_COLUMNS}
+			title="融资融券"
+			valueFormat={marginValueFormat}
+		/>
 	);
 }
