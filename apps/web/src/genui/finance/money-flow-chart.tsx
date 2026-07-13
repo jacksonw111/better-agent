@@ -1,103 +1,29 @@
 "use client";
 
-import {
-	Bar,
-	BarChart,
-	CartesianGrid,
-	Cell,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis,
-} from "recharts";
+import { BarSeries } from "./bar-series";
+import type { BarSeriesSeries } from "./bar-series-types";
 import type { MoneyFlowRowData } from "./finance-schemas-fe6";
 import { changeColor, formatCompact, formatDate } from "./format";
-import { CardShell, FinTable, type FinTableColumn } from "./primitives";
+import type { FinTableColumn } from "./primitives";
 
-const CHART_HEIGHT = 220;
+// Phase 2 Task 1 — `money_flow` on the `BarSeries` archetype (design doc §9:
+// BarSeries · I·F·P·Pv). Fixes 病根 #3 (§0/§5.3): the four buckets used to
+// all share 红涨绿跌 sign color, making "which bucket is which" unreadable.
+// BarSeries's `coloring="composition"` gives each bucket its own hue
+// (`compositionHueRamp`), sign is read off the zero axis instead — and
+// isolating a single bucket via its Filter chip switches it back to sign
+// color, since direction is then unambiguous.
+
 const MAX_CHART_DAYS = 10;
-const NEUTRAL_BAR_COLOR = "#9ca3af";
-const TICK_FONT_SIZE = 11;
-const GRID_COLOR = "var(--border)";
 
-const TOOLTIP_STYLE = {
-	background: "var(--popover)",
-	border: "1px solid var(--border)",
-	borderRadius: "8px",
-	fontSize: "12px",
-} as const;
-
-interface ChartRow {
-	date: string;
-	largeNet: number;
-	mediumNet: number;
-	smallNet: number;
-	superNet: number;
-}
-
-type ChartBucketKey = "largeNet" | "mediumNet" | "smallNet" | "superNet";
-
-const BUCKETS: { key: ChartBucketKey; label: string }[] = [
+const MONEY_FLOW_SERIES: BarSeriesSeries<MoneyFlowRowData>[] = [
 	{ key: "superNet", label: "超大单" },
 	{ key: "largeNet", label: "大单" },
 	{ key: "mediumNet", label: "中单" },
 	{ key: "smallNet", label: "小单" },
 ];
 
-/** 红涨绿跌: net inflow (positive) is red, outflow (negative) is green, exact
- * zero renders neutral gray rather than guessing a direction. */
-function barColor(value: number): string {
-	return changeColor(value) ?? NEUTRAL_BAR_COLOR;
-}
-
-const AXIS_LABEL_LENGTH = 5; // "MM-DD" tail of the formatted date
-
-function formatAxisTick(date: string): string {
-	return formatDate(date).slice(-AXIS_LABEL_LENGTH);
-}
-
-function MoneyFlowBars({ data }: { data: ChartRow[] }) {
-	return (
-		<ResponsiveContainer height={CHART_HEIGHT} width="100%">
-			<BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-				<CartesianGrid
-					stroke={GRID_COLOR}
-					strokeDasharray="3 3"
-					vertical={false}
-				/>
-				<XAxis
-					dataKey="date"
-					stroke="var(--muted-foreground)"
-					tick={{ fontSize: TICK_FONT_SIZE }}
-					tickFormatter={formatAxisTick}
-				/>
-				<YAxis
-					stroke="var(--muted-foreground)"
-					tick={{ fontSize: TICK_FONT_SIZE }}
-					tickFormatter={(value: number) => formatCompact(value)}
-				/>
-				<Tooltip
-					contentStyle={TOOLTIP_STYLE}
-					cursor={{ fill: "var(--muted)", opacity: 0.3 }}
-					formatter={(value, name) => [formatCompact(Number(value)), name]}
-					labelFormatter={(label: string) => formatDate(label)}
-				/>
-				{BUCKETS.map((bucket) => (
-					<Bar dataKey={bucket.key} key={bucket.key} name={bucket.label}>
-						{data.map((row) => (
-							<Cell
-								fill={barColor(row[bucket.key])}
-								key={`${bucket.key}-${row.date}`}
-							/>
-						))}
-					</Bar>
-				))}
-			</BarChart>
-		</ResponsiveContainer>
-	);
-}
-
-function mainNetCell(value: number): { color: string | undefined } {
+function mainNetStyle(value: number): { color?: string } {
 	return { color: changeColor(value) ?? undefined };
 }
 
@@ -112,7 +38,9 @@ const MONEY_FLOW_COLUMNS: FinTableColumn<MoneyFlowRowData>[] = [
 		key: "mainNet",
 		label: "主力净流入",
 		render: (row) => (
-			<span style={mainNetCell(row.mainNet)}>{formatCompact(row.mainNet)}</span>
+			<span style={mainNetStyle(row.mainNet)}>
+				{formatCompact(row.mainNet)}
+			</span>
 		),
 	},
 	{
@@ -141,31 +69,25 @@ const MONEY_FLOW_COLUMNS: FinTableColumn<MoneyFlowRowData>[] = [
 	},
 ];
 
-/** finance_money_flow → daily 主力/超大/大/中/小单 net flow, newest `date` first
- * (the tool already returns rows in that order). Renders a grouped bar chart
- * of the most recent MAX_CHART_DAYS days (reversed to chronological order for
- * the x-axis) plus a compact table of the same rows in source (newest-first)
- * order. */
+/** finance_money_flow → daily 主力/超大/大/中/小单 net flow, newest `date`
+ * first (the tool already returns rows in that order). Renders the most
+ * recent MAX_CHART_DAYS days as a composition-colored grouped bar chart
+ * (Pivot ⇄ a table of the same rows). */
 export function MoneyFlowChart({ data }: { data: MoneyFlowRowData[] }) {
 	if (data.length === 0) {
 		return null;
 	}
-	const recentDesc = data.slice(0, MAX_CHART_DAYS);
-	const chartData = [...recentDesc].reverse().map((row) => ({
-		date: row.date,
-		largeNet: row.largeNet,
-		mediumNet: row.mediumNet,
-		smallNet: row.smallNet,
-		superNet: row.superNet,
-	}));
+	const recent = data.slice(0, MAX_CHART_DAYS);
 	return (
-		<CardShell title="资金流向">
-			<MoneyFlowBars data={chartData} />
-			<FinTable
-				columns={MONEY_FLOW_COLUMNS}
-				getRowKey={(row, index) => `${row.date}-${index}`}
-				rows={recentDesc}
-			/>
-		</CardShell>
+		<BarSeries<MoneyFlowRowData>
+			categoryFormat={formatDate}
+			categoryKey="date"
+			coloring="composition"
+			getRowKey={(row, index) => `${row.date}-${index}`}
+			rows={recent}
+			series={MONEY_FLOW_SERIES}
+			tableColumns={MONEY_FLOW_COLUMNS}
+			title="资金流向"
+		/>
 	);
 }
