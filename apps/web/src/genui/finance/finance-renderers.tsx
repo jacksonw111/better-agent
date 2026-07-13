@@ -94,6 +94,7 @@ import { StatementsTable } from "./statements-table";
 import { SuspensionTable } from "./suspension-table";
 import { TechnicalPanel } from "./technical-panel";
 import { TopHoldersTable } from "./top-holders-table";
+import { YieldCurveChart } from "./yield-curve-chart";
 
 // Tool name → { parse, render } for the finance tool results. Spread into
 // TOOL_RESULT_RENDERERS by ../tool-renderers.tsx. `listEntry` and `entry` are
@@ -151,10 +152,6 @@ const SentimentCompare = lazyChart(() =>
 const SentimentTicker = lazyChart(() =>
 	import("./sentiment-ticker").then((m) => ({ default: m.SentimentTicker }))
 );
-const YieldCurveChart = lazyChart(() =>
-	import("./yield-curve-chart").then((m) => ({ default: m.YieldCurveChart }))
-);
-
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_block_trades: listEntry(BlockTradeRowSchema, (rows) => (
 		<BlockTradesTable data={rows} />
