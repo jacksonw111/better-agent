@@ -126,10 +126,12 @@ it("sorts rows numerically on a header click", () => {
 	expect(reportDates(table)[0]).toBe("2022-12-31");
 });
 
-it("pivots to the chart view and plots the selected series", () => {
+it("pivots to the chart view and plots the selected series", async () => {
 	const { container } = render(<StatementsTable data={ROWS} />);
 	fireEvent.click(within(container).getByRole("button", { name: "图" }));
-	expect(within(container).getByLabelText("趋势图")).toBeDefined();
+	// DataTableChart is React.lazy-loaded; findByLabelText retries until the
+	// chunk resolves past the Suspense fallback.
+	expect(await within(container).findByLabelText("趋势图")).toBeDefined();
 	expect(container.querySelector("table")).toBeNull();
 });
 

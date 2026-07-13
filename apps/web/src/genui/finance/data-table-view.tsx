@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
-import type { ReactNode } from "react";
-import { DataTableChart } from "./data-table-chart";
+import { lazy, type ReactNode, Suspense } from "react";
+import { ChartFrame } from "./chart-frame";
+import type { DataTableChartProps } from "./data-table-chart";
 import { DataTableGrid } from "./data-table-grid";
 import type {
 	DataTableColumn,
@@ -15,6 +16,19 @@ import type { useSort } from "./use-sort";
 // Phase 1 Task 1 — the Pivot's two branches and the crossfade morph between
 // them (design doc §8.1 / §6). Split out of the orchestrator to respect the
 // 299-line file cap.
+
+// data-table-chart.tsx imports recharts at module scope; every DataTable
+// tool would otherwise pull recharts into the eager chat bundle just to
+// render its table view (cf. lazy-chart.tsx, which does the same for the
+// standalone chart cards). `React.lazy` + `Suspense` defers that import
+// chunk until the Pivot actually switches to chart view. The loader's
+// generic component type can't survive `React.lazy`'s `ComponentType<any>`
+// constraint, so the render call below re-asserts it back to
+// `DataTableChartProps<T>` — a type-only cast, the runtime component is
+// unchanged.
+const LazyDataTableChart = lazy(() =>
+	import("./data-table-chart").then((m) => ({ default: m.DataTableChart }))
+);
 
 const MS_PER_SECOND = 1000;
 const VIEW_FADE_SECONDS = TRANSITION_MS / MS_PER_SECOND;
@@ -62,6 +76,9 @@ function GridBranch<T>(props: ViewProps<T>) {
  * new branch and fades it in; a client re-slice (sort/filter) never remounts
  * it, so entrance never replays (Guardrail 1). Reduced-motion snaps instantly. */
 export function ViewSwitch<T>(props: ViewProps<T>) {
+	const Chart = LazyDataTableChart as unknown as (
+		chartProps: DataTableChartProps<T>
+	) => ReactNode;
 	return (
 		<motion.div
 			animate={{ opacity: 1 }}
@@ -74,14 +91,16 @@ export function ViewSwitch<T>(props: ViewProps<T>) {
 			}
 		>
 			{props.view === "chart" ? (
-				<DataTableChart
-					categoryFormat={props.categoryFormat}
-					categoryKey={props.categoryKey}
-					chartKind={props.chartKind ?? "line"}
-					metrics={props.selectedMetrics}
-					reduced={props.reduced}
-					rows={props.filteredRows}
-				/>
+				<Suspense fallback={<ChartFrame loading>{null}</ChartFrame>}>
+					<Chart
+						categoryFormat={props.categoryFormat}
+						categoryKey={props.categoryKey}
+						chartKind={props.chartKind ?? "line"}
+						metrics={props.selectedMetrics}
+						reduced={props.reduced}
+						rows={props.filteredRows}
+					/>
+				</Suspense>
 			) : (
 				<GridBranch {...props} />
 			)}

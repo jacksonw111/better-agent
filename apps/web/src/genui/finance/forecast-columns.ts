@@ -9,10 +9,10 @@ import { formatCompact, formatNum } from "./format";
 // `revenue` get a `value` accessor (sortable) but deliberately NOT
 // `isMetric`: forecast.ts (apps/finance-mcp) emits rows ascending by year
 // (baseYear, +1, +2) — the opposite of every other DataTable tool's
-// newest-first convention that `DataTableChart`'s reversal assumes — so a
-// 3-point Pivot chart here would plot chronologically backwards. A 3-year
-// point forecast isn't a meaningful trend line anyway (spec §9's "if not,
-// leave them sortable-but-not-metric" judgment call).
+// newest-first convention (DataTableChart's chart ordering is date/number-
+// aware and handles either direction correctly, so that's no longer a
+// blocker). A 3-year point forecast just isn't a meaningful trend line
+// (spec §9's "if not, leave them sortable-but-not-metric" judgment call).
 
 const YEAR_COLUMN: DataTableColumn<ForecastRowData> = {
 	key: "year",

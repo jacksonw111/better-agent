@@ -19,7 +19,11 @@ import {
 	rechartsGridProps,
 	TOOLTIP_STYLE,
 } from "./chart-theme";
-import type { DataTableChartKind, DataTableColumn } from "./data-table-types";
+import type {
+	DataTableChartKind,
+	DataTableColumn,
+	MetricColumn,
+} from "./data-table-types";
 import { formatCompact } from "./format";
 
 // Phase 1 Task 1 — the Pivot chart view of the `DataTable` primitive (design
@@ -40,15 +44,59 @@ interface ChartSeries {
 	label: string;
 }
 
+const NUMERIC_ORDER_KEY_RE = /^-?\d+(\.\d+)?$/;
+
+/** Parses a categoryKey's raw string into an ascending sort key, or `null`
+ * when it isn't date/number-orderable (e.g. a holder/institution name). Plain
+ * numeric strings — including bare years like "2023" — sort by their numeric
+ * value; everything else falls through to `Date.parse` so ISO date strings
+ * ("2023-12-31") order chronologically too. */
+function parseOrderKey(raw: string): number | null {
+	const trimmed = raw.trim();
+	if (trimmed === "") {
+		return null;
+	}
+	if (NUMERIC_ORDER_KEY_RE.test(trimmed)) {
+		return Number(trimmed);
+	}
+	const parsed = Date.parse(trimmed);
+	return Number.isNaN(parsed) ? null : parsed;
+}
+
+/** Rows in ascending categoryKey order, so the chart's x-axis always reads
+ * left→right chronologically — regardless of whether the source payload is
+ * newest-first (statements/indicators/dividends), oldest-first
+ * (earnings_forecast), or not date/number-orderable at all (top_holders'
+ * institution name), in which case we fall back to the given row order
+ * rather than guessing. For a newest-first date payload this produces the
+ * same order the old blind `.reverse()` did — a no-behavior-change swap. */
+function orderedForChart<T>(rows: T[], categoryKey: string): T[] {
+	const keyed = rows.map((row) => ({
+		key: parseOrderKey(
+			String((row as Record<string, unknown>)[categoryKey] ?? "")
+		),
+		row,
+	}));
+	const isFullyOrderable = keyed.every((entry) => entry.key !== null);
+	if (!isFullyOrderable) {
+		return rows;
+	}
+	return keyed
+		.slice()
+		.sort((a, b) => (a.key as number) - (b.key as number))
+		.map((entry) => entry.row);
+}
+
 /** Recharts needs a flat row keyed by field name; we project each source row
- * to a stringified category label plus one numeric field per selected metric,
- * reversed so time reads left→right (payloads arrive newest-first). */
+ * to a stringified category label plus one numeric field per selected
+ * metric, in ascending categoryKey order (see `orderedForChart`) so time
+ * reads left→right regardless of the source payload's own ordering. */
 function toChartData<T>(
 	rows: T[],
 	categoryKey: string,
 	metrics: DataTableColumn<T>[]
 ): Record<string, number | string | null>[] {
-	return [...rows].reverse().map((row) => {
+	return orderedForChart(rows, categoryKey).map((row) => {
 		const point: Record<string, number | string | null> = {
 			[CATEGORY_FIELD]: String(
 				(row as Record<string, unknown>)[categoryKey] ?? ""
@@ -163,6 +211,15 @@ function useHasAnimated(): boolean {
 	return hasAnimated;
 }
 
+export interface DataTableChartProps<T> {
+	categoryFormat?: (raw: string) => string;
+	categoryKey: string;
+	chartKind: DataTableChartKind;
+	metrics: MetricColumn<T>[];
+	reduced: boolean;
+	rows: T[];
+}
+
 export function DataTableChart<T>({
 	categoryFormat,
 	categoryKey,
@@ -170,14 +227,7 @@ export function DataTableChart<T>({
 	metrics,
 	reduced,
 	rows,
-}: {
-	categoryFormat?: (raw: string) => string;
-	categoryKey: string;
-	chartKind: DataTableChartKind;
-	metrics: (DataTableColumn<T> & { color: string })[];
-	reduced: boolean;
-	rows: T[];
-}) {
+}: DataTableChartProps<T>) {
 	const hasAnimated = useHasAnimated();
 	const isAnimationActive = !(hasAnimated || reduced);
 	const series: ChartSeries[] = metrics.map((m) => ({

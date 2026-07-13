@@ -195,12 +195,15 @@ it("selects metrics (min 1 floor) that drive the chart series", () => {
 	).toBeDefined();
 });
 
-it("pivots between the table grid and the chart view", () => {
+it("pivots between the table grid and the chart view", async () => {
 	const { container } = renderTable();
 	expect(container.querySelector("table")).not.toBeNull();
 	const toChart = within(container).getByRole("button", { name: "图" });
 	fireEvent.click(toChart);
-	expect(within(container).getByLabelText("趋势图")).toBeDefined();
+	// DataTableChart is React.lazy-loaded (recharts must not ship in the
+	// eager table-view bundle), so the chart chunk resolves asynchronously —
+	// findByLabelText retries until the Suspense fallback settles.
+	expect(await within(container).findByLabelText("趋势图")).toBeDefined();
 	expect(container.querySelector("table")).toBeNull();
 
 	const toTable = within(container).getByRole("button", { name: "表" });
@@ -208,19 +211,21 @@ it("pivots between the table grid and the chart view", () => {
 	expect(container.querySelector("table")).not.toBeNull();
 });
 
-it("applies categoryFormat to the chart axis tick and tooltip label", () => {
+it("applies categoryFormat to the chart axis tick and tooltip label", async () => {
 	const categoryFormat = (raw: string) => `FY${raw}`;
 	const { container } = renderTable({ categoryFormat });
 	fireEvent.click(within(container).getByRole("button", { name: "图" }));
 	const scope = within(container);
+	expect(await scope.findByTestId("chart-xaxis-tick")).toBeDefined();
 	expect(scope.getByTestId("chart-xaxis-tick").textContent).toBe("FY2023");
 	expect(scope.getByTestId("chart-tooltip-label").textContent).toBe("FY2023");
 });
 
-it("falls back to the raw category string when categoryFormat is omitted", () => {
+it("falls back to the raw category string when categoryFormat is omitted", async () => {
 	const { container } = renderTable();
 	fireEvent.click(within(container).getByRole("button", { name: "图" }));
 	const scope = within(container);
+	expect(await scope.findByTestId("chart-xaxis-tick")).toBeDefined();
 	expect(scope.getByTestId("chart-xaxis-tick").textContent).toBe("2023");
 	expect(scope.getByTestId("chart-tooltip-label").textContent).toBe("2023");
 });
