@@ -28,6 +28,9 @@ const ATTENTION_RECENCY_MS = 300_000;
 
 const listSessionsInput = z
 	.object({
+		/** P3-T1: `true` pages ONLY archived sessions (the archived view);
+		 * omitted/false excludes them — the default sidebar never shows them. */
+		archived: z.boolean().optional(),
 		/** Opaque `nextCursor` from the previous page; omit for the first page. */
 		cursor: z.string().optional(),
 		limit: z
@@ -119,7 +122,7 @@ export const listSessions = userProcedure
 				: decodeSessionCursor(input.cursor);
 		const rows = await context.services.stores.bridgeSession.listPageByUser(
 			context.authedUser.id,
-			{ limit, before, tokenId: input?.tokenId }
+			{ limit, archived: input?.archived, before, tokenId: input?.tokenId }
 		);
 		const nowMs = Date.now();
 		const sessions = await Promise.all(

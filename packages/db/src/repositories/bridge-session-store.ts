@@ -3,7 +3,7 @@ import type {
 	BridgeSessionRow,
 	BridgeSessionStore,
 } from "@better-agent/agent/ports";
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -29,12 +29,66 @@ function toRow(
 		tokenId: row.tokenId,
 		agentKind: row.agentKind,
 		label: row.label ?? null,
+		name: row.name ?? null,
 		agentSessionId: row.agentSessionId ?? null,
 		status: row.status,
 		createdAt: row.createdAt,
 		lastSeenAt: row.lastSeenAt,
+		archivedAt: row.archivedAt ?? null,
+		starred: row.starred,
 		vncEndpoint: row.vncEndpoint ?? null,
 	};
+}
+
+/** One owner-guarded UPDATE: the guard and the write stay a single statement,
+ * so a non-owner call is a no-op rather than a read-then-write race. */
+async function updateOwnedSession(
+	db: Db,
+	id: string,
+	userId: string,
+	patch: Partial<typeof schema.bridgeSessions.$inferInsert>
+): Promise<void> {
+	await db
+		.update(schema.bridgeSessions)
+		.set(patch)
+		.where(
+			and(
+				eq(schema.bridgeSessions.id, id),
+				eq(schema.bridgeSessions.userId, userId)
+			)
+		);
+}
+
+/** P3-T1 hard delete: removes the session row AND its persisted bridge
+ * messages (the bridge_messages → bridge_sessions FK has no cascade), in one
+ * transaction, only when the session belongs to `userId` — same shape as
+ * bridge-token-store's deleteAgentAndSessions. */
+async function deleteSessionHard(
+	db: Db,
+	id: string,
+	userId: string
+): Promise<void> {
+	await db.transaction(async (tx) => {
+		const owned = await tx
+			.select({ id: schema.bridgeSessions.id })
+			.from(schema.bridgeSessions)
+			.where(
+				and(
+					eq(schema.bridgeSessions.id, id),
+					eq(schema.bridgeSessions.userId, userId)
+				)
+			)
+			.limit(1);
+		if (owned.length === 0) {
+			return;
+		}
+		await tx
+			.delete(schema.bridgeMessages)
+			.where(eq(schema.bridgeMessages.sessionId, id));
+		await tx
+			.delete(schema.bridgeSessions)
+			.where(eq(schema.bridgeSessions.id, id));
+	});
 }
 
 // A single guarded UPDATE (not a read-then-write) so the throttle check and
@@ -80,28 +134,23 @@ async function setSessionVncEndpoint(
 		.where(eq(schema.bridgeSessions.id, id));
 }
 
-async function endSession(db: Db, id: string, userId: string): Promise<void> {
-	await db
-		.update(schema.bridgeSessions)
-		.set({ status: "ended" })
-		.where(
-			and(
-				eq(schema.bridgeSessions.id, id),
-				eq(schema.bridgeSessions.userId, userId)
-			)
-		);
-}
-
 /** One newest-first page (createdAt DESC, id DESC) of `userId`'s sessions.
  * `before` is a keyset cursor: rows strictly after that (createdAt, id)
  * position in the sort order — `createdAt < c` OR (`createdAt = c` AND
- * `id < c.id`) — so paging stays stable while new sessions are created. */
+ * `id < c.id`) — so paging stays stable while new sessions are created.
+ * `archived: true` pages ONLY archived rows; otherwise archived rows are
+ * excluded (the default sidebar list never shows them). */
 async function listSessionPage(
 	db: Db,
 	userId: string,
-	opts: { limit: number; before?: BridgeSessionCursor; tokenId?: string }
+	opts: {
+		limit: number;
+		archived?: boolean;
+		before?: BridgeSessionCursor;
+		tokenId?: string;
+	}
 ): Promise<BridgeSessionRow[]> {
-	const { createdAt, id, tokenId } = schema.bridgeSessions;
+	const { archivedAt, createdAt, id, tokenId } = schema.bridgeSessions;
 	const cursorFilter = opts.before
 		? or(
 				lt(createdAt, opts.before.createdAt),
@@ -109,19 +158,28 @@ async function listSessionPage(
 			)
 		: undefined;
 	const tokenFilter = opts.tokenId ? eq(tokenId, opts.tokenId) : undefined;
+	const archivedFilter = opts.archived
+		? isNotNull(archivedAt)
+		: isNull(archivedAt);
 	const rows = await db
 		.select()
 		.from(schema.bridgeSessions)
 		.where(
-			and(eq(schema.bridgeSessions.userId, userId), tokenFilter, cursorFilter)
+			and(
+				eq(schema.bridgeSessions.userId, userId),
+				archivedFilter,
+				tokenFilter,
+				cursorFilter
+			)
 		)
 		.orderBy(desc(createdAt), desc(id))
 		.limit(opts.limit);
 	return rows.map(toRow);
 }
 
-// Split touch/setAgentSessionId/end out into standalone functions above
-// purely to keep this factory under the repo's max-lines-per-function gate.
+// Split touch/setAgentSessionId/updateOwnedSession/deleteSessionHard out into
+// standalone functions above purely to keep this factory under the repo's
+// max-lines-per-function gate.
 export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 	return {
 		async create({ userId, tokenId, agentKind, label }) {
@@ -157,6 +215,15 @@ export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 			setSessionAgentSessionId(db, id, agentSessionId),
 		setVncEndpoint: (id, vncEndpoint) =>
 			setSessionVncEndpoint(db, id, vncEndpoint),
-		end: (id, userId) => endSession(db, id, userId),
+		end: (id, userId) =>
+			updateOwnedSession(db, id, userId, { status: "ended" }),
+		rename: (id, userId, name) => updateOwnedSession(db, id, userId, { name }),
+		setArchived: (id, userId, archived) =>
+			updateOwnedSession(db, id, userId, {
+				archivedAt: archived ? new Date() : null,
+			}),
+		setStarred: (id, userId, starred) =>
+			updateOwnedSession(db, id, userId, { starred }),
+		deleteHard: (id, userId) => deleteSessionHard(db, id, userId),
 	};
 }

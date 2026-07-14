@@ -35,8 +35,8 @@ import {
 // pop, and workspace tab/settings items against a registered target.
 
 vi.mock("@/utils/orpc", async () => {
-	const utils = await import("../bridge/local-agent-workspace-test-utils");
-	return utils.buildOrpcMock();
+	const mocks = await import("../bridge/local-agent-workspace-test-mocks");
+	return mocks.buildOrpcMock();
 });
 
 // cmdk scrolls the selected item into view; jsdom doesn't implement it.

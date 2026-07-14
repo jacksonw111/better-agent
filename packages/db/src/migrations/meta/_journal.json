@@ -288,6 +288,13 @@
       "when": 1783668330784,
       "tag": "0040_true_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1784039611127,
+      "tag": "0041_colorful_chat",
+      "breakpoints": true
     }
   ]
 }

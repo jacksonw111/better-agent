@@ -13,10 +13,13 @@ function row(overrides: Partial<BridgeSessionRow> = {}): BridgeSessionRow {
 		tokenId: "tok-1",
 		agentKind: "claude-code",
 		label: null,
+		name: null,
 		agentSessionId: null,
 		status: "active",
 		createdAt: new Date(),
 		lastSeenAt: new Date(),
+		archivedAt: null,
+		starred: false,
 		vncEndpoint: null,
 		...overrides,
 	};

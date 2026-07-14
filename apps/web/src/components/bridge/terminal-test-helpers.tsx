@@ -17,9 +17,12 @@ export const SESSION: BridgeSessionRow = {
 	agentKind: "claude-code",
 	agentSessionId: null,
 	label: "my-repo",
+	name: null,
 	status: "active",
 	createdAt: new Date("2026-07-04T00:00:00Z"),
 	lastSeenAt: new Date("2026-07-04T00:00:00Z"),
+	archivedAt: null,
+	starred: false,
 	vncEndpoint: null,
 	attention: null,
 };

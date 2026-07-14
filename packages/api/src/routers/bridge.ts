@@ -5,6 +5,14 @@ import { bridgeProcedure, userProcedure } from "../index";
 import { listSessions } from "./bridge-list-sessions";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { fetchConfig, restartSession } from "./bridge-restart";
+import {
+	archiveSession,
+	deleteSession,
+	endSession,
+	renameSession,
+	restoreSession,
+	starSession,
+} from "./bridge-session-mgmt";
 import { assertInputWithinSizeLimit } from "./bridge-size-limits";
 import { resolveSkills } from "./bridge-skills-resolve";
 import {
@@ -17,17 +25,11 @@ import {
 import { usageByAgentKind } from "./bridge-usage";
 
 const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
-/** Appended to a session's `commands↓` by `endSession`, so the CLI's poll
- * loop (see `apps/bridge-cli/src/commands.ts`'s `parseCommandText`) tells the
- * local agent process to stop instead of the DB flip alone leaving it running
- * forever. */
-const STOP_CONTROL_COMMAND = { type: "control", action: "stop" } as const;
 /** Default page size for the `history` endpoint when `limit` is omitted. */
 const DEFAULT_HISTORY_LIMIT = 500;
 /** Hard cap on `history`'s `limit` input, to bound one query's result size. */
 const MAX_HISTORY_LIMIT = 500;
 
-const sessionIdInput = z.object({ sessionId: z.uuid() });
 const pollInput = z.object({
 	sessionId: z.uuid(),
 	afterId: z.number().int().min(0),
@@ -229,36 +231,13 @@ export const bridgeRouter = {
 	// Local Agent usage by agent kind, same rolling window as chat usage (owner-scoped).
 	usageByAgentKind,
 
-	endSession: userProcedure
-		.input(sessionIdInput)
-		.handler(async ({ input, context }) => {
-			await requireOwnedBridgeSession(
-				context,
-				context.authedUser.id,
-				input.sessionId
-			);
-			await context.services.stores.bridgeSession.end(
-				input.sessionId,
-				context.authedUser.id
-			);
-			try {
-				// Best-effort: the DB flip above is authoritative for "ended", so a
-				// transient relay failure here must not fail the call — otherwise the
-				// UI would see an error, keep showing the End button as if nothing
-				// happened, yet the DB already reads "ended" and a retry can never
-				// re-send the stop, leaving the local agent running forever. The CLI
-				// will still notice the session ended via its own polling/error
-				// handling even without this control command.
-				await context.services.relayStore.append(
-					input.sessionId,
-					"commands",
-					STOP_CONTROL_COMMAND
-				);
-				context.services.commandBus.notify(input.sessionId);
-			} catch {
-				// swallow — see comment above.
-			}
-			return { ok: true };
-		}),
+	// P3-T1: session lifecycle (end/rename/star/archive/restore/hard-delete) —
+	// see bridge-session-mgmt.ts.
+	endSession,
+	renameSession,
+	starSession,
+	archiveSession,
+	restoreSession,
+	deleteSession,
 	restartSession,
 };

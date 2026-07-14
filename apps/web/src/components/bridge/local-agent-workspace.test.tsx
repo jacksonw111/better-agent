@@ -20,8 +20,8 @@ import {
 // local-agents-flow.test.tsx.
 
 vi.mock("@/utils/orpc", async () => {
-	const utils = await import("./local-agent-workspace-test-utils");
-	return utils.buildOrpcMock();
+	const mocks = await import("./local-agent-workspace-test-mocks");
+	return mocks.buildOrpcMock();
 });
 
 vi.mock("./bridge-transport", async () => {
@@ -153,7 +153,7 @@ it("Load more appends the older page and hides the button once exhausted", async
 	expect(view.queryByRole("button", { name: "Load more" })).toBeNull();
 });
 
-it("rename shell edits the label in client state only", async () => {
+it("rename persists via the renameSession mutation and updates the row", async () => {
 	const { view } = renderApp();
 	await waitFor(() => {
 		expect(view.getByText("still-live")).toBeDefined();
@@ -168,6 +168,15 @@ it("rename shell edits the label in client state only", async () => {
 		expect(view.getByText("my renamed session")).toBeDefined();
 	});
 	expect(view.queryByText("still-live")).toBeNull();
+	expect(store.mgmtCalls).toEqual([
+		{
+			route: "renameSession",
+			input: { sessionId: "s-live", name: "my renamed session" },
+		},
+	]);
+	expect(store.sessions.find((s) => s.id === "s-live")?.name).toBe(
+		"my renamed session"
+	);
 });
 
 it("renders the tab row with Chat active and Files/Git/Shell as disabled P4 pills", async () => {

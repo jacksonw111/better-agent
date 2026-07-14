@@ -10,10 +10,17 @@ export type BridgeSessionStatus = "active" | "ended";
 export interface BridgeSessionRow {
 	agentKind: BridgeAgentKind;
 	agentSessionId: string | null;
+	/** P3-T1: set when the user archives the session from the web, null once
+	 * restored. Archived rows are excluded from the default list page. */
+	archivedAt: Date | null;
 	createdAt: Date;
 	id: string;
 	label: string | null;
 	lastSeenAt: Date;
+	/** P3-T1: user-set display name (web rename) — distinct from `label`, the
+	 * CLI's launch-time label, which is never mutated. */
+	name: string | null;
+	starred: boolean;
 	status: BridgeSessionStatus;
 	tokenId: string;
 	userId: string;
@@ -36,18 +43,32 @@ export interface BridgeSessionStore {
 		agentKind: BridgeAgentKind;
 		label?: string;
 	}): Promise<BridgeSessionRow>;
+	/** Hard-deletes the session row (and its persisted messages) if it belongs
+	 * to `userId`; a no-op otherwise. */
+	deleteHard(id: string, userId: string): Promise<void>;
 	end(id: string, userId: string): Promise<void>;
 	get(id: string): Promise<BridgeSessionRow | null>;
 	listByUser(userId: string): Promise<BridgeSessionRow[]>;
 	/** One page of the user's sessions, newest first (createdAt DESC, id DESC
 	 * tie-break). `before` resumes strictly after that cursor position; omit it
 	 * for the first page. `tokenId` narrows the page to one bridge token's
-	 * sessions. Returns at most `limit` rows. */
+	 * sessions. `archived: true` returns ONLY archived rows; otherwise archived
+	 * rows are excluded. Returns at most `limit` rows. */
 	listPageByUser(
 		userId: string,
-		opts: { limit: number; before?: BridgeSessionCursor; tokenId?: string }
+		opts: {
+			limit: number;
+			archived?: boolean;
+			before?: BridgeSessionCursor;
+			tokenId?: string;
+		}
 	): Promise<BridgeSessionRow[]>;
+	/** Sets (or clears, with null) the user-set display name, owner-guarded. */
+	rename(id: string, userId: string, name: string | null): Promise<void>;
 	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
+	/** Sets or clears `archivedAt`, owner-guarded. */
+	setArchived(id: string, userId: string, archived: boolean): Promise<void>;
+	setStarred(id: string, userId: string, starred: boolean): Promise<void>;
 	setVncEndpoint(id: string, vncEndpoint: string | null): Promise<void>;
 	touch(id: string): Promise<void>;
 }

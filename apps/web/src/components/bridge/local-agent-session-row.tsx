@@ -1,15 +1,19 @@
 import { cn } from "@better-agent/ui/lib/utils";
-import { LoaderCircleIcon, PencilIcon } from "lucide-react";
+import { LoaderCircleIcon, PencilIcon, StarIcon } from "lucide-react";
 import { useState } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { relativeTime } from "@/utils/relative-time";
+import { LocalAgentSessionMenu } from "./local-agent-session-menu";
+import { sessionTitle } from "./local-agent-session-picker";
 import {
 	deriveSessionSignal,
 	type SessionSignal,
 } from "./local-agent-workspace-sessions";
 
-// P2-T2: one sidebar session row — signal dot, label + relative time, and the
-// inline-rename shell (pencil → input; persistence lands in P3).
+// P2-T2: one sidebar session row — signal dot, title + relative time, inline
+// rename, and (P3-T1) the star toggle + "⋯" archive/delete menu. Rename and
+// star persist via the bridge session-mgmt routes (see the sidebar's
+// useSessionActions wiring); the title precedence is name ?? label ?? id.
 
 const SIGNAL_LABEL: Record<SessionSignal, string> = {
 	approval: "Waiting for approval",
@@ -58,17 +62,19 @@ function SessionSignalDot({ session }: { session: BridgeSessionRow }) {
 	);
 }
 
-/** The inline rename input — commits on Enter/blur, cancels on Escape. An
- * empty draft cancels rather than committing a blank label. */
+/** The inline rename input — commits on Enter/blur (empty commits clear the
+ * custom name back to the CLI label), cancels on Escape. */
 function SessionRenameInput({
 	initial,
-	onDone,
+	onCancel,
+	onCommit,
 }: {
 	initial: string;
-	onDone: (label: string | null) => void;
+	onCancel: () => void;
+	onCommit: (name: string | null) => void;
 }) {
 	const [draft, setDraft] = useState(initial);
-	const commit = () => onDone(draft.trim() === "" ? null : draft.trim());
+	const commit = () => onCommit(draft.trim() === "" ? null : draft.trim());
 	return (
 		<input
 			aria-label="Session name"
@@ -82,7 +88,7 @@ function SessionRenameInput({
 					commit();
 				}
 				if (event.key === "Escape") {
-					onDone(null);
+					onCancel();
 				}
 			}}
 			value={draft}
@@ -90,22 +96,65 @@ function SessionRenameInput({
 	);
 }
 
-/** The row's resting state: signal + label + relative time (the select
- * button) beside the hover/focus-revealed rename pencil — split out of
- * `LocalAgentSessionRow` to keep it under the max-lines-per-function gate. */
+/** The row's hover/focus-revealed action cluster: star toggle (stays visible
+ * once starred), rename pencil, and the archive/delete "⋯" menu — split out
+ * of `SessionRowDisplay` to keep it under the max-lines-per-function gate. */
+function SessionRowActions({
+	onArchive,
+	onDelete,
+	onEdit,
+	onToggleStar,
+	session,
+	title,
+}: Omit<SessionRowProps, "active" | "onRename" | "onSelect"> & {
+	onEdit: () => void;
+	title: string;
+}) {
+	return (
+		<span className="flex shrink-0 items-center">
+			<button
+				aria-label={`Star ${title}`}
+				aria-pressed={session.starred}
+				className={cn(
+					"rounded-md p-1.5 transition-opacity",
+					session.starred
+						? "text-amber-500"
+						: "text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+				)}
+				onClick={onToggleStar}
+				type="button"
+			>
+				<StarIcon
+					className={cn("size-3.5", session.starred && "fill-current")}
+				/>
+			</button>
+			<button
+				aria-label={`Rename ${title}`}
+				className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+				onClick={onEdit}
+				type="button"
+			>
+				<PencilIcon className="size-3.5" />
+			</button>
+			<LocalAgentSessionMenu
+				onArchive={onArchive}
+				onDelete={onDelete}
+				title={title}
+			/>
+		</span>
+	);
+}
+
+/** The row's resting state: signal + title + relative time (the select
+ * button) beside the action cluster — split out of `LocalAgentSessionRow` to
+ * keep it under the max-lines-per-function gate. */
 function SessionRowDisplay({
 	active,
-	displayLabel,
 	onEdit,
-	onSelect,
-	session,
-}: {
-	active: boolean;
-	displayLabel: string;
-	onEdit: () => void;
-	onSelect: () => void;
-	session: BridgeSessionRow;
-}) {
+	...props
+}: Omit<SessionRowProps, "onRename"> & { onEdit: () => void }) {
+	const { onSelect, session } = props;
+	const title = sessionTitle(session);
 	return (
 		<div
 			className={cn(
@@ -121,64 +170,45 @@ function SessionRowDisplay({
 			>
 				<SessionSignalDot session={session} />
 				<span className="flex min-w-0 flex-col">
-					<span className="truncate text-sm">{displayLabel}</span>
+					<span className="truncate text-sm">{title}</span>
 					<span className="truncate text-muted-foreground text-xs">
 						{relativeTime(new Date(session.lastSeenAt).toISOString())}
 					</span>
 				</span>
 			</button>
-			<button
-				aria-label={`Rename ${displayLabel}`}
-				className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-				onClick={onEdit}
-				type="button"
-			>
-				<PencilIcon className="size-3.5" />
-			</button>
+			<SessionRowActions {...props} onEdit={onEdit} title={title} />
 		</div>
 	);
 }
 
-/** One session in the workspace sidebar: the whole row selects the session
- * (updating `?session=`), the pencil (hover/focus-revealed) opens the inline
- * rename shell. `displayLabel` is the client-side (possibly renamed) label —
- * the rename itself is owned by the sidebar. */
-export function LocalAgentSessionRow({
-	active,
-	displayLabel,
-	onRename,
-	onSelect,
-	session,
-}: {
+interface SessionRowProps {
 	active: boolean;
-	displayLabel: string;
-	onRename: (label: string) => void;
+	onArchive: () => void;
+	onDelete: () => void;
+	onRename: (name: string | null) => void;
 	onSelect: () => void;
+	onToggleStar: () => void;
 	session: BridgeSessionRow;
-}) {
+}
+
+/** One session in the workspace sidebar: the whole row selects the session
+ * (updating `?session=`), the pencil opens the inline rename (persisted via
+ * `onRename`), the star pins, and the "⋯" menu archives/deletes. */
+export function LocalAgentSessionRow({ onRename, ...props }: SessionRowProps) {
 	const [editing, setEditing] = useState(false);
 	if (editing) {
 		return (
 			<div className="px-1 py-0.5">
 				<SessionRenameInput
-					initial={displayLabel}
-					onDone={(label) => {
+					initial={props.session.name ?? props.session.label ?? ""}
+					onCancel={() => setEditing(false)}
+					onCommit={(name) => {
 						setEditing(false);
-						if (label !== null) {
-							onRename(label);
-						}
+						onRename(name);
 					}}
 				/>
 			</div>
 		);
 	}
-	return (
-		<SessionRowDisplay
-			active={active}
-			displayLabel={displayLabel}
-			onEdit={() => setEditing(true)}
-			onSelect={onSelect}
-			session={session}
-		/>
-	);
+	return <SessionRowDisplay {...props} onEdit={() => setEditing(true)} />;
 }

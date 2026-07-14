@@ -22,11 +22,12 @@ function sessionShortId(session: BridgeSessionRow): string {
 	return session.id.slice(0, SHORT_ID_LENGTH);
 }
 
-/** The human title for a session row: its CLI-reported label, falling back to a
- * short slice of its id so an unlabeled session is still distinguishable.
- * Shared with the workspace sidebar (P2-T2) so the two never disagree. */
+/** The human title for a session row: the user's web rename (`name`) wins,
+ * then the CLI-reported launch `label`, then a short slice of the id so an
+ * unlabeled session is still distinguishable. Shared with the workspace
+ * sidebar (P2-T2) so the two never disagree. */
 export function sessionTitle(session: BridgeSessionRow): string {
-	return session.label ?? sessionShortId(session);
+	return session.name ?? session.label ?? sessionShortId(session);
 }
 
 /** This token's sessions, newest first — the order the picker lists them and

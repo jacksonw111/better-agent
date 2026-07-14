@@ -113,11 +113,51 @@ function newSessionRow(
 		tokenId: input.tokenId,
 		agentKind: input.agentKind,
 		label: input.label ?? null,
+		name: null,
 		agentSessionId: null,
 		status: "active",
 		createdAt: new Date(),
 		lastSeenAt: new Date(),
+		archivedAt: null,
+		starred: false,
 		vncEndpoint: null,
+	};
+}
+
+/** The owner-guarded in-memory mutators (end + the P3-T1
+ * rename/star/archive/hard-delete), matching the real store's guard — split
+ * out so `memoryBridgeSessionStore` stays under the max-lines-per-function
+ * gate (same precedent as memoryListSessionPage). */
+function memorySessionMutators(
+	rows: Map<string, BridgeSessionRow>
+): Pick<
+	BridgeSessionStore,
+	"deleteHard" | "end" | "rename" | "setArchived" | "setStarred"
+> {
+	const patchOwned = (
+		id: string,
+		userId: string,
+		patch: Partial<BridgeSessionRow>
+	) => {
+		const row = rows.get(id);
+		if (row && row.userId === userId) {
+			rows.set(id, { ...row, ...patch });
+		}
+		return Promise.resolve();
+	};
+	return {
+		end: (id, userId) => patchOwned(id, userId, { status: "ended" }),
+		rename: (id, userId, name) => patchOwned(id, userId, { name }),
+		setArchived: (id, userId, archived) =>
+			patchOwned(id, userId, { archivedAt: archived ? new Date() : null }),
+		setStarred: (id, userId, starred) => patchOwned(id, userId, { starred }),
+		deleteHard(id, userId) {
+			const row = rows.get(id);
+			if (row && row.userId === userId) {
+				rows.delete(id);
+			}
+			return Promise.resolve();
+		},
 	};
 }
 
@@ -132,6 +172,9 @@ function memoryListSessionPage(
 	const { before } = opts;
 	return [...rows.values()]
 		.filter((row) => row.userId === userId)
+		.filter((row) =>
+			opts.archived ? row.archivedAt !== null : row.archivedAt === null
+		)
 		.filter((row) => !opts.tokenId || row.tokenId === opts.tokenId)
 		.filter((row) => {
 			if (!before) {
@@ -176,13 +219,6 @@ export function memoryBridgeSessionStore(
 			}
 			return Promise.resolve();
 		},
-		end(id, userId) {
-			const row = rows.get(id);
-			if (row && row.userId === userId) {
-				rows.set(id, { ...row, status: "ended" });
-			}
-			return Promise.resolve();
-		},
 		setAgentSessionId(id, agentSessionId) {
 			const row = rows.get(id);
 			if (row) {
@@ -197,6 +233,7 @@ export function memoryBridgeSessionStore(
 			}
 			return Promise.resolve();
 		},
+		...memorySessionMutators(rows),
 	};
 }
 

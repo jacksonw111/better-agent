@@ -93,6 +93,50 @@ it("scopes the page (and its cursor walk) to tokenId when given", async () => {
 	expect(seen.sort()).toEqual([...aIds].sort());
 });
 
+it("excludes archived sessions by default; archived: true returns ONLY them", async () => {
+	const { alice, ids } = await startSessions(3);
+	const archivedId = ids[1] ?? "";
+	await alice.bridge.archiveSession({ sessionId: archivedId });
+
+	const defaults = await alice.bridge.listSessions();
+	expect(defaults.sessions.map((s) => s.id)).not.toContain(archivedId);
+	expect(defaults.sessions).toHaveLength(2);
+
+	const archived = await alice.bridge.listSessions({ archived: true });
+	expect(archived.sessions.map((s) => s.id)).toEqual([archivedId]);
+	expect(archived.sessions[0]?.archivedAt).not.toBeNull();
+});
+
+it("cursor paging works within the archived view", async () => {
+	const { alice, ids } = await startSessions(3);
+	for (const sessionId of ids) {
+		await alice.bridge.archiveSession({ sessionId });
+	}
+
+	const first = await alice.bridge.listSessions({ archived: true, limit: 2 });
+	expect(first.sessions).toHaveLength(2);
+	expect(first.nextCursor).not.toBeNull();
+
+	const second = await alice.bridge.listSessions({
+		archived: true,
+		cursor: first.nextCursor ?? "",
+	});
+	const seen = [...first.sessions, ...second.sessions].map((s) => s.id);
+	expect(seen.sort()).toEqual([...ids].sort());
+});
+
+it("rows carry name/starred/archivedAt for the web", async () => {
+	const { alice, ids } = await startSessions(1);
+	const sessionId = ids[0] ?? "";
+	await alice.bridge.renameSession({ sessionId, name: "pinned work" });
+	await alice.bridge.starSession({ sessionId, starred: true });
+
+	const { sessions } = await alice.bridge.listSessions();
+	expect(sessions[0]?.name).toBe("pinned work");
+	expect(sessions[0]?.starred).toBe(true);
+	expect(sessions[0]?.archivedAt).toBeNull();
+});
+
 it("flags an unanswered approval as attention: 'approval'", async () => {
 	const { alice, cli, ids } = await startSessions(1);
 	await cli.bridge.pushEvents({

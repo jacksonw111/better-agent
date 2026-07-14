@@ -16,8 +16,8 @@ import {
 // revoked-token not-found, and remount when the poll surfaces a newer session.
 
 vi.mock("@/utils/orpc", async () => {
-	const utils = await import("./local-agent-workspace-test-utils");
-	return utils.buildOrpcMock();
+	const mocks = await import("./local-agent-workspace-test-mocks");
+	return mocks.buildOrpcMock();
 });
 
 vi.mock("./bridge-transport", async () => {

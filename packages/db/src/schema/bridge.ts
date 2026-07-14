@@ -6,6 +6,7 @@ import type {
 import { sql } from "drizzle-orm";
 import {
 	bigint,
+	boolean,
 	index,
 	jsonb,
 	pgTable,
@@ -62,6 +63,10 @@ export const bridgeSessions = pgTable(
 			.references(() => bridgeTokens.id),
 		agentKind: text("agent_kind").$type<BridgeAgentKind>().notNull(),
 		label: text("label"),
+		// P3-T1: user-set display name from the web's rename flow — distinct from
+		// `label`, which the CLI reports at launch time and is never mutated.
+		// Nullable: unset until the user renames; display falls back to `label`.
+		name: text("name"),
 		// The underlying local agent's own conversation id (e.g. claude's
 		// `session_id`, captured off its `session_ready` status event) — lets the
 		// web show "claude session: <id>" and lets a later CLI run `--resume`
@@ -77,6 +82,12 @@ export const bridgeSessions = pgTable(
 			.$type<BridgeSessionStatus>()
 			.notNull()
 			.default("active"),
+		// P3-T1: soft-hide timestamp — set when the user archives the session
+		// from the web, cleared on restore. Archived sessions are excluded from
+		// the default `listSessions` page and only appear in the archived view.
+		archivedAt: timestamp("archived_at", { withTimezone: true }),
+		// P3-T1: user-pinned flag; starred sessions sort to the top client-side.
+		starred: boolean("starred").notNull().default(false),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

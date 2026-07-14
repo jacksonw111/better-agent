@@ -21,11 +21,14 @@ import type { ComponentType } from "react";
 
 export interface SessionFixture {
 	agentKind: string;
+	archivedAt: Date | null;
 	attention: "approval" | "processing" | null;
 	createdAt: Date;
 	id: string;
 	label: string;
 	lastSeenAt: Date;
+	name: string | null;
+	starred: boolean;
 	status: string;
 	tokenId: string;
 	userId: string;
@@ -49,6 +52,8 @@ export const workspaceStore = {
 	connectedSessionIds: [] as string[],
 	firstNextCursor: null as string | null,
 	loadMoreCursors: [] as string[],
+	// P3-T1: every session-mgmt mutation call, in order — route name + input.
+	mgmtCalls: [] as { route: string; input: Record<string, unknown> }[],
 	olderPage: { nextCursor: null as string | null, sessions: [] as unknown[] },
 	sessions: [] as SessionFixture[],
 	tokens: [] as TokenFixture[],
@@ -58,6 +63,7 @@ export function resetWorkspaceStore(): void {
 	workspaceStore.connectedSessionIds.length = 0;
 	workspaceStore.firstNextCursor = null;
 	workspaceStore.loadMoreCursors.length = 0;
+	workspaceStore.mgmtCalls.length = 0;
 	workspaceStore.olderPage = { nextCursor: null, sessions: [] };
 	workspaceStore.sessions = [];
 	workspaceStore.tokens = [];
@@ -69,11 +75,14 @@ export function makeSession(
 	const now = new Date();
 	return {
 		agentKind: "claude-code",
+		archivedAt: null,
 		attention: null,
 		createdAt: now,
 		id: "session-x",
 		label: "session-x",
 		lastSeenAt: now,
+		name: null,
+		starred: false,
 		status: "active",
 		tokenId: "token-1",
 		userId: "user-1",
@@ -92,64 +101,6 @@ export function makeToken(overrides: Partial<TokenFixture>): TokenFixture {
 		token: "bt_alpha",
 		userId: "user-1",
 		...overrides,
-	};
-}
-
-function stubQuery<T>(key: string[], get: () => T) {
-	return {
-		queryOptions: () => ({
-			queryKey: key,
-			queryFn: () => Promise.resolve(get()),
-		}),
-		key: () => key,
-	};
-}
-
-function stubMutation<T>(result: T) {
-	return (opts: Record<string, unknown>) => ({
-		mutationFn: () => Promise.resolve(result),
-		...opts,
-	});
-}
-
-/** The `@/utils/orpc` mock: queries read the live store; "Load more" records
- * its cursor and serves the store's canned older page. */
-export function buildOrpcMock() {
-	return {
-		client: {
-			bridge: {
-				listSessions: (input: { cursor: string }) => {
-					workspaceStore.loadMoreCursors.push(input.cursor);
-					return Promise.resolve(workspaceStore.olderPage);
-				},
-			},
-		},
-		orpc: {
-			auth: {
-				me: stubQuery(["auth", "me"], () => ({
-					email: "tester@example.com",
-				})),
-			},
-			bridge: {
-				listSessions: stubQuery(["bridge", "listSessions"], () => ({
-					sessions: workspaceStore.sessions,
-					nextCursor: workspaceStore.firstNextCursor,
-				})),
-				listTokens: stubQuery(
-					["bridge", "listTokens"],
-					() => workspaceStore.tokens
-				),
-				createToken: {
-					mutationOptions: stubMutation({
-						id: "new-token",
-						token: "bt_new",
-						last4: "_new",
-					}),
-				},
-				endSession: { mutationOptions: stubMutation({ ok: true }) },
-				deleteToken: { mutationOptions: stubMutation({ ok: true }) },
-			},
-		},
 	};
 }
 
