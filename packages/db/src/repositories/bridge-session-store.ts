@@ -99,19 +99,22 @@ async function endSession(db: Db, id: string, userId: string): Promise<void> {
 async function listSessionPage(
 	db: Db,
 	userId: string,
-	opts: { limit: number; before?: BridgeSessionCursor }
+	opts: { limit: number; before?: BridgeSessionCursor; tokenId?: string }
 ): Promise<BridgeSessionRow[]> {
-	const { createdAt, id } = schema.bridgeSessions;
+	const { createdAt, id, tokenId } = schema.bridgeSessions;
 	const cursorFilter = opts.before
 		? or(
 				lt(createdAt, opts.before.createdAt),
 				and(eq(createdAt, opts.before.createdAt), lt(id, opts.before.id))
 			)
 		: undefined;
+	const tokenFilter = opts.tokenId ? eq(tokenId, opts.tokenId) : undefined;
 	const rows = await db
 		.select()
 		.from(schema.bridgeSessions)
-		.where(and(eq(schema.bridgeSessions.userId, userId), cursorFilter))
+		.where(
+			and(eq(schema.bridgeSessions.userId, userId), tokenFilter, cursorFilter)
+		)
 		.orderBy(desc(createdAt), desc(id))
 		.limit(opts.limit);
 	return rows.map(toRow);

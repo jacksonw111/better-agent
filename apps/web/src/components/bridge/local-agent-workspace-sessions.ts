@@ -81,14 +81,19 @@ interface OlderPages {
 
 /** First page polled at the shared cadence; older pages appended on demand
  * (one fetch per "Load more", never re-polled). `nextCursor` follows the last
- * loaded page once any older page exists — before that, the first page's. */
-export function useWorkspaceSessions() {
+ * loaded page once any older page exists — before that, the first page's.
+ * Scoped to one bridge token so "Load more" pages through THIS agent's
+ * history, not the user's interleaved sessions across all agents. */
+export function useWorkspaceSessions(tokenId: string) {
 	const firstPage = useQuery(
-		withSessionPolling(orpc.bridge.listSessions.queryOptions())
+		withSessionPolling(
+			orpc.bridge.listSessions.queryOptions({ input: { tokenId } })
+		)
 	);
 	const [older, setOlder] = useState<OlderPages | null>(null);
 	const loadMoreMutation = useMutation({
-		mutationFn: (cursor: string) => client.bridge.listSessions({ cursor }),
+		mutationFn: (cursor: string) =>
+			client.bridge.listSessions({ cursor, tokenId }),
 		onSuccess: (page) => {
 			setOlder((previous) => ({
 				nextCursor: page.nextCursor,

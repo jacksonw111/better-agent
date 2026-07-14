@@ -132,6 +132,7 @@ function memoryListSessionPage(
 	const { before } = opts;
 	return [...rows.values()]
 		.filter((row) => row.userId === userId)
+		.filter((row) => !opts.tokenId || row.tokenId === opts.tokenId)
 		.filter((row) => {
 			if (!before) {
 				return true;

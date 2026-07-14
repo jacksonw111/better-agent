@@ -41,10 +41,11 @@ export interface BridgeSessionStore {
 	listByUser(userId: string): Promise<BridgeSessionRow[]>;
 	/** One page of the user's sessions, newest first (createdAt DESC, id DESC
 	 * tie-break). `before` resumes strictly after that cursor position; omit it
-	 * for the first page. Returns at most `limit` rows. */
+	 * for the first page. `tokenId` narrows the page to one bridge token's
+	 * sessions. Returns at most `limit` rows. */
 	listPageByUser(
 		userId: string,
-		opts: { limit: number; before?: BridgeSessionCursor }
+		opts: { limit: number; before?: BridgeSessionCursor; tokenId?: string }
 	): Promise<BridgeSessionRow[]>;
 	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
 	setVncEndpoint(id: string, vncEndpoint: string | null): Promise<void>;

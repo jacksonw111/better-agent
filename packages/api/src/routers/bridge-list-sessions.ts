@@ -36,6 +36,10 @@ const listSessionsInput = z
 			.min(1)
 			.max(MAX_SESSIONS_LIMIT)
 			.default(DEFAULT_SESSIONS_LIMIT),
+		/** Narrows the page to one bridge token's sessions, so "Load more" in a
+		 * single agent's workspace pages through THAT agent's history instead of
+		 * the user's interleaved sessions across all agents. */
+		tokenId: z.string().optional(),
 	})
 	// The whole input is optional so existing `listSessions()` callers (no
 	// args) keep working as "first page, default limit".
@@ -115,7 +119,7 @@ export const listSessions = userProcedure
 				: decodeSessionCursor(input.cursor);
 		const rows = await context.services.stores.bridgeSession.listPageByUser(
 			context.authedUser.id,
-			{ limit, before }
+			{ limit, before, tokenId: input?.tokenId }
 		);
 		const nowMs = Date.now();
 		const sessions = await Promise.all(

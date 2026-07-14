@@ -206,7 +206,7 @@ export function LocalAgentWorkspace({
 	tokenId: string;
 }) {
 	const tokens = useQuery(orpc.bridge.listTokens.queryOptions());
-	const paged = useWorkspaceSessions();
+	const paged = useWorkspaceSessions(tokenId);
 	const { email } = useCurrentUser();
 
 	if (tokens.isPending || paged.isPending) {

@@ -67,6 +67,32 @@ it("rejects a limit above the cap", async () => {
 	await expect(alice.bridge.listSessions({ limit: 101 })).rejects.toBeDefined();
 });
 
+it("scopes the page (and its cursor walk) to tokenId when given", async () => {
+	const rig = build();
+	const cliA = rig.bridgeClientFor({ tokenId: "tok-a", userId: ALICE.id });
+	const cliB = rig.bridgeClientFor({ tokenId: "tok-b", userId: ALICE.id });
+	const aIds: string[] = [];
+	for (let i = 0; i < 3; i++) {
+		const { sessionId } = await cliA.bridge.startSession({
+			agentKind: AGENT_KIND,
+		});
+		aIds.push(sessionId);
+		await cliB.bridge.startSession({ agentKind: AGENT_KIND });
+	}
+	const alice = rig.userClientFor(ALICE);
+
+	const first = await alice.bridge.listSessions({ limit: 2, tokenId: "tok-a" });
+	expect(first.sessions).toHaveLength(2);
+	expect(first.sessions.every((s) => s.tokenId === "tok-a")).toBe(true);
+
+	const second = await alice.bridge.listSessions({
+		cursor: first.nextCursor ?? "",
+		tokenId: "tok-a",
+	});
+	const seen = [...first.sessions, ...second.sessions].map((s) => s.id);
+	expect(seen.sort()).toEqual([...aIds].sort());
+});
+
 it("flags an unanswered approval as attention: 'approval'", async () => {
 	const { alice, cli, ids } = await startSessions(1);
 	await cli.bridge.pushEvents({
