@@ -2,8 +2,15 @@
 import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
 import { renderFromRegistry } from "@better-agent/ui/components/chat/tool-registry";
 import { fireEvent, render, within } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { bridgeToolRegistry } from "./bridge-tool-card";
+
+afterEach(() => {
+	window.localStorage.clear();
+});
+
+const RAW_PATTERN_JSON_RE = /"pattern": "TODO"/;
+const RAW_COMMAND_JSON_RE = /"command": "ls"/;
 
 function tool(partial: Partial<ToolInvocation>): ToolInvocation {
 	return {
@@ -199,4 +206,34 @@ it("keeps a persistent one-line error preview visible after collapsing an errore
 it("routes the command category to the $-prefixed BashCommandCard", () => {
 	const scope = renderTool(tool({ toolName: "Bash", args: { command: "ls" } }));
 	expect(scope.getByText("$")).toBeDefined();
+});
+
+// P2-T4: the showRawParameters pref reveals the raw tool input inside the
+// expanded detail area — off by default, on both card variants.
+
+it("hides raw params by default even when the panel is expanded", () => {
+	const scope = renderTool(
+		tool({ toolName: "Grep", args: { pattern: "TODO" }, result: "match" })
+	);
+	fireEvent.click(scope.getByRole("button"));
+	expect(scope.queryByText("Params")).toBeNull();
+});
+
+it("reveals the raw input JSON on an ActivityItem when the pref is on", () => {
+	window.localStorage.setItem("ba:pref:showRawParameters", "true");
+	const scope = renderTool(
+		tool({ toolName: "Grep", args: { pattern: "TODO" }, result: "match" })
+	);
+	fireEvent.click(scope.getByRole("button"));
+	expect(scope.getByText("Params")).toBeDefined();
+	expect(scope.getByText(RAW_PATTERN_JSON_RE)).toBeDefined();
+});
+
+it("reveals the raw input on the BashCommandCard, even with no output yet", () => {
+	window.localStorage.setItem("ba:pref:showRawParameters", "true");
+	const scope = renderTool(tool({ toolName: "Bash", args: { command: "ls" } }));
+	// No captured output — the raw input alone makes the disclosure work.
+	fireEvent.click(scope.getByRole("button"));
+	expect(scope.getByText("Params")).toBeDefined();
+	expect(scope.getByText(RAW_COMMAND_JSON_RE)).toBeDefined();
 });

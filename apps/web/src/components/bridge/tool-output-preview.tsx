@@ -81,3 +81,61 @@ export function ErrorPreviewLine({ text }: { text: string }) {
 		<div className="truncate px-2 py-1.5 text-destructive text-xs">{text}</div>
 	);
 }
+
+const JSON_INDENT = 2;
+
+/** P2-T4: the raw tool input as display text — pretty-printed JSON for
+ * structured args, the string itself for a bare-string input (codex shell),
+ * and "" when there's nothing worth showing (absent args or an empty
+ * object), so the section renders nothing at all. */
+export function rawParamsText(args: unknown): string {
+	if (args === undefined || args === null) {
+		return "";
+	}
+	if (typeof args === "string") {
+		return args;
+	}
+	let text: string | undefined;
+	try {
+		text = JSON.stringify(args, null, JSON_INDENT);
+	} catch {
+		text = String(args);
+	}
+	if (text === undefined || text === "{}") {
+		return "";
+	}
+	return text;
+}
+
+/** The raw input to compute for a card: "" (nothing to render) unless the
+ * `showRawParameters` pref is on. */
+export function computeRawParams(
+	tool: ToolInvocation,
+	enabled: boolean
+): string {
+	return enabled ? rawParamsText(tool.args) : "";
+}
+
+/** P2-T4: the compact raw-input section inside a card's expanded detail area,
+ * shown only when the `showRawParameters` pref produced text AND the panel is
+ * open. Borderless: a tinted `<pre>` that scrolls horizontally rather than
+ * wrapping the JSON. */
+export function RawParamsSection({
+	open,
+	text,
+}: {
+	open: boolean;
+	text: string;
+}) {
+	if (!(open && text)) {
+		return null;
+	}
+	return (
+		<div className="flex flex-col gap-1 px-2 pb-2">
+			<span className="text-muted-foreground text-xs">Params</span>
+			<pre className="max-h-60 overflow-auto whitespace-pre rounded-md bg-background/60 px-2 py-1.5 font-mono text-muted-foreground text-xs leading-relaxed">
+				{text}
+			</pre>
+		</div>
+	);
+}

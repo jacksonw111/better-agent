@@ -3,10 +3,14 @@ import {
 	type PromptInputComboboxAria,
 	PromptInputTextarea,
 } from "@better-agent/ui/components/prompt-input";
-import type { ReactNode } from "react";
+// React's KeyboardEvent is aliased so `useEscInterrupt`'s document-level
+// listener below keeps referring to the DOM global of the same name.
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { useClientPref } from "@/utils/preferences";
 import type { TextWhen } from "./agent-capabilities";
 import { BusyInputHint } from "./busy-input-hint";
+import { handleCtrlEnterKeyDown } from "./composer-enter-policy";
 import { SlashPickerList } from "./slash-picker-list";
 import {
 	ComposerToolbar,
@@ -84,6 +88,7 @@ function comboboxAriaFor(
 interface ComposerBoxProps {
 	disabled: boolean;
 	hint?: ReactNode;
+	onKeyDown: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
 	picker: UseSlashPickerResult;
 	setText: (text: string) => void;
 	submit: () => void;
@@ -98,6 +103,7 @@ interface ComposerBoxProps {
 function ComposerBox({
 	disabled,
 	hint,
+	onKeyDown,
 	picker,
 	setText,
 	submit,
@@ -125,7 +131,7 @@ function ComposerBox({
 					comboboxAria={comboboxAriaFor(picker)}
 					disabled={disabled}
 					onChange={setText}
-					onKeyDown={picker.handleKeyDown}
+					onKeyDown={onKeyDown}
 					onSubmit={submit}
 					placeholder={disabled ? "Waiting for connection…" : "Send a message…"}
 					value={text}
@@ -240,6 +246,12 @@ export function TerminalComposer(props: TerminalComposerProps) {
 	});
 	const { setWhen, submit, when } = useBusySend(props, text, setText);
 	useEscInterrupt(props);
+	const sendByCtrlEnter = useClientPref("sendByCtrlEnter");
+	const onComposerKeyDown = (
+		event: ReactKeyboardEvent<HTMLTextAreaElement>
+	): boolean =>
+		picker.handleKeyDown(event) ||
+		handleCtrlEnterKeyDown(event, sendByCtrlEnter, submit);
 
 	const toolbar = <ComposerToolbar {...resolveToolbarProps(props, text)} />;
 	const hint = shouldShowBusyHint(props) && (
@@ -261,6 +273,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 			<ComposerBox
 				disabled={disabled}
 				hint={hint}
+				onKeyDown={onComposerKeyDown}
 				picker={picker}
 				setText={setText}
 				submit={submit}

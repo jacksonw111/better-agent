@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { PanelLeftIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { setCommandPaletteOpen } from "@/components/command-palette/command-palette-store";
+import { QuickSettings } from "@/components/quick-settings";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
@@ -146,6 +147,7 @@ function ContentPaneHeader({
 			>
 				⌘K
 			</Button>
+			<QuickSettings />
 		</div>
 	);
 }

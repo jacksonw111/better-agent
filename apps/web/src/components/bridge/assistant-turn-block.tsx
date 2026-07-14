@@ -23,6 +23,7 @@ import {
 import { Response } from "@better-agent/ui/components/response";
 import { BotIcon } from "lucide-react";
 import { useRef } from "react";
+import { useClientPref } from "@/utils/preferences";
 import { groupTurnBlocks, type TurnElement } from "./activity-blocks";
 import { ActivityGroup } from "./activity-group";
 import { SpineItem, toneOfGroup, toneOfTool } from "./activity-spine-dot";
@@ -93,7 +94,14 @@ export function AssistantTurnBlock({
 }) {
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
-	const elements = groupTurnBlocks(message.blocks);
+	// P2-T4: `showThinking=false` drops the reasoning TEXT blocks from this
+	// (local-feed-only) spine. The in-flight "Thinking…" shimmer is a status
+	// signal, not content, and lives elsewhere (bridge-chat-row/terminal-feed)
+	// — it stays regardless. Cloud chat rendering is untouched.
+	const showThinking = useClientPref("showThinking");
+	const elements = groupTurnBlocks(message.blocks).filter(
+		(element) => showThinking || element.kind !== "reasoning"
+	);
 	const contentRef = useRef<HTMLDivElement>(null);
 	return (
 		<Message align="start">

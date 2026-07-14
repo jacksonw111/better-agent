@@ -5,8 +5,12 @@ import type {
 	ToolInvocation,
 } from "@better-agent/ui/components/chat/chat-blocks";
 import { fireEvent, render, within } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { AssistantTurnBlock } from "./assistant-turn-block";
+
+afterEach(() => {
+	window.localStorage.clear();
+});
 
 function tool(
 	callId: string,
@@ -96,4 +100,21 @@ it("renders a reasoning block as a collapsible", () => {
 		/>
 	);
 	expect(within(container).getByText("Reasoning")).toBeDefined();
+});
+
+// P2-T4: the showThinking pref gates the reasoning TEXT blocks in this local
+// feed — text/tool blocks are untouched.
+it("hides reasoning blocks when the showThinking pref is off", () => {
+	window.localStorage.setItem("ba:pref:showThinking", "false");
+	const { container } = render(
+		<AssistantTurnBlock
+			message={message([
+				{ kind: "reasoning", text: "pondering" },
+				{ kind: "text", text: "the answer" },
+			])}
+		/>
+	);
+	const scope = within(container);
+	expect(scope.queryByText("Reasoning")).toBeNull();
+	expect(scope.getByText("the answer")).toBeDefined();
 });

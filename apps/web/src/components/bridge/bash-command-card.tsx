@@ -2,6 +2,7 @@ import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-block
 import { cn } from "@better-agent/ui/lib/utils";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useClientPref } from "@/utils/preferences";
 import {
 	commandText,
 	HeaderChevron,
@@ -11,8 +12,10 @@ import {
 import {
 	computeErrorLine,
 	computeOutput,
+	computeRawParams,
 	computeTail,
 	ErrorPreviewLine,
+	RawParamsSection,
 	TailLine,
 } from "./tool-output-preview";
 
@@ -149,7 +152,10 @@ function CommandHeader({
  * one-line error preview (failed + collapsed), inline output (expanded). */
 export function BashCommandCard({ tool }: { tool: ToolInvocation }) {
 	const output = computeOutput(tool);
-	const hasBody = output.length > 0;
+	// P2-T4: with the raw-params pref on, the input JSON counts as body too —
+	// a command with no captured output still gets a working disclosure.
+	const rawParams = computeRawParams(tool, useClientPref("showRawParameters"));
+	const hasBody = output.length > 0 || rawParams !== "";
 	const { open, setOpenManually } = useAutoOpenOnError(tool.isError && hasBody);
 	const tail = computeTail(tool);
 	const errorLine = computeErrorLine(tool, hasBody, open);
@@ -168,6 +174,7 @@ export function BashCommandCard({ tool }: { tool: ToolInvocation }) {
 			/>
 			<TailLine tail={tail} />
 			<ErrorPreviewLine text={errorLine} />
+			<RawParamsSection open={open} text={rawParams} />
 			<OutputPanel open={open} output={output} />
 		</div>
 	);

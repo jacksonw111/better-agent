@@ -6,6 +6,7 @@ import {
 } from "@better-agent/ui/components/chat/tool-registry";
 import { cn } from "@better-agent/ui/lib/utils";
 import { useState } from "react";
+import { useClientPref } from "@/utils/preferences";
 import { diffFor } from "./activity-diff";
 import { ActivityDiffView } from "./activity-diff-view";
 import {
@@ -17,8 +18,10 @@ import { BashCommandCard } from "./bash-command-card";
 import {
 	computeErrorLine,
 	computeOutput,
+	computeRawParams,
 	computeTail,
 	ErrorPreviewLine,
+	RawParamsSection,
 	TailLine,
 } from "./tool-output-preview";
 
@@ -114,7 +117,11 @@ export function ActivityItem({
 }) {
 	const diffLines = computeDiffLines(category, tool);
 	const output = computeOutput(tool);
-	const hasBody = diffLines !== null || output.length > 0;
+	// P2-T4: the raw-input section counts as body too — with the pref on, a
+	// card whose only detail is its input still gets a working disclosure.
+	const rawParams = computeRawParams(tool, useClientPref("showRawParameters"));
+	const hasOutputBody = diffLines !== null || output.length > 0;
+	const hasBody = hasOutputBody || rawParams !== "";
 	const [open, setOpen] = useState(tool.isError);
 	const tail = computeTail(tool);
 	const errorLine = computeErrorLine(tool, hasBody, open);
@@ -135,9 +142,10 @@ export function ActivityItem({
 			/>
 			<TailLine tail={tail} />
 			<ErrorPreviewLine text={errorLine} />
+			<RawParamsSection open={open} text={rawParams} />
 			<ActivityBodyIfOpen
 				diffLines={diffLines}
-				hasBody={hasBody}
+				hasBody={hasOutputBody}
 				open={open}
 				output={output}
 			/>
