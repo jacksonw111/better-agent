@@ -60,7 +60,10 @@
 
 ---
 
-## P2 · 工作台骨架（纯前端 + 轻 server）
+## P2 · 工作台骨架（纯前端 + 轻 server）—— 已完成（2026-07-14）
+
+> 落地提交：f9d2935 + b92f149（listSessions 分页 + attention 信号 + tokenId 过滤，侦察发现的轻 server 前置）、264fe64（侧栏/tabs/?session=）、387cc76（⌘K）、6ba241b（QuickSettings + 偏好模块）、2a97b9e（composer：Tab 循环/slash 频次/web 侧可编辑队列）。
+> 备注：后台会话的「待审批/处理中」原无 server 信号，已在 server 侧从 relay 事件尾部推导（有界读取）；忙时队列采用 **web 侧持有**实现可编辑/删除（claude/codex/opencode 的原生忙时排队被替代，pi 的 steer/followUp 不变）。
 
 **任务**
 1. **会话侧栏**（参照 inventory §2）：agent(token)→session 两级；运行中/需关注脉冲点（琥珀=待审批、绿=活跃）；processing 转圈；"Load more" 分页；内联重命名壳（落库在 P3）。
