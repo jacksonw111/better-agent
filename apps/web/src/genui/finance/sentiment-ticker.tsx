@@ -1,57 +1,46 @@
-"use client";
-
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import {
-	CartesianGrid,
-	Line,
-	LineChart,
-	ResponsiveContainer,
-	Tooltip,
-	XAxis,
-	YAxis,
-} from "recharts";
+	SENTIMENT_BEAR,
+	SENTIMENT_BULL,
+	SENTIMENT_NEUTRAL,
+} from "./chart-theme";
 import type { TickerSentimentData } from "./finance-schemas-fe10";
-import { formatCompact, formatDate, formatNum, formatRatio } from "./format";
-import { CardShell, StatGrid } from "./primitives";
+import { formatCompact, formatNum, formatRatio } from "./format";
+import { CardShell } from "./primitives";
+import { ProportionBar } from "./proportion-bar";
+import { Sparkline } from "./sparkline";
+import { StatPanel } from "./stat-panel";
+import type { StatPanelGroup } from "./stat-panel-types";
 
-// finance_sentiment_ticker → per-ticker 舆情: buzz header + trend, a
-// positive/neutral/negative split bar, a StatGrid of the headline figures,
-// and a small daily-buzz trend line. Sentiment uses a neutral emerald/rose
-// palette rather than 红涨绿跌 — bullish/bearish is a distinct axis from
-// price direction.
+// finance_sentiment_ticker → StatPanel (design doc §8.11): per-ticker 舆情 —
+// a big buzz headline + trend icon, a lead StatGrid, a bull/bear split
+// ProportionBar (SHARED primitive, split mode), a raw post-count breakdown,
+// and a Sparkline of the daily buzz trend behind Expand. Every bull/bear/
+// neutral color comes from chart-theme's sentiment axis (SENTIMENT_BULL/
+// BEAR/NEUTRAL) — a distinct axis from the price axis's 红涨绿跌, never mixed.
 
-const BULLISH_COLOR = "#10b981"; // emerald
-const BEARISH_COLOR = "#f43f5e"; // rose
-const NEUTRAL_COLOR = "#9ca3af"; // gray
-const LINE_COLOR = "#3b82f6"; // neutral blue — buzz isn't a signed series
 const BULLISH_THRESHOLD = 0.05;
 const BEARISH_THRESHOLD = -0.05;
 const PCT_MAX = 100;
 const ICON_SIZE = 16;
 const BUZZ_DP = 0;
 const SENTIMENT_SCORE_DP = 2;
-const CHART_HEIGHT = 140;
-const TICK_FONT_SIZE = 11;
-const LINE_STROKE_WIDTH = 2;
-const DOT_RADIUS = 3;
-const AXIS_LABEL_LENGTH = 5; // "MM-DD" tail of the formatted date
-const GRID_COLOR = "var(--border)";
-
-const TOOLTIP_STYLE = {
-	background: "var(--popover)",
-	border: "1px solid var(--border)",
-	borderRadius: "8px",
-	fontSize: "12px",
-} as const;
+const PCT_DP = 0;
+const LEAD_COLS = 3;
+const COUNT_COLS = 3;
 
 function sentimentColor(score: number): string {
 	if (score > BULLISH_THRESHOLD) {
-		return BULLISH_COLOR;
+		return SENTIMENT_BULL;
 	}
 	if (score < BEARISH_THRESHOLD) {
-		return BEARISH_COLOR;
+		return SENTIMENT_BEAR;
 	}
-	return NEUTRAL_COLOR;
+	return SENTIMENT_NEUTRAL;
+}
+
+function toFraction(pct: number): number {
+	return Math.min(Math.max(pct, 0), PCT_MAX) / PCT_MAX;
 }
 
 function isRisingTrend(trend: string): boolean {
@@ -71,19 +60,25 @@ function isFallingTrend(trend: string): boolean {
 function TrendIcon({ trend }: { trend: string }) {
 	if (isRisingTrend(trend)) {
 		return (
-			<TrendingUp className="shrink-0" color={BULLISH_COLOR} size={ICON_SIZE} />
+			<TrendingUp
+				className="shrink-0"
+				color={SENTIMENT_BULL}
+				size={ICON_SIZE}
+			/>
 		);
 	}
 	if (isFallingTrend(trend)) {
 		return (
 			<TrendingDown
 				className="shrink-0"
-				color={BEARISH_COLOR}
+				color={SENTIMENT_BEAR}
 				size={ICON_SIZE}
 			/>
 		);
 	}
-	return <Minus className="shrink-0" color={NEUTRAL_COLOR} size={ICON_SIZE} />;
+	return (
+		<Minus className="shrink-0" color={SENTIMENT_NEUTRAL} size={ICON_SIZE} />
+	);
 }
 
 function SentimentScoreValue({ score }: { score: number }) {
@@ -94,132 +89,142 @@ function SentimentScoreValue({ score }: { score: number }) {
 	);
 }
 
-/** Three-segment 看多/中性/看空 split bar from raw post counts. The neutral
- * segment is computed as the remainder (rather than its own percentage) so
- * the three widths always sum to exactly 100% regardless of rounding. */
-function SplitBar({
-	positive,
-	negative,
-	neutral,
+function BuzzHeadline({
+	buzzScore,
+	trend,
 }: {
-	positive: number;
-	negative: number;
-	neutral: number;
+	buzzScore: number;
+	trend: string;
 }) {
-	const total = positive + negative + neutral;
-	if (total <= 0) {
-		return null;
-	}
-	const posPct = (positive / total) * PCT_MAX;
-	const negPct = (negative / total) * PCT_MAX;
-	const neuPct = PCT_MAX - posPct - negPct;
 	return (
-		<div className="flex h-1.5 w-full overflow-hidden rounded-full">
-			<div
-				className="h-full"
-				style={{ backgroundColor: BULLISH_COLOR, width: `${posPct}%` }}
-			/>
-			<div
-				className="h-full"
-				style={{ backgroundColor: NEUTRAL_COLOR, width: `${neuPct}%` }}
-			/>
-			<div
-				className="h-full"
-				style={{ backgroundColor: BEARISH_COLOR, width: `${negPct}%` }}
-			/>
+		<div className="flex items-center justify-between gap-2">
+			<span className="font-bold text-3xl tabular-nums">
+				{formatNum(buzzScore, BUZZ_DP)}
+			</span>
+			<TrendIcon trend={trend} />
 		</div>
 	);
 }
 
-interface ChartRow {
-	buzzScore: number;
-	date: string;
-}
-
-function formatAxisTick(date: string): string {
-	return formatDate(date).slice(-AXIS_LABEL_LENGTH);
-}
-
-function TrendChart({ data }: { data: ChartRow[] }) {
+/** The 看多/看空 split ProportionBar plus the exact percentages as text
+ * underneath it (mirrors sentiment-compare.tsx's bar+renderSecondary pair,
+ * so the split proportions are always readable as numbers too). */
+function BullBearSection({
+	bearishPct,
+	bullishPct,
+	sentimentScore,
+}: {
+	bearishPct: number;
+	bullishPct: number;
+	sentimentScore: number;
+}) {
 	return (
-		<ResponsiveContainer height={CHART_HEIGHT} width="100%">
-			<LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-				<CartesianGrid
-					stroke={GRID_COLOR}
-					strokeDasharray="3 3"
-					vertical={false}
-				/>
-				<XAxis
-					dataKey="date"
-					stroke="var(--muted-foreground)"
-					tick={{ fontSize: TICK_FONT_SIZE }}
-					tickFormatter={formatAxisTick}
-				/>
-				<YAxis
-					stroke="var(--muted-foreground)"
-					tick={{ fontSize: TICK_FONT_SIZE }}
-				/>
-				<Tooltip
-					contentStyle={TOOLTIP_STYLE}
-					formatter={(value) => [formatNum(Number(value), BUZZ_DP), "热度"]}
-					labelFormatter={(label: string) => formatDate(label)}
-				/>
-				<Line
-					dataKey="buzzScore"
-					dot={{ fill: LINE_COLOR, r: DOT_RADIUS }}
-					stroke={LINE_COLOR}
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-				/>
-			</LineChart>
-		</ResponsiveContainer>
+		<div className="flex flex-col gap-1.5">
+			<ProportionBar
+				label="看多/看空"
+				segments={[
+					{
+						color: SENTIMENT_BULL,
+						fraction: toFraction(bullishPct),
+						key: "bull",
+					},
+					{
+						color: SENTIMENT_BEAR,
+						fraction: toFraction(bearishPct),
+						key: "bear",
+					},
+				]}
+				valueLabel={<SentimentScoreValue score={sentimentScore} />}
+			/>
+			<div className="flex justify-end gap-3 text-xs tabular-nums">
+				<span style={{ color: SENTIMENT_BULL }}>
+					看多 {formatRatio(bullishPct, PCT_DP)}
+				</span>
+				<span style={{ color: SENTIMENT_BEAR }}>
+					看空 {formatRatio(bearishPct, PCT_DP)}
+				</span>
+			</div>
+		</div>
 	);
 }
 
-/** finance_sentiment_ticker → header (buzz + trend), a 看多/中性/看空 split
- * bar, a StatGrid of the headline figures, and a small daily buzz trend
- * line. `found: false` (ticker has no sentiment coverage) short-circuits to
- * a muted note rather than rendering a card full of zeros. */
+/** Daily buzz trend, folded behind Expand. `tone="neutral"` deliberately —
+ * buzz volume isn't a signed price series, so it never borrows the price
+ * axis's up/down colors. */
+function DailyTrend({ dailyTrend }: { dailyTrend: { buzzScore: number }[] }) {
+	return (
+		<Sparkline tone="neutral" values={dailyTrend.map((d) => d.buzzScore)} />
+	);
+}
+
+function tickerTitle(data: TickerSentimentData): string {
+	return data.name ? `${data.ticker} ${data.name}` : data.ticker;
+}
+
+function tickerSubtitle(data: TickerSentimentData): string | undefined {
+	const parts = [data.trend || "—", `${data.periodDays}天`].filter(Boolean);
+	return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+function tickerGroups(data: TickerSentimentData): StatPanelGroup[] {
+	return [
+		{ content: <BuzzHeadline buzzScore={data.buzzScore} trend={data.trend} /> },
+		{
+			cols: LEAD_COLS,
+			items: [
+				{ label: "热度", value: formatNum(data.buzzScore, BUZZ_DP) },
+				{
+					label: "情绪分",
+					value: <SentimentScoreValue score={data.sentimentScore} />,
+				},
+				{ label: "提及数", value: formatCompact(data.mentions) },
+			],
+		},
+		{
+			content: (
+				<BullBearSection
+					bearishPct={data.bearishPct}
+					bullishPct={data.bullishPct}
+					sentimentScore={data.sentimentScore}
+				/>
+			),
+		},
+		{
+			cols: COUNT_COLS,
+			items: [
+				{ label: "正面", value: formatCompact(data.positiveCount) },
+				{ label: "中性", value: formatCompact(data.neutralCount) },
+				{ label: "负面", value: formatCompact(data.negativeCount) },
+			],
+			label: "帖子情绪",
+		},
+	];
+}
+
+/** finance_sentiment_ticker → per-ticker 舆情 snapshot. `found: false`
+ * (ticker has no sentiment coverage) short-circuits to a muted note rather
+ * than rendering a card full of zeros. */
 export function SentimentTicker({ data }: { data: TickerSentimentData }) {
-	const title = `${data.name || data.ticker} 舆情`;
 	if (!data.found) {
 		return (
-			<CardShell subtitle={data.ticker} title={title}>
+			<CardShell subtitle={data.ticker} title={tickerTitle(data)}>
 				<p className="text-muted-foreground text-xs">无数据</p>
 			</CardShell>
 		);
 	}
-	const chartData: ChartRow[] = data.dailyTrend.map((point) => ({
-		buzzScore: point.buzzScore,
-		date: point.date,
-	}));
+	const expandable =
+		data.dailyTrend.length > 0
+			? {
+					content: <DailyTrend dailyTrend={data.dailyTrend} />,
+					label: "近期趋势",
+				}
+			: undefined;
 	return (
-		<CardShell subtitle={data.ticker} title={title}>
-			<div className="flex items-center justify-between gap-2">
-				<span className="font-bold text-3xl tabular-nums">
-					{formatNum(data.buzzScore, BUZZ_DP)}
-				</span>
-				<TrendIcon trend={data.trend} />
-			</div>
-			<SplitBar
-				negative={data.negativeCount}
-				neutral={data.neutralCount}
-				positive={data.positiveCount}
-			/>
-			<StatGrid
-				items={[
-					{ label: "舆情热度", value: formatNum(data.buzzScore, BUZZ_DP) },
-					{ label: "提及数", value: formatCompact(data.mentions) },
-					{
-						label: "情绪分",
-						value: <SentimentScoreValue score={data.sentimentScore} />,
-					},
-					{ label: "看多%", value: formatRatio(data.bullishPct, BUZZ_DP) },
-					{ label: "看空%", value: formatRatio(data.bearishPct, BUZZ_DP) },
-					{ label: "周期天数", value: `${data.periodDays}天` },
-				]}
-			/>
-			{chartData.length > 0 ? <TrendChart data={chartData} /> : null}
-		</CardShell>
+		<StatPanel
+			expandable={expandable}
+			groups={tickerGroups(data)}
+			subtitle={tickerSubtitle(data)}
+			title={tickerTitle(data)}
+		/>
 	);
 }

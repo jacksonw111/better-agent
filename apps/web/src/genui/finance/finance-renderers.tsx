@@ -91,6 +91,7 @@ import { SectorHeatmap } from "./sector-heatmap";
 import { SectorStocksList } from "./sector-stocks-list";
 import { SentimentCompare } from "./sentiment-compare";
 import { SentimentMarket } from "./sentiment-market";
+import { SentimentTicker } from "./sentiment-ticker";
 import { SentimentTrending } from "./sentiment-trending";
 import { StatementsTable } from "./statements-table";
 import { SuspensionTable } from "./suspension-table";
@@ -138,6 +139,10 @@ import { YieldCurveChart } from "./yield-curve-chart";
 // onto the `RankList` archetype (index-weights.tsx / sentiment-compare.tsx)
 // — neither imports recharts any more, so both moved from the `lazyChart`
 // map below to a direct import above alongside their RankList siblings.
+// Phase 3 Task 9a ports finance_sentiment_market / finance_sentiment_ticker
+// onto the `StatPanel` archetype (sentiment-market.tsx / sentiment-ticker.tsx)
+// — sentiment-ticker.tsx's daily trend is now a `Sparkline` (pure SVG)
+// instead of a recharts `LineChart`, so it moved to a direct import too.
 // Remaining recharts-backed cards stay lazy, loaded on demand so recharts
 // stays out of the eager chat bundle (see lazy-chart.tsx).
 const HsgtTable = lazyChart(() =>
@@ -148,9 +153,6 @@ const MacroPanel = lazyChart(() =>
 );
 const MoneyFlowChart = lazyChart(() =>
 	import("./money-flow-chart").then((m) => ({ default: m.MoneyFlowChart }))
-);
-const SentimentTicker = lazyChart(() =>
-	import("./sentiment-ticker").then((m) => ({ default: m.SentimentTicker }))
 );
 export const FINANCE_RENDERERS: Record<string, ToolResultRenderer> = {
 	finance_block_trades: listEntry(BlockTradeRowSchema, (rows) => (
