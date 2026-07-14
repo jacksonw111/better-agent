@@ -116,10 +116,15 @@ export function SectorHeatmap({ items }: { items: SectorRowData[] }) {
 				sort={sort}
 				sortOptionIds={sortOptionIds}
 			/>
-			<div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-				{rendered.map((item) => (
-					<SectorTile item={item} key={item.code} />
-				))}
+			<div className="@container">
+				{/* Container-query columns key off the card width, not the viewport,
+				    so a narrow chat column never packs 5 tiles into an illegible row
+				    (see StatGrid's note in primitives.tsx). */}
+				<div className="grid @lg:grid-cols-5 @sm:grid-cols-4 @xs:grid-cols-3 grid-cols-2 gap-2">
+					{rendered.map((item) => (
+						<SectorTile item={item} key={item.code} />
+					))}
+				</div>
 			</div>
 			{hiddenCount > 0 ? (
 				<p className="text-muted-foreground text-xs">+{hiddenCount} more</p>

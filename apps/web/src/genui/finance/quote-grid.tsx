@@ -37,7 +37,10 @@ function TileGrid({
 	return (
 		<motion.div
 			animate="visible"
-			className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4"
+			// Container-query columns (@ = card width, not viewport): tiles reflow
+			// to the chat bubble's own width so a narrow column never crams 4
+			// tiles into an unreadable row (see StatGrid's note in primitives.tsx).
+			className="grid @md:grid-cols-4 @xs:grid-cols-3 grid-cols-2 gap-2"
 			initial="hidden"
 			variants={staggerContainerVariants(reduced)}
 		>
@@ -85,7 +88,7 @@ export function QuoteGrid({ items }: { items: QuoteTileData[] }) {
 	};
 
 	return (
-		<div className="flex w-full flex-col gap-2">
+		<div className="@container flex w-full flex-col gap-2">
 			<Segmented
 				className="self-start"
 				onChange={handleSortChange}

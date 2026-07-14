@@ -31,8 +31,11 @@ function EpsPeCell({
 
 function ResearchMeta({ item }: { item: ResearchReportData }) {
 	return (
-		<div className="flex flex-col gap-2">
-			<div className="grid grid-cols-3 gap-2">
+		<div className="@container flex flex-col gap-2">
+			{/* EPS/PE cells collapse to a single column on a narrow feed card
+			    (container-query, not viewport) so the three years never squeeze
+			    into unreadable slivers — see StatGrid's note in primitives.tsx. */}
+			<div className="grid @xs:grid-cols-3 grid-cols-1 gap-2">
 				<EpsPeCell eps={item.epsY0} label="今年" pe={item.peY0} />
 				<EpsPeCell eps={item.epsY1} label="明年" pe={item.peY1} />
 				<EpsPeCell eps={item.epsY2} label="后年" pe={item.peY2} />

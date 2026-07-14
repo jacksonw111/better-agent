@@ -48,13 +48,21 @@ const COLS_THREE = 3;
 const COLS_FOUR = 4;
 const DEFAULT_STAT_COLS = COLS_THREE;
 
+// Column counts scale with the CARD's own width via container queries (@xs =
+// 20rem, @sm = 24rem), not the viewport — these cards render in a chat bubble
+// whose width ≠ the screen's, so a plain `sm:`/`md:` (viewport) breakpoint
+// would still cram 4 columns into a narrow chat column on a wide screen, or a
+// mobile bubble. Every count degrades to 2 columns when the card is narrow so
+// labeled values (今开/最高/…) never pile up on top of each other.
 const GRID_COLS_CLASS: Record<number, string> = {
 	[COLS_TWO]: "grid-cols-2",
-	[COLS_THREE]: "grid-cols-3",
-	[COLS_FOUR]: "grid-cols-4",
+	[COLS_THREE]: "grid-cols-2 @xs:grid-cols-3",
+	[COLS_FOUR]: "grid-cols-2 @xs:grid-cols-3 @sm:grid-cols-4",
 };
 
-/** Responsive labeled-stat grid, e.g. 今开/最高/最低/昨收 or MA5/MA10/MA20. */
+/** Responsive labeled-stat grid, e.g. 今开/最高/最低/昨收 or MA5/MA10/MA20.
+ * The `@container` wrapper is what the `@xs`/`@sm` column variants above
+ * measure against, so the grid reflows to the card width wherever it renders. */
 export function StatGrid({
 	items,
 	cols = DEFAULT_STAT_COLS,
@@ -64,20 +72,22 @@ export function StatGrid({
 }) {
 	const colsClass = GRID_COLS_CLASS[cols] ?? GRID_COLS_CLASS[DEFAULT_STAT_COLS];
 	return (
-		<div className={cn("grid gap-x-4 gap-y-2", colsClass)}>
-			{items.map((item) => (
-				<div className="flex flex-col gap-0.5" key={item.label}>
-					<span className="text-muted-foreground text-xs">{item.label}</span>
-					<span
-						className={cn(
-							"font-medium text-sm tabular-nums",
-							STAT_TONE_CLASS[item.tone ?? "default"]
-						)}
-					>
-						{item.value}
-					</span>
-				</div>
-			))}
+		<div className="@container">
+			<div className={cn("grid gap-x-4 gap-y-2", colsClass)}>
+				{items.map((item) => (
+					<div className="flex flex-col gap-0.5" key={item.label}>
+						<span className="text-muted-foreground text-xs">{item.label}</span>
+						<span
+							className={cn(
+								"font-medium text-sm tabular-nums",
+								STAT_TONE_CLASS[item.tone ?? "default"]
+							)}
+						>
+							{item.value}
+						</span>
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }
