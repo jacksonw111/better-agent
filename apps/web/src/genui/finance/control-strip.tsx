@@ -28,18 +28,19 @@ export function ControlStrip({ className, chips, primary }: ControlStripProps) {
 	return (
 		<div
 			className={cn(
-				// flex-wrap so on a narrow card the chip group drops to its own
-				// line (and scrolls there) instead of being squeezed/clipped off
-				// the right edge behind the primary segmented control (mobile bug).
-				"flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2",
+				// One horizontally-scrollable row: on a narrow phone the controls
+				// (period + pivot + filter + metric chips) routinely exceed the
+				// card width. The card is overflow-hidden, so without this the
+				// rightmost controls were simply clipped off — unreachable and
+				// unclickable. Scrolling keeps every control in reach; on desktop
+				// they all fit and no scrollbar shows.
+				"flex items-center gap-3 overflow-x-auto px-3 py-2",
 				className
 			)}
 		>
 			{primary ? <div className="shrink-0">{primary}</div> : null}
 			{chips ? (
-				<div className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-x-auto">
-					{chips}
-				</div>
+				<div className="flex shrink-0 items-center gap-2">{chips}</div>
 			) : null}
 		</div>
 	);

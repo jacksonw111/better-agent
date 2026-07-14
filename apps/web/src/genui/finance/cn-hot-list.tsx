@@ -70,12 +70,18 @@ function HotPrimary({ item }: { item: CnHotRowData }) {
 	);
 }
 
+// Fixed-width, right-aligned columns so 价格 / 涨跌幅 / 排名变动 line up
+// vertically across rows instead of drifting with each value's own width.
 function HotSecondary({ item }: { item: CnHotRowData }) {
 	return (
 		<>
-			<span className="text-sm tabular-nums">{formatNum(item.last)}</span>
-			<ChangePct value={item.changePct} />
-			<RankChangeBadge rankChange={item.rankChange} />
+			<span className="w-16 text-right text-sm tabular-nums">
+				{formatNum(item.last)}
+			</span>
+			<ChangePct className="w-16 text-right" value={item.changePct} />
+			<span className="flex w-9 justify-end">
+				<RankChangeBadge rankChange={item.rankChange} />
+			</span>
 		</>
 	);
 }

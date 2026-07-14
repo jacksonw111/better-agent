@@ -88,11 +88,13 @@ function TrendingPrimary({ item }: { item: TrendingSentimentData }) {
 	);
 }
 
+// Fixed-width, right-aligned mentions column so the trend icon + 提及数 line
+// up vertically across rows instead of drifting with each value's own width.
 function TrendingSecondary({ item }: { item: TrendingSentimentData }) {
 	return (
 		<>
 			<TrendIcon trend={item.trend} />
-			<span className="text-muted-foreground text-xs">
+			<span className="w-20 text-right text-muted-foreground text-xs tabular-nums">
 				{formatCompact(item.mentions)} 提及
 			</span>
 		</>

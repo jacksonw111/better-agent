@@ -29,11 +29,15 @@ function WeightPrimary({ item }: { item: IndexWeightRowData }) {
 	);
 }
 
+// Fixed-width, right-aligned columns so 价格 / 涨跌幅 line up vertically
+// across rows instead of drifting with each value's own width.
 function WeightSecondary({ item }: { item: IndexWeightRowData }) {
 	return (
 		<>
-			<span className="text-sm tabular-nums">{formatNum(item.closePrice)}</span>
-			<ChangePct value={item.changePct} />
+			<span className="w-16 text-right text-sm tabular-nums">
+				{formatNum(item.closePrice)}
+			</span>
+			<ChangePct className="w-16 text-right" value={item.changePct} />
 		</>
 	);
 }
