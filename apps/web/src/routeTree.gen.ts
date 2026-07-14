@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InviteRouteImport } from './routes/invite'
+import { Route as FinanceGenuiPreviewRouteImport } from './routes/finance-genui-preview'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AccountRouteImport } from './routes/account'
@@ -45,6 +46,11 @@ const LoginRoute = LoginRouteImport.update({
 const InviteRoute = InviteRouteImport.update({
   id: '/invite',
   path: '/invite',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceGenuiPreviewRoute = FinanceGenuiPreviewRouteImport.update({
+  id: '/finance-genui-preview',
+  path: '/finance-genui-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/finance-genui-preview': typeof FinanceGenuiPreviewRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/account': typeof AccountRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/finance-genui-preview': typeof FinanceGenuiPreviewRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -197,6 +205,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/chat': typeof ChatRoute
   '/dashboard': typeof DashboardRoute
+  '/finance-genui-preview': typeof FinanceGenuiPreviewRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -223,6 +232,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/chat'
     | '/dashboard'
+    | '/finance-genui-preview'
     | '/invite'
     | '/login'
     | '/reset-password'
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/chat'
     | '/dashboard'
+    | '/finance-genui-preview'
     | '/invite'
     | '/login'
     | '/reset-password'
@@ -271,6 +282,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/chat'
     | '/dashboard'
+    | '/finance-genui-preview'
     | '/invite'
     | '/login'
     | '/reset-password'
@@ -296,6 +308,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   ChatRoute: typeof ChatRoute
   DashboardRoute: typeof DashboardRoute
+  FinanceGenuiPreviewRoute: typeof FinanceGenuiPreviewRoute
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/invite'
       fullPath: '/invite'
       preLoaderRoute: typeof InviteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance-genui-preview': {
+      id: '/finance-genui-preview'
+      path: '/finance-genui-preview'
+      fullPath: '/finance-genui-preview'
+      preLoaderRoute: typeof FinanceGenuiPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -480,6 +500,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   ChatRoute: ChatRoute,
   DashboardRoute: DashboardRoute,
+  FinanceGenuiPreviewRoute: FinanceGenuiPreviewRoute,
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
