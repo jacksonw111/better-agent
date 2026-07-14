@@ -1,0 +1,215 @@
+import type { ReactNode } from "react";
+import { cn } from "../lib/cn";
+import { changeColor, formatPct } from "./format";
+
+// Shared presentational primitives for every finance tool-result card. shadcn
+// tokens only (bg-card / text-foreground / text-muted-foreground / border),
+// dark-aware, dense (this renders inline in chat, not a full page).
+
+/** Signed percentage: red-up / green-down (红涨绿跌), tabular-nums, muted for
+ * zero/missing. The single place every finance card gets its change color. */
+export function ChangePct({
+	value,
+	className,
+}: {
+	value: number | null | undefined;
+	className?: string;
+}) {
+	const color = changeColor(value);
+	return (
+		<span
+			className={cn(
+				"font-medium text-sm tabular-nums",
+				color ? "" : "text-muted-foreground",
+				className
+			)}
+			style={color ? { color } : undefined}
+		>
+			{formatPct(value)}
+		</span>
+	);
+}
+
+export interface StatGridItem {
+	label: string;
+	tone?: "up" | "down" | "muted" | "default";
+	value: ReactNode;
+}
+
+const STAT_TONE_CLASS: Record<NonNullable<StatGridItem["tone"]>, string> = {
+	default: "text-foreground",
+	down: "text-[#16a34a]",
+	muted: "text-muted-foreground",
+	up: "text-[#ef4444]",
+};
+
+const COLS_TWO = 2;
+const COLS_THREE = 3;
+const COLS_FOUR = 4;
+const DEFAULT_STAT_COLS = COLS_THREE;
+
+// Column counts scale with the CARD's own width via container queries (@xs =
+// 20rem, @sm = 24rem), not the viewport — these cards render in a chat bubble
+// whose width ≠ the screen's, so a plain `sm:`/`md:` (viewport) breakpoint
+// would still cram 4 columns into a narrow chat column on a wide screen, or a
+// mobile bubble. Every count degrades to 2 columns when the card is narrow so
+// labeled values (今开/最高/…) never pile up on top of each other.
+const GRID_COLS_CLASS: Record<number, string> = {
+	[COLS_TWO]: "grid-cols-2",
+	[COLS_THREE]: "grid-cols-2 @xs:grid-cols-3",
+	[COLS_FOUR]: "grid-cols-2 @xs:grid-cols-3 @sm:grid-cols-4",
+};
+
+/** Responsive labeled-stat grid, e.g. 今开/最高/最低/昨收 or MA5/MA10/MA20.
+ * The `@container` wrapper is what the `@xs`/`@sm` column variants above
+ * measure against, so the grid reflows to the card width wherever it renders. */
+export function StatGrid({
+	items,
+	cols = DEFAULT_STAT_COLS,
+}: {
+	items: StatGridItem[];
+	cols?: number;
+}) {
+	const colsClass = GRID_COLS_CLASS[cols] ?? GRID_COLS_CLASS[DEFAULT_STAT_COLS];
+	return (
+		<div className="@container">
+			<div className={cn("grid gap-x-4 gap-y-2", colsClass)}>
+				{items.map((item) => (
+					<div className="flex flex-col gap-0.5" key={item.label}>
+						<span className="text-muted-foreground text-xs">{item.label}</span>
+						<span
+							className={cn(
+								"font-medium text-sm tabular-nums",
+								STAT_TONE_CLASS[item.tone ?? "default"]
+							)}
+						>
+							{item.value}
+						</span>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+export interface FinTableColumn<T> {
+	align?: "left" | "right" | "center";
+	key: string;
+	label: string;
+	render?: (row: T) => ReactNode;
+}
+
+const ALIGN_CLASS: Record<
+	NonNullable<FinTableColumn<unknown>["align"]>,
+	string
+> = {
+	center: "text-center",
+	left: "text-left",
+	right: "text-right",
+};
+
+function FinTableHead<T>({ columns }: { columns: FinTableColumn<T>[] }) {
+	return (
+		<thead>
+			<tr className="bg-muted/40">
+				{columns.map((col) => (
+					<th
+						className={cn(
+							"px-3 py-2 text-left font-medium text-muted-foreground",
+							ALIGN_CLASS[col.align ?? "left"]
+						)}
+						key={col.key}
+					>
+						{col.label}
+					</th>
+				))}
+			</tr>
+		</thead>
+	);
+}
+
+function FinTableRow<T>({
+	row,
+	columns,
+}: {
+	row: T;
+	columns: FinTableColumn<T>[];
+}) {
+	return (
+		<tr className="border-border/40 border-b last:border-b-0 even:bg-muted/20">
+			{columns.map((col) => (
+				<td
+					className={cn(
+						"px-3 py-2 tabular-nums",
+						ALIGN_CLASS[col.align ?? "left"]
+					)}
+					key={col.key}
+				>
+					{col.render ? col.render(row) : null}
+				</td>
+			))}
+		</tr>
+	);
+}
+
+/** Dense professional data table: tabular-nums, muted header, horizontal
+ * scroll on overflow rather than squeezing columns. */
+export function FinTable<T>({
+	columns,
+	rows,
+	getRowKey,
+}: {
+	columns: FinTableColumn<T>[];
+	rows: T[];
+	getRowKey: (row: T, index: number) => string | number;
+}) {
+	return (
+		<div className="overflow-x-auto rounded-md">
+			<table className="w-full border-collapse text-xs">
+				<FinTableHead columns={columns} />
+				<tbody>
+					{rows.map((row, index) => (
+						<FinTableRow
+							columns={columns}
+							key={getRowKey(row, index)}
+							row={row}
+						/>
+					))}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
+/** The consistent borderless card wrapper every finance component renders
+ * inside — a tinted header strip (title + optional subtitle + right-aligned
+ * slot) over a plain body, separated by background tint and spacing, no frame.
+ * Matches the density of tweet-card-node.tsx's card shell. */
+export function CardShell({
+	title,
+	subtitle,
+	right,
+	children,
+}: {
+	title: string;
+	subtitle?: string;
+	right?: ReactNode;
+	children: ReactNode;
+}) {
+	return (
+		<div className="w-full overflow-hidden rounded-md">
+			<div className="flex items-start justify-between gap-2 bg-muted/40 px-3 py-2">
+				<div className="flex min-w-0 flex-col gap-0.5">
+					<span className="truncate font-semibold text-sm">{title}</span>
+					{subtitle ? (
+						<span className="truncate text-muted-foreground text-xs">
+							{subtitle}
+						</span>
+					) : null}
+				</div>
+				{right ? <div className="shrink-0">{right}</div> : null}
+			</div>
+			<div className="flex flex-col gap-3 px-3 py-2.5">{children}</div>
+		</div>
+	);
+}

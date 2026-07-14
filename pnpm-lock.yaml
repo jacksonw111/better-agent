@@ -498,6 +498,9 @@ importers:
       '@jacksonw111/agent-client':
         specifier: workspace:*
         version: link:../../packages/client
+      '@jacksonw111/finance-genui':
+        specifier: workspace:*
+        version: link:../../packages/finance-genui
       '@novnc/novnc':
         specifier: ^1.7.0
         version: 1.7.0
@@ -840,6 +843,67 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  packages/finance-genui:
+    dependencies:
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lightweight-charts:
+        specifier: ^5.0.9
+        version: 5.2.0
+      lucide-react:
+        specifier: ^0.546.0
+        version: 0.546.0(react@19.2.7)
+      motion:
+        specifier: ^12.23.6
+        version: 12.40.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      recharts:
+        specifier: 2.15.3
+        version: 2.15.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.6.0
+    devDependencies:
+      '@better-agent/config':
+        specifier: workspace:*
+        version: link:../config
+      '@testing-library/dom':
+        specifier: ^10.4.1
+        version: 10.4.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.21
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      jsdom:
+        specifier: ^29.0.2
+        version: 29.1.1(@noble/hashes@1.8.0)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(jsdom@29.1.1(@noble/hashes@1.8.0))(msw@2.14.6(@types/node@22.19.21)(typescript@6.0.3))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
 
   packages/ui:
     dependencies:

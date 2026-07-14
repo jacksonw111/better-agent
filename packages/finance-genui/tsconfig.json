@@ -7,7 +7,11 @@
     "paths": {
       "@jacksonw111/finance-genui/*": ["./src/*"]
     },
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    // The finance renderers were authored under apps/web's tsconfig, which does
+    // not enable noUncheckedIndexedAccess (the base config does). Keep parity so
+    // the moved-verbatim sources type-check unchanged.
+    "noUncheckedIndexedAccess": false
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]

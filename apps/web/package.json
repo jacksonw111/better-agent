@@ -16,6 +16,7 @@
     "@better-agent/env": "workspace:*",
     "@better-agent/ui": "workspace:*",
     "@jacksonw111/agent-client": "workspace:*",
+    "@jacksonw111/finance-genui": "workspace:*",
     "@novnc/novnc": "^1.7.0",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",

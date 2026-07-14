@@ -1,9 +1,15 @@
 import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
 import type { ToolRegistry } from "@better-agent/ui/components/chat/tool-registry";
+import {
+	entry,
+	FINANCE_RENDERERS,
+	listEntry,
+	MAX_RENDERED_ITEMS,
+	PdfLinkProvider,
+	type ToolResultRenderer,
+} from "@jacksonw111/finance-genui";
 import type { ReactNode } from "react";
-import type { ZodType } from "zod";
-import { FINANCE_RENDERERS } from "./finance/finance-renderers";
-import { unwrapToolResult } from "./tool-result-envelope";
+import { PdfLink } from "@/components/pdf/pdf-link";
 import { TweetCardFromTweet } from "./tweet-card-node";
 import { UserCard } from "./user-card";
 import {
@@ -13,9 +19,8 @@ import {
 	NormalizedTweetSchema,
 } from "./x-result-schemas";
 
-/** Long tool results (a search returning dozens of tweets) render at most
- * this many items, plus a "+N more" line — the chat pane isn't a timeline. */
-export const MAX_RENDERED_ITEMS = 20;
+// Re-exported for the chat-registry test, which asserts the "+N more" cutoff.
+export { MAX_RENDERED_ITEMS };
 
 interface TaskToolInputShape {
 	description?: unknown;
@@ -45,64 +50,6 @@ export function isTaskToolInput(input: unknown): boolean {
 	}
 	const record = input as TaskToolInputShape;
 	return hasSubagentType(record) || hasDescriptionAndPrompt(record);
-}
-
-export interface ToolResultRenderer {
-	/** Parses a raw tool-result value (see unwrapToolResult) into render-ready
-	 * data, or null when it doesn't match this tool's expected shape. */
-	parse(result: unknown): unknown;
-	render(data: unknown): ReactNode;
-}
-
-// `data as T` below is a closed type-erasure box: `parse` and `render` are
-// always built from the SAME schema/render pair in `entry`, so the cast can
-// never see a mismatched value — there's no `unknown`-typed public API that
-// lets a caller mix parse output from one entry with render from another.
-// Exported so sibling registries (e.g. finance/finance-renderers.tsx) can
-// build their own ToolResultRenderer entries the same way.
-export function entry<T>(
-	schema: ZodType<T>,
-	render: (data: T) => ReactNode
-): ToolResultRenderer {
-	return {
-		parse: (result: unknown) => {
-			const parsed = schema.safeParse(unwrapToolResult(result));
-			return parsed.success ? parsed.data : null;
-		},
-		render: (data: unknown) => render(data as T),
-	};
-}
-
-// Per-ELEMENT tolerant list parse: scraped X data is messy (retweets, quotes,
-// edited/edge-case tweets), so a single malformed item must not blank the whole
-// render the way `z.array(schema)` would — validate each element and keep the
-// good ones. Only a fully-unparseable result (a non-array, or an array where
-// EVERY element fails — i.e. the shape is wrong, not just one stray item) falls
-// back to the raw tool block.
-export function listEntry<T>(
-	elementSchema: ZodType<T>,
-	render: (data: T[]) => ReactNode
-): ToolResultRenderer {
-	return {
-		parse: (result: unknown) => {
-			const unwrapped = unwrapToolResult(result);
-			if (!Array.isArray(unwrapped)) {
-				return null;
-			}
-			const valid: T[] = [];
-			for (const item of unwrapped) {
-				const parsed = elementSchema.safeParse(item);
-				if (parsed.success) {
-					valid.push(parsed.data);
-				}
-			}
-			if (unwrapped.length > 0 && valid.length === 0) {
-				return null;
-			}
-			return valid;
-		},
-		render: (data: unknown) => render(data as T[]),
-	};
 }
 
 function ItemList<T>({
@@ -191,7 +138,9 @@ export const TOOL_RESULT_RENDERERS: Record<string, ToolResultRenderer> = {
 };
 
 /** Rich-result dispatch: null means "no rich render available" — the tool
- * block keeps its raw-JSON UI. Wrapped by `cloudToolRegistry` below. */
+ * block keeps its raw-JSON UI. Wrapped by `cloudToolRegistry` below. Finance
+ * cards render PDF affordances through the injected `PdfLink`, so their output
+ * is wrapped in a `PdfLinkProvider` supplying the web app's vault-backed link. */
 export function renderToolResult(
 	toolName: string,
 	result: unknown
@@ -201,7 +150,12 @@ export function renderToolResult(
 		return null;
 	}
 	const data = renderer.parse(result);
-	return data === null ? null : renderer.render(data);
+	if (data === null) {
+		return null;
+	}
+	return (
+		<PdfLinkProvider value={PdfLink}>{renderer.render(data)}</PdfLinkProvider>
+	);
 }
 
 /** A registered genui card only ever runs against a completed, successful
