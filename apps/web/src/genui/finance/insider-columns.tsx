@@ -80,9 +80,11 @@ const AVG_PRICE_COLUMN: DataTableColumn<InsiderRowData> = {
 	value: (row) => row.avgPrice,
 };
 
+// Not `isMetric`: insider 增减持 are discrete events, not a time series — a
+// "trend" chart of individual change amounts is meaningless (user feedback:
+// 增减持为什么要有图). `value` stays so the column remains sortable.
 const CHANGE_AMOUNT_COLUMN: DataTableColumn<InsiderRowData> = {
 	align: "right",
-	isMetric: true,
 	key: "changeAmount",
 	label: "变动金额",
 	render: (row) => formatCompact(row.changeAmount, { cny: true }),

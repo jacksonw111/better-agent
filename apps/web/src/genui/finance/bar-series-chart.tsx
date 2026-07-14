@@ -17,6 +17,7 @@ import { ChartFrame } from "./chart-frame";
 import {
 	AXIS_TEXT_COLOR,
 	changeColor,
+	DEFAULT_CHART_HEIGHT,
 	rechartsAxisTheme,
 	rechartsCursorProps,
 	rechartsGridProps,
@@ -210,7 +211,7 @@ function ChartInner<T>({
 }) {
 	const formatCategory = (raw: string) => categoryFormat?.(raw) ?? raw;
 	return (
-		<ResponsiveContainer height="100%" width="100%">
+		<ResponsiveContainer height={DEFAULT_CHART_HEIGHT} width="100%">
 			<BarChart data={data} margin={CHART_MARGIN}>
 				<CartesianGrid {...rechartsGridProps} />
 				<XAxis

@@ -99,13 +99,6 @@ it("titles the card 大宗交易 and shows each trade's name", () => {
 	expect(getByText("浦发银行")).toBeDefined();
 });
 
-it("renders a metric chip for 成交额", () => {
-	const { container } = render(<BlockTradesTable data={ROWS} />);
-	expect(
-		within(container).getByRole("button", { name: "成交额", pressed: true })
-	).toBeDefined();
-});
-
 it("sorts rows numerically on a header click", () => {
 	const { container } = render(<BlockTradesTable data={ROWS} />);
 	const table = container.querySelector("table") as HTMLElement;
@@ -116,13 +109,9 @@ it("sorts rows numerically on a header click", () => {
 	expect(tradeDates(table)[0]).toBe("2023-06-01");
 });
 
-it("pivots to the chart view and plots the selected series", async () => {
+it("has no chart pivot — block trades are discrete events, not a trend", () => {
 	const { container } = render(<BlockTradesTable data={ROWS} />);
-	fireEvent.click(within(container).getByRole("button", { name: "图" }));
-	// DataTableChart is React.lazy-loaded; findByLabelText retries until the
-	// chunk resolves past the Suspense fallback.
-	expect(await within(container).findByLabelText("趋势图")).toBeDefined();
-	expect(container.querySelector("table")).toBeNull();
+	expect(within(container).queryByRole("button", { name: "图" })).toBeNull();
 });
 
 it("expands a block-trade row to reveal its full detail", () => {

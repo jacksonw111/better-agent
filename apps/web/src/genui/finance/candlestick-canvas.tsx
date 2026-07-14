@@ -20,6 +20,7 @@ import {
 	UP_COLOR,
 } from "./chart-theme";
 import type { CandleData } from "./finance-schemas";
+import { hexToRgba } from "./hex-rgba";
 
 // Phase 2 Task 5 — the lightweight-charts lifecycle for the PriceChart
 // archetype (design doc §8.4). Split out of candlestick-chart.tsx (the
@@ -30,26 +31,15 @@ import type { CandleData } from "./finance-schemas";
 const VOLUME_PRICE_SCALE_ID = "volume";
 const VOLUME_TOP_MARGIN = 0.8;
 const VOLUME_BOTTOM_MARGIN = 0;
+// The candles' own (default "right") price scale must reserve the bottom of
+// the pane for the volume histogram — without this the candle scale keeps its
+// default margins and the candles bleed down into the volume band, so the two
+// read as one merged mass (user feedback: 成交量跟 K 线连在一起). Candles now
+// live in the top ~72%, a gap, then volume in the bottom 20%.
+const MAIN_SCALE_TOP_MARGIN = 0.08;
+const MAIN_SCALE_BOTTOM_MARGIN = 0.28;
 const VOLUME_ALPHA = 0.5;
 const MA_LINE_WIDTH = 2;
-const HEX_RGB_LEN = 6;
-const HEX_RADIX = 16;
-const HEX_BYTE_LEN = 2;
-const HEX_R_START = 0;
-const HEX_G_START = HEX_R_START + HEX_BYTE_LEN;
-const HEX_B_START = HEX_G_START + HEX_BYTE_LEN;
-const HEX_B_END = HEX_B_START + HEX_BYTE_LEN;
-
-/** `#rrggbb` → `rgba(r, g, b, alpha)` — the volume histogram's translucent
- * up/down fills derive from the same price-axis hex the candles use instead
- * of a second hardcoded literal (§11 图表 token 单一出口). */
-function hexToRgba(hex: string, alpha: number): string {
-	const clean = hex.replace("#", "").padEnd(HEX_RGB_LEN, "0");
-	const r = Number.parseInt(clean.slice(HEX_R_START, HEX_G_START), HEX_RADIX);
-	const g = Number.parseInt(clean.slice(HEX_G_START, HEX_B_START), HEX_RADIX);
-	const b = Number.parseInt(clean.slice(HEX_B_START, HEX_B_END), HEX_RADIX);
-	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 function toCandlestickData(candles: CandleData[]): CandlestickData<Time>[] {
 	return candles.map((c) => ({
@@ -111,6 +101,13 @@ async function buildChart(container: HTMLDivElement): Promise<ChartHandles> {
 	});
 	chart.priceScale(VOLUME_PRICE_SCALE_ID).applyOptions({
 		scaleMargins: { bottom: VOLUME_BOTTOM_MARGIN, top: VOLUME_TOP_MARGIN },
+	});
+	// Keep the candles out of the volume band at the bottom of the pane.
+	candleSeries.priceScale().applyOptions({
+		scaleMargins: {
+			bottom: MAIN_SCALE_BOTTOM_MARGIN,
+			top: MAIN_SCALE_TOP_MARGIN,
+		},
 	});
 	const maSeriesById = new Map<string, ISeriesApi<"Line">>(
 		MA_CONFIGS.map((ma, index) => [

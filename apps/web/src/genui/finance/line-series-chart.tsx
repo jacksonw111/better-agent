@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { ChartFrame } from "./chart-frame";
 import {
+	DEFAULT_CHART_HEIGHT,
 	rechartsAxisTheme,
 	rechartsCursorProps,
 	rechartsGridProps,
@@ -142,7 +143,7 @@ function ChartInner<T>({
 }) {
 	const formatCategory = (raw: string) => categoryFormat?.(raw) ?? raw;
 	return (
-		<ResponsiveContainer height="100%" width="100%">
+		<ResponsiveContainer height={DEFAULT_CHART_HEIGHT} width="100%">
 			<AreaChart data={data} margin={CHART_MARGIN}>
 				<CartesianGrid {...rechartsGridProps} />
 				<XAxis

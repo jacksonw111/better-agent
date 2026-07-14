@@ -1,6 +1,7 @@
 import { changeColor } from "./chart-theme";
 import type { SectorRowData } from "./finance-schemas-fe6";
 import { formatNum } from "./format";
+import { hexToRgba } from "./hex-rgba";
 import { CardShell, ChangePct } from "./primitives";
 import { useRankListOrchestration } from "./rank-list";
 import { RankListStrip } from "./rank-list-controls";
@@ -19,27 +20,8 @@ const MAX_INTENSITY_PCT = 5; // |changePct| at/above this saturates the tint
 const MIN_ALPHA = 0.08;
 const MAX_ALPHA = 0.55;
 const ALPHA_DECIMALS = 2;
-const HEX_RGB_LEN = 6;
-const HEX_RADIX = 16;
-const HEX_BYTE_LEN = 2;
-const HEX_R_START = 0;
-const HEX_G_START = HEX_R_START + HEX_BYTE_LEN;
-const HEX_B_START = HEX_G_START + HEX_BYTE_LEN;
-const HEX_B_END = HEX_B_START + HEX_BYTE_LEN;
 
 const SORT_OPTIONS: RankListSortOption<SectorRowData>[] = [];
-
-/** `#rrggbb` → `rgba(r, g, b, alpha)` — mirrors candlestick-canvas.tsx's
- * local helper of the same shape, deriving the tile's translucent fill from
- * the price axis's single-source hex (`changeColor`) instead of a second
- * hardcoded RGB literal (§11 色轴单一出口). */
-function hexToRgba(hex: string, alpha: number): string {
-	const clean = hex.replace("#", "").padEnd(HEX_RGB_LEN, "0");
-	const r = Number.parseInt(clean.slice(HEX_R_START, HEX_G_START), HEX_RADIX);
-	const g = Number.parseInt(clean.slice(HEX_G_START, HEX_B_START), HEX_RADIX);
-	const b = Number.parseInt(clean.slice(HEX_B_START, HEX_B_END), HEX_RADIX);
-	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 /** Background tint for a sector tile: red for up, green for down (红涨绿跌
  * via `changeColor`), intensity proportional to |changePct| (clamped at

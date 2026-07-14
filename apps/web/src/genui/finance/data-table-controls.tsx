@@ -19,6 +19,19 @@ import type { useSeriesSelect } from "./use-series-select";
 
 const ALL_FILTER_ID = "__all";
 
+// A toggle affordance only earns its place with at least two real choices:
+// a single filter category (single-select adds an implicit 全部, so a lone
+// category is just "全部 vs the only thing"), or a single metric chip (always
+// selected, min-1 floor → can't be toggled off, nothing else to add) are both
+// pointless no-op buttons. Tools with <2 of either get no such control at all
+// (user feedback: 单条件/单指标不该弹按钮). The 表/图 Pivot toggle is separate
+// (lives in DataTablePrimary) and still shows whenever a chart is possible.
+const MIN_USEFUL_CHOICES = 2;
+
+function hasUsefulFilters<T>(filters: DataTableProps<T>["filters"]): boolean {
+	return (filters?.length ?? 0) >= MIN_USEFUL_CHOICES;
+}
+
 function FilterControls<T>({
 	active,
 	filters,
@@ -135,26 +148,28 @@ function DataTablePrimary<T>({
 }
 
 function DataTableControlChips<T>({
-	canChart,
 	filter,
 	filterMode,
 	filters,
 	metrics,
 	series,
 }: {
-	canChart: boolean;
 	filter: ReturnType<typeof useFilter<T>>;
 	filterMode: "single" | "multi";
 	filters: DataTableProps<T>["filters"];
 	metrics: MetricColumn<T>[];
 	series: ReturnType<typeof useSeriesSelect>;
 }) {
-	if (!(filters?.length || canChart)) {
+	const showFilters = hasUsefulFilters(filters);
+	// A lone metric chip is a no-op (see MIN_USEFUL_CHOICES) — the single metric
+	// still plots, it just gets no pointless always-on chip.
+	const showMetricChips = metrics.length >= MIN_USEFUL_CHOICES;
+	if (!(showFilters || showMetricChips)) {
 		return null;
 	}
 	return (
 		<>
-			{filters?.length ? (
+			{showFilters && filters ? (
 				<FilterControls
 					active={filter.activeIds}
 					filters={filters}
@@ -164,7 +179,7 @@ function DataTableControlChips<T>({
 					onToggle={filter.toggle}
 				/>
 			) : null}
-			{canChart ? (
+			{showMetricChips ? (
 				<MetricChips
 					isSelected={series.isSelected}
 					metrics={metrics}
@@ -180,7 +195,6 @@ export function DataTableStrip<T>(props: StripProps<T>) {
 		<ControlStrip
 			chips={
 				<DataTableControlChips
-					canChart={props.canChart}
 					filter={props.filter}
 					filterMode={props.filterMode}
 					filters={props.filters}

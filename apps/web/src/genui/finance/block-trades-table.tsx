@@ -4,7 +4,7 @@ import { blockTradeColumns } from "./block-trades-columns";
 import { DataTable } from "./data-table";
 import type { BlockTradeRowData } from "./finance-schemas-fe15";
 import { formatDate } from "./format";
-import { expandedMetricFields } from "./metric-expand";
+import { expandedAllFields } from "./metric-expand";
 import { StatGrid } from "./primitives";
 
 // Phase 1 Batch B2 — `block_trades` on the `DataTable` primitive (design doc
@@ -23,11 +23,13 @@ export function BlockTradesTable({ data }: { data: BlockTradeRowData[] }) {
 		<DataTable<BlockTradeRowData>
 			categoryFormat={formatDate}
 			categoryKey="tradeDate"
-			chartKind="bar"
 			columns={columns}
 			getRowKey={(row, index) => `${row.code}-${row.tradeDate}-${index}`}
 			renderExpanded={(row) => (
-				<StatGrid cols={2} items={expandedMetricFields(columns, row)} />
+				<StatGrid
+					cols={2}
+					items={expandedAllFields(columns, row, "tradeDate")}
+				/>
 			)}
 			rows={data}
 			subtitle={`${data.length} 笔`}

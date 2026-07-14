@@ -41,9 +41,11 @@ const PREMIUM_PCT_COLUMN: DataTableColumn<BlockTradeRowData> = {
 	value: (row) => row.premiumPct,
 };
 
+// Not `isMetric`: block trades are discrete transactions, not a time series —
+// a "trend" chart of individual deal amounts is meaningless (user feedback:
+// 大宗交易为什么要有图). `value` stays so the column remains sortable.
 const DEAL_AMOUNT_COLUMN: DataTableColumn<BlockTradeRowData> = {
 	align: "right",
-	isMetric: true,
 	key: "dealAmount",
 	label: "成交额",
 	render: (row) => formatCompact(row.dealAmount, { cny: true }),

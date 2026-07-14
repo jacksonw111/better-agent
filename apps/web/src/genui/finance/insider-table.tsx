@@ -4,7 +4,7 @@ import { DataTable } from "./data-table";
 import type { InsiderRowData } from "./finance-schemas-fe15";
 import { formatDate } from "./format";
 import { INSIDER_FILTERS, insiderColumns } from "./insider-columns";
-import { expandedMetricFields } from "./metric-expand";
+import { expandedAllFields } from "./metric-expand";
 import { StatGrid } from "./primitives";
 
 // Phase 1 Batch B2 — `insider_trades` on the `DataTable` primitive (design
@@ -25,13 +25,15 @@ export function InsiderTable({ data }: { data: InsiderRowData[] }) {
 		<DataTable<InsiderRowData>
 			categoryFormat={formatDate}
 			categoryKey="changeDate"
-			chartKind="bar"
 			columns={columns}
 			filterMode="single"
 			filters={INSIDER_FILTERS}
 			getRowKey={(row, index) => `${row.code}-${row.changeDate}-${index}`}
 			renderExpanded={(row) => (
-				<StatGrid cols={2} items={expandedMetricFields(columns, row)} />
+				<StatGrid
+					cols={2}
+					items={expandedAllFields(columns, row, "changeDate")}
+				/>
 			)}
 			rows={data}
 			subtitle={`${data.length} 笔`}

@@ -84,11 +84,15 @@ it("titles the card 分红方案 and shows the plan text", () => {
 	expect(getByText("10派5元")).toBeDefined();
 });
 
-it("renders a metric chip for 税前派息", () => {
+it("offers a chart pivot but no lone metric chip (single metric is a no-op)", () => {
 	const { container } = render(<DividendsTable data={ROWS} />);
+	// 税前派息 is the only metric — it always plots, so its chip would be a
+	// pointless always-on toggle and is suppressed; the 表/图 Pivot stays.
+	// (The sortable column HEADER "税前派息" is a separate, non-pressed button.)
+	expect(within(container).getByRole("button", { name: "图" })).toBeDefined();
 	expect(
-		within(container).getByRole("button", { name: "税前派息", pressed: true })
-	).toBeDefined();
+		within(container).queryByRole("button", { name: "税前派息", pressed: true })
+	).toBeNull();
 });
 
 it("sorts rows numerically on a header click", () => {

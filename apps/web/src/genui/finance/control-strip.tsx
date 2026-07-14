@@ -28,7 +28,10 @@ export function ControlStrip({ className, chips, primary }: ControlStripProps) {
 	return (
 		<div
 			className={cn(
-				"flex items-center justify-between gap-3 px-3 py-2",
+				// flex-wrap so on a narrow card the chip group drops to its own
+				// line (and scrolls there) instead of being squeezed/clipped off
+				// the right edge behind the primary segmented control (mobile bug).
+				"flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2",
 				className
 			)}
 		>

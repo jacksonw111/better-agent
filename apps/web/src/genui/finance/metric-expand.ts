@@ -29,3 +29,29 @@ export function expandedMetricFields<T>(
 	}
 	return items;
 }
+
+/** Every column's value for `row` (§8.1 "全字段"), for tools whose drill-down
+ * is the full record rather than just its plottable metrics — e.g. block
+ * trades / insider changes, which have no `isMetric` column at all (they're
+ * event lists, not trends) yet still want buyer/seller/reason etc. behind
+ * Expand. The `categoryKey` column is skipped since it's already the row's
+ * sticky anchor. Columns rendering empty/null are dropped. */
+export function expandedAllFields<T>(
+	columns: DataTableColumn<T>[],
+	row: T,
+	categoryKey: string
+): StatGridItem[] {
+	const items: StatGridItem[] = [];
+	for (const col of columns) {
+		if (col.key === categoryKey) {
+			continue;
+		}
+		const rawValue = col.value?.(row) ?? null;
+		const content = col.render?.(row) ?? rawValue;
+		if (content === null || content === undefined || content === "") {
+			continue;
+		}
+		items.push({ label: col.label, value: content });
+	}
+	return items;
+}

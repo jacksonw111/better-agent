@@ -126,13 +126,9 @@ it("sorts rows numerically on a header click", () => {
 	expect(changeDates(table)[0]).toBe("2023-05-01");
 });
 
-it("pivots to the chart view and plots the selected series", async () => {
+it("has no chart pivot — insider changes are discrete events, not a trend", () => {
 	const { container } = render(<InsiderTable data={ROWS} />);
-	fireEvent.click(within(container).getByRole("button", { name: "图" }));
-	// DataTableChart is React.lazy-loaded; findByLabelText retries until the
-	// chunk resolves past the Suspense fallback.
-	expect(await within(container).findByLabelText("趋势图")).toBeDefined();
-	expect(container.querySelector("table")).toBeNull();
+	expect(within(container).queryByRole("button", { name: "图" })).toBeNull();
 });
 
 it("expands an insider-trade row to reveal its full detail", () => {
