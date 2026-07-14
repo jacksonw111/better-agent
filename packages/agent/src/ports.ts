@@ -1,5 +1,4 @@
 import type { AgentConfig, AgentInput } from "./agent/types";
-import type { BridgeAgentKind } from "./bridge-token-ports";
 import type {
 	ModelEntry,
 	ProviderCatalogEntry,
@@ -200,7 +199,16 @@ export interface ComposioAccountStore {
 	list(): Promise<ComposioAccountRow[]>;
 	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
-export type BridgeSessionStatus = "active" | "ended";
+// Bridge-session/message ports live in bridge-session-ports.ts (split out for
+// the 300-line limit) and are re-exported so the public surface is unchanged.
+export type {
+	BridgeMessageRow,
+	BridgeMessageStore,
+	BridgeSessionCursor,
+	BridgeSessionRow,
+	BridgeSessionStatus,
+	BridgeSessionStore,
+} from "./bridge-session-ports";
 export type {
 	BridgeAgentKind,
 	BridgeTokenConfig,
@@ -211,53 +219,6 @@ export type {
 	OpenConnectorAccountRow,
 	OpenConnectorAccountStore,
 } from "./open-connector-ports";
-
-export interface BridgeSessionRow {
-	agentKind: BridgeAgentKind;
-	agentSessionId: string | null;
-	createdAt: Date;
-	id: string;
-	label: string | null;
-	lastSeenAt: Date;
-	status: BridgeSessionStatus;
-	tokenId: string;
-	userId: string;
-	vncEndpoint: string | null;
-}
-
-export interface BridgeSessionStore {
-	create(input: {
-		userId: string;
-		tokenId: string;
-		agentKind: BridgeAgentKind;
-		label?: string;
-	}): Promise<BridgeSessionRow>;
-	end(id: string, userId: string): Promise<void>;
-	get(id: string): Promise<BridgeSessionRow | null>;
-	listByUser(userId: string): Promise<BridgeSessionRow[]>;
-	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
-	setVncEndpoint(id: string, vncEndpoint: string | null): Promise<void>;
-	touch(id: string): Promise<void>;
-}
-
-/** A persisted bridge event, keyed by the relay's own SERVER-assigned seq. */
-export interface BridgeMessageRow {
-	event: unknown;
-	seq: number;
-}
-
-export interface BridgeMessageStore {
-	/** Persists one relayed event under its relay-assigned seq. */
-	append(sessionId: string, seq: number, event: unknown): Promise<void>;
-	/** Persists a batch of relayed events under their own seq, in one round trip. */
-	appendMany(sessionId: string, rows: BridgeMessageRow[]): Promise<void>;
-	/** Returns persisted events with seq > afterSeq, in ascending seq order. */
-	list(
-		sessionId: string,
-		afterSeq: number,
-		limit: number
-	): Promise<BridgeMessageRow[]>;
-}
 
 export interface WebAuthzCacheRow {
 	authorized: boolean;

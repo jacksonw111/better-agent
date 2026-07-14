@@ -16,13 +16,13 @@ it("reportVnc sets the session's vncEndpoint the owner can see, and clears it", 
 		vncEndpoint: "vnc://127.0.0.1:5901",
 	});
 	const alice = userClientFor(ALICE);
-	const withVnc = (await alice.bridge.listSessions()).find(
+	const withVnc = (await alice.bridge.listSessions()).sessions.find(
 		(s) => s.id === sessionId
 	);
 	expect(withVnc?.vncEndpoint).toBe("vnc://127.0.0.1:5901");
 
 	await cli.bridge.reportVnc({ sessionId, vncEndpoint: null });
-	const cleared = (await alice.bridge.listSessions()).find(
+	const cleared = (await alice.bridge.listSessions()).sessions.find(
 		(s) => s.id === sessionId
 	);
 	expect(cleared?.vncEndpoint).toBeNull();

@@ -138,7 +138,8 @@ vi.mock("@/utils/orpc", () => {
 				listSessions: {
 					queryOptions: () => ({
 						queryKey: listSessionsKey,
-						queryFn: () => Promise.resolve(store.sessions),
+						queryFn: () =>
+							Promise.resolve({ sessions: store.sessions, nextCursor: null }),
 					}),
 					key: () => listSessionsKey,
 				},

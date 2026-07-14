@@ -121,6 +121,33 @@ function newSessionRow(
 	};
 }
 
+/** Mirrors the real store's newest-first keyset page (createdAt DESC, id DESC,
+ * `before` = strictly-after-cursor) — split out so `memoryBridgeSessionStore`
+ * stays under the max-lines-per-function gate. */
+function memoryListSessionPage(
+	rows: Map<string, BridgeSessionRow>,
+	userId: string,
+	opts: Parameters<BridgeSessionStore["listPageByUser"]>[1]
+): BridgeSessionRow[] {
+	const { before } = opts;
+	return [...rows.values()]
+		.filter((row) => row.userId === userId)
+		.filter((row) => {
+			if (!before) {
+				return true;
+			}
+			const rowMs = row.createdAt.getTime();
+			const cursorMs = before.createdAt.getTime();
+			return rowMs < cursorMs || (rowMs === cursorMs && row.id < before.id);
+		})
+		.sort(
+			(a, b) =>
+				b.createdAt.getTime() - a.createdAt.getTime() ||
+				b.id.localeCompare(a.id)
+		)
+		.slice(0, opts.limit);
+}
+
 export function memoryBridgeSessionStore(
 	rows: Map<string, BridgeSessionRow>
 ): BridgeSessionStore {
@@ -137,6 +164,9 @@ export function memoryBridgeSessionStore(
 			return Promise.resolve(
 				[...rows.values()].filter((row) => row.userId === userId)
 			);
+		},
+		listPageByUser(userId, opts) {
+			return Promise.resolve(memoryListSessionPage(rows, userId, opts));
 		},
 		touch(id) {
 			const row = rows.get(id);

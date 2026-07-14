@@ -52,14 +52,14 @@ it("deleteToken removes the token AND its sessions, owner-scoped", async () => {
 
 	const cli = bridgeClientFor({ tokenId, userId: ALICE.id });
 	await cli.bridge.startSession({ agentKind: AGENT_KIND });
-	expect(await alice.bridge.listSessions()).toHaveLength(1);
+	expect((await alice.bridge.listSessions()).sessions).toHaveLength(1);
 
 	await bob.bridge.deleteToken({ id: tokenId });
 	expect(await bridgeToken.listByUser(ALICE.id)).toHaveLength(1);
 
 	await alice.bridge.deleteToken({ id: tokenId });
 	expect(await bridgeToken.listByUser(ALICE.id)).toHaveLength(0);
-	expect(await alice.bridge.listSessions()).toHaveLength(0);
+	expect((await alice.bridge.listSessions()).sessions).toHaveLength(0);
 });
 
 it("a deleted raw bridge token is rejected end-to-end by bridgeProcedure", async () => {
@@ -170,15 +170,15 @@ it("listSessions and endSession are scoped to the caller", async () => {
 	const alice = userClientFor(ALICE);
 	const bob = userClientFor(BOB);
 
-	expect(await bob.bridge.listSessions()).toHaveLength(0);
-	expect(await alice.bridge.listSessions()).toHaveLength(1);
+	expect((await bob.bridge.listSessions()).sessions).toHaveLength(0);
+	expect((await alice.bridge.listSessions()).sessions).toHaveLength(1);
 
 	await expect(bob.bridge.endSession({ sessionId })).rejects.toMatchObject({
 		code: "NOT_FOUND",
 	});
 
 	await alice.bridge.endSession({ sessionId });
-	const [session] = await alice.bridge.listSessions();
+	const [session] = (await alice.bridge.listSessions()).sessions;
 	expect(session?.status).toBe("ended");
 });
 

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ingestEvents, MAX_PUSH_BATCH } from "../bridge/ingest-events";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import { bridgeProcedure, userProcedure } from "../index";
+import { listSessions } from "./bridge-list-sessions";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { fetchConfig, restartSession } from "./bridge-restart";
 import { assertInputWithinSizeLimit } from "./bridge-size-limits";
@@ -223,9 +224,8 @@ export const bridgeRouter = {
 			return { ok: true };
 		}),
 
-	listSessions: userProcedure.handler(({ context }) =>
-		context.services.stores.bridgeSession.listByUser(context.authedUser.id)
-	),
+	// P2-T1: paginated + per-session attention signal — see bridge-list-sessions.ts.
+	listSessions,
 	// Local Agent usage by agent kind, same rolling window as chat usage (owner-scoped).
 	usageByAgentKind,
 

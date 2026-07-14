@@ -62,6 +62,17 @@ export interface RelayStore {
 		afterId: number
 	): Promise<RelayEvent[]>;
 	/**
+	 * The LAST `limit` events of the window, in id order — a bounded tail read
+	 * for derivations that only need the stream's recent shape (P2-T1:
+	 * `listSessions`'s per-session attention signal), so a caller inspecting
+	 * many sessions per request never pulls each one's full replay window.
+	 */
+	readTail(
+		sessionId: string,
+		dir: RelayDir,
+		limit: number
+	): Promise<RelayEvent[]>;
+	/**
 	 * Live push; returns an unsubscribe function.
 	 *
 	 * Call subscribe() before read(afterId): append persists to the window
@@ -177,6 +188,14 @@ export function createInMemoryRelayStore(): RelayStore {
 			return Promise.resolve(
 				channel.events.filter((event) => event.id > afterId)
 			);
+		},
+
+		readTail(sessionId, dir, limit) {
+			if (limit <= 0) {
+				return Promise.resolve([]);
+			}
+			const channel = getOrCreateChannel(channels, sessionId, dir);
+			return Promise.resolve(channel.events.slice(-limit));
 		},
 
 		subscribe(sessionId, dir, onEvent) {

@@ -212,7 +212,8 @@ export function LocalAgentList() {
 	const sessions = useQuery(
 		withSessionPolling(orpc.bridge.listSessions.queryOptions())
 	);
-	const sessionData = sessions.data ?? [];
+	// P2-T1: listSessions is paginated; the list joins over the first page.
+	const sessionData = sessions.data?.sessions ?? [];
 	const rows = mergeUnifiedRows(
 		[],
 		deriveLocalAgentEntries(tokens.data ?? [], sessionData),

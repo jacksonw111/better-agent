@@ -159,6 +159,7 @@ export function createHeldReadRelayStore(): {
 	const relayStore: RelayStore = {
 		append: inner.append,
 		subscribe: inner.subscribe,
+		readTail: inner.readTail,
 		read: (_sessionId, _dir, afterId) => {
 			readCalls += 1;
 			return new Promise((resolve) => {

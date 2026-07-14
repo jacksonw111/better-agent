@@ -73,6 +73,25 @@ it("read filters to ids strictly greater than afterId", async () => {
 	await expect(store.read("after-id", "events", THIRD_ID)).resolves.toEqual([]);
 });
 
+it("readTail returns only the last N events, in id order", async () => {
+	const store = createRedisRelayStore(new RedisMock());
+	await store.append("tail-read", "events", "a");
+	await store.append("tail-read", "events", "b");
+	await store.append("tail-read", "events", "c");
+
+	await expect(store.readTail("tail-read", "events", 2)).resolves.toEqual([
+		{ id: SECOND_ID, data: "b" },
+		{ id: THIRD_ID, data: "c" },
+	]);
+	await expect(store.readTail("tail-read", "events", 10)).resolves.toEqual([
+		{ id: 1, data: "a" },
+		{ id: SECOND_ID, data: "b" },
+		{ id: THIRD_ID, data: "c" },
+	]);
+	await expect(store.readTail("tail-read", "events", 0)).resolves.toEqual([]);
+	await expect(store.readTail("tail-empty", "events", 5)).resolves.toEqual([]);
+});
+
 it("caps the replay window at MAX_WINDOW, dropping the oldest events", async () => {
 	const store = createRedisRelayStore(new RedisMock());
 	const overflow = 10;

@@ -87,6 +87,29 @@ it("caps the replay window at MAX_WINDOW, dropping the oldest events", async () 
 	expect(events.at(-1)?.id).toBe(total);
 });
 
+it("readTail returns the last N events in id order", async () => {
+	const store = createInMemoryRelayStore();
+	await store.append("s1", "events", "a");
+	await store.append("s1", "events", "b");
+	await store.append("s1", "events", "c");
+
+	await expect(store.readTail("s1", "events", 2)).resolves.toEqual([
+		{ id: SECOND_ID, data: "b" },
+		{ id: THIRD_ID, data: "c" },
+	]);
+});
+
+it("readTail with a limit beyond the stream returns everything; 0 returns nothing", async () => {
+	const store = createInMemoryRelayStore();
+	await store.append("s1", "events", "a");
+
+	await expect(store.readTail("s1", "events", 10)).resolves.toEqual([
+		{ id: 1, data: "a" },
+	]);
+	await expect(store.readTail("s1", "events", 0)).resolves.toEqual([]);
+	await expect(store.readTail("s2", "events", 5)).resolves.toEqual([]);
+});
+
 it("isolates ids and events between dirs and sessions", async () => {
 	const store = createInMemoryRelayStore();
 	await store.append("s1", "events", "e1");

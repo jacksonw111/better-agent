@@ -1,8 +1,9 @@
 import type {
+	BridgeSessionCursor,
 	BridgeSessionRow,
 	BridgeSessionStore,
 } from "@better-agent/agent/ports";
-import { and, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -91,6 +92,31 @@ async function endSession(db: Db, id: string, userId: string): Promise<void> {
 		);
 }
 
+/** One newest-first page (createdAt DESC, id DESC) of `userId`'s sessions.
+ * `before` is a keyset cursor: rows strictly after that (createdAt, id)
+ * position in the sort order — `createdAt < c` OR (`createdAt = c` AND
+ * `id < c.id`) — so paging stays stable while new sessions are created. */
+async function listSessionPage(
+	db: Db,
+	userId: string,
+	opts: { limit: number; before?: BridgeSessionCursor }
+): Promise<BridgeSessionRow[]> {
+	const { createdAt, id } = schema.bridgeSessions;
+	const cursorFilter = opts.before
+		? or(
+				lt(createdAt, opts.before.createdAt),
+				and(eq(createdAt, opts.before.createdAt), lt(id, opts.before.id))
+			)
+		: undefined;
+	const rows = await db
+		.select()
+		.from(schema.bridgeSessions)
+		.where(and(eq(schema.bridgeSessions.userId, userId), cursorFilter))
+		.orderBy(desc(createdAt), desc(id))
+		.limit(opts.limit);
+	return rows.map(toRow);
+}
+
 // Split touch/setAgentSessionId/end out into standalone functions above
 // purely to keep this factory under the repo's max-lines-per-function gate.
 export function createBridgeSessionStore(db: Db): BridgeSessionStore {
@@ -122,6 +148,7 @@ export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 				.where(eq(schema.bridgeSessions.userId, userId));
 			return rows.map(toRow);
 		},
+		listPageByUser: (userId, opts) => listSessionPage(db, userId, opts),
 		touch: (id) => touchSession(db, id),
 		setAgentSessionId: (id, agentSessionId) =>
 			setSessionAgentSessionId(db, id, agentSessionId),

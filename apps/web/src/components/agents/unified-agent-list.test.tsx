@@ -74,7 +74,10 @@ function agentsMock() {
 function bridgeMock() {
 	return {
 		listTokens: query(["bridge", "listTokens"], () => store.tokens),
-		listSessions: query(["bridge", "listSessions"], () => store.sessions),
+		listSessions: query(["bridge", "listSessions"], () => ({
+			sessions: store.sessions,
+			nextCursor: null,
+		})),
 		deleteToken: { mutationOptions: stubMutation({ ok: true }) },
 		createToken: {
 			mutationOptions: stubMutation({

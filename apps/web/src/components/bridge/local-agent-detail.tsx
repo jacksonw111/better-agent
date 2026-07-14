@@ -135,17 +135,17 @@ export function LocalAgentDetail({ tokenId }: { tokenId: string }) {
 		return <LocalAgentDetailSkeleton />;
 	}
 
-	const entries = deriveLocalAgentEntries(
-		tokens.data ?? [],
-		sessions.data ?? []
-	);
+	// P2-T1: listSessions is now paginated ({ sessions, nextCursor }); no cursor
+	// means the first (newest) page, which is what these views join over.
+	const sessionRows = sessions.data?.sessions ?? [];
+	const entries = deriveLocalAgentEntries(tokens.data ?? [], sessionRows);
 	const entry = entries.find((candidate) => candidate.token.id === tokenId);
 	if (!entry) {
 		return <NotFound />;
 	}
 
 	const tokenSessions = sortSessionsByRecency(
-		(sessions.data ?? []).filter((session) => session.tokenId === tokenId)
+		sessionRows.filter((session) => session.tokenId === tokenId)
 	);
 
 	return tokenSessions.length > 0 ? (

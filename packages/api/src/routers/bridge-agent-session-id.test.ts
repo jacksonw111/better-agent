@@ -51,10 +51,10 @@ it("agentSessionId is owner-scoped like the rest of the session row", async () =
 	await cli.bridge.pushEvents({ sessionId, events: [SESSION_READY_EVENT] });
 
 	const bob = userClientFor(BOB);
-	expect(await bob.bridge.listSessions()).toHaveLength(0);
+	expect((await bob.bridge.listSessions()).sessions).toHaveLength(0);
 
 	const alice = userClientFor(ALICE);
-	const [session] = await alice.bridge.listSessions();
+	const [session] = (await alice.bridge.listSessions()).sessions;
 	expect(session?.agentSessionId).toBe("claude-session-xyz");
 });
 

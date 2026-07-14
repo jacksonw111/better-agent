@@ -3,7 +3,7 @@ import {
 	hashToken,
 } from "@better-agent/agent/crypto/auth-tokens";
 import type { PGlite } from "@electric-sql/pglite";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { users } from "../schema/auth";
 import { bridgeSessions } from "../schema/bridge";
@@ -97,9 +97,93 @@ it("listByUser scopes sessions per owner", async () => {
 	expect(await store.listByUser(bob)).toHaveLength(1);
 });
 
+// P2-T1: listPageByUser's keyset pagination. createdAt isn't injectable via
+// create(), so timestamps are set directly for deterministic ordering.
+async function seedSessionAt(
+	store: ReturnType<typeof createBridgeSessionStore>,
+	userId: string,
+	tokenId: string,
+	createdAt: Date
+): Promise<string> {
+	const created = await store.create({
+		userId,
+		tokenId,
+		agentKind: "claude-code",
+	});
+	await db
+		.update(bridgeSessions)
+		.set({ createdAt })
+		.where(eq(bridgeSessions.id, created.id));
+	return created.id;
+}
+
+it("listPageByUser pages newest-first with a stable (createdAt, id) cursor", async () => {
+	const store = createBridgeSessionStore(db);
+	const userId = await seedUser("alice@x.com");
+	const tokenId = await seedToken(userId);
+	const base = new Date("2026-07-01T00:00:00Z").getTime();
+	const oldest = await seedSessionAt(store, userId, tokenId, new Date(base));
+	const middle = await seedSessionAt(
+		store,
+		userId,
+		tokenId,
+		new Date(base + 1000)
+	);
+	const newest = await seedSessionAt(
+		store,
+		userId,
+		tokenId,
+		new Date(base + 2000)
+	);
+
+	const first = await store.listPageByUser(userId, { limit: 2 });
+	expect(first.map((row) => row.id)).toEqual([newest, middle]);
+
+	const lastOfPage = first.at(-1);
+	const second = await store.listPageByUser(userId, {
+		limit: 2,
+		before: { createdAt: lastOfPage?.createdAt ?? new Date(), id: middle },
+	});
+	expect(second.map((row) => row.id)).toEqual([oldest]);
+});
+
+it("listPageByUser breaks createdAt ties by id descending, and cursors across the tie", async () => {
+	const store = createBridgeSessionStore(db);
+	const userId = await seedUser("alice@x.com");
+	const tokenId = await seedToken(userId);
+	const sameInstant = new Date("2026-07-01T00:00:00Z");
+	const a = await seedSessionAt(store, userId, tokenId, sameInstant);
+	const b = await seedSessionAt(store, userId, tokenId, sameInstant);
+	const [higherId, lowerId] = a > b ? [a, b] : [b, a];
+
+	const first = await store.listPageByUser(userId, { limit: 1 });
+	expect(first[0]?.id).toBe(higherId);
+
+	const second = await store.listPageByUser(userId, {
+		limit: 1,
+		before: { createdAt: sameInstant, id: higherId },
+	});
+	expect(second[0]?.id).toBe(lowerId);
+});
+
+it("listPageByUser is scoped to the user and respects limit", async () => {
+	const store = createBridgeSessionStore(db);
+	const alice = await seedUser("alice@x.com");
+	const bob = await seedUser("bob@x.com");
+	const aliceToken = await seedToken(alice);
+	const bobToken = await seedToken(bob);
+	await store.create({ userId: alice, tokenId: aliceToken, agentKind: "pi" });
+	await store.create({ userId: bob, tokenId: bobToken, agentKind: "pi" });
+
+	const page = await store.listPageByUser(alice, { limit: 10 });
+	expect(page).toHaveLength(1);
+	expect(page[0]?.userId).toBe(alice);
+});
+
 // touch() throttles to one write per 15s (see TOUCH_THROTTLE_SECONDS in
 // bridge-session-store.ts), so these back-date lastSeenAt directly (bypassing
-// the store) to exercise both sides of the guard.
+// the store) to exercise both sides of the guard. App-side timestamp, same
+// clock touchSession compares against (it also uses `new Date()`).
 async function backdateLastSeenAt(seconds: number): Promise<string> {
 	const userId = await seedUser("alice@x.com");
 	const tokenId = await seedToken(userId);
@@ -109,9 +193,10 @@ async function backdateLastSeenAt(seconds: number): Promise<string> {
 		tokenId,
 		agentKind: "claude-code",
 	});
+	const msPerSecond = 1000;
 	await db
 		.update(bridgeSessions)
-		.set({ lastSeenAt: sql`now() - (${seconds} * interval '1 second')` })
+		.set({ lastSeenAt: new Date(Date.now() - seconds * msPerSecond) })
 		.where(eq(bridgeSessions.id, created.id));
 	return created.id;
 }

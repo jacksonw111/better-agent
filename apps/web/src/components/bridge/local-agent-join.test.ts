@@ -34,6 +34,7 @@ function makeSession(
 		createdAt: NOW,
 		lastSeenAt: NOW,
 		vncEndpoint: null,
+		attention: null,
 		...overrides,
 	};
 }

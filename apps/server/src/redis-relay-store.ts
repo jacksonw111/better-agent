@@ -148,6 +148,24 @@ async function readEvents(
 		.sort((a, b) => a.id - b.id);
 }
 
+/** Bounded tail read (`RelayStore.readTail`): `LRANGE -limit -1` fetches only
+ * the last `limit` entries instead of the whole window. Sorted for the same
+ * concurrent-append reordering reason as `readEvents`. */
+async function readEventsTail(
+	redis: Redis,
+	sessionId: string,
+	dir: RelayDir,
+	limit: number
+): Promise<RelayEvent[]> {
+	if (limit <= 0) {
+		return [];
+	}
+	const raw = await redis.lrange(listKey(sessionId, dir), -limit, LAST_INDEX);
+	return raw
+		.map((item) => JSON.parse(item) as RelayEvent)
+		.sort((a, b) => a.id - b.id);
+}
+
 type ListenersByChannel = Map<string, Set<(event: RelayEvent) => void>>;
 
 /** A dedicated ioredis connection in subscriber mode, routing incoming
@@ -225,6 +243,9 @@ export function createRedisRelayStore(redis: Redis): RelayStore {
 
 		read: (sessionId, dir, afterId) =>
 			readEvents(redis, sessionId, dir, afterId),
+
+		readTail: (sessionId, dir, limit) =>
+			readEventsTail(redis, sessionId, dir, limit),
 
 		subscribe: (sessionId, dir, onEvent) =>
 			router.subscribe(channelFor(sessionId, dir), onEvent),

@@ -222,7 +222,7 @@ function SessionPanel({ session }: { session: BridgeSessionRow }) {
 function DebugRemotePage() {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const sessionsQuery = useQuery(orpc.bridge.listSessions.queryOptions());
-	const sessions = sessionsQuery.data ?? [];
+	const sessions = sessionsQuery.data?.sessions ?? [];
 	const selected = sessions.find((s) => s.id === selectedId) ?? null;
 	return (
 		<div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6">
