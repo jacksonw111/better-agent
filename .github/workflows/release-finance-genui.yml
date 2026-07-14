@@ -1,0 +1,37 @@
+name: Release finance-genui (GitHub Packages)
+
+# Push a tag like `finance-genui-v0.1.0` to build + publish
+# @jacksonw111/finance-genui to GitHub Packages. Uses the automatic
+# GITHUB_TOKEN — no manual secret needed.
+on:
+  push:
+    tags:
+      - "finance-genui-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@jacksonw111"
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm -F @jacksonw111/finance-genui check-types
+      - name: Test
+        run: pnpm -F @jacksonw111/finance-genui test
+      - name: Build
+        run: pnpm -F @jacksonw111/finance-genui build
+      - name: Publish to GitHub Packages
+        run: pnpm -F @jacksonw111/finance-genui publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

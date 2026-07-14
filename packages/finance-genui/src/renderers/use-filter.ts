@@ -25,7 +25,7 @@ interface UseFilterOptions {
 	mode?: FilterMode;
 }
 
-interface UseFilterResult<T> {
+export interface UseFilterResult<T> {
 	activeIds: string[];
 	clear: () => void;
 	filtered: T[];

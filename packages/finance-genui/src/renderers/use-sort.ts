@@ -23,7 +23,7 @@ interface UseSortOptions<T> {
 	initialKey?: keyof T;
 }
 
-interface UseSortResult<T> {
+export interface UseSortResult<T> {
 	sortDir: SortDirection;
 	sorted: T[];
 	sortKey: keyof T | undefined;

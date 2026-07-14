@@ -1,0 +1,15 @@
+{
+  // Compiler options for the .d.ts bundle. Per-file `tsc` declaration emit
+  // trips TS4058 on internal hook-result interfaces that aren't exported
+  // (e.g. UseSortResult in rank-list.tsx), so — like @jacksonw111/agent-client
+  // — we bundle the public API into a single dist/index.d.ts with
+  // dts-bundle-generator (--no-check), which inlines those internal types.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"]
+}

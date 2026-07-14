@@ -33,8 +33,26 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://npm.pkg.github.com",
+    "main": "./dist/index.cjs",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "./styles.css": "./dist/styles.css"
+    }
+  },
   "scripts": {
+    "build": "tsup && dts-bundle-generator -o dist/index.d.ts --project tsconfig.dts.json --no-check -- src/index.ts && cp dist/index.d.ts dist/index.d.cts",
     "check-types": "tsc --noEmit",
+    "prepublishOnly": "pnpm build",
+    "release": "node scripts/release.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -58,9 +76,11 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "dts-bundle-generator": "^9.5.1",
     "jsdom": "^29.0.2",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "tsup": "^8.5.0",
     "typescript": "catalog:",
     "vitest": "4.1.9",
     "zod": "catalog:"
