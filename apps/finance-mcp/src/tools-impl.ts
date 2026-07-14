@@ -10,7 +10,6 @@ import { searchAStocks } from "./core/eastmoney/search";
 import { getStatements } from "./core/eastmoney/statements";
 import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { getTechnical } from "./core/technical/indicators";
-import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
 import { coerceKlinePeriod, getKline } from "./core/tencent/kline";
 import { getQuote } from "./core/tencent/quote";
@@ -30,6 +29,7 @@ import {
 	handleYieldCurve,
 } from "./tools-impl-macro";
 import {
+	handleCommodity,
 	handleHsgtFlow,
 	handleMoneyFlow,
 	handleNews,
@@ -43,6 +43,7 @@ import {
 	handleSentimentTrending,
 } from "./tools-impl-sentiment";
 import { SIGNALS_HANDLERS } from "./tools-impl-signals";
+import { V6_HANDLERS } from "./tools-impl-v6";
 
 export interface ToolEnv {
 	ADANOS_API_KEY?: string;
@@ -226,10 +227,6 @@ async function handleIndexQuote(
 	);
 }
 
-async function handleCommodity(): Promise<ToolResult> {
-	return toolJson(await withCache("commodity", 30, () => getCommodities()));
-}
-
 async function handleTechnical(
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
@@ -284,6 +281,7 @@ const HANDLERS: Record<string, ToolHandler> = {
 	...DATA_HANDLERS,
 	...EVENTS_HANDLERS,
 	...SIGNALS_HANDLERS,
+	...V6_HANDLERS,
 };
 
 export function runTool(

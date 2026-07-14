@@ -23,11 +23,13 @@ interface RawMarket {
 	endDate?: string | null;
 	id?: number | string;
 	liquidity?: number | string | null;
+	oneDayPriceChange?: number | null;
 	outcomePrices?: string;
 	outcomes?: string;
 	question?: string;
 	slug?: string;
 	volume?: number | string | null;
+	volume24hr?: number | string | null;
 }
 
 function toNumberOrZero(value: unknown): number {
@@ -87,6 +89,8 @@ function toMarket(raw: RawMarket): PredictionMarket | null {
 		slug: raw.slug ?? "",
 		endDate: raw.endDate ? raw.endDate.slice(0, DATE_LENGTH) : "",
 		volumeUsd: toNumberOrZero(raw.volume),
+		volume24hUsd: toNumberOrZero(raw.volume24hr),
+		change24h: toNumberOrZero(raw.oneDayPriceChange),
 		liquidityUsd: toNumberOrZero(raw.liquidity),
 		outcomes,
 	};
@@ -223,8 +227,10 @@ export async function getPredictionMarkets(
 ): Promise<PredictionMarket[]> {
 	const cappedLimit = clampLimit(limit);
 	const fetchLimit = fetchLimitFor(query, cappedLimit);
+	// order=volume24hr (not volumeNum): all-time volume ranks long-dead
+	// mega-markets above what is actually trading today.
 	const url =
-		`${GAMMA_URL}?active=true&closed=false&order=volumeNum` +
+		`${GAMMA_URL}?active=true&closed=false&order=volume24hr` +
 		`&ascending=false&limit=${fetchLimit}`;
 	try {
 		const res = await fetchWithRetry(

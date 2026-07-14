@@ -24,6 +24,12 @@ import "./tool-defs-data";
 // finance_insider_trades / finance_suspension onto the shared
 // TOOLS/TOOL_NAMES arrays.
 import "./tool-defs-events";
+// Side-effect imports: register the V6 batch (打板 / 舆情 / A股扩展 /
+// 美股增强 + 行业新闻) onto the shared TOOLS/TOOL_NAMES arrays.
+import "./tool-defs-limitup";
+import "./tool-defs-buzz";
+import "./tool-defs-cnx";
+import "./tool-defs-global";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool

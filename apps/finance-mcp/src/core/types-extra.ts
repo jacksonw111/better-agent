@@ -44,12 +44,14 @@ export interface PredictionOutcome {
 }
 
 export interface PredictionMarket {
+	change24h: number;
 	endDate: string;
 	id: string;
 	liquidityUsd: number;
 	outcomes: PredictionOutcome[];
 	question: string;
 	slug: string;
+	volume24hUsd: number;
 	volumeUsd: number;
 }
 

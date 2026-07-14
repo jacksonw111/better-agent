@@ -10,6 +10,16 @@ function cacheStore(): CachesLike["default"] | null {
 	return c?.default ?? null;
 }
 
+// Upstream connectors degrade to null/[] on failure; caching those would
+// pin a transient outage for the whole TTL (the "tool suddenly returns no
+// data" failure mode). Legitimately-empty results just refetch — cheap.
+function isEmptyResult(value: unknown): boolean {
+	if (value === null || value === undefined) {
+		return true;
+	}
+	return Array.isArray(value) && value.length === 0;
+}
+
 export async function withCache<T>(
 	key: string,
 	ttlSeconds: number,
@@ -25,6 +35,9 @@ export async function withCache<T>(
 		return (await hit.json()) as T;
 	}
 	const value = await fn();
+	if (isEmptyResult(value)) {
+		return value;
+	}
 	const res = new Response(JSON.stringify(value), {
 		headers: {
 			"content-type": "application/json",

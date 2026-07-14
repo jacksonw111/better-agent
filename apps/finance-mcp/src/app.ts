@@ -11,6 +11,7 @@ import { registerRestEvents } from "./rest-events";
 import { registerRestExtra } from "./rest-extra";
 import { registerRestSentiment } from "./rest-sentiment";
 import { registerRestSignals } from "./rest-signals";
+import { registerRestV6 } from "./rest-v6";
 import { TOOLS } from "./tool-defs";
 import type { ToolEnv } from "./tools-impl";
 
@@ -88,6 +89,7 @@ export function buildApp(): Hono {
 	registerRestEvents(app);
 	registerRestSentiment(app);
 	registerRestSignals(app);
+	registerRestV6(app);
 
 	app.get("/pdf", createPdfProxyHandler(fetch));
 

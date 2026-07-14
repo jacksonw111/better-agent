@@ -1,5 +1,6 @@
 import type { Context, Hono } from "hono";
 import { withCache } from "./core/cache";
+import { getClsTelegraph } from "./core/cls/telegraph";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { getEarningsForecast } from "./core/eastmoney/forecast";
@@ -210,6 +211,11 @@ const DEFAULT_STOCK_NEWS_LIMIT = 10;
 
 async function newsHandler(c: Context) {
 	const limit = Number(c.req.query("limit") ?? "") || DEFAULT_NEWS_LIMIT;
+	if (c.req.query("source") === "cls") {
+		return c.json(
+			await withCache(`news:cls:${limit}`, 60, () => getClsTelegraph(limit))
+		);
+	}
 	return c.json(
 		await withCache(`news:${limit}`, 60, () => getMarketNews(limit))
 	);

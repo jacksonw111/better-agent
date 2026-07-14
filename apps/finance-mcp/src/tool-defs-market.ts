@@ -230,14 +230,20 @@ TOOL_NAMES.add("finance_yield_curve");
 TOOLS.push({
 	name: "finance_news",
 	description:
-		"Latest market flash news (7x24) from EastMoney: headline, summary, " +
-		"time, related tickers.",
+		"Latest market flash news (7x24): headline, summary, time, related " +
+		"tickers. source=eastmoney (default) or cls (财联社电报 — independent " +
+		"source, A股时效强).",
 	inputSchema: {
 		type: "object",
 		properties: {
 			limit: {
 				type: "number",
 				description: "Number of items (default 20, max 100).",
+			},
+			source: {
+				type: "string",
+				enum: ["eastmoney", "cls"],
+				description: "News source (default eastmoney).",
 			},
 		},
 		required: [],

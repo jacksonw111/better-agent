@@ -2,10 +2,12 @@
 // is at the project's 300-line-per-file cap) — same pattern as
 // tool-defs-market.ts splitting out of tool-defs.ts.
 import { withCache } from "./core/cache";
+import { getClsTelegraph } from "./core/cls/telegraph";
 import { getHsgtFlow } from "./core/eastmoney/hsgt";
 import { getMoneyFlow } from "./core/eastmoney/money-flow";
 import { getMarketNews, getStockNews } from "./core/eastmoney/news";
 import { getSectorConstituents, getSectorList } from "./core/eastmoney/sector";
+import { getCommodities } from "./core/tencent/commodity";
 import type { ToolResult } from "./tools-impl";
 import { argNumber, argString, toolJson } from "./tools-impl";
 
@@ -55,11 +57,24 @@ export async function handleSectorConstituents(
 	);
 }
 
+const COMMODITY_TTL_SECONDS = 30;
+
+export async function handleCommodity(): Promise<ToolResult> {
+	return toolJson(
+		await withCache("commodity", COMMODITY_TTL_SECONDS, () => getCommodities())
+	);
+}
+
 // B11's market/per-stock news handlers.
 export async function handleNews(
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
 	const limit = argNumber(args, "limit", DEFAULT_NEWS_LIMIT);
+	if (argString(args, "source") === "cls") {
+		return toolJson(
+			await withCache(`news:cls:${limit}`, 60, () => getClsTelegraph(limit))
+		);
+	}
 	return toolJson(
 		await withCache(`news:${limit}`, 60, () => getMarketNews(limit))
 	);
