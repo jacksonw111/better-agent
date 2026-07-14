@@ -3,6 +3,7 @@ import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { PanelLeftIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import { setCommandPaletteOpen } from "@/components/command-palette/command-palette-store";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
@@ -18,6 +19,7 @@ import {
 	type LocalAgentEntry,
 } from "./local-agent-join";
 import { sortSessionsByRecency } from "./local-agent-session-picker";
+import { WorkspaceCommandBridge } from "./local-agent-workspace-command-bridge";
 import {
 	pickActiveSession,
 	useWorkspaceSessions,
@@ -135,8 +137,32 @@ function ContentPaneHeader({
 				<PanelLeftIcon className="size-4" />
 			</Button>
 			<LocalAgentWorkspaceTabs onChange={onTabChange} value={tab} />
+			<Button
+				aria-label="Open command palette"
+				className="ml-auto shrink-0 font-mono text-muted-foreground"
+				onClick={() => setCommandPaletteOpen(true)}
+				size="sm"
+				variant="ghost"
+			>
+				⌘K
+			</Button>
 		</div>
 	);
+}
+
+/** The <md drawer's open/close/select-and-close trio, packaged to keep
+ * `WorkspaceLayout` under the max-lines-per-function gate. */
+function useDrawer(onSelectSession: (sessionId: string) => void) {
+	const [open, setOpen] = useState(false);
+	return {
+		close: () => setOpen(false),
+		open,
+		select: (sessionId: string) => {
+			onSelectSession(sessionId);
+			setOpen(false);
+		},
+		show: () => setOpen(true),
+	};
 }
 
 /** The assembled two-pane layout — split from `LocalAgentWorkspace` (which
@@ -155,11 +181,7 @@ function WorkspaceLayout({
 	userAvatarUrl: string | undefined;
 }) {
 	const [tab, setTab] = useState<WorkspaceTabId>("chat");
-	const [drawerOpen, setDrawerOpen] = useState(false);
-	const selectAndCloseDrawer = (sessionId: string) => {
-		onSelectSession(sessionId);
-		setDrawerOpen(false);
-	};
+	const drawer = useDrawer(onSelectSession);
 	return (
 		<div className="flex min-h-0 flex-1">
 			<aside className="hidden w-64 shrink-0 flex-col bg-muted/30 md:flex">
@@ -167,7 +189,7 @@ function WorkspaceLayout({
 			</aside>
 			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
 				<ContentPaneHeader
-					onOpenDrawer={() => setDrawerOpen(true)}
+					onOpenDrawer={drawer.show}
 					onTabChange={setTab}
 					tab={tab}
 				/>
@@ -178,12 +200,15 @@ function WorkspaceLayout({
 					userAvatarUrl={userAvatarUrl}
 				/>
 			</div>
-			<MobileSessionDrawer
-				onClose={() => setDrawerOpen(false)}
-				open={drawerOpen}
-			>
-				{sidebar(selectAndCloseDrawer)}
+			<MobileSessionDrawer onClose={drawer.close} open={drawer.open}>
+				{sidebar(drawer.select)}
 			</MobileSessionDrawer>
+			<WorkspaceCommandBridge
+				activeSession={activeSession}
+				entry={entry}
+				setTab={setTab}
+				tab={tab}
+			/>
 		</div>
 	);
 }

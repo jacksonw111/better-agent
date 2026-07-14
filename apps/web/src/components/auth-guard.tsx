@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { CommandPalette } from "@/components/command-palette/command-palette";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
 import { RocketLoader } from "@/components/rocket-loader";
@@ -81,6 +82,7 @@ function AuthedShell() {
 				</div>
 			</SidebarInset>
 			<MobileTabBar />
+			<CommandPalette />
 		</SidebarProvider>
 	);
 }

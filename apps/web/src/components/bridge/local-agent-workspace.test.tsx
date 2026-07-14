@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import {
+	getCommandPaletteState,
+	setCommandPaletteOpen,
+} from "@/components/command-palette/command-palette-store";
 import { LocalAgentWorkspace } from "./local-agent-workspace";
 import {
 	makeSession,
@@ -69,7 +73,10 @@ function renderApp(initialEntry?: string) {
 // No vitest `globals`, so testing-library's auto-cleanup never registers —
 // without this, an earlier test's still-mounted terminal keeps reconnecting
 // (SSE retry timers) and pollutes `connectedSessionIds` across tests.
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	setCommandPaletteOpen(false);
+});
 
 beforeEach(() => {
 	resetWorkspaceStore();
@@ -179,6 +186,20 @@ it("renders the tab row with Chat active and Files/Git/Shell as disabled P4 pill
 			tab.hasAttribute("data-disabled");
 		expect(disabled).toBe(true);
 	}
+});
+
+it("registers the palette's workspace target while mounted, clears it on unmount", async () => {
+	const { view } = renderApp();
+	await waitFor(() => {
+		expect(getCommandPaletteState().workspace?.tokenId).toBe("token-1");
+	});
+	expect(getCommandPaletteState().workspace?.tab).toBe("chat");
+
+	fireEvent.click(view.getByRole("button", { name: "Open command palette" }));
+	expect(getCommandPaletteState().open).toBe(true);
+
+	cleanup();
+	expect(getCommandPaletteState().workspace).toBeNull();
 });
 
 it("shows waiting-for-CLI in the content pane with the (empty) sidebar still visible", async () => {
