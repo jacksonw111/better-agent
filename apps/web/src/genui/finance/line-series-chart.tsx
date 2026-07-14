@@ -13,6 +13,8 @@ import {
 import { ChartFrame } from "./chart-frame";
 import {
 	DEFAULT_CHART_HEIGHT,
+	RECHARTS_XAXIS_HEIGHT,
+	RECHARTS_YAXIS_WIDTH,
 	rechartsAxisTheme,
 	rechartsCursorProps,
 	rechartsGridProps,
@@ -94,7 +96,11 @@ function toChartData<T>(
 	});
 }
 
-function SeriesAreas<T>({
+// Returns a raw ARRAY of <Area> (called inline, not rendered as <SeriesAreas/>)
+// so the <Area> elements are DIRECT children of <AreaChart>. recharts only
+// discovers series among its direct children's types — a wrapping custom
+// component (or Fragment) is invisible to it, leaving a blank plot.
+function seriesAreas<T>({
 	area,
 	isAnimationActive,
 	series,
@@ -103,27 +109,23 @@ function SeriesAreas<T>({
 	isAnimationActive: boolean;
 	series: ResolvedLineSeries<T>[];
 }) {
-	return (
-		<>
-			{series.map((s) => (
-				<Area
-					animationDuration={DRAW_IN_MS}
-					animationEasing={CHART_EASING}
-					connectNulls
-					dataKey={s.key}
-					dot={{ fill: s.color, r: DOT_RADIUS }}
-					fill={s.color}
-					fillOpacity={area ? AREA_FILL_OPACITY : LINE_FILL_OPACITY}
-					isAnimationActive={isAnimationActive}
-					key={s.key}
-					name={s.label}
-					stroke={s.color}
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-				/>
-			))}
-		</>
-	);
+	return series.map((s) => (
+		<Area
+			animationDuration={DRAW_IN_MS}
+			animationEasing={CHART_EASING}
+			connectNulls
+			dataKey={s.key}
+			dot={{ fill: s.color, r: DOT_RADIUS }}
+			fill={s.color}
+			fillOpacity={area ? AREA_FILL_OPACITY : LINE_FILL_OPACITY}
+			isAnimationActive={isAnimationActive}
+			key={s.key}
+			name={s.label}
+			stroke={s.color}
+			strokeWidth={LINE_STROKE_WIDTH}
+			type="monotone"
+		/>
+	));
 }
 
 function ChartInner<T>({
@@ -148,13 +150,14 @@ function ChartInner<T>({
 				<CartesianGrid {...rechartsGridProps} />
 				<XAxis
 					dataKey={CATEGORY_FIELD}
+					height={RECHARTS_XAXIS_HEIGHT}
 					tickFormatter={formatCategory}
 					{...rechartsAxisTheme}
 				/>
 				<YAxis
 					{...rechartsAxisTheme}
 					tickFormatter={(value: number) => valueFormat(value)}
-					width={undefined}
+					width={RECHARTS_YAXIS_WIDTH}
 				/>
 				<Tooltip
 					contentStyle={TOOLTIP_STYLE}
@@ -162,11 +165,7 @@ function ChartInner<T>({
 					formatter={(value, name) => [valueFormat(Number(value)), name]}
 					labelFormatter={formatCategory}
 				/>
-				<SeriesAreas
-					area={area}
-					isAnimationActive={isAnimationActive}
-					series={series}
-				/>
+				{seriesAreas({ area, isAnimationActive, series })}
 			</AreaChart>
 		</ResponsiveContainer>
 	);

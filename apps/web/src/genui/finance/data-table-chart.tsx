@@ -15,6 +15,8 @@ import {
 import { ChartFrame } from "./chart-frame";
 import {
 	DEFAULT_CHART_HEIGHT,
+	RECHARTS_XAXIS_HEIGHT,
+	RECHARTS_YAXIS_WIDTH,
 	rechartsAxisTheme,
 	rechartsCursorProps,
 	rechartsGridProps,
@@ -110,7 +112,7 @@ function toChartData<T>(
 	});
 }
 
-function SeriesMarks({
+function seriesMarks({
 	isAnimationActive,
 	kind,
 	series,
@@ -120,36 +122,28 @@ function SeriesMarks({
 	series: ChartSeries[];
 }) {
 	if (kind === "bar") {
-		return (
-			<>
-				{series.map((s) => (
-					<Bar
-						dataKey={s.key}
-						fill={s.color}
-						isAnimationActive={isAnimationActive}
-						key={s.key}
-						name={s.label}
-					/>
-				))}
-			</>
-		);
+		return series.map((s) => (
+			<Bar
+				dataKey={s.key}
+				fill={s.color}
+				isAnimationActive={isAnimationActive}
+				key={s.key}
+				name={s.label}
+			/>
+		));
 	}
-	return (
-		<>
-			{series.map((s) => (
-				<Line
-					dataKey={s.key}
-					dot={false}
-					isAnimationActive={isAnimationActive}
-					key={s.key}
-					name={s.label}
-					stroke={s.color}
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-				/>
-			))}
-		</>
-	);
+	return series.map((s) => (
+		<Line
+			dataKey={s.key}
+			dot={false}
+			isAnimationActive={isAnimationActive}
+			key={s.key}
+			name={s.label}
+			stroke={s.color}
+			strokeWidth={LINE_STROKE_WIDTH}
+			type="monotone"
+		/>
+	));
 }
 
 function ChartInner({
@@ -173,13 +167,14 @@ function ChartInner({
 				<CartesianGrid {...rechartsGridProps} />
 				<XAxis
 					dataKey={CATEGORY_FIELD}
+					height={RECHARTS_XAXIS_HEIGHT}
 					tickFormatter={formatCategory}
 					{...rechartsAxisTheme}
 				/>
 				<YAxis
 					{...rechartsAxisTheme}
 					tickFormatter={(value: number) => formatCompact(value)}
-					width={undefined}
+					width={RECHARTS_YAXIS_WIDTH}
 				/>
 				<Tooltip
 					contentStyle={TOOLTIP_STYLE}
@@ -187,11 +182,11 @@ function ChartInner({
 					formatter={(value) => formatCompact(Number(value))}
 					labelFormatter={formatCategory}
 				/>
-				<SeriesMarks
-					isAnimationActive={isAnimationActive}
-					kind={kind}
-					series={series}
-				/>
+				{/* Called inline (not <SeriesMarks/>) so the <Bar>/<Line> elements
+				    are DIRECT children of the chart — recharts only discovers series
+				    among its direct children's types; a custom-component wrapper is
+				    invisible to it, leaving the chart with no series (blank plot). */}
+				{seriesMarks({ isAnimationActive, kind, series })}
 			</ChartRoot>
 		</ResponsiveContainer>
 	);

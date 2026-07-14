@@ -18,6 +18,8 @@ import {
 	AXIS_TEXT_COLOR,
 	changeColor,
 	DEFAULT_CHART_HEIGHT,
+	RECHARTS_XAXIS_HEIGHT,
+	RECHARTS_YAXIS_WIDTH,
 	rechartsAxisTheme,
 	rechartsCursorProps,
 	rechartsGridProps,
@@ -111,7 +113,17 @@ function effectiveColoring(
 /** Sign mode: each bar's fill varies per data point (red/green by that
  * point's own sign), so it needs a `<Cell>` per point rather than one flat
  * `fill` on the `<Bar>` — same technique the old money-flow-chart used. */
-function SignBars<T>({
+// These return raw ARRAYS of <Bar> (called inline, not rendered as
+// <SeriesBars/>), so the <Bar> elements are DIRECT children of <BarChart>.
+// recharts only discovers series among its direct children's types — a custom
+// component (or even a Fragment) wrapping them is invisible to it, so the
+// chart ends up with no series and renders a blank plot. `<Cell>` children of
+// a `<Bar>` are fine (recharts reads a Bar's own children for per-point fill).
+
+/** Sign mode: each bar's fill varies per data point (red/green by that
+ * point's own sign), so it needs a `<Cell>` per point rather than one flat
+ * `fill` on the `<Bar>` — same technique the old money-flow-chart used. */
+function signBars<T>({
 	data,
 	isAnimationActive,
 	series,
@@ -120,58 +132,48 @@ function SignBars<T>({
 	isAnimationActive: boolean;
 	series: ResolvedSeries<T>[];
 }) {
-	return (
-		<>
-			{series.map((s) => (
-				<Bar
-					animationDuration={DRAW_IN_MS}
-					animationEasing={CHART_EASING}
-					dataKey={s.key}
-					isAnimationActive={isAnimationActive}
-					key={s.key}
-					name={s.label}
-				>
-					{data.map((point) => (
-						<Cell
-							fill={
-								changeColor(point[s.key] as number | null) ?? AXIS_TEXT_COLOR
-							}
-							key={`${s.key}-${point[CATEGORY_FIELD]}`}
-						/>
-					))}
-				</Bar>
+	return series.map((s) => (
+		<Bar
+			animationDuration={DRAW_IN_MS}
+			animationEasing={CHART_EASING}
+			dataKey={s.key}
+			isAnimationActive={isAnimationActive}
+			key={s.key}
+			name={s.label}
+		>
+			{data.map((point) => (
+				<Cell
+					fill={changeColor(point[s.key] as number | null) ?? AXIS_TEXT_COLOR}
+					key={`${s.key}-${point[CATEGORY_FIELD]}`}
+				/>
 			))}
-		</>
-	);
+		</Bar>
+	));
 }
 
 /** Composition mode: each series gets one flat, stable hue (its
  * compositionHueRamp color) regardless of a data point's sign. */
-function CompositionBars<T>({
+function compositionBars<T>({
 	isAnimationActive,
 	series,
 }: {
 	isAnimationActive: boolean;
 	series: ResolvedSeries<T>[];
 }) {
-	return (
-		<>
-			{series.map((s) => (
-				<Bar
-					animationDuration={DRAW_IN_MS}
-					animationEasing={CHART_EASING}
-					dataKey={s.key}
-					fill={s.color}
-					isAnimationActive={isAnimationActive}
-					key={s.key}
-					name={s.label}
-				/>
-			))}
-		</>
-	);
+	return series.map((s) => (
+		<Bar
+			animationDuration={DRAW_IN_MS}
+			animationEasing={CHART_EASING}
+			dataKey={s.key}
+			fill={s.color}
+			isAnimationActive={isAnimationActive}
+			key={s.key}
+			name={s.label}
+		/>
+	));
 }
 
-function SeriesBars<T>({
+function seriesBars<T>({
 	data,
 	isAnimationActive,
 	mode,
@@ -183,17 +185,9 @@ function SeriesBars<T>({
 	series: ResolvedSeries<T>[];
 }) {
 	if (mode === "sign") {
-		return (
-			<SignBars
-				data={data}
-				isAnimationActive={isAnimationActive}
-				series={series}
-			/>
-		);
+		return signBars({ data, isAnimationActive, series });
 	}
-	return (
-		<CompositionBars isAnimationActive={isAnimationActive} series={series} />
-	);
+	return compositionBars({ isAnimationActive, series });
 }
 
 function ChartInner<T>({
@@ -216,13 +210,14 @@ function ChartInner<T>({
 				<CartesianGrid {...rechartsGridProps} />
 				<XAxis
 					dataKey={CATEGORY_FIELD}
+					height={RECHARTS_XAXIS_HEIGHT}
 					tickFormatter={formatCategory}
 					{...rechartsAxisTheme}
 				/>
 				<YAxis
 					{...rechartsAxisTheme}
 					tickFormatter={(value: number) => formatCompact(value)}
-					width={undefined}
+					width={RECHARTS_YAXIS_WIDTH}
 				/>
 				{/* §5.3: the zero axis is what expresses sign in composition mode,
 				 * so it must read clearly regardless of the plot's own domain. */}
@@ -233,12 +228,7 @@ function ChartInner<T>({
 					formatter={(value, name) => [formatCompact(Number(value)), name]}
 					labelFormatter={formatCategory}
 				/>
-				<SeriesBars
-					data={data}
-					isAnimationActive={isAnimationActive}
-					mode={mode}
-					series={series}
-				/>
+				{seriesBars({ data, isAnimationActive, mode, series })}
 			</BarChart>
 		</ResponsiveContainer>
 	);

@@ -196,6 +196,16 @@ export const rechartsAxisTheme = {
 	tick: { fontSize: TICK_FONT_SIZE },
 } as const;
 
+// recharts 2.x sizes its axes through `defaultProps` (YAxis width 60, XAxis
+// height 30). React 19 ignores `defaultProps` on function components, so those
+// fall through as `undefined` → the plot-area math becomes `containerWidth -
+// undefined = NaN` and EVERY mark renders at NaN coordinates (a blank chart +
+// "<line> attribute x2: Expected length, NaN" console spam). Passing explicit
+// axis sizes makes the layout deterministic under React 19. This is THE fix
+// for the empty recharts charts (bar/line/data-table pivot).
+export const RECHARTS_YAXIS_WIDTH = 52;
+export const RECHARTS_XAXIS_HEIGHT = 24;
+
 /** Shared recharts `<CartesianGrid>` props. */
 export const rechartsGridProps = {
 	stroke: GRID_COLOR,
