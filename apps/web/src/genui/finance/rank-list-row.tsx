@@ -71,27 +71,27 @@ function ExpandChevron({ expanded }: { expanded: boolean }) {
 	);
 }
 
-/** The rank badge + `renderPrimary`/`renderSecondary` slots shared by both
- * the plain-`<div>` and `<button>` header-row variants. */
+/** The `renderPrimary`/`renderSecondary` slots shared by both the plain-`<div>`
+ * and `<button>` header-row variants. The rank badge is NOT here — it's a
+ * separate left gutter in `RankListRow` so everything else (name, secondary,
+ * AND the metric bar below) shares one left edge aligned to the entity NAME,
+ * not to the rank number. */
 function RowHeaderContent<T>({
 	expandable,
 	expanded,
 	item,
-	rank,
 	renderPrimary,
 	renderSecondary,
 }: {
 	expandable: boolean;
 	expanded: boolean;
 	item: T;
-	rank: number;
 	renderPrimary: (item: T) => ReactNode;
 	renderSecondary?: (item: T) => ReactNode;
 }) {
 	return (
 		<>
 			<div className="flex min-w-0 items-center gap-2">
-				<span className={RANK_WIDTH_CLASS}>{rank}</span>
 				{renderPrimary(item)}
 			</div>
 			<div className="flex shrink-0 items-center gap-3">
@@ -135,7 +135,6 @@ function RowHeader<T>({
 	expanded,
 	item,
 	onToggleExpand,
-	rank,
 	renderPrimary,
 	renderSecondary,
 }: {
@@ -143,7 +142,6 @@ function RowHeader<T>({
 	expanded: boolean;
 	item: T;
 	onToggleExpand: () => void;
-	rank: number;
 	renderPrimary: (item: T) => ReactNode;
 	renderSecondary?: (item: T) => ReactNode;
 }) {
@@ -152,7 +150,6 @@ function RowHeader<T>({
 			expandable={expandable}
 			expanded={expanded}
 			item={item}
-			rank={rank}
 			renderPrimary={renderPrimary}
 			renderSecondary={renderSecondary}
 		/>
@@ -211,29 +208,35 @@ export function RankListRow<T>({
 
 	return (
 		<motion.div
-			className="flex flex-col gap-1.5 py-2"
+			className="flex items-start gap-2 py-2"
 			variants={rowItemVariants(reduced)}
 		>
-			<RowHeader
-				expandable={expandable}
-				expanded={expanded}
-				item={item}
-				onToggleExpand={onToggleExpand}
-				rank={rank}
-				renderPrimary={renderPrimary}
-				renderSecondary={renderSecondary}
-			/>
-			<ProportionBar
-				label={metricLabel}
-				max={max}
-				segments={metricSegments?.(item)}
-				tone={resolveTone(metricTone, item)}
-				value={metric}
-				valueLabel={metricValue?.(item)}
-			/>
-			{expandable && expanded ? (
-				<RowExpanded reduced={reduced}>{renderExpanded?.(item)}</RowExpanded>
-			) : null}
+			{/* Rank is a fixed left gutter, top-aligned with the NAME line (not
+			    vertically centered against the name+code block). Everything else
+			    lives in the column beside it, so the name, the secondary values
+			    AND the metric bar all share one left edge aligned to the name. */}
+			<span className={RANK_WIDTH_CLASS}>{rank}</span>
+			<div className="flex min-w-0 flex-1 flex-col gap-1.5">
+				<RowHeader
+					expandable={expandable}
+					expanded={expanded}
+					item={item}
+					onToggleExpand={onToggleExpand}
+					renderPrimary={renderPrimary}
+					renderSecondary={renderSecondary}
+				/>
+				<ProportionBar
+					label={metricLabel}
+					max={max}
+					segments={metricSegments?.(item)}
+					tone={resolveTone(metricTone, item)}
+					value={metric}
+					valueLabel={metricValue?.(item)}
+				/>
+				{expandable && expanded ? (
+					<RowExpanded reduced={reduced}>{renderExpanded?.(item)}</RowExpanded>
+				) : null}
+			</div>
 		</motion.div>
 	);
 }
