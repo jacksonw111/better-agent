@@ -1,0 +1,68 @@
+{
+  "name": "@jacksonw111/finance-genui",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Interactive React renderers for the Better Agent finance MCP tool results — 14 archetypes (charts, tables, rank lists, panels) keyed by finance_* tool name. Connect an agent to the finance MCP and render its tool results out of the box.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jacksonw111/better-agent.git",
+    "directory": "packages/finance-genui"
+  },
+  "homepage": "https://github.com/jacksonw111/better-agent/tree/main/packages/finance-genui#readme",
+  "keywords": [
+    "better-agent",
+    "finance",
+    "mcp",
+    "genui",
+    "react",
+    "charts",
+    "recharts"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lightweight-charts": "^5.0.9",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.6",
+    "recharts": "2.15.3",
+    "tailwind-merge": "^3.3.1"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19",
+    "zod": ">=3"
+  },
+  "devDependencies": {
+    "@better-agent/config": "workspace:*",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "^29.0.2",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "4.1.9",
+    "zod": "catalog:"
+  }
+}
