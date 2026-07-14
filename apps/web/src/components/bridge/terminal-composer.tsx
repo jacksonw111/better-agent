@@ -11,12 +11,16 @@ import { useClientPref } from "@/utils/preferences";
 import type { TextWhen } from "./agent-capabilities";
 import { BusyInputHint } from "./busy-input-hint";
 import { handleCtrlEnterKeyDown } from "./composer-enter-policy";
+import { usePermissionModeCycle } from "./permission-mode-cycle";
 import { SlashPickerList } from "./slash-picker-list";
 import {
 	ComposerToolbar,
 	resolveToolbarProps,
 } from "./terminal-composer-toolbar";
+import { useBusySend } from "./use-busy-send";
 import { type UseSlashPickerResult, useSlashPicker } from "./use-slash-picker";
+import type { WebQueue, WebQueueItem } from "./use-web-queue";
+import { WebQueueCards } from "./web-queue-cards";
 
 export interface TerminalComposerProps {
 	/** R3-T1: the busy-turn send policies this agent actually supports (see
@@ -68,6 +72,12 @@ export interface TerminalComposerProps {
 	/** True from the user's send until the turn completes — swaps Send for Stop
 	 * (when `canInterrupt`) so the user can cancel a long-running turn. */
 	turnInFlight?: boolean;
+	/** P2-T5: the web-side editable busy queue (see use-web-queue.ts). When
+	 * present, a busy-turn submit with the default "queue" policy is HELD here
+	 * (rendered as editable/deletable cards above the box) instead of being
+	 * relayed for native agent-side queueing; absent (unit tests), the old
+	 * immediate send applies. */
+	webQueue?: WebQueue;
 }
 
 /** `aria-activedescendant`/`aria-controls` wiring for the textarea while the
@@ -155,11 +165,6 @@ function ComposerBox({
  * Selecting an item only fills the box (`/name `); sending still goes through
  * the same `onSend` path as any other line.
  */
-/** The default busy-turn send policy — every new turn starts here, and a
- * submit always resets back to it (see the `turnInFlight` effect and
- * `submit()` below): "don't persist a sticky 'interrupt'" per the brief. */
-const DEFAULT_WHEN: TextWhen = "queue";
-
 /** True only once a turn is actually in flight AND the agent supports more
  * than the bare default — with a single busy mode there's nothing to pick,
  * so the hint/dropdown would just be noise. Split out purely to keep
@@ -193,46 +198,38 @@ function useEscInterrupt(props: TerminalComposerProps): void {
 	}, [enabled, onInterrupt]);
 }
 
-interface BusySendResult {
-	setWhen: (when: TextWhen) => void;
-	submit: () => void;
-	when: TextWhen;
-}
-
-/** Owns the busy-mode pick plus the actual `onSend` dispatch/reset — split
- * out of `TerminalComposer` purely to keep it under the repo's
- * max-lines-per-function gate. Resets back to the default "queue" both when a
- * fresh turn starts AND after every submit: "don't persist a sticky
- * 'interrupt'" across turns per the brief. */
-function useBusySend(
+/** The web queue's cards plus the busy-input hint row, stacked in that order
+ * above the box — split out of `TerminalComposer` purely to keep it under the
+ * repo's max-lines-per-function gate. "Edit" loads the card's text back into
+ * the composer (replacing the current draft) and removes the card. */
+function composerHint(
 	props: TerminalComposerProps,
-	text: string,
+	busySend: { setWhen: (when: TextWhen) => void; when: TextWhen },
 	setText: (text: string) => void
-): BusySendResult {
-	const { disabled, sending, turnInFlight } = props;
-	const [when, setWhen] = useState<TextWhen>(DEFAULT_WHEN);
-
-	useEffect(() => {
-		if (turnInFlight) {
-			setWhen(DEFAULT_WHEN);
-		}
-	}, [turnInFlight]);
-
-	const submit = () => {
-		const trimmed = text.trim();
-		if (trimmed === "" || disabled || sending) {
-			return;
-		}
-		if (when === DEFAULT_WHEN) {
-			props.onSend(trimmed);
-		} else {
-			props.onSend(trimmed, when);
-		}
-		setText("");
-		setWhen(DEFAULT_WHEN);
+): ReactNode {
+	const onEdit = (item: WebQueueItem) => {
+		setText(item.text);
+		props.webQueue?.remove(item.id);
 	};
-
-	return { setWhen, submit, when };
+	return (
+		<>
+			{props.webQueue && (
+				<WebQueueCards
+					items={props.webQueue.items}
+					onEdit={onEdit}
+					onRemove={(id) => props.webQueue?.remove(id)}
+				/>
+			)}
+			{shouldShowBusyHint(props) && (
+				<BusyInputHint
+					busyModes={props.busyModes ?? []}
+					onWhenChange={busySend.setWhen}
+					queuedCount={props.queuedCount}
+					when={busySend.when}
+				/>
+			)}
+		</>
+	);
 }
 
 export function TerminalComposer(props: TerminalComposerProps) {
@@ -247,21 +244,23 @@ export function TerminalComposer(props: TerminalComposerProps) {
 	const { setWhen, submit, when } = useBusySend(props, text, setText);
 	useEscInterrupt(props);
 	const sendByCtrlEnter = useClientPref("sendByCtrlEnter");
+	const handleTabCycle = usePermissionModeCycle({
+		onSetPermissionMode: props.onSetPermissionMode ?? (() => undefined),
+		permissionMode: props.permissionMode,
+		permissionModes: props.permissionModes,
+		pickerOpen: picker.open,
+	});
+	// Chain order: an open "/" picker owns the keyboard, then Tab-cycles the
+	// permission mode (P2-T5), then the Ctrl+Enter send policy (P2-T4).
 	const onComposerKeyDown = (
 		event: ReactKeyboardEvent<HTMLTextAreaElement>
 	): boolean =>
 		picker.handleKeyDown(event) ||
+		handleTabCycle(event) ||
 		handleCtrlEnterKeyDown(event, sendByCtrlEnter, submit);
 
 	const toolbar = <ComposerToolbar {...resolveToolbarProps(props, text)} />;
-	const hint = shouldShowBusyHint(props) && (
-		<BusyInputHint
-			busyModes={props.busyModes ?? []}
-			onWhenChange={setWhen}
-			queuedCount={props.queuedCount}
-			when={when}
-		/>
-	);
+	const hint = composerHint(props, { setWhen, when }, setText);
 
 	// Keep this wrapper's classes AND the inner PromptInput's classes in sync
 	// with their twin in packages/ui/src/components/chat/chat-composer.tsx

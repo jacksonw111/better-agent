@@ -49,16 +49,36 @@ export interface SlashPickerSource {
 	skills?: string[];
 }
 
+/** P2-T5: reorders one GROUP of items by use count (see slash-usage.ts) —
+ * counted items first, highest count first; ties, and everything never used,
+ * keep the agent-reported order (the decorate-sort keeps it stable by
+ * original index). Sorting stays within each group so the picker's
+ * Commands/Skills headers keep their meaning. */
+function sortByUsage(
+	items: SlashPickerItem[],
+	usage: Record<string, number> | undefined
+): SlashPickerItem[] {
+	if (!usage) {
+		return items;
+	}
+	return items
+		.map((item, index) => ({ count: usage[item.name] ?? 0, index, item }))
+		.sort((a, b) => b.count - a.count || a.index - b.index)
+		.map((entry) => entry.item);
+}
+
 /**
  * Builds the filtered, grouped item list for a query: commands first, then
- * skills, each filtered by case-insensitive prefix match. An adapter that
- * hasn't reported one of the two lists at all (undefined, vs. an empty
- * array) simply contributes nothing — the caller renders an empty/absent
- * picker rather than a misleading "no skills" state.
+ * skills, each filtered by case-insensitive prefix match and — when a
+ * `usage` map is provided — sorted most-used-first within its group. An
+ * adapter that hasn't reported one of the two lists at all (undefined, vs.
+ * an empty array) simply contributes nothing — the caller renders an
+ * empty/absent picker rather than a misleading "no skills" state.
  */
 export function buildSlashPickerItems(
 	source: SlashPickerSource,
-	query: string
+	query: string,
+	usage?: Record<string, number>
 ): SlashPickerItem[] {
 	const lowerQuery = query.toLowerCase();
 	const matches = (name: string) =>
@@ -70,8 +90,8 @@ export function buildSlashPickerItems(
 				(name): SlashPickerItem => ({ kind, name: stripLeadingSlash(name) })
 			);
 	return [
-		...toItems(source.commands, "command"),
-		...toItems(source.skills, "skill"),
+		...sortByUsage(toItems(source.commands, "command"), usage),
+		...sortByUsage(toItems(source.skills, "skill"), usage),
 	];
 }
 

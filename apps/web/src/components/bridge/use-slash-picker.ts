@@ -8,6 +8,7 @@ import {
 	type SlashPickerItem,
 	type SlashPickerSource,
 } from "./slash-picker";
+import { readSlashUsage, recordSlashUsage } from "./slash-usage";
 
 export interface UseSlashPickerArgs extends SlashPickerSource {
 	setText: (text: string) => void;
@@ -41,10 +42,18 @@ function useSlashPickerItems(
 ) {
 	const parsed = parseSlashQuery(text);
 	const query = parsed?.query ?? null;
+	// P2-T5: usage counts re-read per keystroke (a tiny localStorage blob) so
+	// the sort always reflects the latest picks; a selection closes the picker
+	// (the inserted trailing space ends the query), so the order never
+	// reshuffles under an open list.
 	const items =
 		parsed === null
 			? []
-			: buildSlashPickerItems({ commands, skills }, parsed.query);
+			: buildSlashPickerItems(
+					{ commands, skills },
+					parsed.query,
+					readSlashUsage()
+				);
 	const [activeIndex, setActiveIndex] = useState(0);
 	const [seenQuery, setSeenQuery] = useState(query);
 	if (query !== seenQuery) {
@@ -132,6 +141,10 @@ export function useSlashPicker({
 	const open = items.length > 0;
 
 	const select = (item: SlashPickerItem) => {
+		// P2-T5: a SELECTION (Enter or click on a picker row) is what counts as
+		// "using" an item for the frequency sort — typing a full name by hand
+		// deliberately doesn't bump it.
+		recordSlashUsage(item.name);
 		const prefix = parseSlashQuery(text)?.prefix ?? "";
 		setText(applySlashPickerSelection(item, prefix));
 	};

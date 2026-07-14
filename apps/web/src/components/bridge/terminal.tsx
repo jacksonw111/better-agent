@@ -12,6 +12,7 @@ import { TerminalBody } from "./terminal-body";
 import { TerminalHeader } from "./terminal-header";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 import { useFoldedTurns } from "./use-folded-turns";
+import { useWebQueue } from "./use-web-queue";
 
 export interface TerminalProps {
 	/** The bridge session id the terminal is currently showing — drives the
@@ -102,8 +103,18 @@ function useTerminalView(
 		() => resolveCapabilities(session.agentKind, bridge.sessionReady),
 		[session.agentKind, bridge.sessionReady]
 	);
+	// P2-T5: the web-side editable busy queue — keyed by the session ROW id
+	// (session.id, stable for the session's whole life), NOT the derived
+	// `sessionId` below, which flips once `session_ready` reports the agent's
+	// own id and would spuriously trip the queue's "session switched" drop.
+	const webQueue = useWebQueue({
+		ended,
+		send: bridge.sendInput,
+		sessionId: session.id,
+		turnInFlight,
+	});
 	const sessionId = bridge.sessionReady?.sessionId ?? session.id;
-	return { ...bridge, avatars, caps, sessionId, turns, turnInFlight };
+	return { ...bridge, avatars, caps, sessionId, turns, turnInFlight, webQueue };
 }
 
 /**
@@ -198,6 +209,7 @@ function BodyFromView({
 			turns={view.turns}
 			turnUsage={view.turnUsage}
 			usageUpdate={view.usageUpdate}
+			webQueue={view.webQueue}
 		/>
 	);
 }

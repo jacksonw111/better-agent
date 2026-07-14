@@ -12,6 +12,7 @@ import { TerminalComposer } from "./terminal-composer";
 import { TerminalFeed } from "./terminal-feed";
 import { TurnUsagePanel } from "./turn-usage-panel";
 import { UsageUpdateLine } from "./usage-update-line";
+import type { WebQueue } from "./use-web-queue";
 
 // `Terminal`'s body — feed, (capability-gated) usage chip, and composer —
 // split out of terminal.tsx purely to keep that file under the repo's
@@ -47,6 +48,8 @@ export interface TerminalBodyProps {
 	turns: BridgeTurn[];
 	turnUsage: TurnUsageDetail | null;
 	usageUpdate: UsageUpdateDetail | null;
+	/** P2-T5: the web-side editable busy queue (see use-web-queue.ts). */
+	webQueue?: WebQueue;
 }
 
 interface BodyComposerProps {
@@ -63,6 +66,7 @@ interface BodyComposerProps {
 	setThinking: (level: string) => void;
 	showNextTurnHint: boolean;
 	turnInFlight: boolean;
+	webQueue?: WebQueue;
 }
 
 /** The "/" picker's command names: the live `command_catalog` (R5-T1/R5-T2)
@@ -100,6 +104,7 @@ function BodyComposer({
 	setThinking,
 	showNextTurnHint,
 	turnInFlight,
+	webQueue,
 }: BodyComposerProps) {
 	return (
 		<TerminalComposer
@@ -126,6 +131,7 @@ function BodyComposer({
 			}
 			thinkingLevels={caps.thinkingLevels}
 			turnInFlight={turnInFlight}
+			webQueue={webQueue}
 		/>
 	);
 }
@@ -167,6 +173,7 @@ export function TerminalBody(props: TerminalBodyProps) {
 				setThinking={props.setThinking}
 				showNextTurnHint={props.showNextTurnHint}
 				turnInFlight={props.turnInFlight}
+				webQueue={props.webQueue}
 			/>
 		</>
 	);

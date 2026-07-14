@@ -65,6 +65,40 @@ it("contributes nothing for a capability list the session hasn't reported", () =
 	]);
 });
 
+// P2-T5: usage-frequency sort — counted items first (count desc), zero-count
+// items keep the agent-reported order after them, all WITHIN each group.
+it("sorts counted items first within a group, ties and zero-counts keeping reported order", () => {
+	const items = buildSlashPickerItems(
+		{ commands: ["alpha", "bravo", "charlie", "delta"] },
+		"",
+		{ charlie: 3, delta: 3, bravo: 1 }
+	);
+	expect(items.map((item) => item.name)).toEqual([
+		"charlie",
+		"delta",
+		"bravo",
+		"alpha",
+	]);
+});
+
+it("sorts within groups only — a heavily-used skill never jumps above commands", () => {
+	const items = buildSlashPickerItems(
+		{ commands: ["compact", "clear"], skills: ["pdf"] },
+		"",
+		{ pdf: 9, clear: 1 }
+	);
+	expect(items).toEqual([
+		{ kind: "command", name: "clear" },
+		{ kind: "command", name: "compact" },
+		{ kind: "skill", name: "pdf" },
+	]);
+});
+
+it("keeps the reported order untouched when no usage map is provided", () => {
+	const items = buildSlashPickerItems({ commands: ["bravo", "alpha"] }, "");
+	expect(items.map((item) => item.name)).toEqual(["bravo", "alpha"]);
+});
+
 it("fills the composer with the command, trailing space for args, preserving prefix", () => {
 	expect(applySlashPickerSelection({ kind: "command", name: "compact" })).toBe(
 		"/compact "
