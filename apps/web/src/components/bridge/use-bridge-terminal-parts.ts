@@ -64,6 +64,9 @@ export interface UseBridgeTerminalResult {
 	 * workspace Shell tab. Output arrives asynchronously as `runShell`-marked
 	 * tool events on `events`. */
 	runShell: (command: string) => Promise<void>;
+	/** P4-T5: the search channel's control sender — requestId-correlated, see
+	 * `SessionControls.searchSessions` (use-bridge-terminal-actions.ts). */
+	searchSessions: (requestId: string, query: string) => Promise<void>;
 	/** R3-T1: `when` rides the send as a busy-turn policy override ("steer"/
 	 * "interrupt") — omitted (or "queue", the default) sends the plain queued
 	 * text, identical to the pre-R3-T1 single-argument call. See
@@ -185,6 +188,8 @@ export interface BuildResultArgs {
 	restart: () => Promise<void>;
 	/** P4-T2: runs a one-shot shell command in the agent's workspace. */
 	runShell: (command: string) => Promise<void>;
+	/** P4-T5: see `UseBridgeTerminalResult.searchSessions`. */
+	searchSessions: (requestId: string, query: string) => Promise<void>;
 	sendInput: (
 		text: string,
 		when?: TextWhen,
@@ -233,6 +238,7 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		queueUpdate: args.queueUpdate,
 		restart: args.restart,
 		runShell: args.runShell,
+		searchSessions: args.searchSessions,
 		sessionReady: args.sessionReady,
 		sessionList: args.sessionList,
 		getStatus: args.getStatus,

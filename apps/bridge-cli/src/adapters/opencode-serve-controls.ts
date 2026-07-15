@@ -8,6 +8,7 @@ import { parseOpencodeServeStatus } from "../normalize/opencode-serve-status";
 import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { retractPendingApprovals } from "./approvals";
 import type { AsyncQueue } from "./async-queue";
+import { makeOpencodeSearchSessions } from "./opencode-search";
 import type { ServeSessionContext } from "./opencode-serve";
 import type { ServeAgentRef } from "./opencode-serve-agent";
 import { firePost } from "./opencode-serve-http";
@@ -167,9 +168,10 @@ export function buildServeHandle(
 		},
 		events,
 		getStatus: makeServeGetStatus(ctx),
-		// P4-T1: same on-disk SQLite store as the ACP transport — see
-		// opencode-sessions.ts.
+		// P4-T1/T5: same on-disk SQLite store as the ACP transport — see
+		// opencode-sessions.ts / opencode-search.ts.
 		listSessions: makeOpencodeListSessions(dir, events),
+		searchSessions: makeOpencodeSearchSessions(dir, events),
 		...makeServeControls(ctx, {}, agentRef),
 		stop(): void {
 			bumpTurnEpoch(epoch);

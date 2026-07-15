@@ -18,6 +18,7 @@ import type { WorkspaceTabId } from "@/components/bridge/local-agent-workspace-t
 import { WEB_NAV_ITEMS } from "@/components/nav-items";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
+import { SessionContentMatches } from "./command-palette-content-matches";
 import type { WorkspaceCommandTarget } from "./command-palette-store";
 
 // P2-T3: the palette's pages. `PalettePageId` is the page-stack vocabulary —
@@ -175,39 +176,52 @@ export function RootCommandPage({
 
 /** The sessions sub-page: the current agent's sessions inside a workspace,
  * otherwise the user's recent sessions across agents. Searchable by label
- * and id; selecting deep-links to /local/$tokenId?session=<id>. */
+ * and id; selecting deep-links to /local/$tokenId?session=<id>. P4-T5: inside
+ * a workspace whose CLI answers `searchSessions`, `query` ALSO drives a
+ * debounced content search rendered beneath as a "内容匹配" group. */
 export function SessionsCommandPage({
 	onRun,
+	query,
 	workspace,
 }: {
 	onRun: RunAction;
+	query: string;
 	workspace: WorkspaceCommandTarget | null;
 }) {
 	const navigate = useNavigate();
 	const sessions = usePaletteSessions(workspace?.tokenId);
 	return (
-		<CommandGroup
-			heading={workspace ? "Sessions — this agent" : "Recent sessions"}
-		>
-			{sessions.map((session) => (
-				<CommandItem
-					key={session.id}
-					keywords={[session.id]}
-					onSelect={() =>
-						onRun(() =>
-							navigate({
-								params: { tokenId: session.tokenId },
-								search: { session: session.id },
-								to: "/local/$tokenId",
-							})
-						)
-					}
-					value={`session ${session.label} ${session.id}`}
-				>
-					<MessageSquareIcon />
-					<span className="truncate">{session.label}</span>
-				</CommandItem>
-			))}
-		</CommandGroup>
+		<>
+			<CommandGroup
+				heading={workspace ? "Sessions — this agent" : "Recent sessions"}
+			>
+				{sessions.map((session) => (
+					<CommandItem
+						key={session.id}
+						keywords={[session.id]}
+						onSelect={() =>
+							onRun(() =>
+								navigate({
+									params: { tokenId: session.tokenId },
+									search: { session: session.id },
+									to: "/local/$tokenId",
+								})
+							)
+						}
+						value={`session ${session.label} ${session.id}`}
+					>
+						<MessageSquareIcon />
+						<span className="truncate">{session.label}</span>
+					</CommandItem>
+				))}
+			</CommandGroup>
+			{workspace && (
+				<SessionContentMatches
+					onRun={onRun}
+					query={query}
+					workspace={workspace}
+				/>
+			)}
+		</>
 	);
 }

@@ -25,6 +25,7 @@ import {
 	type QuestionRegistry,
 	retractPendingQuestions,
 } from "./questions";
+import { makePiSearchSessions } from "./session-search-providers";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -62,6 +63,8 @@ interface PiAgentHandleDeps {
 	modelProviders: Record<string, string>;
 	// R3-T1 Part B: a `select` extension_ui_request's QuestionCard reply path.
 	questions: QuestionRegistry;
+	// P4-T5: on-disk transcript content search — see session-search-providers.ts.
+	searchSessions(requestId: string, query: string): void;
 	// P4-T1: on-disk session scan for "Past conversations" — see pi-sessions.ts.
 	sessionIndex: { listSessions(): void };
 	statusTracker: { request(): void };
@@ -121,6 +124,7 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		io,
 		modelProviders,
 		questions,
+		searchSessions,
 		sessionIndex,
 		statusTracker,
 		streaming,
@@ -137,6 +141,7 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		getStatus: statusTracker.request,
 		interrupt: makePiInterrupt(deps),
 		listSessions: sessionIndex.listSessions,
+		searchSessions,
 		send(text: string, images?: AgentImage[]): void {
 			// A new turn begins — bump BEFORE pushing (see `interrupt` above).
 			bumpTurnEpoch(epoch);
@@ -233,6 +238,7 @@ export const piAdapter: Adapter = {
 			io,
 			modelProviders,
 			questions,
+			searchSessions: makePiSearchSessions(dir, events),
 			sessionIndex,
 			statusTracker,
 			streaming,

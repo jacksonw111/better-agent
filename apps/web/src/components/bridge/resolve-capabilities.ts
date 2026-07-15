@@ -39,7 +39,7 @@ export interface SessionCapabilities {
 	modelSwitch: boolean;
 	permissionModes: string[];
 	quota: boolean;
-	sessionOps: ("list" | "fork" | "tree" | "compact")[];
+	sessionOps: ("list" | "fork" | "tree" | "compact" | "search")[];
 	/** P4-T2: CLI answers `runShell` (Shell tab); old handshakes omit → false. */
 	shell?: boolean;
 	skills: boolean;
@@ -63,6 +63,9 @@ export interface ResolvedCapabilities extends AgentCapabilities {
 	mcp: SessionCapabilities["mcp"];
 	quota: boolean;
 	sessionOps: SessionCapabilities["sessionOps"];
+	/** P4-T5: the CLI answers `searchSessions` (⌘K content matches) — derived
+	 * from `sessionOps` containing "search", like `sessionList` from "list". */
+	sessionSearch: boolean;
 	/** P4-T2: gates the Shell tab; only a P4-T2+ handshake enables it. */
 	shell: boolean;
 	thinkingLevels: string[];
@@ -81,6 +84,7 @@ function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
 		mcp: "none",
 		quota: false,
 		sessionOps: base.sessionList ? ["list"] : [],
+		sessionSearch: false,
 		shell: false,
 		thinkingLevels: [],
 	};
@@ -117,6 +121,7 @@ export function resolveCapabilities(
 		quota: handshake.quota,
 		sessionList: handshake.sessionOps.includes("list"),
 		sessionOps: handshake.sessionOps,
+		sessionSearch: handshake.sessionOps.includes("search"),
 		shell: handshake.shell ?? false,
 		skills: handshake.skills,
 		slashCommands: handshake.slashCommands,

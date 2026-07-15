@@ -14,6 +14,7 @@ import { useBridgeTerminal } from "./use-bridge-terminal";
 import { useFoldedTurns } from "./use-folded-turns";
 import { usePublishFsChannel } from "./use-fs-channel";
 import { usePublishGitChannel } from "./use-git-channel";
+import { usePublishSessionSearchChannel } from "./use-session-search";
 import { usePublishShellChannel } from "./use-shell-channel";
 import { useWebQueue } from "./use-web-queue";
 
@@ -207,6 +208,12 @@ function usePublishWorkspaceChannels(view: TerminalView): void {
 		diff: view.gitDiff,
 		status: view.gitStatus,
 	});
+	// P4-T5: the ⌘K palette's cross-session content search.
+	usePublishSessionSearchChannel(
+		view.events,
+		caps.sessionSearch,
+		view.searchSessions
+	);
 }
 
 /** The feed + usage + composer, built from the terminal hook's `view` — split

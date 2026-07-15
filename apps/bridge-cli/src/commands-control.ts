@@ -101,6 +101,18 @@ export interface ControlFsReadCommand {
 	type: "control";
 }
 
+/** P4-T5: the ⌘K palette's cross-session content search. `requestId` is
+ * web-minted and echoed on the single `session_search` reply status event
+ * (see adapters/session-search.ts). Routed to `CommandSink.searchSessions` —
+ * answered by the ADAPTER's own on-disk session store (per-agent-kind),
+ * unlike the CLI-global fs/git wrappers. */
+export interface ControlSearchSessionsCommand {
+	action: "searchSessions";
+	query: string;
+	requestId: string;
+	type: "control";
+}
+
 /** The detail page's "Start desktop" button (`--cua`): provision + boot the
  * local VM and open its VNC. Routed to `CommandSink.startVm`. */
 export interface ControlStartVmCommand {
@@ -125,6 +137,7 @@ export type ControlCommand =
 	| ControlListSessionsCommand
 	| ControlRestartCommand
 	| ControlRunShellCommand
+	| ControlSearchSessionsCommand
 	| ControlSetModelCommand
 	| ControlSetPermissionModeCommand
 	| ControlSetThinkingCommand
@@ -182,6 +195,26 @@ function parseFsControlCommand(
 	return null;
 }
 
+/** P4-T5: `searchSessions` — requires the web-minted `requestId` (echoed on
+ * the reply, like the fs/git commands) and the literal `query` string. */
+function parseSearchSessionsCommand(
+	data: Record<string, unknown>
+): ControlCommand | null {
+	if (
+		data.action === "searchSessions" &&
+		typeof data.requestId === "string" &&
+		typeof data.query === "string"
+	) {
+		return {
+			action: "searchSessions",
+			query: data.query,
+			requestId: data.requestId,
+			type: "control",
+		};
+	}
+	return null;
+}
+
 const SIMPLE_CONTROL_ACTIONS = new Set([
 	"stop",
 	"interrupt",
@@ -214,6 +247,7 @@ export function parseControlCommand(
 		parseControlCommandWithPayload(data) ??
 		parseFsControlCommand(data) ??
 		parseGitControlCommand(data) ??
+		parseSearchSessionsCommand(data) ??
 		parseAnswerQuestionCommand(data) ??
 		parseSimpleControlCommand(data)
 	);

@@ -11,10 +11,8 @@ import type {
 export type AgentKind = "claude-code" | "opencode" | "codex" | "pi";
 
 /** Which wire protocol drives the opencode agent: `acp` (the default —
- * `opencode acp` over stdio JSON-RPC, the battle-tested path) or `serve`
- * (`opencode serve` over HTTP + SSE, opt-in via `--opencode-transport serve`;
- * its wire shapes are still unverified against a real binary — see
- * opencode-serve.ts). Ignored by every other agent kind. */
+ * stdio JSON-RPC) or `serve` (HTTP + SSE, opt-in via `--opencode-transport
+ * serve`; see opencode-serve.ts). Ignored by every other agent kind. */
 export type OpencodeTransport = "acp" | "serve";
 
 export const OPENCODE_TRANSPORTS: readonly OpencodeTransport[] = [
@@ -42,11 +40,8 @@ export type UsageMode = "stream" | "poll" | "none";
  * control method does — see `interrupt`. */
 export type TextWhen = "queue" | "steer" | "interrupt";
 
-// `AgentCapabilities` — the older, now-superseded-by-`SessionCapabilities`
-// shape — lives in agent-capabilities.ts, split out purely to keep this file
-// under the repo's 300-line cap; re-exported here so existing imports of it
-// from "./types" keep working (mirrors normalize/pi.ts's re-export of
-// `normalizePiExtensionUiRequest`).
+// `AgentCapabilities` (superseded by `SessionCapabilities`) lives in
+// agent-capabilities.ts (300-line cap); re-exported so imports keep working.
 export type { AgentCapabilities } from "./agent-capabilities";
 
 /** R2-T1: what one adapter's underlying agent ACTUALLY supports, reported
@@ -75,8 +70,9 @@ export interface SessionCapabilities {
 	permissionModes: string[];
 	/** Can fetch the account's quota/rate-limit windows on demand. */
 	quota: boolean;
-	/** Session-management operations the agent supports. */
-	sessionOps: ("list" | "fork" | "tree" | "compact")[];
+	/** Session-management operations the agent supports — "search" (P4-T5) is
+	 * the on-disk transcript content search behind `searchSessions`. */
+	sessionOps: ("list" | "fork" | "tree" | "compact" | "search")[];
 	/** P4-T2: out-of-band `runShell` (Shell tab) — CLI-side, handshake-gated. */
 	shell: boolean;
 	/** The agent exposes a skills list. */
@@ -215,6 +211,10 @@ export interface AgentHandle {
 	 * `Adapter.start` from `StartOptions.skills`, not here.
 	 */
 	reloadSkills?(): void;
+	/** P4-T5: full-text search over this agent's on-disk session transcripts,
+	 * replying with ONE `session_search` status event echoing `requestId` (see
+	 * ./session-search.ts). Optional — per-adapter, like `listSessions`. */
+	searchSessions?(requestId: string, query: string): void;
 	/** Feeds a user command (from the web UI, relayed through the server) to
 	 * the agent. P3-T2: `images` (already downloaded + base64'd — see
 	 * `AgentImage`) rides along for adapters whose

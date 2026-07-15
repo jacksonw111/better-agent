@@ -190,6 +190,20 @@ it("derives sessionList from the handshake's sessionOps when one is present", ()
 	expect(withoutList.sessionList).toBe(false);
 });
 
+// P4-T5: same derivation for the ⌘K content search — only a live handshake
+// listing the "search" op enables it; pre-P4-T5 CLIs never do.
+it("derives sessionSearch from the handshake's sessionOps and defaults it off", () => {
+	const withSearch = resolveCapabilities("codex", {
+		capabilities: { ...HANDSHAKE, sessionOps: ["list", "search"] },
+	});
+	expect(withSearch.sessionSearch).toBe(true);
+	const withoutSearch = resolveCapabilities("codex", {
+		capabilities: { ...HANDSHAKE, sessionOps: ["list"] },
+	});
+	expect(withoutSearch.sessionSearch).toBe(false);
+	expect(resolveCapabilities("claude-code", null).sessionSearch).toBe(false);
+});
+
 it("keeps the static claude-only sessionList gating when no handshake arrived (old CLI)", () => {
 	expect(resolveCapabilities("codex", null).sessionList).toBe(false);
 	expect(resolveCapabilities("opencode", null).sessionList).toBe(false);

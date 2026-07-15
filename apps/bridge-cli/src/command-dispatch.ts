@@ -53,6 +53,13 @@ function callGitCommit(
 ): void {
 	sink.gitCommit?.(requestId, message);
 }
+function callSearchSessions(
+	sink: CommandSink,
+	requestId: string,
+	query: string
+): void {
+	sink.searchSessions?.(requestId, query);
+}
 function callListSessions(sink: CommandSink): void {
 	sink.listSessions?.();
 }
@@ -141,6 +148,25 @@ function dispatchGitControlCommand(
 	return true;
 }
 
+/** P4-T3/T5: the requestId-correlated workspace-query actions' arm (fs reads
+ * + session search) — same complexity-gate split as
+ * `dispatchGitControlCommand`. Returns whether `command` was one of them. */
+function dispatchWorkspaceQueryCommand(
+	command: ControlCommand,
+	sink: CommandSink
+): boolean {
+	if (command.action === "fsList") {
+		callFsList(sink, command.requestId, command.path);
+	} else if (command.action === "fsRead") {
+		callFsRead(sink, command.requestId, command.path);
+	} else if (command.action === "searchSessions") {
+		callSearchSessions(sink, command.requestId, command.query);
+	} else {
+		return false;
+	}
+	return true;
+}
+
 export function dispatchControlCommand(
 	command: ControlCommand,
 	sink: CommandSink
@@ -153,6 +179,9 @@ export function dispatchControlCommand(
 	if (dispatchGitControlCommand(command, sink)) {
 		return;
 	}
+	if (dispatchWorkspaceQueryCommand(command, sink)) {
+		return;
+	}
 	if (command.action === "setModel") {
 		callSetModel(sink, command.model);
 	} else if (command.action === "setPermissionMode") {
@@ -161,10 +190,6 @@ export function dispatchControlCommand(
 		callSetThinking(sink, command.level);
 	} else if (command.action === "runShell") {
 		callRunShell(sink, command.command);
-	} else if (command.action === "fsList") {
-		callFsList(sink, command.requestId, command.path);
-	} else if (command.action === "fsRead") {
-		callFsRead(sink, command.requestId, command.path);
 	} else if (command.action === "answerQuestion") {
 		callAnswerQuestion(sink, command.requestId, command.answers);
 	}

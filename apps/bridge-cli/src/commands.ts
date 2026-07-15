@@ -127,6 +127,12 @@ export interface CommandSink {
 	 * it never touches the agent. Optional: a sink/fake without it makes the
 	 * `runShell` control command a silent no-op, like the other controls. */
 	runShell?(command: string): void;
+	/** P4-T5: full-text search over the agent's on-disk session transcripts,
+	 * replying with ONE `session_search` status event echoing the web-minted
+	 * `requestId` (see adapters/session-search.ts). Provided by the ADAPTER
+	 * (per-agent-kind stores), not a CLI-global wrapper. Optional, same silent
+	 * no-op contract as the other controls. */
+	searchSessions?(requestId: string, query: string): void;
 	/** P3-T2: `images` is the wire's id-based `ImageRef` list — the production
 	 * sink (`withImageInput`, image-input.ts) downloads them into `AgentImage`s
 	 * before the adapter sees them; fakes/tests that ignore the param keep

@@ -20,16 +20,27 @@ export function bridgeCliCommand(agentKind: AgentKind, token: string): string {
 	return `agent-cli --agent ${agentKind} --dir . --token ${token} --server ${env.VITE_SERVER_URL}`;
 }
 
+/** P4-T5: the kind-aware variant of `bridgeResumeCliCommand` — the ⌘K content
+ * matches reference every provider's on-disk sessions, so the copied command
+ * must name the workspace's actual agent, not assume claude. */
+export function bridgeResumeCliCommandFor(
+	agentKind: AgentKind,
+	token: string,
+	dir: string | undefined,
+	resumeId: string
+): string {
+	return `agent-cli --agent ${agentKind} --dir ${dir ?? "."} --resume ${resumeId} --token ${token} --server ${env.VITE_SERVER_URL}`;
+}
+
 /** The ready-to-run CLI command to resume a specific past claude conversation
  * (the "Past conversations" picker's copy-able hint). `dir` is the
- * conversation's own recorded cwd when known, falling back to `.`. Resume is
- * claude-only, so the agent kind is fixed here. */
+ * conversation's own recorded cwd when known, falling back to `.`. */
 export function bridgeResumeCliCommand(
 	token: string,
 	dir: string | undefined,
 	resumeId: string
 ): string {
-	return `agent-cli --agent claude-code --dir ${dir ?? "."} --resume ${resumeId} --token ${token} --server ${env.VITE_SERVER_URL}`;
+	return bridgeResumeCliCommandFor("claude-code", token, dir, resumeId);
 }
 
 /** A local agent's display status, extending `LocalAgentStatus` with the

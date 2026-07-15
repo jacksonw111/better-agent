@@ -22,8 +22,9 @@ import {
 
 /** The structural subset of `node:sqlite`'s DatabaseSync this module uses —
  * local (rather than the module's own types) so the code type-checks the same
- * whether or not the installed @types/node ships `node:sqlite` declarations. */
-interface SqliteDatabase {
+ * whether or not the installed @types/node ships `node:sqlite` declarations.
+ * Shared with opencode-search.ts (P4-T5), which reads the same store. */
+export interface SqliteDatabase {
 	close(): void;
 	prepare(sql: string): { all(...params: unknown[]): unknown[] };
 }
@@ -33,7 +34,9 @@ type SqliteDatabaseCtor = new (
 	options: { readOnly: boolean }
 ) => SqliteDatabase;
 
-async function loadDatabaseSync(): Promise<SqliteDatabaseCtor | undefined> {
+export async function loadDatabaseSync(): Promise<
+	SqliteDatabaseCtor | undefined
+> {
 	try {
 		const mod = (await import("node:sqlite")) as {
 			DatabaseSync?: SqliteDatabaseCtor;
@@ -88,7 +91,7 @@ function toSessionListItem(row: unknown): SessionListItem | undefined {
 	};
 }
 
-async function dbFileExists(path: string): Promise<boolean> {
+export async function dbFileExists(path: string): Promise<boolean> {
 	try {
 		return (await stat(path)).isFile();
 	} catch {

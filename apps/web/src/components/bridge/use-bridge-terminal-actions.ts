@@ -155,6 +155,11 @@ export interface SessionControls {
 	 * command }`; output arrives asynchronously as `runShell`-marked tool events
 	 * on the feed (see `apps/bridge-cli/src/shell-runner.ts`). */
 	runShell: (command: string) => Promise<void>;
+	/** P4-T5: full-text search over the agent's on-disk session transcripts —
+	 * `{ type: "control", action: "searchSessions", requestId, query }`;
+	 * replied as ONE `session_search` status event correlated by
+	 * session-search-correlation.ts. */
+	searchSessions: (requestId: string, query: string) => Promise<void>;
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
 	/** Switches the reasoning-effort level for subsequent turns — the
@@ -204,5 +209,7 @@ export function useSessionControls(
 			),
 		gitCommit: (requestId: string, message: string) =>
 			sendControlCommand(sendRaw, "gitCommit", { message, requestId }),
+		searchSessions: (requestId: string, query: string) =>
+			sendControlCommand(sendRaw, "searchSessions", { query, requestId }),
 	};
 }

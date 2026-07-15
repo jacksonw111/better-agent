@@ -34,6 +34,7 @@ import {
 import { userTurn } from "./claude-code-user-turn";
 import { makeInterruptThenSend } from "./interrupt-then-send";
 import { findOnPath } from "./process-io";
+import { makeClaudeSearchSessions } from "./session-search-providers";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -201,6 +202,8 @@ function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 		},
 		interrupt: doInterrupt,
 		listSessions: makeListSessions(dir, events),
+		// P4-T5: disk-side transcript search (the SDK has no content search).
+		searchSessions: makeClaudeSearchSessions(dir, events),
 		send: doSend,
 		// R3-T1: "steer" isn't in claude-code's busyModes (session-capabilities.ts)
 		// so it never reaches here — "interrupt" aborts then sends fresh; "queue"

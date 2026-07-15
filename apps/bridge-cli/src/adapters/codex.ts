@@ -36,6 +36,7 @@ import {
 import { makeInterruptThenSend } from "./interrupt-then-send";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
 import { CODEX_SESSION_CAPABILITIES } from "./session-capabilities";
+import { makeCodexSearchSessions } from "./session-search-providers";
 import {
 	bumpTurnEpoch,
 	createTurnEpoch,
@@ -79,11 +80,10 @@ function threadStartParams(
  * one object so `makeCodexHandle` stays under the repo's max-params gate. */
 interface CodexHandleDeps {
 	approvals: ReturnType<typeof createApprovalRegistry>;
-	// R2-T2: the mutable per-session model/approval-policy state `setModel`/
-	// `setPermissionMode` write into and `send`'s `turn/start` reads back out
-	// of (see codex-controls.ts).
+	// R2-T2: mutable per-session model/approval-policy state `setModel`/
+	// `setPermissionMode` write and `turn/start` reads (see codex-controls.ts).
 	controlState: CodexControlState;
-	// P4-T1: the project directory `listSessions` filters the rollout scan by.
+	// P4-T1/T5: the project dir the rollout scans (list/search) filter by.
 	dir: string;
 	epoch: TurnEpochRef;
 	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>;
@@ -161,10 +161,10 @@ function makeCodexHandle(
 		events,
 		getStatus: makeCodexGetStatus(statusCache, events),
 		listSessions: makeCodexListSessions(dir, events),
+		searchSessions: makeCodexSearchSessions(dir, events),
 		send: doSend,
 		interrupt: doInterrupt,
-		// R3-T1: "steer" isn't in codex's busyModes — "interrupt" cancels the
-		// turn then starts fresh; "queue" falls through to plain doSend.
+		// R3-T1: no "steer" in codex's busyModes; "queue" falls through to doSend.
 		sendWith: makeInterruptThenSend({ doInterrupt, doSend }),
 		setModel: makeCodexSetModel(controlState, statusCache),
 		setPermissionMode: makeCodexSetPermissionMode(controlState),

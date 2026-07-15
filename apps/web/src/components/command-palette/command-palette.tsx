@@ -36,6 +36,31 @@ function useGlobalPaletteShortcut(): void {
 	}, []);
 }
 
+/** The active page's contents — split out of `CommandPalette` purely to keep
+ * it under the repo's max-lines-per-function gate. */
+function PalettePage({
+	onPush,
+	onRun,
+	page,
+	query,
+	workspace,
+}: {
+	onPush: (page: PalettePageId) => void;
+	onRun: (action: () => void) => void;
+	page: PalettePageId | undefined;
+	query: string;
+	workspace: Parameters<typeof RootCommandPage>[0]["workspace"];
+}) {
+	if (page === "sessions") {
+		return (
+			<SessionsCommandPage onRun={onRun} query={query} workspace={workspace} />
+		);
+	}
+	return (
+		<RootCommandPage onPush={onPush} onRun={onRun} workspace={workspace} />
+	);
+}
+
 export function CommandPalette() {
 	useGlobalPaletteShortcut();
 	const { open, workspace } = useCommandPaletteState();
@@ -79,12 +104,13 @@ export function CommandPalette() {
 			/>
 			<CommandList>
 				<CommandEmpty>No results found.</CommandEmpty>
-				{page === undefined && (
-					<RootCommandPage onPush={push} onRun={run} workspace={workspace} />
-				)}
-				{page === "sessions" && (
-					<SessionsCommandPage onRun={run} workspace={workspace} />
-				)}
+				<PalettePage
+					onPush={push}
+					onRun={run}
+					page={page}
+					query={query}
+					workspace={workspace}
+				/>
 			</CommandList>
 		</CommandDialog>
 	);
