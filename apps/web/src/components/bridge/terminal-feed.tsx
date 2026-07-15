@@ -120,6 +120,22 @@ function attachSkeletonTurnId(turns: BridgeTurn[]): number | null {
 	return hasProse ? lastTurn.id : null;
 }
 
+/** The turn kinds that render on the assistant spine (see `BridgeChatRow`'s
+ * `pl-9` + `border-l pl-3` wrapper) rather than as their own avatar bubble:
+ * status/error/file lines and the task/plan/approval/question cards. Used to
+ * pull these items up so their spine bridges the feed's `gap-6` and reads as
+ * a continuation of the preceding assistant turn instead of a line-broken
+ * block. Kept in sync with `BridgeChatRowImpl`'s `default` case. */
+const SIDE_TURN_KINDS = new Set([
+	"status",
+	"error",
+	"file",
+	"approval",
+	"question",
+	"task",
+	"plan",
+]);
+
 /** The scrolling conversation: bridge turns rendered as chat bubbles/lines. */
 export function TerminalFeed({
 	answerApproval,
@@ -145,20 +161,30 @@ export function TerminalFeed({
 						{turns.length === 0 && !turnInFlight ? (
 							<EmptyTerminal />
 						) : (
-							turns.map((turn) => (
-								<MessageScrollerItem key={turn.id}>
-									<BridgeChatRow
-										answered={answered}
-										answeredQuestions={answeredQuestions}
-										attachSkeleton={turnInFlight && turn.id === attachToId}
-										avatars={avatars}
-										ended={ended}
-										onAnswerApproval={answerApproval}
-										onAnswerQuestion={answerQuestion}
-										turn={turn}
-									/>
-								</MessageScrollerItem>
-							))
+							turns.map((turn, index) => {
+								// A spine turn attaches up to the previous item, cancelling
+								// the feed's `gap-6`, so its `border-l` spine meets the
+								// preceding turn's spine instead of leaving a line-breaking
+								// gap. Skipped for the first item (nothing above to meet).
+								const attachUp =
+									index > 0 && SIDE_TURN_KINDS.has(turn.kind)
+										? "-mt-6"
+										: undefined;
+								return (
+									<MessageScrollerItem className={attachUp} key={turn.id}>
+										<BridgeChatRow
+											answered={answered}
+											answeredQuestions={answeredQuestions}
+											attachSkeleton={turnInFlight && turn.id === attachToId}
+											avatars={avatars}
+											ended={ended}
+											onAnswerApproval={answerApproval}
+											onAnswerQuestion={answerQuestion}
+											turn={turn}
+										/>
+									</MessageScrollerItem>
+								);
+							})
 						)}
 						{showFloatingSkeleton && <WorkingSkeleton />}
 					</MessageScrollerContent>

@@ -142,11 +142,10 @@ function ApprovalTurnRow({
 
 /** The non-conversational turn kinds — status/error/file lines and the
  * task/plan/approval/question cards. All share ONE left edge: the assistant
- * message's text column, via the `pl-9` wrapper in `BridgeChatRowImpl`
- * (`pl-9` ≈ avatar + row gap, the same indent `StreamingSkeleton` uses so it
- * reads as "under the message text"). Before, these clung to the feed's left
- * edge while messages sat next to their avatar, so cards and message text
- * never lined up. */
+ * message's spine. `BridgeChatRowImpl` wraps these in `pl-9` (reserving the
+ * avatar column) + `border-l pl-3` (drawing the spine and indenting to the
+ * text column), mirroring `AssistantTurnBlock`'s own spine so the vertical
+ * line carries through the request cards instead of breaking at them. */
 function SideTurn({
 	answered,
 	answeredQuestions,
@@ -213,19 +212,23 @@ function BridgeChatRowImpl({
 				/>
 			);
 		default:
-			// `pl-9` pulls every status/error/file line and task/plan/approval/
-			// question card in to the assistant message's text column (the same
-			// indent `StreamingSkeleton` uses) so the whole feed shares one left
-			// edge instead of cards clinging to the feed's left margin.
+			// The status/error/file lines and task/plan/approval/question cards
+			// all hang off the SAME spine as the assistant message: `pl-9`
+			// reserves the avatar column, then `border-l pl-3` draws the spine
+			// and indents content to the text column — mirroring
+			// `AssistantTurnBlock`'s own `border-l pl-3` so the vertical line
+			// carries through the request cards instead of breaking at them.
 			return (
 				<div className="pl-9">
-					<SideTurn
-						answered={answered}
-						answeredQuestions={answeredQuestions}
-						onAnswerApproval={onAnswerApproval}
-						onAnswerQuestion={onAnswerQuestion}
-						turn={turn}
-					/>
+					<div className="border-l pl-3">
+						<SideTurn
+							answered={answered}
+							answeredQuestions={answeredQuestions}
+							onAnswerApproval={onAnswerApproval}
+							onAnswerQuestion={onAnswerQuestion}
+							turn={turn}
+						/>
+					</div>
 				</div>
 			);
 	}
