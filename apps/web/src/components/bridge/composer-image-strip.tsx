@@ -110,7 +110,7 @@ export function ComposerImageStrip({
 		return null;
 	}
 	return (
-		<div className="mb-2 flex gap-2 overflow-x-auto rounded-xl bg-muted/40 p-2">
+		<div className="no-scrollbar mb-2 flex gap-2 overflow-x-auto rounded-xl bg-muted/40 p-2">
 			{images.pending.map((image) => (
 				<Thumb image={image} key={image.localId} onRemove={images.remove} />
 			))}

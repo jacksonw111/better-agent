@@ -45,7 +45,10 @@ import {
 
 /** <md: the sidebar collapses into this overlay drawer, toggled from the
  * content pane's header. A plain fixed panel (the ui package has no Sheet);
- * the backdrop is a real button so it closes by tap or keyboard. */
+ * the backdrop is a real button so it closes by tap or keyboard. `w-4/5
+ * max-w-72` keeps a tappable backdrop sliver even at 320px, and
+ * `pb-safe-bottom` clears the home indicator under the sidebar's bottom
+ * toggle (the workspace route is immersive, so no dock reserves that space). */
 function MobileSessionDrawer({
 	children,
 	onClose,
@@ -66,7 +69,7 @@ function MobileSessionDrawer({
 				onClick={onClose}
 				type="button"
 			/>
-			<div className="absolute inset-y-0 left-0 flex w-72 flex-col bg-background shadow-lg">
+			<div className="absolute inset-y-0 left-0 flex w-4/5 max-w-72 flex-col bg-background pb-safe-bottom shadow-lg">
 				{children}
 			</div>
 		</div>

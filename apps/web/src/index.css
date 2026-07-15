@@ -179,6 +179,16 @@
 	transform: translateY(calc(100% + 1rem));
 }
 
+/* ⌘K palette list cap on <sm (command-palette.tsx): the fixed 20rem default
+   can run under an open on-screen keyboard, so cap by the dynamic viewport
+   instead — 12rem covers the dialog's top-24 offset plus the input row.
+   Hand-written because the pre-commit hook blocks Tailwind arbitrary values. */
+@media (width < 40rem) {
+	.max-h-palette-list {
+		max-height: min(20rem, calc(100dvh - 12rem));
+	}
+}
+
 /* Near-fullscreen sheet height for dialogs on mobile (settings dialog) — only
    below Tailwind's `sm` breakpoint (matches the `max-sm:` variant threshold),
    so desktop keeps the dialog's own height classes. */

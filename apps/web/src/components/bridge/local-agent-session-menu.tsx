@@ -116,7 +116,7 @@ export function LocalAgentSessionMenu({
 					render={
 						<button
 							aria-label={`More actions for ${title}`}
-							className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100"
+							className="rounded-md p-2 text-muted-foreground transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 aria-expanded:opacity-100 md:p-1.5 md:opacity-0"
 							type="button"
 						/>
 					}

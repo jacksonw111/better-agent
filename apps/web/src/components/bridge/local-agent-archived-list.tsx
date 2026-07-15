@@ -39,7 +39,7 @@ function ArchivedSessionRow({
 			</span>
 			<button
 				aria-label={`Restore ${title}`}
-				className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+				className="rounded-md p-2 text-muted-foreground transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 md:p-1.5 md:opacity-0"
 				onClick={onRestore}
 				type="button"
 			>
@@ -47,7 +47,7 @@ function ArchivedSessionRow({
 			</button>
 			<button
 				aria-label={`Delete ${title}`}
-				className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+				className="rounded-md p-2 text-muted-foreground transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 md:p-1.5 md:opacity-0"
 				onClick={() => setConfirmOpen(true)}
 				type="button"
 			>

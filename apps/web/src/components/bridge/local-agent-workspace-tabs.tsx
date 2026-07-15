@@ -33,7 +33,7 @@ export function LocalAgentWorkspaceTabs({
 			onValueChange={(next) => onChange(next as WorkspaceTabId)}
 			value={value}
 		>
-			<TabsList className="max-w-full justify-start overflow-x-auto">
+			<TabsList className="no-scrollbar max-w-full justify-start overflow-x-auto">
 				<TabsTrigger className="px-2.5" value="chat">
 					Chat
 				</TabsTrigger>

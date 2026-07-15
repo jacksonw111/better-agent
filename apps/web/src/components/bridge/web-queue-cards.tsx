@@ -19,7 +19,7 @@ interface WebQueueCardProps {
 function WebQueueCard({ item, onEdit, onRemove }: WebQueueCardProps) {
 	return (
 		<li className="flex items-center gap-2 rounded-lg bg-muted/60 py-1 pr-1 pl-2.5">
-			<p className="line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap text-sm">
+			<p className="line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm">
 				{item.text}
 			</p>
 			<Button

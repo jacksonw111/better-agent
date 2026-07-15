@@ -116,10 +116,13 @@ function SessionRowActions({
 				aria-label={`Star ${title}`}
 				aria-pressed={session.starred}
 				className={cn(
-					"rounded-md p-1.5 transition-opacity",
+					// Touch: always visible with a p-2 target; md+ reverts to the
+					// tighter hover-revealed cluster (the ui sidebar's md:opacity-0
+					// convention).
+					"rounded-md p-2 transition-opacity md:p-1.5",
 					session.starred
 						? "text-amber-500"
-						: "text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+						: "text-muted-foreground hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 md:opacity-0"
 				)}
 				onClick={onToggleStar}
 				type="button"
@@ -130,7 +133,7 @@ function SessionRowActions({
 			</button>
 			<button
 				aria-label={`Rename ${title}`}
-				className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+				className="rounded-md p-2 text-muted-foreground transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 md:p-1.5 md:opacity-0"
 				onClick={onEdit}
 				type="button"
 			>

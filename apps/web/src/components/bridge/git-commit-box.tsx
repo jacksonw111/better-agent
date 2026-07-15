@@ -64,8 +64,10 @@ export function GitCommitBox({
 	};
 
 	return (
+		// `pb-safe-composer` (<md) clears the home indicator — the workspace route
+		// is immersive, so nothing else reserves that space under this form.
 		<form
-			className="flex shrink-0 items-end gap-2 px-3 py-2 sm:px-4"
+			className="flex shrink-0 items-end gap-2 px-3 pt-2 pb-safe-composer sm:px-4 md:pb-2"
 			onSubmit={submit}
 		>
 			<textarea

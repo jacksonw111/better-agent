@@ -102,7 +102,8 @@ export function CommandPalette() {
 				}
 				value={query}
 			/>
-			<CommandList>
+			{/* <sm: dvh cap (index.css) keeps results above the keyboard. */}
+			<CommandList className="max-h-palette-list">
 				<CommandEmpty>No results found.</CommandEmpty>
 				<PalettePage
 					onPush={push}
