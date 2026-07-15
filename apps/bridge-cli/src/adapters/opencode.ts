@@ -14,6 +14,7 @@ import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { makeInterruptThenSend } from "./interrupt-then-send";
 import { connectJsonRpc, type JsonRpcIo } from "./jsonrpc-io";
 import { opencodeSend } from "./opencode-send";
+import { makeOpencodeListSessions } from "./opencode-sessions";
 import {
 	createOpencodeStatusCache,
 	makeOpencodeGetStatus,
@@ -258,6 +259,9 @@ export const opencodeAdapter: Adapter = {
 			events,
 			getStatus: makeOpencodeGetStatus(statusCache, events),
 			interrupt: doInterrupt,
+			// P4-T1: read-only query of opencode's on-disk SQLite session store —
+			// see opencode-sessions.ts.
+			listSessions: makeOpencodeListSessions(dir, events),
 			send: doSend,
 			// R3-T1: "steer" isn't in opencode's busyModes — "interrupt" cancels
 			// the turn then sends fresh; "queue" falls through to plain doSend.

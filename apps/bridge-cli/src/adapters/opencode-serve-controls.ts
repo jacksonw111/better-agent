@@ -11,6 +11,7 @@ import type { AsyncQueue } from "./async-queue";
 import type { ServeSessionContext } from "./opencode-serve";
 import type { ServeAgentRef } from "./opencode-serve-agent";
 import { firePost } from "./opencode-serve-http";
+import { makeOpencodeListSessions } from "./opencode-sessions";
 import type { ProcessIo } from "./process-io";
 import { retractPendingQuestions } from "./questions";
 import { OPENCODE_SESSION_CAPABILITIES } from "./session-capabilities";
@@ -149,12 +150,14 @@ export function buildServeHandle(
 	events: AsyncQueue<NormalizedEvent>,
 	handleDeps: {
 		agentRef: ServeAgentRef;
+		/** P4-T1: the project directory `listSessions` filters the store by. */
+		dir: string;
 		io: ProcessIo;
 		sseAbort: AbortController;
 	}
 ): AgentHandle {
 	const { approvals, epoch, questions } = ctx;
-	const { agentRef, io, sseAbort } = handleDeps;
+	const { agentRef, dir, io, sseAbort } = handleDeps;
 	return {
 		answerApproval(requestId: string, optionId: string): void {
 			approvals.answer(requestId, optionId);
@@ -164,6 +167,9 @@ export function buildServeHandle(
 		},
 		events,
 		getStatus: makeServeGetStatus(ctx),
+		// P4-T1: same on-disk SQLite store as the ACP transport — see
+		// opencode-sessions.ts.
+		listSessions: makeOpencodeListSessions(dir, events),
 		...makeServeControls(ctx, {}, agentRef),
 		stop(): void {
 			bumpTurnEpoch(epoch);

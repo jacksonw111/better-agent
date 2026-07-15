@@ -30,7 +30,9 @@ export const CLAUDE_CODE_SESSION_CAPABILITIES: SessionCapabilities = {
 
 /** opencode — shared by both transports. MCP only takes effect after a
  * restart (serve's live `POST /mcp` isn't wired through this adapter yet); no
- * on-demand quota or session-list. `permissionModes` here is the ACP static
+ * on-demand quota. `sessionOps: ["list"]` (P4-T1): both transports answer
+ * `listSessions` from opencode's on-disk SQLite store (see
+ * opencode-sessions.ts). `permissionModes` here is the ACP static
  * pair (build/plan); opencode-serve.ts overrides it with the LIVE list `GET
  * /agent` reports (R2-T3) when it attaches this constant to its own
  * session_ready. */
@@ -43,14 +45,15 @@ export const OPENCODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	modelSwitch: true,
 	permissionModes: ["build", "plan"],
 	quota: false,
-	sessionOps: [],
+	sessionOps: ["list"],
 	skills: true,
 	slashCommands: true,
 	thinkingLevels: [],
 	usage: "stream",
 };
 
-/** pi — no approval gate, no MCP, no session-list/quota, but (R2-T3) a full
+/** pi — no approval gate, no MCP, no quota, but a `list` session op (P4-T1:
+ * an on-disk scan of pi's sessionDir, see pi-sessions.ts), (R2-T3) a full
  * queue/steer/interrupt busy surface and the full 7-value thinking-level
  * vocabulary pi's `set_thinking_level` accepts (xhigh/max are model-gated but
  * still listed — the UI shows what the command accepts, see
@@ -66,7 +69,7 @@ export const PI_SESSION_CAPABILITIES: SessionCapabilities = {
 	modelSwitch: true,
 	permissionModes: [],
 	quota: false,
-	sessionOps: [],
+	sessionOps: ["list"],
 	skills: true,
 	slashCommands: true,
 	thinkingLevels: [...PI_THINKING_LEVELS],
@@ -78,7 +81,9 @@ export const PI_SESSION_CAPABILITIES: SessionCapabilities = {
  * mid-turn steering RPC), and MCP servers only apply at `thread/start` (no
  * live reconfigure call, unlike claude-code's `setMcpServers` — "restart").
  * `permissionModes` mirrors `CODEX_APPROVAL_POLICIES` in codex-controls.ts
- * (keep the two in sync). No session-list/fork/tree/compact op, no
+ * (keep the two in sync). `sessionOps: ["list"]` (P4-T1): answered from an
+ * on-disk scan of `~/.codex/sessions`' rollout logs (see codex-sessions.ts),
+ * not a wire RPC. No fork/tree/compact op, no
  * skills/slash-commands surface, no thinking-level concept. `quota: true` —
  * ASSUMPTION (unverified, no `codex` binary in this sandbox): codex's
  * app-server is assumed to expose an account quota/rate-limit read the way
@@ -95,7 +100,7 @@ export const CODEX_SESSION_CAPABILITIES: SessionCapabilities = {
 	modelSwitch: true,
 	permissionModes: ["untrusted", "on-request", "never"],
 	quota: true,
-	sessionOps: [],
+	sessionOps: ["list"],
 	skills: false,
 	slashCommands: false,
 	thinkingLevels: [],

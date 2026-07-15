@@ -176,6 +176,28 @@ it("adds the handshake-only fields (busyModes/mcp/approval/quota/sessionOps/thin
 	]);
 });
 
+// P4-T1: the "Past conversations" gate now follows the LIVE handshake —
+// codex/opencode/pi CLIs that grew the on-disk session scanners report
+// `sessionOps: ["list"]`, older CLIs report `[]` (or nothing at all).
+it("derives sessionList from the handshake's sessionOps when one is present", () => {
+	const withList = resolveCapabilities("codex", {
+		capabilities: { ...HANDSHAKE, sessionOps: ["list"] },
+	});
+	expect(withList.sessionList).toBe(true);
+	// Even claude loses the button when ITS live handshake says no list op.
+	const withoutList = resolveCapabilities("claude-code", {
+		capabilities: HANDSHAKE,
+	});
+	expect(withoutList.sessionList).toBe(false);
+});
+
+it("keeps the static claude-only sessionList gating when no handshake arrived (old CLI)", () => {
+	expect(resolveCapabilities("codex", null).sessionList).toBe(false);
+	expect(resolveCapabilities("opencode", null).sessionList).toBe(false);
+	expect(resolveCapabilities("pi", null).sessionList).toBe(false);
+	expect(resolveCapabilities("claude-code", null).sessionList).toBe(true);
+});
+
 it("keeps static-only fields (reasoning, sessionResume, noApprovalGate, contextUsage) untouched by the handshake", () => {
 	const resolved = resolveCapabilities("claude-code", {
 		capabilities: HANDSHAKE,

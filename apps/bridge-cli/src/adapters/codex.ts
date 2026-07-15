@@ -25,6 +25,7 @@ import {
 	threadIdFrom,
 	tryCodexThreadResume,
 } from "./codex-resume";
+import { makeCodexListSessions } from "./codex-sessions";
 import {
 	type CodexStatusCache,
 	codexUsageUpdateEvent,
@@ -82,19 +83,20 @@ interface CodexHandleDeps {
 	// `setPermissionMode` write into and `send`'s `turn/start` reads back out
 	// of (see codex-controls.ts).
 	controlState: CodexControlState;
+	// P4-T1: the project directory `listSessions` filters the rollout scan by.
+	dir: string;
 	epoch: TurnEpochRef;
 	events: ReturnType<typeof createAsyncQueue<NormalizedEvent>>;
 	rpc: JsonRpcIo;
 	statusCache: CodexStatusCache;
 }
 
-/** Builds the codex `AgentHandle` — the send/interrupt/stop/approval controls
- * over the app-server thread. Extracted so `start` stays under the line gate. */
-function makeCodexHandle(
-	{ approvals, controlState, epoch, events, rpc, statusCache }: CodexHandleDeps,
+/** The handle's `send` — split out of `makeCodexHandle` for the line gate. */
+function makeCodexSend(
+	{ controlState, epoch, events, rpc }: CodexHandleDeps,
 	threadId: unknown
-): AgentHandle {
-	function doSend(text: string): void {
+): (text: string) => void {
+	return (text: string): void => {
 		// A new turn begins — bump the epoch BEFORE pushing the user's own
 		// turn-start event (see the RC-T3 note on `codexAdapter.start`).
 		bumpTurnEpoch(epoch);
@@ -114,7 +116,18 @@ function makeCodexHandle(
 					detail: error,
 				});
 			});
-	}
+	};
+}
+
+/** Builds the codex `AgentHandle` — the send/interrupt/stop/approval controls
+ * over the app-server thread. Extracted so `start` stays under the line gate. */
+function makeCodexHandle(
+	deps: CodexHandleDeps,
+	threadId: unknown
+): AgentHandle {
+	const { approvals, controlState, dir, epoch, events, rpc, statusCache } =
+		deps;
+	const doSend = makeCodexSend(deps, threadId);
 	// Cancel the active turn WITHOUT tearing down the thread — the detail
 	// page's Stop/Interrupt button. Previously codex had no interrupt at all,
 	// so that button did nothing; `stop()` only killed the process.
@@ -147,6 +160,7 @@ function makeCodexHandle(
 		},
 		events,
 		getStatus: makeCodexGetStatus(statusCache, events),
+		listSessions: makeCodexListSessions(dir, events),
 		send: doSend,
 		interrupt: doInterrupt,
 		// R3-T1: "steer" isn't in codex's busyModes — "interrupt" cancels the
@@ -278,7 +292,7 @@ export const codexAdapter: Adapter = {
 			buildCodexSessionReadyEvent(threadId, controlState.model, models)
 		);
 		return makeCodexHandle(
-			{ approvals, controlState, epoch, events, rpc, statusCache },
+			{ approvals, controlState, dir, epoch, events, rpc, statusCache },
 			threadId
 		);
 	},

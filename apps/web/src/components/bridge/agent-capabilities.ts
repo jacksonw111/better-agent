@@ -39,11 +39,10 @@ export interface AgentCapabilities {
 	/** Extended-thinking/reasoning blocks are streamed and worth rendering as a
 	 * collapsible "Thinking" section (Phase 1). */
 	reasoning: boolean;
-	/** The agent's CLI adapter actually implements the `listSessions` control —
-	 * gates the "Past conversations" button. Set true ONLY where the adapter
-	 * pushes a `session_list` reply (currently just claude-code, see
-	 * `apps/bridge-cli/src/adapters/claude-code.ts`'s `makeListSessions`);
-	 * otherwise the button would spin forever with no responder. */
+	/** Gates the "Past conversations" button. STATIC matrix: true only for
+	 * claude-code (the only adapter old CLIs answer `listSessions` for). P4-T1
+	 * CLIs answer for all four and report `sessionOps: ["list"]` on the live
+	 * handshake, which `resolveCapabilities` derives this from instead. */
 	sessionList: boolean;
 	/** The agent supports reopening a prior conversation with full context
 	 * (claude's `resume`, pi's `switch_session`/`fork`, opencode's
@@ -134,10 +133,9 @@ const PI_CAPABILITIES: AgentCapabilities = {
 	permissionModes: NO_PERMISSION_MODES,
 };
 
-// opencode's ACP layer can enumerate past sessions, but the CLI adapter here
-// doesn't implement the `listSessions` control yet (no `session_list` reply is
-// pushed), so the "Past conversations" button stays hidden rather than
-// spinning forever. Flip to true once opencode.ts wires that control up.
+// sessionList stays false in the STATIC matrix (old CLIs never answered
+// `listSessions` for opencode) — P4-T1 CLIs report `sessionOps: ["list"]`
+// live, which `resolveCapabilities` derives sessionList from instead.
 //
 // contextUsage was already true off the streamed `usage_update` events alone;
 // R1-b additionally wires a real `getStatus` for both opencode transports —
@@ -265,9 +263,10 @@ function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
  * instead of the old static `capabilities(kind)` lookup: prefers the LIVE
  * handshake off `session_ready` (`sessionReady?.capabilities`) when present,
  * merging it onto the static matrix by OVERRIDING only the fields the two
- * shapes share (modelSwitch, permissionModes, skills, slashCommands, and
- * usageMode←usage) and ADDING the handshake-only fields (busyModes, mcp,
- * approval, quota, sessionOps, thinkingLevels) — every other static-only flag
+ * shapes share (modelSwitch, permissionModes, skills, slashCommands,
+ * usageMode←usage, P4-T1's sessionList←sessionOps has "list") and ADDING the
+ * handshake-only fields (busyModes, mcp, approval, quota, sessionOps,
+ * thinkingLevels) — every other static-only flag
  * (reasoning, contextUsage, sessionResume, noApprovalGate, toolApproval,
  * interrupt) stays exactly as the matrix says, since the handshake carries no
  * opinion on them. Falls back to `staticCapabilities` alone when no handshake
@@ -290,6 +289,7 @@ export function resolveCapabilities(
 		modelSwitch: handshake.modelSwitch,
 		permissionModes: handshake.permissionModes,
 		quota: handshake.quota,
+		sessionList: handshake.sessionOps.includes("list"),
 		sessionOps: handshake.sessionOps,
 		skills: handshake.skills,
 		slashCommands: handshake.slashCommands,

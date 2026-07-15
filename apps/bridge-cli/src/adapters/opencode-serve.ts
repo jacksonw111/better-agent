@@ -160,6 +160,6 @@ export const opencodeServeAdapter: Adapter = {
 		pushServeCommandCatalog(ctx, commands);
 
 		const agentRef: ServeAgentRef = {};
-		return buildServeHandle(ctx, events, { agentRef, io, sseAbort });
+		return buildServeHandle(ctx, events, { agentRef, dir, io, sseAbort });
 	},
 };
