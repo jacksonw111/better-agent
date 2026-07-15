@@ -11,6 +11,7 @@ import { useClientPref } from "@/utils/preferences";
 import type { TextWhen } from "./agent-capabilities";
 import { handleCtrlEnterKeyDown } from "./composer-enter-policy";
 import { imageDropHandlers, useComposerImages } from "./composer-image-strip";
+import { useComposerSpeech } from "./composer-speech";
 import { FilePickerList } from "./file-picker-list";
 import { usePermissionModeCycle } from "./permission-mode-cycle";
 import { SlashPickerList } from "./slash-picker-list";
@@ -240,6 +241,9 @@ export function TerminalComposer(props: TerminalComposerProps) {
 	// it simply never opens when the session's CLI lacks the fs capability.
 	const filePicker = useFilePicker({ setText, text });
 	const images = useComposerImages(props.imageUpload);
+	// P5-2: browser-built-in dictation — final segments append to the draft,
+	// interim ones only feed the preview strip (see composer-speech.tsx).
+	const speech = useComposerSpeech(setText);
 	const { setWhen, submit, when } = useBusySend(props, text, setText, images);
 	useEscInterrupt(props);
 	const sendByCtrlEnter = useClientPref("sendByCtrlEnter");
@@ -260,7 +264,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		handleTabCycle(event) ||
 		handleCtrlEnterKeyDown(event, sendByCtrlEnter, submit);
 
-	const toolbar = composerToolbar(props, text, images);
+	const toolbar = composerToolbar(props, text, speech, images);
 	const hint = composerHint(props, { setWhen, when }, setText, images);
 
 	// Keep this wrapper's classes AND the inner PromptInput's classes in sync

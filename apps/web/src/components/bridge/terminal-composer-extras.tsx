@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 import type { TextWhen } from "./agent-capabilities";
 import { BusyInputHint } from "./busy-input-hint";
 import { AttachImageButton, ComposerImageStrip } from "./composer-image-strip";
+import {
+	type ComposerSpeech,
+	MicButton,
+	SpeechInterimStrip,
+} from "./composer-speech";
 import type { TerminalComposerProps } from "./terminal-composer";
 import {
 	ComposerToolbar,
@@ -57,24 +62,46 @@ export function composerHint(
 	);
 }
 
-/** The toolbar with the attach button in its left slot when the attach
- * surface is enabled. */
+/** The toolbar's left tools: the paperclip (when the attach surface is
+ * enabled) then the mic (when the browser supports SpeechRecognition) —
+ * `undefined` when neither renders, so the slot div stays aria-hidden. */
+function composerLeftTools(
+	props: TerminalComposerProps,
+	speech: ComposerSpeech,
+	images?: ImageAttachments
+): ReactNode {
+	if (!(images || speech.supported)) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	return (
+		<>
+			{images && (
+				<AttachImageButton
+					addFiles={images.addFiles}
+					disabled={props.disabled}
+				/>
+			)}
+			<MicButton disabled={props.disabled} speech={speech} />
+		</>
+	);
+}
+
+/** The toolbar with its left tools (paperclip + mic), preceded by the live
+ * interim-dictation strip while the mic is listening (P5-2). */
 export function composerToolbar(
 	props: TerminalComposerProps,
 	text: string,
+	speech: ComposerSpeech,
 	images?: ImageAttachments
 ): ReactNode {
 	return (
-		<ComposerToolbar
-			{...resolveToolbarProps(props, text, images)}
-			attachSlot={
-				images && (
-					<AttachImageButton
-						addFiles={images.addFiles}
-						disabled={props.disabled}
-					/>
-				)
-			}
-		/>
+		<>
+			{speech.listening && <SpeechInterimStrip interim={speech.interim} />}
+			<ComposerToolbar
+				{...resolveToolbarProps(props, text, images)}
+				leftTools={composerLeftTools(props, speech, images)}
+			/>
+		</>
 	);
 }

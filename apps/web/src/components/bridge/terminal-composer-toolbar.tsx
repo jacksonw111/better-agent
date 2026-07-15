@@ -17,11 +17,11 @@ const NOOP = () => undefined;
 const NO_MODES: readonly string[] = [];
 
 export interface ComposerToolbarProps {
-	/** P3-T2: the paperclip attach button, rendered in the toolbar's left slot
-	 * when the session's image capability is on. */
-	attachSlot?: ReactNode;
 	canStop: boolean;
 	controlsDisabled: boolean;
+	/** The toolbar's left tools: the P3-T2 paperclip (when the session's image
+	 * capability is on) and the P5-2 mic (when the browser supports speech). */
+	leftTools?: ReactNode;
 	model?: string;
 	models?: string[];
 	onInterrupt: () => void;
@@ -77,9 +77,9 @@ function SendOrStopButton({
  * cluster to the right. Split out of `TerminalComposer` to keep it under the
  * max-lines-per-function gate. */
 export function ComposerToolbar({
-	attachSlot,
 	canStop,
 	controlsDisabled,
+	leftTools,
 	model,
 	models,
 	onInterrupt,
@@ -94,7 +94,7 @@ export function ComposerToolbar({
 }: ComposerToolbarProps) {
 	return (
 		<PromptInputToolbar>
-			<div aria-hidden={attachSlot ? undefined : "true"}>{attachSlot}</div>
+			<div aria-hidden={leftTools ? undefined : "true"}>{leftTools}</div>
 			<PromptInputTools>
 				<ComposerControls
 					disabled={controlsDisabled}
