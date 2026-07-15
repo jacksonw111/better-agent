@@ -76,7 +76,9 @@
 
 ---
 
-## P3 · server API 扩展（云端，含图片端到端）
+## P3 · server API 扩展（云端，含图片端到端）—— 已完成（2026-07-15）
+
+> 落地提交：c8619c6（会话管理落库，迁移 0041）、9218555（图片端到端；沿用既有 8MB 校验器而非 5MB）、e3a1495（Web Push，迁移 0042，**生产需配 VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY 并跑 db:migrate**）、87ec5f9（用量 modal）。
 
 **任务**
 1. **会话管理落库**：`bridge_sessions` 加 `name` / `archived_at` / `starred`（`db:migrate`，共享 DB 纪律）；oRPC 路由 rename/archive/restore/delete(hard)；侧栏三选项删除流（归档/永久删除/取消）+ archived 视图。
@@ -88,7 +90,9 @@
 
 ---
 
-## P4 · bridge CLI 新通道（成本大头，按价值排序）
+## P4 · bridge CLI 新通道（成本大头，按价值排序）—— 已完成（2026-07-15）
+
+> 落地提交：2fa819b（四家会话索引，codex rollout JSONL / opencode.db sqlite / pi sessionDir，真机验证）、dcda514（runShell + Shell tab）、1bb15c4（fsList/fsRead + Files tab + @文件引用；工具卡点击打开文件留后续）、bba1838（git 面板）、6fbfd6a（跨会话内容搜索 + ⌘K 内容匹配；无 ripgrep 依赖，纯 Node 扫描）。交互式 pty 仍为二期。
 
 > 新命令族均走既有 WS 双工命令通道 + 能力握手门控；**所有 fs/git/shell 操作限制在 agent 工作区（cwd）内**，路径穿越校验在 CLI 侧。
 
@@ -103,7 +107,9 @@
 
 ---
 
-## P5 · 增强与收尾
+## P5 · 增强与收尾 —— 已完成（2026-07-15，pty 相关项除外）
+
+> 落地提交：abba38b（审批重投 + 跨设备已答状态修复）、5919793（语音输入走 Web Speech API 免费路径，云端 STT 延后）、c0a35ca（响应式终审）。第 1 项 provider 登录内嵌终端依赖 pty（二期）未做。竞品结论落盘：[`research/2026-07-13-multica-hive-mco-competitive.md`](research/2026-07-13-multica-hive-mco-competitive.md)。
 
 1. provider 登录内嵌终端（依赖 P4-2 pty）：web 上跑 `claude /login` 等。
 2. 语音输入：云端 STT（不走本机代理）。
