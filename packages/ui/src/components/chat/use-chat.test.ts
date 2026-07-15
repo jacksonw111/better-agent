@@ -72,6 +72,20 @@ it("captures the error event message as errorText", async () => {
 	expect(last?.errorText).toBe("rate limited");
 });
 
+it("marks the assistant complete when the stream ends cleanly", async () => {
+	const last = await run([{ type: "text-delta", delta: "answer" }]);
+	expect(last?.status).toBe("complete");
+	expect(last?.live).toBe(false);
+});
+
+it("keeps error status when the stream ends after an error event", async () => {
+	const last = await run([
+		{ type: "text-delta", delta: "partial" },
+		{ type: "error", message: "boom" },
+	]);
+	expect(last?.status).toBe("error");
+});
+
 function part(over: Record<string, unknown>) {
 	return {
 		id: "p",

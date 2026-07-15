@@ -136,6 +136,15 @@ export async function streamPrompt(args: StreamArgs) {
 			applyEvent(event, state);
 		}
 		sealReveal(state);
+		// A stream that ended without an error event or a user stop IS the
+		// completed turn — flip it out of `streaming` so completion-gated UI
+		// (the copy / save-as-image actions row) can appear. Stops keep
+		// "stopped" (guarded by aborted) and stream errors keep "error".
+		if (!args.signal.aborted && state.assistant.status === "streaming") {
+			state.assistant.status = "complete";
+			state.assistant.live = false;
+			emit(state);
+		}
 	} catch (error) {
 		state.reveal?.stop();
 		throw error;
