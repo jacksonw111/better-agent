@@ -9,8 +9,14 @@ import type {
 	BridgeTokenStore,
 	McpServerRow,
 	McpServerStore,
+	PushPayload,
+	PushService,
 	SkillStore,
 } from "@better-agent/agent/ports";
+import {
+	createFakePushSubscriptionStore,
+	type FakePushSubscriptionStore,
+} from "@better-agent/agent/testing/fake-push-subscription-store";
 import { createFakeSkillStore } from "@better-agent/agent/testing/fake-skill-store";
 import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
@@ -55,8 +61,30 @@ export const BOB = {
 };
 export const AGENT_KIND: BridgeAgentKind = "claude-code";
 
+/** One push a test's capturing PushSender received. */
+export interface CapturedPush {
+	payload: PushPayload;
+	userId: string;
+}
+
+/** P3-T3: a PushService whose sender just records what it was asked to send
+ * (`sends`). Tests flip `services.push = null` to exercise the
+ * disabled-without-VAPID-keys path. */
+function capturingPushService(sends: CapturedPush[]): PushService {
+	return {
+		vapidPublicKey: "test-vapid-public-key",
+		sender: {
+			sendToUser(userId, payload) {
+				sends.push({ userId, payload });
+				return Promise.resolve();
+			},
+		},
+	};
+}
+
 interface TestServices {
 	commandBus: ReturnType<typeof createCommandBus>;
+	push: PushService | null;
 	relayStore: ReturnType<typeof createInMemoryRelayStore>;
 	stores: {
 		attachment: MemoryAttachmentStore;
@@ -64,6 +92,7 @@ interface TestServices {
 		bridgeSession: BridgeSessionStore;
 		bridgeMessage: BridgeMessageStore;
 		mcpServer: McpServerStore;
+		pushSubscription: FakePushSubscriptionStore;
 		skill: SkillStore;
 		usageRecord: ReturnType<typeof createFakeUsageRecordStore>;
 	};
@@ -96,29 +125,38 @@ function createClientFactories(services: TestServices) {
 	return { userClientFor, bridgeClientFor };
 }
 
-export function build() {
+/** The map-backed bridge store fakes, split out of `build()` to keep it
+ * under the 50-line function cap. */
+function buildMemoryBridgeStores() {
 	const tokenRows = new Map<string, BridgeTokenRow>();
 	const tokenHashes = new Map<string, string>();
 	const sessionRows = new Map<string, BridgeSessionRow>();
 	const messageRowsBySession = new Map<string, BridgeMessageRow[]>();
 	const mcpServerRows = new Map<string, McpServerRow>();
 	const mcpServerAuthHeaders = new Map<string, string>();
-	const bridgeSession = memoryBridgeSessionStore(sessionRows);
-	const bridgeMessage = memoryBridgeMessageStore(messageRowsBySession);
-	const bridgeToken = memoryBridgeTokenStore(
-		tokenRows,
-		tokenHashes,
-		(tokenId) =>
+	return {
+		bridgeSession: memoryBridgeSessionStore(sessionRows),
+		bridgeMessage: memoryBridgeMessageStore(messageRowsBySession),
+		bridgeToken: memoryBridgeTokenStore(tokenRows, tokenHashes, (tokenId) =>
 			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
-	);
-	const mcpServer = memoryMcpServerStore(mcpServerRows, mcpServerAuthHeaders);
+		),
+		mcpServer: memoryMcpServerStore(mcpServerRows, mcpServerAuthHeaders),
+	};
+}
+
+export function build() {
+	const { bridgeSession, bridgeMessage, bridgeToken, mcpServer } =
+		buildMemoryBridgeStores();
 	const skill = createFakeSkillStore();
 	const relayStore = createInMemoryRelayStore();
 	const commandBus = createCommandBus();
 	const usageRecord = createFakeUsageRecordStore();
 	const attachment = memoryAttachmentStore();
+	const pushSubscription = createFakePushSubscriptionStore();
+	const pushSends: CapturedPush[] = [];
 	const services: TestServices = {
 		commandBus,
+		push: capturingPushService(pushSends),
 		relayStore,
 		stores: {
 			attachment,
@@ -126,6 +164,7 @@ export function build() {
 			bridgeSession,
 			bridgeMessage,
 			mcpServer,
+			pushSubscription,
 			skill,
 			usageRecord,
 		},
@@ -137,6 +176,8 @@ export function build() {
 		bridgeSession,
 		bridgeMessage,
 		mcpServer,
+		pushSends,
+		pushSubscription,
 		skill,
 		usageRecord,
 		services,

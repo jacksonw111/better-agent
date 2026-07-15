@@ -4,9 +4,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@better-agent/ui/components/popover";
-import { Switch } from "@better-agent/ui/components/switch";
 import { SlidersHorizontalIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { PushNotificationsRow } from "@/components/push-notifications-row";
+import { SettingRow } from "@/components/setting-row";
 import {
 	type ClientPrefKey,
 	setClientPref,
@@ -15,33 +16,10 @@ import {
 import { toggleTheme } from "@/utils/theme";
 
 // P2-T4: the workspace header's quick-settings popover — three client prefs
-// (see utils/preferences.ts) plus the theme toggle, each a compact borderless
-// label+switch row. Theme is NOT a pref: the row just reflects the <html>
-// class and calls the existing `toggleTheme()` (utils/theme.ts).
-
-/** One label+switch row. A plain div (not a <label>): the base-ui switch is
- * already its own labelled control, and wrapping it in a label would
- * double-fire the toggle on row clicks. */
-function SettingRow({
-	checked,
-	label,
-	onCheckedChange,
-}: {
-	checked: boolean;
-	label: string;
-	onCheckedChange: (checked: boolean) => void;
-}) {
-	return (
-		<div className="flex items-center justify-between gap-3 rounded-md px-1.5 py-1">
-			<span className="text-foreground text-xs">{label}</span>
-			<Switch
-				aria-label={label}
-				checked={checked}
-				onCheckedChange={onCheckedChange}
-			/>
-		</div>
-	);
-}
+// (see utils/preferences.ts) plus the theme toggle (and, P3-T3, the push
+// notifications row), each a compact borderless label+switch row. Theme is
+// NOT a pref: the row just reflects the <html> class and calls the existing
+// `toggleTheme()` (utils/theme.ts). The row itself lives in setting-row.tsx.
 
 function PrefRow({
 	label,
@@ -99,6 +77,7 @@ export function QuickSettings() {
 				<PrefRow label="Show raw parameters" prefKey="showRawParameters" />
 				<PrefRow label="Send with ⌃↵" prefKey="sendByCtrlEnter" />
 				<ThemeRow />
+				<PushNotificationsRow />
 			</PopoverContent>
 		</Popover>
 	);

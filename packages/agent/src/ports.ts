@@ -219,6 +219,15 @@ export type {
 	OpenConnectorAccountRow,
 	OpenConnectorAccountStore,
 } from "./open-connector-ports";
+// Web Push ports (P3-T3) live in push-ports.ts (split out for the 300-line
+// limit) and are re-exported so the public surface is unchanged.
+export type {
+	PushPayload,
+	PushSender,
+	PushService,
+	PushSubscriptionRow,
+	PushSubscriptionStore,
+} from "./push-ports";
 
 export interface WebAuthzCacheRow {
 	authorized: boolean;

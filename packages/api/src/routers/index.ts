@@ -13,6 +13,7 @@ import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
 import { openConnectorRouter } from "./openconnector";
 import { providersRouter } from "./providers";
+import { pushSubscriptionsRouter } from "./push-subscriptions";
 import { sessionsRouter } from "./sessions";
 import { skillsRouter } from "./skills";
 import { usageRouter } from "./usage";
@@ -31,6 +32,7 @@ export const appRouter = {
 	memory: memoryRouter,
 	openConnector: openConnectorRouter,
 	providers: providersRouter,
+	pushSubscriptions: pushSubscriptionsRouter,
 	agents: agentsRouter,
 	sessions: sessionsRouter,
 	skills: skillsRouter,

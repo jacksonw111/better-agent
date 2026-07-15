@@ -18,6 +18,7 @@ import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
+import { createPushSubscriptionStore } from "@better-agent/db/repositories/push-subscription-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { createSkillStore } from "@better-agent/db/repositories/skill-store";
@@ -35,6 +36,7 @@ import {
 	buildGoogleOAuth,
 	buildOpenConnectorAccountResolver,
 } from "./optional-services";
+import { buildPushService } from "./push-sender";
 import {
 	buildCancellation,
 	buildPendingToolCallStore,
@@ -103,6 +105,7 @@ interface StoreParts {
 	memoryStore: ReturnType<typeof createMemoryStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
+	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
 	skillStore: ReturnType<typeof createSkillStore>;
@@ -139,6 +142,7 @@ function buildStores(
 		bridgeUsage: parts.bridgeUsageStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
+		pushSubscription: parts.pushSubscriptionStore,
 		skill: parts.skillStore,
 		...authStores,
 	};
@@ -177,6 +181,8 @@ function assembleServices(
 		embeddingClient: parts.embeddingClient,
 		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
 		authz: buildAuthzClient(parts.authzBinding),
+		// P3-T3: Web Push — null (feature disabled fail-open) without VAPID keys.
+		push: buildPushService(parts.pushSubscriptionStore),
 		rateLimiter: buildRateLimiter(),
 		relayStore: buildRelayStore(),
 		// In-process pub/sub "bell" waking a live bridge WS connection to re-read
@@ -200,6 +206,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		composioAccount: createComposioAccountStore(db, secretBox),
 		openConnectorAccount: createOpenConnectorAccountStore(db, secretBox),
 		mcpServerStore: createMcpServerStore(db, secretBox),
+		pushSubscriptionStore: createPushSubscriptionStore(db),
 		webAuthzCache: createWebAuthzCacheStore(db),
 		bridgeTokenStore: createBridgeTokenStore(db),
 		bridgeSessionStore: createBridgeSessionStore(db),

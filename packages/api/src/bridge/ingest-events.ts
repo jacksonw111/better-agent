@@ -2,6 +2,7 @@ import { log } from "evlog";
 import type { Context } from "../context";
 import { appendPushedEvents } from "../routers/bridge-push-events";
 import { assertEventsWithinSizeLimit } from "../routers/bridge-size-limits";
+import { notifyPushForBatch } from "./push-notify";
 
 // Shared event-ingest core, used by BOTH the oRPC `pushEvents` handler
 // (bridge.ts) and the WS `events` frame handler (ws-session.ts) — pulled out
@@ -77,4 +78,10 @@ export async function ingestEvents(
 	);
 	await persistEventsBestEffort(context, input.sessionId, persisted);
 	await context.services.stores.bridgeSession.touch(input.sessionId);
+	// P3-T3: Web Push on approval/turn-complete/error moments in the batch —
+	// fire-and-forget (notifyPushForBatch never throws), so a slow or failing
+	// push provider can never delay or break the live relay.
+	notifyPushForBatch(context, input.sessionId, input.events).catch(
+		() => undefined
+	);
 }

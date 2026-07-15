@@ -29,12 +29,14 @@
     "hono": "catalog:",
     "ioredis": "catalog:",
     "resend": "^6.14.0",
+    "web-push": "^3.6.7",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@better-agent/config": "workspace:*",
     "@types/ioredis-mock": "^8.2.7",
     "@types/node": "catalog:",
+    "@types/web-push": "^3.6.4",
     "ioredis-mock": "^8.13.1",
     "tsdown": "^0.21.9",
     "tsx": "^4.19.2",

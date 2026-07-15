@@ -27,6 +27,13 @@ export const env = createEnv({
 		S3_BUCKET: z.string().optional(),
 		S3_ACCESS_KEY_ID: z.string().optional(),
 		S3_SECRET_ACCESS_KEY: z.string().optional(),
+		/** Web Push (P3-T3). Both keys must be set together; when either is
+		 * missing the whole push feature is disabled fail-open (subscribe
+		 * routes error clearly, the ingest hook no-ops). Generate a pair with
+		 * `npx web-push generate-vapid-keys`. */
+		VAPID_PUBLIC_KEY: z.string().optional(),
+		VAPID_PRIVATE_KEY: z.string().optional(),
+		VAPID_SUBJECT: z.string().default("mailto:admin@justsayai.org"),
 		RESEND_API_KEY: z.string().optional(),
 		AUTH_EMAIL_FROM: z.string().default("noreply@trendf.top"),
 		WEB_URL: z.url().default("http://localhost:3001"),

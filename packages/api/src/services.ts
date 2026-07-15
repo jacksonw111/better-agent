@@ -24,6 +24,8 @@ import type {
 	PasswordResetStore,
 	ProviderCatalogStore,
 	ProviderCredentialStore,
+	PushService,
+	PushSubscriptionStore,
 	RefreshTokenStore,
 	RelayStore,
 	SessionStore,
@@ -71,6 +73,10 @@ export interface AgentServices {
 	modelFactory: ModelFactory;
 	openConnector: (accountId: string) => Promise<OpenConnectorService | null>;
 	pendingToolCallStore: PendingToolCallStore;
+	/** Web Push (P3-T3) — null when VAPID keys are not configured, which
+	 * disables the whole feature fail-open (subscribe routes error clearly,
+	 * the ingest notify hook no-ops). */
+	push: PushService | null;
 	rateLimiter: RateLimiter;
 	relayStore: RelayStore;
 	runtime: SessionRuntime;
@@ -100,6 +106,7 @@ export interface AgentServices {
 		bridgeUsage: BridgeUsageStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
+		pushSubscription: PushSubscriptionStore;
 		skill: SkillStore;
 	};
 	tokenService: TokenService;
