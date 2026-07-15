@@ -7,11 +7,11 @@ import type {
 	TurnUsageDetail,
 	UsageUpdateDetail,
 } from "./bridge-session-status";
+import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import type { BridgeTurn } from "./bridge-turns";
 import { TerminalComposer } from "./terminal-composer";
 import { TerminalFeed } from "./terminal-feed";
-import { TurnUsagePanel } from "./turn-usage-panel";
-import { UsageUpdateLine } from "./usage-update-line";
+import { TerminalUsageStrip } from "./usage-strip";
 import type { ImageRef, UploadImage } from "./use-image-attachments";
 import type { WebQueue } from "./use-web-queue";
 
@@ -33,6 +33,9 @@ export interface TerminalBodyProps {
 	commandCatalog: CommandCatalogDetail | null;
 	disabled: boolean;
 	ended: boolean;
+	/** P3-T4: requests a fresh `status_snapshot` — fired when the usage modal
+	 * opens so its 会话统计/配额 sections are current. */
+	getStatus: () => Promise<void>;
 	/** P3-T2: uploads one composer image against this session (see
 	 * `TerminalComposerProps.imageUpload`); absent hides the attach surface. */
 	imageUpload?: UploadImage;
@@ -48,6 +51,9 @@ export interface TerminalBodyProps {
 	setThinking: (level: string) => void;
 	/** True for a codex session — see `ComposerControlsProps.showNextTurnHint`. */
 	showNextTurnHint: boolean;
+	/** P3-T4: the latest `status_snapshot` — the usage modal's 会话统计/配额/MCP
+	 * sections. */
+	statusSnapshot: StatusSnapshotDetail | null;
 	turnInFlight: boolean;
 	turns: BridgeTurn[];
 	turnUsage: TurnUsageDetail | null;
@@ -161,10 +167,12 @@ export function TerminalBody(props: TerminalBodyProps) {
 				turns={props.turns}
 			/>
 			{props.caps.usageMode === "stream" && (
-				<div className="pb-3">
-					<TurnUsagePanel detail={props.turnUsage} />
-					<UsageUpdateLine detail={props.usageUpdate} />
-				</div>
+				<TerminalUsageStrip
+					getStatus={props.getStatus}
+					statusSnapshot={props.statusSnapshot}
+					turnUsage={props.turnUsage}
+					usageUpdate={props.usageUpdate}
+				/>
 			)}
 			<BodyComposer
 				caps={props.caps}

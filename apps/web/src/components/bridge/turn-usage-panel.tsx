@@ -20,8 +20,9 @@ function tokenStat(count: number | undefined): string | undefined {
 /** Flattens a `turn_usage` detail into the labeled stats the panel shows —
  * cost, the four token buckets, turn count, and duration — dropping any figure
  * the CLI didn't report. Declared as a label→value table so the branching
- * stays a single filter, not one `if` per stat. */
-function usageStats(detail: TurnUsageDetail): UsageStat[] {
+ * stays a single filter, not one `if` per stat. Exported for the usage modal
+ * (usage-modal.tsx), whose 本回合 section shows the same table. */
+export function usageStats(detail: TurnUsageDetail): UsageStat[] {
 	const tokens = detail.usage;
 	const candidates: [string, string | undefined][] = [
 		[

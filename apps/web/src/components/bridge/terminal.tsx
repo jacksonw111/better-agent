@@ -212,6 +212,7 @@ function BodyFromView({
 			commandCatalog={view.commandCatalog}
 			disabled={!view.canSend}
 			ended={view.status === "ended"}
+			getStatus={view.getStatus}
 			imageUpload={view.imageUpload}
 			interrupt={view.interrupt}
 			onSend={view.sendInput}
@@ -222,6 +223,7 @@ function BodyFromView({
 			setPermissionMode={view.setPermissionMode}
 			setThinking={view.setThinking}
 			showNextTurnHint={showNextTurnHint}
+			statusSnapshot={view.statusSnapshot}
 			turnInFlight={view.turnInFlight}
 			turns={view.turns}
 			turnUsage={view.turnUsage}

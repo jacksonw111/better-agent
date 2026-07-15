@@ -44,8 +44,9 @@ function tokenStat(count: number | undefined): string | undefined {
 /** Flattens a `status_snapshot`'s cost/token fields into the labeled stats the
  * panel shows, dropping any figure the agent didn't report — same "table of
  * candidates, filter to defined" shape as `turn-usage-panel.tsx`'s
- * `usageStats`. */
-function statusStats(detail: StatusSnapshotDetail): StatusStat[] {
+ * `usageStats`. Exported for the usage modal (usage-modal.tsx), whose 会话统计
+ * section shows the same table. */
+export function statusStats(detail: StatusSnapshotDetail): StatusStat[] {
 	const tokens = detail.tokens;
 	const candidates: [string, string | undefined][] = [
 		[
