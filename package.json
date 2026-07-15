@@ -45,7 +45,7 @@
     "eslint-plugin-import": "2.32.0",
     "lefthook": "2.1.9",
     "turbo": "2.9.18",
-    "typescript": "catalog:",
+    "typescript": "6.0.3",
     "ultracite": "7.8.3",
     "wrangler": "4.105.0"
   },

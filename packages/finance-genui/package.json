@@ -81,7 +81,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "tsup": "^8.5.0",
-    "typescript": "catalog:",
+    "typescript": "6.0.3",
     "vitest": "4.1.9",
     "zod": "catalog:"
   }
