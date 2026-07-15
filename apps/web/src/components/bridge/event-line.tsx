@@ -1,8 +1,9 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
+import type { ApprovalBlockData } from "@better-agent/ui/components/chat/chat-blocks";
 import { AlertTriangleIcon, CheckIcon, FileEditIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ApprovalEvent, ErrorEvent, FileEvent } from "./bridge-events";
+import type { ErrorEvent, FileEvent } from "./bridge-events";
 
 // `StatusLine` (+ the STATUS_NOTICES map it reads) moved to status-line.tsx
 // purely to keep this file under the repo's 300-line limit — import it from
@@ -39,7 +40,11 @@ export function ErrorLine({ event }: { event: ErrorEvent }) {
 
 export interface ApprovalLineProps {
 	answeredOptionId?: string;
-	event: ApprovalEvent;
+	/** The approval data (carried inline by an assistant message block now that
+	 * requests fold into the turn — see bridge-assistant-merge.ts). Structurally
+	 * compatible with the bridge's `ApprovalEvent`, so existing fixtures still
+	 * pass. */
+	event: ApprovalBlockData;
 	onAnswer?: (requestId: string, optionId: string) => void;
 }
 

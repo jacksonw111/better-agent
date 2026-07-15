@@ -1,7 +1,10 @@
 import { Button } from "@better-agent/ui/components/button";
+import type {
+	QuestionBlockData,
+	QuestionBlockItem,
+} from "@better-agent/ui/components/chat/chat-blocks";
 import { CheckIcon, ChevronLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import type { QuestionEvent, QuestionItem } from "./bridge-events";
 
 // P1-T4: QuestionCard's presentational halves — the pending multi-question
 // wizard and the stacked single/replay layout — split out of question-card.tsx
@@ -23,7 +26,7 @@ interface QuestionRowProps {
 	numbered?: boolean;
 	onChoose: (optionIndex: number) => void;
 	picked: number;
-	question: QuestionItem;
+	question: QuestionBlockItem;
 }
 
 /** One question's text plus its single-select option buttons. Mirrors
@@ -114,7 +117,7 @@ function CardHeader({ right, title }: { right?: ReactNode; title: string }) {
 
 interface WizardCardProps {
 	allPicked: boolean;
-	event: QuestionEvent;
+	event: QuestionBlockData;
 	lastStep: boolean;
 	onAdvance: () => void;
 	onBack: () => void;
@@ -176,7 +179,7 @@ export function WizardCard({
 interface StackedCardProps {
 	answered?: string[][];
 	disabled: boolean;
-	event: QuestionEvent;
+	event: QuestionBlockData;
 	numbered: boolean;
 	onChoose: (questionIndex: number, optionIndex: number) => void;
 	onSubmit: () => void;

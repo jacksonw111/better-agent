@@ -1,5 +1,5 @@
+import type { QuestionBlockData } from "@better-agent/ui/components/chat/chat-blocks";
 import { useCallback, useEffect, useState } from "react";
-import type { QuestionEvent, QuestionItem } from "./bridge-events";
 import {
 	MAX_DIGIT_OPTIONS,
 	NO_SELECTION,
@@ -9,7 +9,10 @@ import {
 
 /** Builds the `string[][]` payload `onAnswer` sends — one single-element
  * array per question, in question order. */
-function buildAnswers(questions: QuestionItem[], picks: number[]): string[][] {
+function buildAnswers(
+	questions: QuestionBlockData["questions"],
+	picks: number[]
+): string[][] {
 	return questions.map((question, index) => [question.options[picks[index]]]);
 }
 
@@ -76,7 +79,7 @@ export interface QuestionCardProps {
 	 * `makeAnswerQuestion`) or a replayed event for an already-answered
 	 * `requestId`. Mirrors `ApprovalLineProps.answeredOptionId`. */
 	answered?: string[][];
-	event: QuestionEvent;
+	event: QuestionBlockData;
 	onAnswer?: (requestId: string, answers: string[][]) => void;
 }
 
@@ -84,7 +87,7 @@ export interface QuestionCardProps {
  * of the component purely to keep it under the repo's max-lines-per-function
  * gate. */
 function useQuestionCardState(
-	event: QuestionEvent,
+	event: QuestionBlockData,
 	onAnswer: QuestionCardProps["onAnswer"]
 ) {
 	const [picks, setPicks] = useState<number[]>(() =>

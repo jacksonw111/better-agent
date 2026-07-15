@@ -6,14 +6,7 @@ import {
 import { memo } from "react";
 import { AssistantTurnBlock } from "./assistant-turn-block";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
-import {
-	ApprovalLine,
-	type ApprovalLineProps,
-	ErrorLine,
-	FileLine,
-} from "./event-line";
-import { isExitPlanModeApproval, PlanApprovalCard } from "./plan-approval-card";
-import { QuestionCard } from "./question-card";
+import { ErrorLine, FileLine } from "./event-line";
 import { StatusLine } from "./status-line";
 import { TaskCard } from "./task-card";
 import { TodoList } from "./todo-list";
@@ -90,73 +83,51 @@ function StreamingSkeleton() {
  */
 /** The assistant bubble plus its optional attached "still producing" skeleton
  * — split out of `BridgeChatRowImpl` purely to keep that switch under the
- * repo's max-lines-per-function gate. */
+ * repo's max-lines-per-function gate. The answer handlers thread down into
+ * `AssistantTurnBlock` so an approval/question block embedded in this message
+ * (requests now fold into the turn as blocks) can render and be answered. */
 function AssistantWithSkeleton({
 	attachSkeleton,
 	avatars,
 	ended,
 	turn,
+	answered,
+	answeredQuestions,
+	onAnswerApproval,
+	onAnswerQuestion,
 }: {
 	attachSkeleton?: boolean;
 	avatars?: ChatAvatars;
 	ended: boolean;
 	turn: AssistantTurn;
+	answered: Record<string, string>;
+	answeredQuestions: Record<string, string[][]>;
+	onAnswerApproval: (requestId: string, optionId: string) => void;
+	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
 }) {
 	return (
 		<>
 			<AssistantTurnBlock
+				answered={answered}
+				answeredQuestions={answeredQuestions}
 				avatars={avatars}
 				message={assistantMessage(turn, ended)}
+				onAnswerApproval={onAnswerApproval}
+				onAnswerQuestion={onAnswerQuestion}
 			/>
 			{attachSkeleton && <StreamingSkeleton />}
 		</>
 	);
 }
 
-/** P1-T4: an approval turn's row — claude's ExitPlanMode permission request
- * renders as the inline plan card (Build/Revise over the plan markdown), every
- * other approval keeps the generic `ApprovalLine`. Both answer through the
- * same `onAnswer` decision channel. */
-function ApprovalTurnRow({
-	answeredOptionId,
-	event,
-	onAnswer,
-}: ApprovalLineProps) {
-	if (isExitPlanModeApproval(event)) {
-		return (
-			<PlanApprovalCard
-				answeredOptionId={answeredOptionId}
-				event={event}
-				onAnswer={onAnswer}
-			/>
-		);
-	}
-	return (
-		<ApprovalLine
-			answeredOptionId={answeredOptionId}
-			event={event}
-			onAnswer={onAnswer}
-		/>
-	);
-}
-
-/** The non-conversational turn kinds — status/error/file lines and the
- * task/plan/approval/question cards. All share ONE left edge: the assistant
- * message's spine. `BridgeChatRowImpl` wraps these in `pl-9` (reserving the
- * avatar column) + `border-l pl-3` (drawing the spine and indenting to the
- * text column), mirroring `AssistantTurnBlock`'s own spine so the vertical
- * line carries through the request cards instead of breaking at them. */
+/** The inline lifecycle turn kinds — status/error/file lines and the
+ * task/plan cards — rendered on the assistant spine via the `pl-9` +
+ * `border-l pl-3` wrapper in `BridgeChatRowImpl`, so they share the message's
+ * left edge. (Approval/question requests are NOT here: they fold INTO the
+ * assistant turn as blocks — see bridge-turns-approval.ts.) */
 function SideTurn({
-	answered,
-	answeredQuestions,
-	onAnswerApproval,
-	onAnswerQuestion,
 	turn,
 }: {
-	answered: Record<string, string>;
-	answeredQuestions: Record<string, string[][]>;
-	onAnswerApproval: (requestId: string, optionId: string) => void;
-	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
 	turn: Exclude<BridgeTurn, UserTurn | AssistantTurn>;
 }) {
 	switch (turn.kind) {
@@ -168,24 +139,8 @@ function SideTurn({
 			return <FileLine event={turn.event} />;
 		case "task":
 			return <TaskCard task={turn.task} />;
-		case "plan":
-			return <TodoList items={turn.items} />;
-		case "approval":
-			return (
-				<ApprovalTurnRow
-					answeredOptionId={answered[turn.event.requestId]}
-					event={turn.event}
-					onAnswer={onAnswerApproval}
-				/>
-			);
 		default:
-			return (
-				<QuestionCard
-					answered={answeredQuestions[turn.event.requestId]}
-					event={turn.event}
-					onAnswer={onAnswerQuestion}
-				/>
-			);
+			return <TodoList items={turn.items} />;
 	}
 }
 
@@ -205,29 +160,26 @@ function BridgeChatRowImpl({
 		case "assistant":
 			return (
 				<AssistantWithSkeleton
+					answered={answered}
+					answeredQuestions={answeredQuestions}
 					attachSkeleton={attachSkeleton}
 					avatars={avatars}
 					ended={ended}
+					onAnswerApproval={onAnswerApproval}
+					onAnswerQuestion={onAnswerQuestion}
 					turn={turn}
 				/>
 			);
 		default:
-			// The status/error/file lines and task/plan/approval/question cards
-			// all hang off the SAME spine as the assistant message: `pl-9`
-			// reserves the avatar column, then `border-l pl-3` draws the spine
-			// and indents content to the text column — mirroring
-			// `AssistantTurnBlock`'s own `border-l pl-3` so the vertical line
-			// carries through the request cards instead of breaking at them.
+			// The status/error/file lines and task/plan cards hang off the SAME
+			// spine as the assistant message: `pl-9` reserves the avatar column,
+			// then `border-l pl-3` draws the spine and indents content to the
+			// text column — mirroring `AssistantTurnBlock`'s own `border-l pl-3`
+			// so the vertical line carries through these inline rows.
 			return (
 				<div className="pl-9">
 					<div className="border-l pl-3">
-						<SideTurn
-							answered={answered}
-							answeredQuestions={answeredQuestions}
-							onAnswerApproval={onAnswerApproval}
-							onAnswerQuestion={onAnswerQuestion}
-							turn={turn}
-						/>
+						<SideTurn turn={turn} />
 					</div>
 				</div>
 			);

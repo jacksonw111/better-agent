@@ -1,5 +1,7 @@
 import type {
+	ApprovalBlockData,
 	ChatBlock,
+	QuestionBlockData,
 	ToolInvocation,
 } from "@better-agent/ui/components/chat/chat-blocks";
 
@@ -27,7 +29,9 @@ export type TurnElement =
 			 * count line. */
 			sameToolName?: string;
 			tools: ToolInvocation[];
-	  };
+	  }
+	| { key: string; kind: "approval"; approval: ApprovalBlockData }
+	| { key: string; kind: "question"; question: QuestionBlockData };
 
 /** A leftover mixed-name stretch LONGER than this collapses into the generic
  * count group — matches the design spec's ">5 折叠"
@@ -196,6 +200,24 @@ export function groupTurnBlocks(blocks: ChatBlock[]): TurnElement[] {
 	let index = 0;
 	while (index < blocks.length) {
 		const block = blocks[index];
+		if (block.kind === "approval") {
+			elements.push({
+				approval: block.approval,
+				key: `approval-${block.approval.requestId}`,
+				kind: "approval",
+			});
+			index++;
+			continue;
+		}
+		if (block.kind === "question") {
+			elements.push({
+				key: `question-${block.question.requestId}`,
+				kind: "question",
+				question: block.question,
+			});
+			index++;
+			continue;
+		}
 		if (block.kind !== "tool") {
 			const element = isBlankProse(block) ? null : proseElement(block, index);
 			if (element) {

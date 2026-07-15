@@ -122,19 +122,12 @@ function attachSkeletonTurnId(turns: BridgeTurn[]): number | null {
 
 /** The turn kinds that render on the assistant spine (see `BridgeChatRow`'s
  * `pl-9` + `border-l pl-3` wrapper) rather than as their own avatar bubble:
- * status/error/file lines and the task/plan/approval/question cards. Used to
- * pull these items up so their spine bridges the feed's `gap-6` and reads as
- * a continuation of the preceding assistant turn instead of a line-broken
- * block. Kept in sync with `BridgeChatRowImpl`'s `default` case. */
-const SIDE_TURN_KINDS = new Set([
-	"status",
-	"error",
-	"file",
-	"approval",
-	"question",
-	"task",
-	"plan",
-]);
+ * the status/error/file lines and the task/plan cards. Used to pull these
+ * items up so their spine bridges the feed's `gap-6` and reads as a
+ * continuation of the preceding assistant turn instead of a line-broken
+ * block. Approval/question requests are NOT here — they fold INTO the
+ * assistant turn as blocks (see bridge-turns-approval.ts). */
+const SIDE_TURN_KINDS = new Set(["status", "error", "file", "task", "plan"]);
 
 /** The scrolling conversation: bridge turns rendered as chat bubbles/lines. */
 export function TerminalFeed({

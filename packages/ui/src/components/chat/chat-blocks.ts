@@ -27,13 +27,51 @@ export interface AttachmentRef {
 	name: string;
 }
 
+/** One selectable option on an embedded approval request. */
+export interface ApprovalOption {
+	id: string;
+	label: string;
+}
+
+/** A pending permission request embedded inline in an assistant message
+ * (the bridge terminal's approval/ExitPlanMode flow). Carries everything the
+ * renderer needs without depending on the bridge's wire-event types — the
+ * bridge maps its `ApprovalEvent` onto this shape when it folds the request
+ * into the turn as a block (see bridge-assistant-merge.ts). */
+export interface ApprovalBlockData {
+	detail?: string;
+	options: ApprovalOption[];
+	requestId: string;
+	summary?: string;
+	timeoutAt?: number;
+	timeoutMs?: number;
+	title: string;
+}
+
+/** One question within an embedded question request. */
+export interface QuestionBlockItem {
+	options: string[];
+	text: string;
+}
+
+/** A pending question request embedded inline in an assistant message
+ * (opencode's `question.asked`). Mirrors `ApprovalBlockData`'s decoupling. */
+export interface QuestionBlockData {
+	questions: QuestionBlockItem[];
+	requestId: string;
+	title: string;
+}
+
 /** One ordered piece of a turn. `file` parts are user-uploaded attachments
- * (e.g. images sent with the message). */
+ * (e.g. images sent with the message). `approval`/`question` parts are the
+ * bridge terminal's embedded request cards (cloud chat never produces them). */
 export type ChatBlock =
 	| { kind: "text"; text: string }
 	| { kind: "reasoning"; text: string }
 	| { kind: "tool"; tool: ToolInvocation }
-	| { kind: "file"; file: AttachmentRef };
+	| { kind: "file"; file: AttachmentRef }
+	| { kind: "approval"; approval: ApprovalBlockData }
+	| { kind: "question"; question: QuestionBlockData };
 
 export interface ChatMessage {
 	blocks: ChatBlock[];

@@ -119,10 +119,12 @@ it("disables both buttons and marks the chosen one once answered, countdown whil
 	).toBe(true);
 });
 
-it("routes an ExitPlanMode approval turn to the plan card, others to the generic line", () => {
+it("routes an ExitPlanMode approval block to the plan card, others to the generic line", () => {
 	const noop = () => {
 		// no-op for this test
 	};
+	// Approvals now fold INTO the assistant turn as blocks (not their own
+	// turn), so the routing under test lives in the assistant spine renderer.
 	const renderTurn = (event: ApprovalEvent) =>
 		render(
 			<BridgeChatRow
@@ -131,7 +133,12 @@ it("routes an ExitPlanMode approval turn to the plan card, others to the generic
 				ended={false}
 				onAnswerApproval={noop}
 				onAnswerQuestion={noop}
-				turn={{ event, id: 1, kind: "approval" }}
+				turn={{
+					blocks: [{ approval: event, kind: "approval" }],
+					id: 1,
+					kind: "assistant",
+					streaming: false,
+				}}
 			/>
 		).container;
 

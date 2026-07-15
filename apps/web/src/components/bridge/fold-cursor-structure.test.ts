@@ -76,7 +76,7 @@ it("reviewer's exact repro: a push and a retract landing in the SAME incremental
 			title: "Run `rm`",
 		}),
 	]);
-	expect(afterPush.map((t) => t.kind)).toEqual(["approval"]);
+	expect(afterPush.map((t) => t.kind)).toEqual(["assistant"]);
 
 	// Call 2: a NEW status push AND the approval's retract, both in one tail.
 	const allEvents: StreamEvent[] = [

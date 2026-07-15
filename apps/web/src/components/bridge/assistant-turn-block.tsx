@@ -28,6 +28,9 @@ import { groupTurnBlocks, type TurnElement } from "./activity-blocks";
 import { ActivityGroup } from "./activity-group";
 import { SpineItem, toneOfGroup, toneOfTool } from "./activity-spine-dot";
 import { renderActivityTool } from "./bridge-tool-card";
+import { ApprovalLine } from "./event-line";
+import { isExitPlanModeApproval, PlanApprovalCard } from "./plan-approval-card";
+import { QuestionCard } from "./question-card";
 
 // R1-T3: the local-agent terminal's TurnBlock — ONE avatar plus a single
 // spine (a left border on the content column) that every block of the turn
@@ -51,11 +54,20 @@ function AssistantAvatar({ avatars }: { avatars?: ChatAvatars }) {
 	);
 }
 
+/** The spine element kinds `TurnElementView` handles — everything EXCEPT the
+ * approval/question requests (those route to `RequestElementView` in the
+ * element map). Typing the param this way lets the trailing toolGroup branch
+ * narrow correctly. */
+type SpineElement = Exclude<
+	TurnElement,
+	{ kind: "approval" } | { kind: "question" }
+>;
+
 function TurnElementView({
 	element,
 	streaming,
 }: {
-	element: TurnElement;
+	element: SpineElement;
 	streaming: boolean;
 }) {
 	if (element.kind === "text") {
@@ -85,13 +97,113 @@ function TurnElementView({
 	);
 }
 
+/** A pending approval/question request, rendered inline on the message's
+ * spine as a block (same column as a tool call) so it shares the avatar +
+ * spine instead of breaking the line. Plan-mode (ExitPlanMode) renders the
+ * rich plan card; every other approval renders the generic line. Split out of
+ * `TurnElementView` purely to keep both under the repo's
+ * max-lines-per-function gate. */
+function RequestElementView({
+	element,
+	answered,
+	answeredQuestions,
+	onAnswerApproval,
+	onAnswerQuestion,
+}: {
+	element: Extract<TurnElement, { kind: "approval" | "question" }>;
+	answered: Record<string, string>;
+	answeredQuestions: Record<string, string[][]>;
+	onAnswerApproval: (requestId: string, optionId: string) => void;
+	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
+}) {
+	if (element.kind === "approval") {
+		return isExitPlanModeApproval(element.approval) ? (
+			<PlanApprovalCard
+				answeredOptionId={answered[element.approval.requestId]}
+				event={element.approval}
+				onAnswer={onAnswerApproval}
+			/>
+		) : (
+			<ApprovalLine
+				answeredOptionId={answered[element.approval.requestId]}
+				event={element.approval}
+				onAnswer={onAnswerApproval}
+			/>
+		);
+	}
+	return (
+		<QuestionCard
+			answered={answeredQuestions[element.question.requestId]}
+			event={element.question}
+			onAnswer={onAnswerQuestion}
+		/>
+	);
+}
+
+interface AssistantTurnBlockProps {
+	/** requestId → chosen optionId for approvals already answered. Threaded
+	 * down so an approval block embedded in this message renders its answered
+	 * state. */
+	answered: Record<string, string>;
+	/** requestId → submitted answers for questions already answered. */
+	answeredQuestions: Record<string, string[][]>;
+	avatars?: ChatAvatars;
+	message: ChatMessage;
+	onAnswerApproval: (requestId: string, optionId: string) => void;
+	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
+}
+
+/** The turn's spine elements, each dispatched to its renderer — prose/tools
+ * to `TurnElementView`, embedded approval/question requests to
+ * `RequestElementView`. Split out of `AssistantTurnBlock` to keep both under
+ * the repo's max-lines-per-function gate. */
+function SpineElements({
+	elements,
+	streaming,
+	answered,
+	answeredQuestions,
+	onAnswerApproval,
+	onAnswerQuestion,
+}: {
+	elements: TurnElement[];
+	streaming: boolean;
+	answered: Record<string, string>;
+	answeredQuestions: Record<string, string[][]>;
+	onAnswerApproval: (requestId: string, optionId: string) => void;
+	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
+}) {
+	return elements.map((element) =>
+		element.kind === "approval" || element.kind === "question" ? (
+			<RequestElementView
+				answered={answered}
+				answeredQuestions={answeredQuestions}
+				element={element}
+				key={element.key}
+				onAnswerApproval={onAnswerApproval}
+				onAnswerQuestion={onAnswerQuestion}
+			/>
+		) : (
+			<TurnElementView
+				// P1-T2: `element.key` is group-aware and stable across streaming
+				// (see activity-blocks.ts) — loose tools folding into a group no
+				// longer remounts every later sibling, and a growing group keeps
+				// its expand state.
+				element={element}
+				key={element.key}
+				streaming={streaming}
+			/>
+		)
+	);
+}
+
 export function AssistantTurnBlock({
 	message,
 	avatars,
-}: {
-	message: ChatMessage;
-	avatars?: ChatAvatars;
-}) {
+	answered,
+	answeredQuestions,
+	onAnswerApproval,
+	onAnswerQuestion,
+}: AssistantTurnBlockProps) {
 	const streaming = message.status === "streaming";
 	const fullText = messageText(message);
 	// P2-T4: `showThinking=false` drops the reasoning TEXT blocks from this
@@ -114,17 +226,14 @@ export function AssistantTurnBlock({
 								className="flex flex-col gap-1.5 border-l pl-3"
 								ref={contentRef}
 							>
-								{elements.map((element) => (
-									<TurnElementView
-										// P1-T2: `element.key` is group-aware and stable across
-										// streaming (see activity-blocks.ts) — loose tools folding
-										// into a group no longer remounts every later sibling, and
-										// a growing group keeps its expand state.
-										element={element}
-										key={element.key}
-										streaming={streaming}
-									/>
-								))}
+								<SpineElements
+									answered={answered}
+									answeredQuestions={answeredQuestions}
+									elements={elements}
+									onAnswerApproval={onAnswerApproval}
+									onAnswerQuestion={onAnswerQuestion}
+									streaming={streaming}
+								/>
 							</div>
 							<AssistantActionsRow
 								contentRef={contentRef}

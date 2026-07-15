@@ -2,16 +2,17 @@ import { expect, it } from "vitest";
 import type { StreamEvent } from "./bridge-events";
 import { foldEventsToTurns } from "./bridge-turns";
 
-// R3-T3: folds opencode's `question.asked` — mirrors
-// bridge-turns-retract.test.ts's approval-cancel coverage, split out purely
-// to keep both files under the repo's 300-line file cap.
+// R3-T3: folds opencode's `question.asked`. A question now folds INTO the
+// in-flight assistant turn as a block (sharing its avatar/spine, and letting
+// the post-answer continuation merge into the same turn) instead of becoming
+// its own turn — see bridge-turns-approval.ts.
 
 const ev = (id: number, event: StreamEvent["event"]): StreamEvent => ({
 	id,
 	event,
 });
 
-it("folds a question event into its own turn", () => {
+it("folds a question event into the assistant turn as a block", () => {
 	const turns = foldEventsToTurns([
 		ev(1, {
 			kind: "question",
@@ -21,10 +22,15 @@ it("folds a question event into its own turn", () => {
 		}),
 	]);
 	expect(turns).toHaveLength(1);
-	expect(turns[0].kind).toBe("question");
+	expect(turns[0].kind).toBe("assistant");
+	const turn = turns[0];
+	expect(
+		turn.kind === "assistant" &&
+			turn.blocks.some((block) => block.kind === "question")
+	).toBe(true);
 });
 
-it("removes a still-open question card when a matching cancelled event arrives", () => {
+it("removes a still-open question block when a matching cancelled event arrives", () => {
 	const turns = foldEventsToTurns([
 		ev(1, {
 			kind: "question",
@@ -40,10 +46,11 @@ it("removes a still-open question card when a matching cancelled event arrives",
 			title: "Cancelled",
 		}),
 	]);
+	// The block was the turn's only content, so retracting it drops the turn.
 	expect(turns).toHaveLength(0);
 });
 
-it("leaves other open question cards alone when a differently-id'd cancel arrives", () => {
+it("leaves other open question blocks alone when a differently-id'd cancel arrives", () => {
 	const turns = foldEventsToTurns([
 		ev(1, {
 			kind: "question",
@@ -60,10 +67,18 @@ it("leaves other open question cards alone when a differently-id'd cancel arrive
 		}),
 	]);
 	expect(turns).toHaveLength(1);
-	expect(turns[0].kind).toBe("question");
+	expect(turns[0].kind).toBe("assistant");
+	const turn = turns[0];
+	expect(
+		turn.kind === "assistant" &&
+			turn.blocks.some(
+				(block) =>
+					block.kind === "question" && block.question.requestId === "q_1"
+			)
+	).toBe(true);
 });
 
-it("closes an in-flight assistant turn as a boundary, like approval does", () => {
+it("folds a question into the SAME assistant turn, not as a boundary", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "partial" }),
 		ev(2, {
@@ -73,9 +88,13 @@ it("closes an in-flight assistant turn as a boundary, like approval does", () =>
 			title: "Confirm",
 		}),
 	]);
-	expect(turns.map((turn) => turn.kind)).toEqual(["assistant", "question"]);
-	const assistantTurn = turns[0];
-	expect(assistantTurn.kind === "assistant" && assistantTurn.streaming).toBe(
-		false
-	);
+	// The question merges into the assistant turn started by the output, so the
+	// post-answer continuation will too — no fresh avatar, no broken spine.
+	expect(turns.map((turn) => turn.kind)).toEqual(["assistant"]);
+	const turn = turns[0];
+	expect(
+		turn.kind === "assistant" &&
+			turn.blocks.some((block) => block.kind === "text") &&
+			turn.blocks.some((block) => block.kind === "question")
+	).toBe(true);
 });

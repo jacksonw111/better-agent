@@ -1,20 +1,16 @@
 import type { ChatBlock } from "@better-agent/ui/components/chat/chat-blocks";
-import type {
-	ApprovalEvent,
-	ErrorEvent,
-	FileEvent,
-	QuestionEvent,
-	StatusEvent,
-} from "./bridge-events";
+import type { ErrorEvent, FileEvent, StatusEvent } from "./bridge-events";
 import type { TaskInvocation } from "./task-invocation";
 import type { TodoItem } from "./todo-list";
 
 /**
  * One coherent turn folded out of the granular bridge event stream, ready to
  * render with the same components the normal chat uses. `message`/`output`/
- * `tool` events collapse into `user`/`assistant` bubbles; the remaining kinds
- * pass through as their own inline rows (a subtle status line, an error line,
- * a file line, a task card, a todolist, or the bridge-specific approval card).
+ * `tool` events collapse into `user`/`assistant` bubbles; approval/question
+ * requests fold INTO the assistant turn as `approval`/`question` blocks (same
+ * as tool calls) so they share the message's avatar and spine instead of
+ * breaking the line. The remaining kinds pass through as their own inline rows
+ * (a subtle status line, an error line, a file line, a task card, a todolist).
  */
 export interface AssistantTurn {
 	blocks: ChatBlock[];
@@ -49,21 +45,6 @@ export interface FileTurn {
 	kind: "file";
 }
 
-export interface ApprovalTurn {
-	event: ApprovalEvent;
-	id: number;
-	kind: "approval";
-}
-
-/** R3-T3: mirrors `ApprovalTurn` for opencode's `question.asked` — a separate
- * request family that folds/retracts the same way (see `bridge-turns.ts`'s
- * `foldQuestion`). */
-export interface QuestionTurn {
-	event: QuestionEvent;
-	id: number;
-	kind: "question";
-}
-
 /** A subagent "Task" tool call, folded out of the ordinary tool-block flow
  * into its own turn (like status/error/file lines) so it renders as a task
  * card instead of a generic tool row — see `isTaskToolInput`. */
@@ -88,7 +69,5 @@ export type BridgeTurn =
 	| StatusTurn
 	| ErrorTurn
 	| FileTurn
-	| ApprovalTurn
-	| QuestionTurn
 	| TaskTurn
 	| PlanTurn;

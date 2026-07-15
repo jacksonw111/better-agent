@@ -57,6 +57,11 @@ export interface FoldState {
 	current: AssistantTurn | null;
 	/** The single plan/todo turn, updated in place as `plan` updates arrive. */
 	plan: PlanTurn | null;
+	/** Pending approval/question request blocks keyed by requestId — lets a
+	 * `cancelled` retract find and remove the exact block now that requests
+	 * fold INTO an assistant turn as blocks (not their own turns). Maps to the
+	 * CANONICAL owning turn (a `state.turns` entry), never a published clone. */
+	requestsByRequestId: Map<string, { turn: AssistantTurn }>;
 	/** The block a FINALIZED message last wrote into (see
 	 * `finalizeAssistantMessage`) — a "sealed" marker, not a turn boundary. A
 	 * later id-less `accumulateOutput` delta checks this: if it's about to
@@ -95,6 +100,7 @@ export function createFoldState(): FoldState {
 		assistantByMessageId: new Map(),
 		current: null,
 		plan: null,
+		requestsByRequestId: new Map(),
 		sealedBlock: null,
 		structureChanged: false,
 		tasksByCallId: new Map(),

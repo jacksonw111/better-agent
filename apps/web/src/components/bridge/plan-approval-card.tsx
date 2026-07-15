@@ -1,8 +1,11 @@
 import { Button } from "@better-agent/ui/components/button";
+import type {
+	ApprovalBlockData,
+	ApprovalOption,
+} from "@better-agent/ui/components/chat/chat-blocks";
 import { Response } from "@better-agent/ui/components/response";
 import { CheckIcon } from "lucide-react";
 import { useCallback, useEffect } from "react";
-import type { ApprovalEvent, ApprovalOption } from "./bridge-events";
 import { ApprovalCountdown } from "./event-line";
 
 // P1-T4: claude's plan-mode approval, inline. The claude-code adapter emits
@@ -15,10 +18,10 @@ import { ApprovalCountdown } from "./event-line";
 
 const EXIT_PLAN_MODE_TITLE = "Use ExitPlanMode?";
 
-/** `true` when an approval event is claude's ExitPlanMode permission request.
+/** `true` when an approval is claude's ExitPlanMode permission request.
  * Matched on the adapter's `Use ${toolName}?` title — the normalized approval
- * event carries no separate toolName field (see claude-code-approvals.ts). */
-export function isExitPlanModeApproval(event: ApprovalEvent): boolean {
+ * carries no separate toolName field (see claude-code-approvals.ts). */
+export function isExitPlanModeApproval(event: ApprovalBlockData): boolean {
 	return event.title === EXIT_PLAN_MODE_TITLE;
 }
 
@@ -133,7 +136,7 @@ export interface PlanApprovalCardProps {
 	/** Mirrors `ApprovalLineProps.answeredOptionId` — set once this request was
 	 * answered (optimistically or via replay); disables both buttons. */
 	answeredOptionId?: string;
-	event: ApprovalEvent;
+	event: ApprovalBlockData;
 	onAnswer?: (requestId: string, optionId: string) => void;
 }
 
