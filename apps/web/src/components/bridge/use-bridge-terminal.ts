@@ -186,6 +186,8 @@ function useControls(
 	sessionId: string
 ) {
 	const {
+		fsList,
+		fsRead,
 		getStatus,
 		interrupt,
 		restart,
@@ -200,6 +202,8 @@ function useControls(
 		feedSessionList
 	);
 	return {
+		fsList,
+		fsRead,
 		getStatus,
 		interrupt,
 		listSessions,

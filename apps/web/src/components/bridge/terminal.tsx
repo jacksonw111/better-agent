@@ -2,16 +2,17 @@ import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
 import { useMemo } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
+import type { StreamEvent } from "./bridge-events";
+import type { BridgeTransport } from "./bridge-transport";
 import {
 	type ResolvedCapabilities,
 	resolveCapabilities,
-} from "./agent-capabilities";
-import type { StreamEvent } from "./bridge-events";
-import type { BridgeTransport } from "./bridge-transport";
+} from "./resolve-capabilities";
 import { TerminalBody } from "./terminal-body";
 import { TerminalHeader } from "./terminal-header";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 import { useFoldedTurns } from "./use-folded-turns";
+import { usePublishFsChannel } from "./use-fs-channel";
 import { usePublishShellChannel } from "./use-shell-channel";
 import { useWebQueue } from "./use-web-queue";
 
@@ -158,6 +159,12 @@ export function Terminal({
 	// runShell control) to the module store the workspace Shell tab reads —
 	// avoids a second SSE connection for the pane.
 	usePublishShellChannel(view.events, caps.shell, view.runShell);
+	// P4-T3: likewise for the fs channel (Files tab + composer @file picker) —
+	// requestId-correlated fsList/fsRead over the same feed, see use-fs-channel.ts.
+	usePublishFsChannel(view.events, caps.fs, {
+		list: view.fsList,
+		read: view.fsRead,
+	});
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">

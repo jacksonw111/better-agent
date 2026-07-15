@@ -78,6 +78,28 @@ export interface ControlRunShellCommand {
 	type: "control";
 }
 
+/** P4-T3: the workspace Files tab's directory listing. `requestId` is minted
+ * by the WEB and echoed back on the `fs_list` reply status event so the web
+ * can correlate it (unlike fire-and-forget `listSessions`). `path` is
+ * workspace-relative; absent means the workspace root. Routed to
+ * `CommandSink.fsList` — a CLI-GLOBAL wrapper (fs-reader.ts), agent-free. */
+export interface ControlFsListCommand {
+	action: "fsList";
+	path?: string;
+	requestId: string;
+	type: "control";
+}
+
+/** P4-T3: the Files tab's file preview / @file picker read. Same requestId
+ * correlation as `ControlFsListCommand`; the reply arrives as one or more
+ * chunked `fs_read` status events. Routed to `CommandSink.fsRead`. */
+export interface ControlFsReadCommand {
+	action: "fsRead";
+	path: string;
+	requestId: string;
+	type: "control";
+}
+
 /** The detail page's "Start desktop" button (`--cua`): provision + boot the
  * local VM and open its VNC. Routed to `CommandSink.startVm`. */
 export interface ControlStartVmCommand {
@@ -94,6 +116,8 @@ export interface ControlStopVmCommand {
 
 export type ControlCommand =
 	| ControlAnswerQuestionCommand
+	| ControlFsListCommand
+	| ControlFsReadCommand
 	| ControlGetStatusCommand
 	| ControlInterruptCommand
 	| ControlListSessionsCommand
@@ -122,6 +146,36 @@ function parseControlCommandWithPayload(
 	}
 	if (data.action === "runShell" && typeof data.command === "string") {
 		return { action: "runShell", command: data.command, type: "control" };
+	}
+	return null;
+}
+
+/** P4-T3: the fs actions, split from `parseControlCommandWithPayload` to keep
+ * that function's complexity under the eslint gate. Both require the
+ * web-minted string `requestId`; `fsList`'s `path` is optional (root),
+ * `fsRead`'s is required. */
+function parseFsControlCommand(
+	data: Record<string, unknown>
+): ControlCommand | null {
+	if (typeof data.requestId !== "string") {
+		return null;
+	}
+	const path = typeof data.path === "string" ? data.path : undefined;
+	if (data.action === "fsList") {
+		return {
+			action: "fsList",
+			path,
+			requestId: data.requestId,
+			type: "control",
+		};
+	}
+	if (data.action === "fsRead" && path !== undefined) {
+		return {
+			action: "fsRead",
+			path,
+			requestId: data.requestId,
+			type: "control",
+		};
 	}
 	return null;
 }
@@ -156,6 +210,7 @@ export function parseControlCommand(
 ): ControlCommand | null {
 	return (
 		parseControlCommandWithPayload(data) ??
+		parseFsControlCommand(data) ??
 		parseAnswerQuestionCommand(data) ??
 		parseSimpleControlCommand(data)
 	);

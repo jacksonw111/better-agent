@@ -30,6 +30,12 @@ function callSetThinking(sink: CommandSink, level: string): void {
 function callRunShell(sink: CommandSink, command: string): void {
 	sink.runShell?.(command);
 }
+function callFsList(sink: CommandSink, requestId: string, path?: string): void {
+	sink.fsList?.(requestId, path);
+}
+function callFsRead(sink: CommandSink, requestId: string, path: string): void {
+	sink.fsRead?.(requestId, path);
+}
 function callListSessions(sink: CommandSink): void {
 	sink.listSessions?.();
 }
@@ -114,6 +120,10 @@ export function dispatchControlCommand(
 		callSetThinking(sink, command.level);
 	} else if (command.action === "runShell") {
 		callRunShell(sink, command.command);
+	} else if (command.action === "fsList") {
+		callFsList(sink, command.requestId, command.path);
+	} else if (command.action === "fsRead") {
+		callFsRead(sink, command.requestId, command.path);
 	} else if (command.action === "answerQuestion") {
 		callAnswerQuestion(sink, command.requestId, command.answers);
 	}

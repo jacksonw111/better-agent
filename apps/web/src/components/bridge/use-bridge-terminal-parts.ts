@@ -29,6 +29,10 @@ export interface UseBridgeTerminalResult {
 	 * adapter has emitted one — see `FeedState.commandCatalog`. */
 	commandCatalog: CommandCatalogDetail | null;
 	events: FeedState["events"];
+	/** P4-T3: the fs channel's control senders — requestId-correlated, see
+	 * `SessionControls.fsList`/`fsRead` (use-bridge-terminal-actions.ts). */
+	fsList: (requestId: string, path?: string) => Promise<void>;
+	fsRead: (requestId: string, path: string) => Promise<void>;
 	/** Requests a fresh `status_snapshot` — the detail page's status refresh
 	 * affordance. Routed as `{ type: "control", action: "getStatus" }`; the
 	 * reply arrives asynchronously as a `status_snapshot` status event,
@@ -157,6 +161,9 @@ export interface BuildResultArgs {
 	conn: ConnectionState;
 	ended: boolean;
 	feed: FeedState;
+	/** P4-T3: see `UseBridgeTerminalResult.fsList`/`fsRead`. */
+	fsList: (requestId: string, path?: string) => Promise<void>;
+	fsRead: (requestId: string, path: string) => Promise<void>;
 	/** Requests a fresh `status_snapshot` — the detail page's status refresh
 	 * affordance. Fire-and-forget, same shape as `listSessions`. */
 	getStatus: () => Promise<void>;
@@ -196,6 +203,8 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 	return {
 		commandCatalog: args.commandCatalog,
 		events: args.feed.events,
+		fsList: args.fsList,
+		fsRead: args.fsRead,
 		status: args.ended ? "ended" : args.conn.status,
 		canSend: !args.ended,
 		sending: args.sending,

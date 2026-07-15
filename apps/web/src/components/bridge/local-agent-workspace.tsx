@@ -15,6 +15,7 @@ import {
 	WaitingForCli,
 } from "./local-agent-detail";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
+import { LocalAgentFilesPane } from "./local-agent-files-pane";
 import {
 	deriveLocalAgentEntries,
 	type LocalAgentEntry,
@@ -203,6 +204,7 @@ function WorkspaceLayout({
 					userAvatarUrl={userAvatarUrl}
 				/>
 				<LocalAgentShellPane hidden={tab !== "shell"} />
+				<LocalAgentFilesPane hidden={tab !== "files"} />
 			</div>
 			<MobileSessionDrawer onClose={drawer.close} open={drawer.open}>
 				{sidebar(drawer.select)}

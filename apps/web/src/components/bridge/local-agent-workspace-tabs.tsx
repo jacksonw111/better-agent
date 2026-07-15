@@ -1,21 +1,22 @@
 import { Tabs, TabsList, TabsTrigger } from "@better-agent/ui/components/tabs";
 
 // P2-T2: the workspace content pane's pill tab row. Chat is live; P4-T2 added
-// Shell (the runShell one-shot command runner); Files/Git remain disabled
-// placeholders until their P4 CLI channels land. The row scrolls horizontally
-// on narrow screens.
+// Shell (the runShell one-shot command runner); P4-T3 added Files (the
+// read-only fsList/fsRead tree). Git remains a disabled placeholder until its
+// P4 CLI channel lands. The row scrolls horizontally on narrow screens.
 
 export type WorkspaceTabId = "chat" | "files" | "git" | "shell";
 
-/** Enabled non-chat tabs (P4-T2: Shell). The pane itself handles the
- * "capability absent / no active session" empty state, so the tab stays
- * enabled unconditionally rather than gating on caps the tab row can't see. */
+/** Enabled non-chat tabs (P4-T2: Shell; P4-T3: Files). The pane itself
+ * handles the "capability absent / no active session" empty state, so the tab
+ * stays enabled unconditionally rather than gating on caps the tab row can't
+ * see. */
 const LIVE_TABS: { id: WorkspaceTabId; label: string }[] = [
+	{ id: "files", label: "Files" },
 	{ id: "shell", label: "Shell" },
 ];
 
 const PLACEHOLDER_TABS: { id: WorkspaceTabId; label: string }[] = [
-	{ id: "files", label: "Files" },
 	{ id: "git", label: "Git" },
 ];
 

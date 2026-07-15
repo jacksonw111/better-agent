@@ -85,6 +85,16 @@ export interface CommandSink {
 	 * means "reject" (opencode's `POST /question/:id/reject`), not "no answer
 	 * for any question". Optional: only opencode-serve implements it. */
 	answerQuestion?(requestId: string, answers: string[][]): void;
+	/** P4-T3: lists a workspace directory (read-only Files tab), replying with
+	 * an `fs_list` status event echoing the web-minted `requestId`. Provided by
+	 * the CLI-GLOBAL `withFsReader` wrapper (fs-reader.ts), NOT the adapter —
+	 * never touches the agent. Optional, same silent-no-op contract as the
+	 * other controls. */
+	fsList?(requestId: string, path?: string): void;
+	/** P4-T3: reads one workspace file (size-capped, chunked, binary-sniffed),
+	 * replying with chunked `fs_read` status events echoing `requestId`. Same
+	 * `withFsReader` provenance and no-op contract as `fsList`. */
+	fsRead?(requestId: string, path: string): void;
 	/** Asks the agent for a normalized status snapshot; the adapter answers by
 	 * pushing a `status_snapshot` status event (see
 	 * `apps/bridge-cli/src/adapters/types.ts`'s `StatusSnapshotDetail`). Called

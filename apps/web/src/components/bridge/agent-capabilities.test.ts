@@ -1,10 +1,9 @@
 import { expect, it } from "vitest";
+import { CAPABILITIES, capabilities } from "./agent-capabilities";
 import {
-	CAPABILITIES,
-	capabilities,
 	resolveCapabilities,
 	type SessionCapabilities,
-} from "./agent-capabilities";
+} from "./resolve-capabilities";
 
 // Phase 0.5: one canonical matrix (from the pi/opencode research in the plan
 // doc) every optional Local Agent surface gates on. These assertions pin the
@@ -224,4 +223,14 @@ it("resolves shell true when the handshake reports it", () => {
 		capabilities: { ...HANDSHAKE, shell: true },
 	});
 	expect(resolved.shell).toBe(true);
+});
+
+// P4-T3: the Files tab / @file picker mirror the shell gating on `fs`.
+it("resolves fs false without a handshake, true when reported", () => {
+	expect(resolveCapabilities("claude-code", null).fs).toBe(false);
+	expect(resolveCapabilities("pi", { capabilities: HANDSHAKE }).fs).toBe(false);
+	const resolved = resolveCapabilities("claude-code", {
+		capabilities: { ...HANDSHAKE, fs: true },
+	});
+	expect(resolved.fs).toBe(true);
 });

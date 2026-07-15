@@ -60,6 +60,8 @@ export interface SessionCapabilities {
 	approval: "gated" | "none";
 	/** Mid-turn interruption: queued follow-up, live steer, hard interrupt. */
 	busyModes: ("queue" | "steer" | "interrupt")[];
+	/** P4-T3: read-only `fsList`/`fsRead` (Files tab) — CLI-side, like `shell`. */
+	fs: boolean;
 	/** P3-T2: the adapter can inject user-uploaded images into a turn (claude's
 	 * content-block array, pi's `prompt.images`) — gates the composer's attach
 	 * UI. */
@@ -74,9 +76,8 @@ export interface SessionCapabilities {
 	quota: boolean;
 	/** Session-management operations the agent supports. */
 	sessionOps: ("list" | "fork" | "tree" | "compact")[];
-	/** P4-T2: out-of-band `runShell` in the workspace (Shell tab). Always true —
-	 * CLI-side, agent-independent (shell-runner.ts); on the handshake so the web
-	 * gates the tab on a CLI new enough to answer it. */
+	/** P4-T2: out-of-band `runShell` (Shell tab). Always true — CLI-side
+	 * (shell-runner.ts); handshake-gated so old CLIs hide the tab. */
 	shell: boolean;
 	/** The agent exposes a skills list. */
 	skills: boolean;

@@ -121,6 +121,15 @@ function restartSession(sessionId: string): Promise<void> {
 }
 
 export interface SessionControls {
+	/** P4-T3: lists a workspace directory. Routed as `{ type: "control",
+	 * action: "fsList", requestId, path? }` — `requestId` is minted by the
+	 * caller (fs-correlation.ts) and echoed on the `fs_list` reply status
+	 * event, unlike the fire-and-forget `listSessions`. */
+	fsList: (requestId: string, path?: string) => Promise<void>;
+	/** P4-T3: reads one workspace file — `{ type: "control", action: "fsRead",
+	 * requestId, path }`; the reply arrives as chunked `fs_read` status events
+	 * reassembled by fs-correlation.ts. */
+	fsRead: (requestId: string, path: string) => Promise<void>;
 	/** Asks the agent for its current status (model/context/cost/tokens/mcp/
 	 * running) — fire-and-forget like `listSessions`, the reply arrives
 	 * asynchronously as a `status_snapshot` status event (see
@@ -167,5 +176,13 @@ export function useSessionControls(
 		restart: () => restartSession(sessionId),
 		runShell: (command: string) =>
 			sendControlCommand(sendRaw, "runShell", { command }),
+		fsList: (requestId: string, path?: string) =>
+			sendControlCommand(
+				sendRaw,
+				"fsList",
+				path === undefined ? { requestId } : { path, requestId }
+			),
+		fsRead: (requestId: string, path: string) =>
+			sendControlCommand(sendRaw, "fsRead", { path, requestId }),
 	};
 }

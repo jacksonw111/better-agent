@@ -201,99 +201,16 @@ export function capabilities(kind: AgentKind): AgentCapabilities {
 	return CAPABILITIES[kind];
 }
 
-/** R3-T1: the busy-turn send policies a composer send can carry — mirrors
- * `TextWhen` in `apps/bridge-cli/src/adapters/types.ts`. Also the element type
- * of `SessionCapabilities.busyModes` below, i.e. the set of modes a given
- * agent actually supports (pi reports all three; claude-code/opencode/codex
- * report `["queue", "interrupt"]` — "steer" is never offered for them). */
-export type TextWhen = "queue" | "steer" | "interrupt";
-
-/** R2-T1: the CLI's LIVE capability handshake — the wire counterpart of
- * `AgentCapabilities` above, carried on `session_ready`'s `detail.capabilities`
- * once an adapter reports one (every adapter but codex, until R2-T2). Keep
- * field-identical to `apps/bridge-cli/src/adapters/types.ts`'s copy. */
-export interface SessionCapabilities {
-	approval: "gated" | "none";
-	busyModes: TextWhen[];
-	/** P3-T2: adapter can inject images; a pre-P3-T2 handshake omits → false. */
-	images?: boolean;
-	mcp: "live" | "restart" | "none";
-	modelSwitch: boolean;
-	permissionModes: string[];
-	quota: boolean;
-	sessionOps: ("list" | "fork" | "tree" | "compact")[];
-	/** P4-T2: CLI answers `runShell` (Shell tab); old handshakes omit → false. */
-	shell?: boolean;
-	skills: boolean;
-	slashCommands: boolean;
-	thinkingLevels: string[];
-	usage: UsageMode;
-}
-
-/** `AgentCapabilities` plus every `SessionCapabilities` field that isn't
- * already covered by an overlapping name — see `resolveCapabilities`. */
-export interface ResolvedCapabilities extends AgentCapabilities {
-	approval: SessionCapabilities["approval"];
-	busyModes: SessionCapabilities["busyModes"];
-	/** P3-T2: gates the attach surface; only a live handshake enables it. */
-	images: boolean;
-	mcp: SessionCapabilities["mcp"];
-	quota: boolean;
-	sessionOps: SessionCapabilities["sessionOps"];
-	/** P4-T2: gates the Shell tab; only a P4-T2+ handshake enables it. */
-	shell: boolean;
-	thinkingLevels: string[];
-}
-
-/** Conservative defaults for the handshake-only fields, pre-handshake. */
-function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
-	const base = capabilities(kind);
-	return {
-		...base,
-		approval: base.toolApproval ? "gated" : "none",
-		busyModes: base.interrupt ? ["queue", "interrupt"] : ["queue"],
-		images: false,
-		mcp: "none",
-		quota: false,
-		sessionOps: base.sessionList ? ["list"] : [],
-		shell: false,
-		thinkingLevels: [],
-	};
-}
-
-/** The single entry point every terminal/composer/header call site should use
- * instead of the old static `capabilities(kind)` lookup: prefers the LIVE
- * handshake off `session_ready` (`sessionReady?.capabilities`) when present,
- * merging it onto the static matrix — the shared fields below OVERRIDE, the
- * handshake-only fields ADD, and every other static-only flag (reasoning,
- * contextUsage, sessionResume, noApprovalGate, toolApproval, interrupt) stays
- * exactly as the matrix says, since the handshake carries no opinion on them.
- * Falls back to `staticCapabilities` alone when no handshake has arrived yet
- * (old CLI, or codex until R2-T2). */
-export function resolveCapabilities(
-	kind: AgentKind,
-	sessionReady: { capabilities?: SessionCapabilities } | null | undefined
-): ResolvedCapabilities {
-	const handshake = sessionReady?.capabilities;
-	const fallback = staticCapabilities(kind);
-	if (!handshake) {
-		return fallback;
-	}
-	return {
-		...fallback,
-		approval: handshake.approval,
-		busyModes: handshake.busyModes,
-		images: handshake.images ?? false,
-		mcp: handshake.mcp,
-		modelSwitch: handshake.modelSwitch,
-		permissionModes: handshake.permissionModes,
-		quota: handshake.quota,
-		sessionList: handshake.sessionOps.includes("list"),
-		sessionOps: handshake.sessionOps,
-		shell: handshake.shell ?? false,
-		skills: handshake.skills,
-		slashCommands: handshake.slashCommands,
-		thinkingLevels: handshake.thinkingLevels,
-		usageMode: handshake.usage,
-	};
-}
+// The live-handshake half (TextWhen, SessionCapabilities,
+// ResolvedCapabilities, resolveCapabilities) moved to resolve-capabilities.ts
+// when P4-T3's `fs` field pushed this file past the repo's 300-line cap. The
+// TYPES are re-exported so the many existing type imports keep working (same
+// pattern as `apps/bridge-cli/src/adapters/types.ts`'s AgentCapabilities
+// re-export); `resolveCapabilities` itself is imported from
+// ./resolve-capabilities directly — a value re-export would be a barrel
+// (biome noBarrelFile).
+export type {
+	ResolvedCapabilities,
+	SessionCapabilities,
+	TextWhen,
+} from "./resolve-capabilities";

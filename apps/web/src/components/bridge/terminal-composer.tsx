@@ -11,10 +11,12 @@ import { useClientPref } from "@/utils/preferences";
 import type { TextWhen } from "./agent-capabilities";
 import { handleCtrlEnterKeyDown } from "./composer-enter-policy";
 import { imageDropHandlers, useComposerImages } from "./composer-image-strip";
+import { FilePickerList } from "./file-picker-list";
 import { usePermissionModeCycle } from "./permission-mode-cycle";
 import { SlashPickerList } from "./slash-picker-list";
 import { composerHint, composerToolbar } from "./terminal-composer-extras";
 import { useBusySend } from "./use-busy-send";
+import { type UseFilePickerResult, useFilePicker } from "./use-file-picker";
 import type { ImageRef, UploadImage } from "./use-image-attachments";
 import { type UseSlashPickerResult, useSlashPicker } from "./use-slash-picker";
 import type { WebQueue } from "./use-web-queue";
@@ -83,23 +85,29 @@ export interface TerminalComposerProps {
 	webQueue?: WebQueue;
 }
 
-/** `aria-activedescendant`/`aria-controls` wiring for the textarea while the
- * picker is open — a bare textarea (no combobox semantics) otherwise. */
+/** `aria-activedescendant`/`aria-controls` wiring for the textarea while a
+ * picker ("/" first, then "@" — only one is ever open at a time in practice)
+ * is open — a bare textarea (no combobox semantics) otherwise. */
 function comboboxAriaFor(
-	picker: UseSlashPickerResult
+	pickers: Pick<
+		UseSlashPickerResult,
+		"activeIndex" | "itemDomId" | "listId" | "open"
+	>[]
 ): PromptInputComboboxAria | undefined {
-	if (!picker.open) {
+	const openPicker = pickers.find((candidate) => candidate.open);
+	if (!openPicker) {
 		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
 		return undefined;
 	}
 	return {
-		activeDescendant: picker.itemDomId(picker.activeIndex),
-		controls: picker.listId,
+		activeDescendant: openPicker.itemDomId(openPicker.activeIndex),
+		controls: openPicker.listId,
 	};
 }
 
 interface ComposerBoxProps {
 	disabled: boolean;
+	filePicker: UseFilePickerResult;
 	hint?: ReactNode;
 	onKeyDown: (event: ReactKeyboardEvent<HTMLTextAreaElement>) => boolean;
 	picker: UseSlashPickerResult;
@@ -109,12 +117,46 @@ interface ComposerBoxProps {
 	toolbar: ReactNode;
 }
 
-/** The busy-input hint row (when applicable), the "/" picker (when open)
+/** The two dropdowns stacked above the box — "/" first, "@" only when the
+ * slash picker isn't open. Split from `ComposerBox` purely for the
+ * max-lines-per-function gate. */
+function ComposerPickers({
+	filePicker,
+	picker,
+}: Pick<ComposerBoxProps, "filePicker" | "picker">) {
+	return (
+		<>
+			{picker.open && (
+				<SlashPickerList
+					activeIndex={picker.activeIndex}
+					itemDomId={picker.itemDomId}
+					items={picker.items}
+					listId={picker.listId}
+					onHover={picker.setActiveIndex}
+					onSelect={picker.select}
+				/>
+			)}
+			{filePicker.open && !picker.open && (
+				<FilePickerList
+					activeIndex={filePicker.activeIndex}
+					itemDomId={filePicker.itemDomId}
+					items={filePicker.items}
+					listId={filePicker.listId}
+					onHover={filePicker.setActiveIndex}
+					onSelect={filePicker.select}
+				/>
+			)}
+		</>
+	);
+}
+
+/** The busy-input hint row (when applicable), the pickers (when open)
  * stacked above the prompt input itself — split out of `TerminalComposer`
  * purely to keep that component under the repo's max-lines-per-function
  * gate. */
 function ComposerBox({
 	disabled,
+	filePicker,
 	hint,
 	onKeyDown,
 	picker,
@@ -126,22 +168,13 @@ function ComposerBox({
 	return (
 		<div className="relative mx-auto max-w-3xl">
 			{hint}
-			{picker.open && (
-				<SlashPickerList
-					activeIndex={picker.activeIndex}
-					itemDomId={picker.itemDomId}
-					items={picker.items}
-					listId={picker.listId}
-					onHover={picker.setActiveIndex}
-					onSelect={picker.select}
-				/>
-			)}
+			<ComposerPickers filePicker={filePicker} picker={picker} />
 			<PromptInput
 				className="rounded-2xl border bg-background/85 p-2 shadow-lg backdrop-blur-md md:bg-background md:shadow-sm md:backdrop-blur-none"
 				onSubmit={submit}
 			>
 				<PromptInputTextarea
-					comboboxAria={comboboxAriaFor(picker)}
+					comboboxAria={comboboxAriaFor([picker, filePicker])}
 					disabled={disabled}
 					onChange={setText}
 					onKeyDown={onKeyDown}
@@ -203,6 +236,9 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		skills: props.skills,
 		text,
 	});
+	// P4-T3: the @file picker — fed by the fs channel store (no new props), so
+	// it simply never opens when the session's CLI lacks the fs capability.
+	const filePicker = useFilePicker({ setText, text });
 	const images = useComposerImages(props.imageUpload);
 	const { setWhen, submit, when } = useBusySend(props, text, setText, images);
 	useEscInterrupt(props);
@@ -213,12 +249,14 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		permissionModes: props.permissionModes,
 		pickerOpen: picker.open,
 	});
-	// Chain order: an open "/" picker owns the keyboard, then Tab-cycles the
-	// permission mode (P2-T5), then the Ctrl+Enter send policy (P2-T4).
+	// Chain order: an open "/" picker owns the keyboard, then the "@" file
+	// picker (P4-T3), then Tab-cycles the permission mode (P2-T5), then the
+	// Ctrl+Enter send policy (P2-T4).
 	const onComposerKeyDown = (
 		event: ReactKeyboardEvent<HTMLTextAreaElement>
 	): boolean =>
 		picker.handleKeyDown(event) ||
+		filePicker.handleKeyDown(event) ||
 		handleTabCycle(event) ||
 		handleCtrlEnterKeyDown(event, sendByCtrlEnter, submit);
 
@@ -237,6 +275,7 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		>
 			<ComposerBox
 				disabled={disabled}
+				filePicker={filePicker}
 				hint={hint}
 				onKeyDown={onComposerKeyDown}
 				picker={picker}
