@@ -9,8 +9,8 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_dividends",
 	description:
-		"A-share dividend & bonus-share history (每10股送转/派息, record/ex-dividend " +
-		"dates, progress).",
+		"A股分红送转历史: 每10股送/转/派息, 股权登记日, 除权除息日, 实施进度. Use for: 分红 派息 送股 转增 股息 除权 " +
+		"dividend. Not for: 美股股息 → finance_sec_facts.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -32,8 +32,9 @@ TOOL_NAMES.add("finance_dividends");
 TOOLS.push({
 	name: "finance_dragon_tiger",
 	description:
-		"龙虎榜: stocks on the daily dragon-tiger list (abnormal trading), by date " +
-		"— code, name, change%, turnover, billboard net amount, reason.",
+		"龙虎榜 (按日期): 上榜股票, 涨跌幅, 换手, 龙虎榜净买额, 上榜原因. Use for: 龙虎榜 游资 席位 营业部 异动 上榜 " +
+		"机构买卖. Not for: 大宗交易 → finance_block_trades; 涨停池 → " +
+		"finance_limit_up_pool.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -55,8 +56,9 @@ TOOL_NAMES.add("finance_dragon_tiger");
 TOOLS.push({
 	name: "finance_top_holders",
 	description:
-		"Top-10 free-float shareholders of an A-share (latest reporting period): " +
-		"holder, shares, float %, change.",
+		"A股十大流通股东 (最新报告期): 股东名称, 持股数, 占流通比, 增减变动. Use for: 十大股东 机构持股 股东名单 谁在买 " +
+		"holders. Not for: 股东户数 → finance_holder_count; 美股机构 → " +
+		"finance_institutional_holders; 高管增减持 → finance_insider_trades.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -74,11 +76,10 @@ TOOL_NAMES.add("finance_top_holders");
 TOOLS.push({
 	name: "finance_prediction_markets",
 	description:
-		"Polymarket prediction markets — real-money odds on real-world events " +
-		"(politics, macro, crypto, sports). Returns top markets by volume (or " +
-		"filtered by `query` keyword): question, outcome probabilities, volume, " +
-		"end date. Outcome probabilities are live CLOB midpoints (fallback to " +
-		"Gamma last price). Great for event-probability / sentiment signals.",
+		"Polymarket 预测市场实钱赔率: 按 24h 交易量排序的热门事件 (政治/宏观/加密/体育), query 关键词过滤. " +
+		"返回问题, 各结果实时概率 (CLOB midpoint), 交易量. Use for: 预测市场 概率 赔率 降息概率 大选 " +
+		"event odds. Not for: 美国监管盘 → finance_kalshi; 概率历史曲线 → " +
+		"finance_prediction_history.",
 	inputSchema: {
 		type: "object",
 		properties: {

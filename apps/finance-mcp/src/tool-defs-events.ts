@@ -9,8 +9,8 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_block_trades",
 	description:
-		"大宗交易 (block trades): 成交价/溢价率%/成交额, 买卖方营业部席位. " +
-		"Market-wide latest by amount, or by symbol.",
+		"A股大宗交易: 成交价, 折溢价率 %, 成交额, 买卖方营业部席位. 全市场最新或按 symbol. Use for: 大宗 折价 " +
+		"溢价 机构接盘 block trade. Not for: 龙虎榜 → finance_dragon_tiger.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -32,8 +32,9 @@ TOOL_NAMES.add("finance_block_trades");
 TOOLS.push({
 	name: "finance_insider_trades",
 	description:
-		"高管/股东增减持 (insider buy/sell): 变动人/职务, 增持or减持(HOLD_TYPE), " +
-		"变动股数/均价/金额/比例, 原因. Market-wide latest, or by symbol.",
+		"A股高管/重要股东增减持: 变动人/职务, 增持或减持, 股数/均价/金额/比例, 原因. 全市场最新或按 symbol. Use " +
+		"for: 增持 减持 高管买卖 股东变动 insider. Not for: 解禁 → finance_lockup; 十大股东 → " +
+		"finance_top_holders.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -55,8 +56,8 @@ TOOL_NAMES.add("finance_insider_trades");
 TOOLS.push({
 	name: "finance_suspension",
 	description:
-		"停复牌 (trading halts): 停牌起始/复牌时间, 停牌期限, 原因, 预计复牌日. " +
-		"Currently-halted/recent.",
+		"A股停复牌: 停牌起始/复牌时间, 停牌期限, 原因, 预计复牌日. Use for: 停牌 复牌 halt suspension " +
+		"resumption.",
 	inputSchema: {
 		type: "object",
 		properties: {

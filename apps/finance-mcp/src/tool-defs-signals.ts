@@ -9,8 +9,8 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_margin",
 	description:
-		"A-share 融资融券 (margin) history: 融资余额/买入额, 融券余额/余量, 融资融券余额, " +
-		"融资余额占比. A-share only.",
+		"A股融资融券历史: 融资余额/买入额/偿还, 融券余额/余量, 两融余额, 融资余额占比. Use for: 两融 融资 融券 杠杆资金 " +
+		"margin balance. Not for: 主力资金 → finance_money_flow.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -32,9 +32,9 @@ TOOL_NAMES.add("finance_margin");
 TOOLS.push({
 	name: "finance_divergence",
 	description:
-		"Price↔sentiment divergence signal for a (US) ticker: combines recent " +
-		"price trend (kline) with Adanos crowd sentiment to flag 顶背离/底背离/共振. " +
-		"source = sentiment source (x/reddit/polymarket/news).",
+		"价格与情绪背离信号 (US ticker): K线趋势 × 社媒情绪 → 顶背离/底背离/共振. " +
+		"source=x/reddit/polymarket/news. Use for: 背离 情绪错配 divergence signal. " +
+		"Not for: 单看情绪 → finance_sentiment_ticker.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -57,8 +57,8 @@ TOOL_NAMES.add("finance_divergence");
 TOOLS.push({
 	name: "finance_sentiment_compare",
 	description:
-		"Compare social/market sentiment across multiple tickers (buzz, bull/bear %, mentions). " +
-		"tickers = comma-separated. Adanos.",
+		"多 ticker 社媒情绪对比 (逗号分隔): buzz, 多空 %, 提及量. Use for: 对比 比较 哪个更热 compare " +
+		"sentiment.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -86,8 +86,8 @@ TOOL_NAMES.add("finance_sentiment_compare");
 TOOLS.push({
 	name: "finance_holder_count",
 	description:
-		"A-share 股东户数 (shareholder count) time series: 户数, 较上期变动%, 户均流通股. " +
-		"Falling 户数 = 筹码集中 (bullish). A-share only.",
+		"A股股东户数时间序列: 户数, 环比变动 %, 户均流通股. 户数下降=筹码集中 (偏多信号). Use for: 股东户数 筹码 " +
+		"集中度 散户人数. Not for: 十大股东 → finance_top_holders.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -105,8 +105,9 @@ TOOL_NAMES.add("finance_holder_count");
 TOOLS.push({
 	name: "finance_cn_hot",
 	description:
-		"A股股吧人气榜 (EastMoney retail-attention rank) — top stocks by 股民关注度, with rank " +
-		"change, live price & change%. A CN attention/sentiment proxy.",
+		"A股东财股吧人气榜: 股民关注度排名 + 排名变化 + 现价涨跌. Use for: 人气榜 关注度 散户热度 股吧 东财 " +
+		"popularity. Not for: 同花顺热榜(带概念标签) → finance_hot_list; 个股概念命中 → " +
+		"finance_hot_concepts; 强势股归因 → finance_strong_stocks.",
 	inputSchema: {
 		type: "object",
 		properties: {

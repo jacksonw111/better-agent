@@ -8,9 +8,10 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_limit_up_pool",
 	description:
-		"A股打板四池 (EastMoney): 涨停池(zt) / 炸板池(zb) / 跌停池(dt) / 昨日涨停池(yzt). " +
-		"Per stock: 连板数, 封板时间, 封板资金, 炸板次数, 行业, N天M板. " +
-		"date must be a trading day (YYYYMMDD).",
+		"A股打板四池 (EastMoney): pool=zt 涨停池 | zb 炸板池 | dt 跌停池 | yzt 昨日涨停池. 每股: " +
+		"连板数, 封板时间, 封板资金, 炸板次数, 行业, N天M板. date=交易日 YYYYMMDD. Use for: 涨停 跌停 " +
+		"连板 打板 封板 首板 二板 晋级率. Not for: 涨停原因题材 → finance_limit_up_reasons; 情绪汇总 " +
+		"→ finance_limit_up_sentiment.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -34,8 +35,9 @@ TOOL_NAMES.add("finance_limit_up_pool");
 TOOLS.push({
 	name: "finance_limit_up_reasons",
 	description:
-		"A股涨停揭秘 (同花顺): 涨停原因题材 (reason tags), 板型 (换手板/一字板/T字板), " +
-		"封板成功率, 封单额, 几天几板. The 'why it hit limit-up' enrichment for the zt pool.",
+		"A股涨停揭秘 (同花顺): 涨停原因题材 tags, 板型 (换手板/一字板/T字板), 封板成功率, 封单额, 几天几板. Use " +
+		"for: 涨停原因 为什么涨停 题材 妖股 板型 封板质量. Not for: 四池明细 → " +
+		"finance_limit_up_pool; 强势股归因 → finance_strong_stocks.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -53,8 +55,9 @@ TOOL_NAMES.add("finance_limit_up_reasons");
 TOOLS.push({
 	name: "finance_limit_up_sentiment",
 	description:
-		"A股打板情绪温度计: 涨停/炸板/跌停家数, 炸板率%, 最高连板高度, 连板梯队 " +
-		"(板数→家数). Composed from the EastMoney 打板 pools for one trading day.",
+		"A股打板情绪温度计 (单交易日): 涨停/炸板/跌停家数, 炸板率 %, 最高连板高度, 连板梯队 (板数→家数). Use for: " +
+		"打板情绪 赚钱效应 亏钱效应 连板高度 炸板率 市场情绪. Not for: 个股明细 → finance_limit_up_pool; " +
+		"社媒情绪 → finance_sentiment_market.",
 	inputSchema: {
 		type: "object",
 		properties: {

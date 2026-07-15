@@ -12,10 +12,10 @@ export const TOOL_NAMES = new Set<string>();
 TOOLS.push({
 	name: "finance_quote",
 	description:
-		"Realtime market quote snapshot for a US, HK, or A-share symbol. Returns last " +
-		"price, change %, OHLC, volume, and up to 5 levels of bid/ask depth (五档; US/HK " +
-		"expose only level 1). Symbol formats: 600000.SH, 000001.SZ, 00700.HK, AAPL. " +
-		"关键词: 股票 行情 实时 股价 报价 涨跌幅 五档 查询 A股 港股 美股.",
+		"实时行情快照 realtime quote (US/HK/A股): 最新价, 涨跌幅, OHLC, 成交量, 五档盘口 bid/ask " +
+		"(美股/港股仅一档). Symbols: 600000.SH / 000001.SZ / 00700.HK / AAPL. Use " +
+		"for: 股价 现价 报价 涨跌 盘口 买卖档 price today. Not for: 历史K线 → finance_kline; " +
+		"指数 → finance_index_quote.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -33,10 +33,10 @@ TOOL_NAMES.add("finance_quote");
 TOOLS.push({
 	name: "finance_kline",
 	description:
-		"Historical OHLCV candles for a US/HK/A-share symbol. period is day, week, month, " +
-		"or an intraday minute interval (1m/5m/15m/30m/60m); limit caps the number of " +
-		"most-recent candles (default 240). " +
-		"关键词: K线 走势 历史行情 蜡烛图 分时 日线 周线 月线 查询.",
+		"历史K线 OHLCV candles 蜡烛图 (US/HK/A股). period: day/week/month 或分钟线 " +
+		"1m/5m/15m/30m/60m; limit 默认 240. Use for: 走势 历史行情 日线 周线 月线 分时 " +
+		"candlestick trend history. Not for: 技术指标 → finance_technical; 实时价 → " +
+		"finance_quote.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -65,10 +65,9 @@ TOOL_NAMES.add("finance_kline");
 TOOLS.push({
 	name: "finance_list_reports",
 	description:
-		"List an A-share company's periodic financial reports (annual / H1 / Q1 / Q3) from " +
-		"EastMoney, newest first. Each item includes artCode, title, reportType, noticeDate, " +
-		"and pdfUrl (a proxied link to the full PDF). " +
-		"关键词: 财报 财务报告 年报 中报 季报 定期报告 公告 披露 查询.",
+		"A股定期财务报告列表 (年报/中报/一季报/三季报) 含 PDF 直链, 最新在前 (EastMoney). Use for: 财报 " +
+		"年报 中报 季报 定期报告 annual report PDF. Not for: 临时公告 → " +
+		"finance_announcements; 三表数据 → finance_financial_statements.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -90,12 +89,10 @@ TOOL_NAMES.add("finance_list_reports");
 TOOLS.push({
 	name: "finance_earnings_calendar",
 	description:
-		"Earnings / report-release dates. market='us' → Nasdaq calendar for a given day " +
-		"(date=YYYY-MM-DD). market='a' → A-share appointed-disclosure schedule for a fiscal " +
-		"period-end (date=YYYY-MM-DD, e.g. 2026-06-30 for H1). market='hk' → HK " +
-		"results-announcement filings (Interim/Final/Quarterly Results + Board-Meeting " +
-		"notices) from HKEXnews for the given calendar day (date=YYYY-MM-DD) — actual " +
-		"filing dates, since HK has no forward appointment schedule like A-share.",
+		"财报日历 earnings calendar. market=us → Nasdaq 当日财报名单 (date=YYYY-MM-DD); " +
+		"market=a → A股业绩预约披露 (date=报告期末, 如 2026-06-30); market=hk → 港交所业绩公告. " +
+		"Use for: 财报时间 业绩公布日期 什么时候出财报. Not for: 预告内容 → " +
+		"finance_earnings_preannounce; 宏观数据日历 → finance_economic_calendar.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -119,13 +116,9 @@ TOOL_NAMES.add("finance_earnings_calendar");
 TOOLS.push({
 	name: "finance_economic_calendar",
 	description:
-		"US economic data-RELEASE SCHEDULE (CPI, PPI, non-farm payrolls, GDP, FOMC, PMI, etc.) " +
-		"from the free FRED (St. Louis Fed) release-dates API: release name + date only " +
-		"(no actual/estimate/prior values). US only. from/to are YYYY-MM-DD; country is an " +
-		"optional ISO-2 filter, but only US is covered — any other value returns no results. " +
-		"By default returns only KEY US macro releases (CPI, PPI, Employment Situation, GDP, " +
-		"PCE, Retail Sales, JOLTS, Industrial Production, Housing, Consumer Sentiment, ECI); " +
-		"use `event` to search a specific indicator or `all=true` for the full FRED schedule.",
+		"美国宏观数据发布日历 (FRED): CPI/PPI/非农/GDP/FOMC/PMI 的发布名称+日期 (无实际/预期值). " +
+		"from/to=YYYY-MM-DD; 默认关键指标, event 搜单项, all=true 全量. US only. Use " +
+		"for: 经济日历 数据公布时间 非农时间 议息 FOMC 日期. Not for: 指标数值 → finance_macro_us.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -156,11 +149,9 @@ TOOL_NAMES.add("finance_economic_calendar");
 TOOLS.push({
 	name: "finance_central_bank",
 	description:
-		"Recent central-bank money-market operations. market='us' → NY Fed repo & " +
-		"reverse-repo operations (date, type, total amount accepted), last ~2 weeks. " +
-		"market='cn' (PBOC 逆回购) currently returns no data — there is no compliant " +
-		"free structured source (the only feed, pbc.gov.cn HTML, disallows automated " +
-		"access via robots.txt); use official channels for PBOC OMO.",
+		"央行公开市场操作 OMO. market=us → 纽约联储 repo/逆回购 (近两周, 日期/类型/规模); market=cn " +
+		"(人民银行 PBOC 逆回购) 暂无合规免费源, 返回空. Use for: 流动性 投放 回笼 repo 逆回购. Not for: " +
+		"利率曲线 → finance_yield_curve.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -179,9 +170,9 @@ TOOL_NAMES.add("finance_central_bank");
 TOOLS.push({
 	name: "finance_key_metrics",
 	description:
-		"A-share only. Latest valuation snapshot from EastMoney: trade date, close, change %, " +
-		"total/float market cap, total/float shares, and PE (TTM/static), PB, PS, PCF, PEG. " +
-		"Symbol like 600519.SH / 000001.SZ.",
+		"A股估值快照 (EastMoney): 市盈率 PE (TTM/静态), 市净率 PB, 市销率 PS, PCF, PEG, " +
+		"总市值/流通市值, 股本. Use for: 估值 贵不贵 便宜 市值多少 valuation multiples. Not for: " +
+		"ROE 等财务指标 → finance_financial_indicators; 美股估值 → finance_sec_facts.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -199,9 +190,9 @@ TOOL_NAMES.add("finance_key_metrics");
 TOOLS.push({
 	name: "finance_company_profile",
 	description:
-		"A-share only. Company profile from EastMoney F10: name, industry (EM + CSRC), " +
-		"listing market, chairman, employee count, registered capital, business scope, " +
-		"address, listing date, and founding date. Symbol like 600519.SH / 000001.SZ.",
+		"A股公司资料 F10 profile: 所属行业, 主营业务范围, 董事长, 员工数, 注册资本, 上市日期, 地址. Use for: " +
+		"公司简介 做什么的 主营 基本资料 introduction. Not for: 板块概念归属 → " +
+		"finance_stock_boards.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -219,11 +210,10 @@ TOOL_NAMES.add("finance_company_profile");
 TOOLS.push({
 	name: "finance_financial_statements",
 	description:
-		"A-share only. Raw financial-statement line items from EastMoney, newest first. " +
-		"statement=income → revenue/operating cost/operating profit/total profit/net profit " +
-		"(incl. deducted). statement=balance → total assets/liabilities/equity, cash, debt " +
-		"ratio. statement=cashflow → operating/investing/financing cashflow and net cash " +
-		"change. periods caps the number of report periods (default 4, max 20).",
+		"A股财务三表原始科目 (EastMoney). statement=income 利润表 (营收/成本/净利润) | balance " +
+		"资产负债表 (资产/负债/权益/负债率) | cashflow 现金流量表 (经营/投资/筹资). periods 默认 4. Use " +
+		"for: 三大报表 资产 负债 现金流 balance sheet income statement. Not for: 衍生指标同比 " +
+		"→ finance_financial_indicators; 美股 → finance_sec_facts.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -251,10 +241,10 @@ TOOL_NAMES.add("finance_financial_statements");
 TOOLS.push({
 	name: "finance_financial_indicators",
 	description:
-		"A-share only, highest-value fundamentals tool. Per-period key financial indicators " +
-		"from EastMoney: EPS, BPS, revenue + YoY %, net profit + YoY %, gross margin, net " +
-		"margin, ROE (weighted + deducted), debt ratio, operating cashflow per share. " +
-		"periods caps the number of report periods (default 8, max 40).",
+		"A股每期关键财务指标 (基本面首选): EPS, BPS, 营收+同比, 净利润+同比, 毛利率, 净利率, ROE, 负债率, " +
+		"每股经营现金流. periods 默认 8. Use for: 基本面 业绩 盈利能力 成长性 同比增速 fundamentals. " +
+		"Not for: 原始报表科目 → finance_financial_statements; 估值 → " +
+		"finance_key_metrics.",
 	inputSchema: {
 		type: "object",
 		properties: {

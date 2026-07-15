@@ -7,8 +7,9 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_hot_list",
 	description:
-		"A股同花顺热榜: 人气值, 概念标签 (concept tags), 排名变化, 涨跌幅. " +
-		"Complements finance_cn_hot (EastMoney rank) with THS heat + 概念归因 in one call.",
+		"A股同花顺热榜 (period=hour|day): 人气值, 概念标签, 排名变化, 涨跌幅 — 热度自带概念归因. Use for: " +
+		"热榜 热门股 人气 热度 关注 概念标签 hot list. Not for: 东财股吧人气榜 → finance_cn_hot; " +
+		"强势股题材 → finance_strong_stocks.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -31,8 +32,9 @@ TOOL_NAMES.add("finance_hot_list");
 TOOLS.push({
 	name: "finance_strong_stocks",
 	description:
-		"A股当日强势股 + 题材归因 (同花顺编辑部人工 reason tags, e.g. " +
-		"'算力租赁+AI政务'): 涨幅, 换手率, 成交额, 大单净量. Answers WHY a stock is strong.",
+		"A股当日强势股题材归因 (同花顺人工 tags, 如 '算力租赁+AI政务'): 涨幅, 换手率, 成交额, 大单净量 — " +
+		"回答'为什么走强'. date=YYYY-MM-DD. Use for: 强势股 题材 归因 领涨 妖股 热点. Not for: " +
+		"涨停原因 → finance_limit_up_reasons; 热榜 → finance_hot_list.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -50,8 +52,9 @@ TOOL_NAMES.add("finance_strong_stocks");
 TOOLS.push({
 	name: "finance_hot_concepts",
 	description:
-		"A股个股热门概念命中 (EastMoney): which concepts the market is currently " +
-		"trading this stock under, with hit heat, sorted hottest first. A-share only.",
+		"A股个股概念命中 (EastMoney): 这只票当下被市场归到哪些概念在炒 + 命中热度, 按热度降序. Use for: 概念 炒作 " +
+		"题材命中 蹭什么热点. Not for: 全部板块归属(静态) → finance_stock_boards; 热门股榜 → " +
+		"finance_hot_list.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -69,8 +72,9 @@ TOOL_NAMES.add("finance_hot_concepts");
 TOOLS.push({
 	name: "finance_investor_qa",
 	description:
-		"A股互动易投资者问答 (巨潮): investor questions + official company replies — " +
-		"how a company responds to rumors/news. Unique IR signal, A-share only.",
+		"A股互动易问答 (巨潮): 投资者提问 + 公司官方回复 — 查公司如何回应传闻/利好/合作. Use for: 互动易 董秘 " +
+		"投资者关系 回应 澄清 问答 IR. Not for: 公告原文 → finance_announcements; 新闻 → " +
+		"finance_stock_news.",
 	inputSchema: {
 		type: "object",
 		properties: {

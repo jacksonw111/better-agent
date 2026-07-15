@@ -7,8 +7,9 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_announcements",
 	description:
-		"A股公告全文检索 (巨潮资讯 cninfo, EastMoney fallback): title, type, date, " +
-		"detail url + PDF link. Optional keyword search within the stock's filings.",
+		"A股上市公司公告全文检索 (巨潮主源, 东财备胎): 标题, 类型, 日期, 详情页 + PDF 直链; search " +
+		"关键词过滤 (如 回购/减持/中标). Use for: 公司公告 披露 澄清 公告原文 announcement " +
+		"filing. Not for: 定期财报列表 → finance_list_reports; 互动问答 → finance_investor_qa.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -34,8 +35,9 @@ TOOL_NAMES.add("finance_announcements");
 TOOLS.push({
 	name: "finance_stock_boards",
 	description:
-		"A股个股所属板块/概念归属 (EastMoney): all industry/concept/region boards " +
-		"one stock belongs to, with BK code, board change% and 龙头股. 题材归因必备.",
+		"A股个股板块归属 (EastMoney): 所属全部行业/概念/地域板块 + BK码 + 板块当日涨跌 + 龙头股. Use for: " +
+		"属于什么板块 什么概念 行业归属 题材归因. Not for: 当下炒作命中 → finance_hot_concepts; 板块行情榜 " +
+		"→ finance_sector_list.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -53,9 +55,9 @@ TOOL_NAMES.add("finance_stock_boards");
 TOOLS.push({
 	name: "finance_option_contracts",
 	description:
-		"A股 ETF 期权合约清单 (新浪): contract codes grouped by expiry month " +
-		"(first key = near month). Underlyings: 50ETF/300ETF/科创50ETF/500ETF. " +
-		"Feed codes into finance_option_quote.",
+		"A股 ETF 期权合约代码清单 (新浪), 按到期月分组 (首个 key=近月). underlying=510050 50ETF | " +
+		"510300 300ETF | 588000 科创50 | 510500 500ETF; kind=call 认购 | put 认沽. " +
+		"Use for: 期权合约 合约代码 到期月份. 下一步: 代码传给 finance_option_quote 取报价与希腊字母.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -80,9 +82,10 @@ TOOL_NAMES.add("finance_option_contracts");
 TOOLS.push({
 	name: "finance_option_quote",
 	description:
-		"A股 ETF 期权单合约详情 (新浪): T型报价 (买卖五档一档/持仓量/涨跌停) + " +
-		"希腊字母 Delta/Gamma/Theta/Vega + 隐含波动率 IV + 理论价值. " +
-		"Complements finance_option_chain (which has no Greeks).",
+		"A股 ETF 期权单合约详情 (新浪): T型报价 (买卖价/持仓量/涨跌停) + 希腊字母 Delta Gamma Theta " +
+		"Vega + 隐含波动率 IV + 理论价值. code=8位合约代码 (来自 finance_option_contracts / " +
+		"finance_option_chain). Use for: 期权 希腊字母 隐波 greeks iv delta. Not for: " +
+		"美股期权 → finance_us_options.",
 	inputSchema: {
 		type: "object",
 		properties: {

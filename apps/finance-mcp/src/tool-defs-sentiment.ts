@@ -11,8 +11,9 @@ const ASSET_ENUM = ["stocks", "crypto"];
 TOOLS.push({
 	name: "finance_sentiment_trending",
 	description:
-		"Trending tickers by social/market buzz & sentiment (source: reddit/x/polymarket/news; " +
-		"asset: stocks/crypto) — buzz score, mentions, bullish/bearish %, trend. Adanos.",
+		"社媒热门股票榜 (Adanos; source=reddit/x/polymarket/news; " +
+		"asset=stocks/crypto): buzz, 提及量, 多空比, 趋势. Use for: 美股 热度 社交媒体 讨论 情绪 " +
+		"wsb trending. Not for: A股人气 → finance_cn_hot / finance_hot_list.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -40,8 +41,9 @@ TOOL_NAMES.add("finance_sentiment_trending");
 TOOLS.push({
 	name: "finance_sentiment_ticker",
 	description:
-		"Sentiment for a specific ticker/symbol across a source (buzz, mentions, bull/bear %, " +
-		"7-day daily trend).",
+		"单 ticker 社媒情绪 (Adanos): buzz, 提及量, 看多看空 %, 7日趋势. Use for: 某股 情绪 舆情 " +
+		"多空 讨论量 sentiment. Not for: 多股对比 → finance_sentiment_compare; A股互动 → " +
+		"finance_investor_qa.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -69,7 +71,8 @@ TOOL_NAMES.add("finance_sentiment_ticker");
 TOOLS.push({
 	name: "finance_sentiment_market",
 	description:
-		"Overall market sentiment for a source (aggregate buzz, bull/bear %, top drivers).",
+		"大盘整体社媒情绪 (Adanos, 按 source): 总 buzz, 多空比, 驱动话题. Use for: 市场情绪 恐慌 贪婪 " +
+		"整体氛围 mood. Not for: A股打板情绪 → finance_limit_up_sentiment.",
 	inputSchema: {
 		type: "object",
 		properties: {

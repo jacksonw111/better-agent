@@ -8,8 +8,8 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_search",
 	description:
-		"Search A-share stocks by name or code; returns matching {code, name, exchange}. " +
-		"关键词: 股票 搜索 查询 代码 名称 上市公司 A股 港股.",
+		"A股股票搜索: 按名称/代码查 {code, name, exchange}. 不知道股票代码时的第一步工具. Use for: 查代码 " +
+		"股票叫什么 代码是多少 搜索上市公司 ticker lookup.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -27,8 +27,9 @@ TOOL_NAMES.add("finance_search");
 TOOLS.push({
 	name: "finance_research",
 	description:
-		"Recent analyst research reports for an A-share stock (org, title, " +
-		"EPS/PE forecasts for this/next/+2 FY, proxied PDF link).",
+		"A股个股券商研报: 机构, 标题, 评级, 未来三年 EPS/PE 预测, PDF 链接. Use for: 研报 券商报告 分析师 " +
+		"目标价 评级 research. Not for: 一致预期汇总 → finance_earnings_forecast; 美股评级 → " +
+		"finance_analyst_ratings.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -46,8 +47,9 @@ TOOL_NAMES.add("finance_research");
 TOOLS.push({
 	name: "finance_earnings_forecast",
 	description:
-		"Consensus EPS/PE forecast (this FY / next / +2) for an A-share stock, " +
-		"aggregated from recent analyst reports.",
+		"A股机构一致预期: 今年/明年/后年 EPS 与 PE 共识 (聚合近期研报). Use for: 一致预期 盈利预测 未来业绩 " +
+		"consensus estimate. Not for: 单篇研报 → finance_research; 业绩预告 → " +
+		"finance_earnings_preannounce.",
 	inputSchema: {
 		type: "object",
 		properties: {
