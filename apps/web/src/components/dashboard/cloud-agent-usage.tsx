@@ -59,8 +59,11 @@ function AgentRow({ color, maxCost, row, totalCost }: AgentRowProps) {
 			</div>
 			<div className="h-2 overflow-hidden rounded-full bg-muted">
 				<div
-					className="h-full rounded-full transition-all duration-500"
-					style={{ backgroundColor: color, width: `${barWidth}%` }}
+					className="h-full w-full origin-left rounded-full transition-transform duration-300 ease-out"
+					style={{
+						backgroundColor: color,
+						transform: `scaleX(${barWidth / 100})`,
+					}}
 				/>
 			</div>
 			<div className="flex justify-end text-muted-foreground text-xs">

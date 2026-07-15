@@ -45,7 +45,10 @@ function CommandDialog({
 }) {
 	return (
 		<Dialog {...props}>
+			{/* Keyboard-summoned dozens of times a day — never animate (Raycast
+			    principle): animated=false skips the zoom/fade entirely. */}
 			<DialogContent
+				animated={false}
 				className={cn(
 					"top-24 translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg",
 					className

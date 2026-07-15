@@ -21,10 +21,16 @@ export function PageTransition({
 }) {
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
+			{/* Full `transform` string, not the `x` shorthand: shorthands run on
+			    the main thread (rAF) and drop frames exactly when routes load;
+			    the transform string is hardware-accelerated. */}
 			<motion.div
-				animate={{ opacity: 1, x: 0 }}
+				animate={{ opacity: 1, transform: "translateX(0px)" }}
 				className="flex min-h-0 flex-1 flex-col"
-				initial={{ opacity: 0, x: direction * SLIDE }}
+				initial={{
+					opacity: 0,
+					transform: `translateX(${direction * SLIDE}px)`,
+				}}
 				key={animationKey}
 				transition={{ duration: ENTER_DURATION, ease: [0.22, 1, 0.36, 1] }}
 			>

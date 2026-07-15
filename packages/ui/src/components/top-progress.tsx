@@ -51,9 +51,14 @@ export function TopProgress({ active }: { active: boolean }) {
 			aria-hidden="true"
 			className="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5"
 		>
+			{/* scaleX (not width): transform+opacity stay on the GPU, so the bar
+			    keeps moving while the main thread is busy loading the page. */}
 			<div
-				className="h-full bg-foreground transition-all duration-300 ease-out"
-				style={{ width: `${pct}%`, opacity: pct >= FULL_PCT ? 0 : 1 }}
+				className="h-full origin-left bg-foreground transition duration-300 ease-out"
+				style={{
+					transform: `scaleX(${pct / FULL_PCT})`,
+					opacity: pct >= FULL_PCT ? 0 : 1,
+				}}
 			/>
 		</div>
 	);

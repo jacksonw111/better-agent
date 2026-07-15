@@ -1,4 +1,5 @@
 import { Toaster } from "@better-agent/ui/components/sonner";
+import { TooltipProvider } from "@better-agent/ui/components/tooltip";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
@@ -62,7 +63,11 @@ function RootDocument() {
 				<HeadContent />
 			</head>
 			<body>
-				<AuthBoundary />
+				{/* One shared Provider = delay grouping: the first tooltip waits,
+				    adjacent ones open instantly (see tooltip.tsx). */}
+				<TooltipProvider>
+					<AuthBoundary />
+				</TooltipProvider>
 				<Toaster richColors />
 				<TanStackRouterDevtools position="bottom-left" />
 				<ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />

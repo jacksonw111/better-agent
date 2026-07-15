@@ -25,12 +25,15 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 
 function DialogOverlay({
 	className,
+	animated = true,
 	...props
-}: DialogPrimitive.Backdrop.Props) {
+}: DialogPrimitive.Backdrop.Props & { animated?: boolean }) {
 	return (
 		<DialogPrimitive.Backdrop
 			className={cn(
-				"data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/10 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-xs",
+				"fixed inset-0 isolate z-50 bg-black/10 supports-backdrop-filter:backdrop-blur-xs",
+				animated &&
+					"data-open:fade-in-0 data-closed:fade-out-0 duration-100 data-closed:animate-out data-open:animate-in",
 				className
 			)}
 			data-slot="dialog-overlay"
@@ -43,16 +46,22 @@ function DialogContent({
 	className,
 	children,
 	showCloseButton = true,
+	animated = true,
 	...props
 }: DialogPrimitive.Popup.Props & {
+	// animated=false for keyboard-summoned surfaces (e.g. the ⌘K palette):
+	// actions repeated dozens of times a day should never animate.
+	animated?: boolean;
 	showCloseButton?: boolean;
 }) {
 	return (
 		<DialogPortal>
-			<DialogOverlay />
+			<DialogOverlay animated={animated} />
 			<DialogPrimitive.Popup
 				className={cn(
-					"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100svh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-popover-foreground text-xs/relaxed outline-none ring-1 ring-foreground/10 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-sm",
+					"fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100svh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-popover p-4 text-popover-foreground text-xs/relaxed outline-none ring-1 ring-foreground/10 sm:max-w-sm",
+					animated &&
+						"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 duration-100 data-closed:animate-out data-open:animate-in",
 					className
 				)}
 				data-slot="dialog-content"
