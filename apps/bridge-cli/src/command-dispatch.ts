@@ -27,6 +27,9 @@ function callSetPermissionMode(sink: CommandSink, mode: string): void {
 function callSetThinking(sink: CommandSink, level: string): void {
 	sink.setThinking?.(level);
 }
+function callRunShell(sink: CommandSink, command: string): void {
+	sink.runShell?.(command);
+}
 function callListSessions(sink: CommandSink): void {
 	sink.listSessions?.();
 }
@@ -109,6 +112,8 @@ export function dispatchControlCommand(
 		callSetPermissionMode(sink, command.mode);
 	} else if (command.action === "setThinking") {
 		callSetThinking(sink, command.level);
+	} else if (command.action === "runShell") {
+		callRunShell(sink, command.command);
 	} else if (command.action === "answerQuestion") {
 		callAnswerQuestion(sink, command.requestId, command.answers);
 	}

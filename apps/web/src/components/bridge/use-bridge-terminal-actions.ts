@@ -131,6 +131,11 @@ export interface SessionControls {
 	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
 	 * the detail page's Restart button. See `restartSession` above. */
 	restart: () => Promise<void>;
+	/** P4-T2: runs a one-shot shell command in the agent's workspace — the
+	 * workspace Shell tab. Routed as `{ type: "control", action: "runShell",
+	 * command }`; output arrives asynchronously as `runShell`-marked tool events
+	 * on the feed (see `apps/bridge-cli/src/shell-runner.ts`). */
+	runShell: (command: string) => Promise<void>;
 	setModel: (model: string) => Promise<void>;
 	setPermissionMode: (mode: string) => Promise<void>;
 	/** Switches the reasoning-effort level for subsequent turns — the
@@ -160,5 +165,7 @@ export function useSessionControls(
 		listSessions: () => sendControlCommand(sendRaw, "listSessions"),
 		getStatus: () => sendControlCommand(sendRaw, "getStatus"),
 		restart: () => restartSession(sessionId),
+		runShell: (command: string) =>
+			sendControlCommand(sendRaw, "runShell", { command }),
 	};
 }

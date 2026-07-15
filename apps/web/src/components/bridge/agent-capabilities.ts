@@ -222,6 +222,8 @@ export interface SessionCapabilities {
 	permissionModes: string[];
 	quota: boolean;
 	sessionOps: ("list" | "fork" | "tree" | "compact")[];
+	/** P4-T2: CLI answers `runShell` (Shell tab); old handshakes omit → false. */
+	shell?: boolean;
 	skills: boolean;
 	slashCommands: boolean;
 	thinkingLevels: string[];
@@ -229,8 +231,7 @@ export interface SessionCapabilities {
 }
 
 /** `AgentCapabilities` plus every `SessionCapabilities` field that isn't
- * already covered by an overlapping name — see `resolveCapabilities`'s merge
- * semantics for which fields the handshake can override vs. only add. */
+ * already covered by an overlapping name — see `resolveCapabilities`. */
 export interface ResolvedCapabilities extends AgentCapabilities {
 	approval: SessionCapabilities["approval"];
 	busyModes: SessionCapabilities["busyModes"];
@@ -239,12 +240,12 @@ export interface ResolvedCapabilities extends AgentCapabilities {
 	mcp: SessionCapabilities["mcp"];
 	quota: boolean;
 	sessionOps: SessionCapabilities["sessionOps"];
+	/** P4-T2: gates the Shell tab; only a P4-T2+ handshake enables it. */
+	shell: boolean;
 	thinkingLevels: string[];
 }
 
-/** Conservative defaults for the fields `SessionCapabilities` adds that the
- * old static `AgentCapabilities` matrix has no opinion on — used whenever no
- * live handshake has arrived (old CLI, or a session before session_ready). */
+/** Conservative defaults for the handshake-only fields, pre-handshake. */
 function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
 	const base = capabilities(kind);
 	return {
@@ -255,6 +256,7 @@ function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
 		mcp: "none",
 		quota: false,
 		sessionOps: base.sessionList ? ["list"] : [],
+		shell: false,
 		thinkingLevels: [],
 	};
 }
@@ -262,15 +264,12 @@ function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
 /** The single entry point every terminal/composer/header call site should use
  * instead of the old static `capabilities(kind)` lookup: prefers the LIVE
  * handshake off `session_ready` (`sessionReady?.capabilities`) when present,
- * merging it onto the static matrix by OVERRIDING only the fields the two
- * shapes share (modelSwitch, permissionModes, skills, slashCommands,
- * usageMode←usage, P4-T1's sessionList←sessionOps has "list") and ADDING the
- * handshake-only fields (busyModes, mcp, approval, quota, sessionOps,
- * thinkingLevels) — every other static-only flag
- * (reasoning, contextUsage, sessionResume, noApprovalGate, toolApproval,
- * interrupt) stays exactly as the matrix says, since the handshake carries no
- * opinion on them. Falls back to `staticCapabilities` alone when no handshake
- * has arrived yet (old CLI, or codex until R2-T2). */
+ * merging it onto the static matrix — the shared fields below OVERRIDE, the
+ * handshake-only fields ADD, and every other static-only flag (reasoning,
+ * contextUsage, sessionResume, noApprovalGate, toolApproval, interrupt) stays
+ * exactly as the matrix says, since the handshake carries no opinion on them.
+ * Falls back to `staticCapabilities` alone when no handshake has arrived yet
+ * (old CLI, or codex until R2-T2). */
 export function resolveCapabilities(
 	kind: AgentKind,
 	sessionReady: { capabilities?: SessionCapabilities } | null | undefined
@@ -291,6 +290,7 @@ export function resolveCapabilities(
 		quota: handshake.quota,
 		sessionList: handshake.sessionOps.includes("list"),
 		sessionOps: handshake.sessionOps,
+		shell: handshake.shell ?? false,
 		skills: handshake.skills,
 		slashCommands: handshake.slashCommands,
 		thinkingLevels: handshake.thinkingLevels,

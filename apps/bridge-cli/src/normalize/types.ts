@@ -48,6 +48,11 @@ export interface ToolEvent extends TurnScoped {
 	 * Currently only pi's `tool_execution_update` populates this, on a
 	 * `status: "started"` event. */
 	preview?: string;
+	/** P4-T2: marks a tool event as the out-of-band `runShell` channel's output
+	 * (see `apps/bridge-cli/src/shell-runner.ts`) rather than one of the agent's
+	 * own tool calls — the web routes these to its Shell tab AND filters them out
+	 * of the chat feed. Absent on every ordinary adapter-emitted tool event. */
+	source?: "runShell";
 	status: "started" | "completed" | "failed";
 	/** R1-T2: a short human-readable label for the tool call, when the wire
 	 * carries one distinct from `name` (opencode-serve's `state.title`, e.g.

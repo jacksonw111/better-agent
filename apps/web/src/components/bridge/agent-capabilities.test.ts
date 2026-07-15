@@ -208,3 +208,20 @@ it("keeps static-only fields (reasoning, sessionResume, noApprovalGate, contextU
 	expect(resolved.noApprovalGate).toBe(claude.noApprovalGate);
 	expect(resolved.contextUsage).toBe(claude.contextUsage);
 });
+
+// P4-T2: the Shell tab is gated on the CLI's live `shell` capability — false
+// for an old CLI (no handshake, or one predating the field), true only when a
+// P4-T2+ handshake reports it.
+it("resolves shell false without a handshake (old CLI)", () => {
+	expect(resolveCapabilities("claude-code", null).shell).toBe(false);
+	expect(resolveCapabilities("pi", { capabilities: HANDSHAKE }).shell).toBe(
+		false
+	);
+});
+
+it("resolves shell true when the handshake reports it", () => {
+	const resolved = resolveCapabilities("claude-code", {
+		capabilities: { ...HANDSHAKE, shell: true },
+	});
+	expect(resolved.shell).toBe(true);
+});

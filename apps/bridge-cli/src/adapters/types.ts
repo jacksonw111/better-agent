@@ -74,6 +74,10 @@ export interface SessionCapabilities {
 	quota: boolean;
 	/** Session-management operations the agent supports. */
 	sessionOps: ("list" | "fork" | "tree" | "compact")[];
+	/** P4-T2: out-of-band `runShell` in the workspace (Shell tab). Always true —
+	 * CLI-side, agent-independent (shell-runner.ts); on the handshake so the web
+	 * gates the tab on a CLI new enough to answer it. */
+	shell: boolean;
 	/** The agent exposes a skills list. */
 	skills: boolean;
 	/** The agent exposes a slash-command list. */

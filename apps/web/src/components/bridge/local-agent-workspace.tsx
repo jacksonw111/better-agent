@@ -20,6 +20,7 @@ import {
 	type LocalAgentEntry,
 } from "./local-agent-join";
 import { sortSessionsByRecency } from "./local-agent-session-picker";
+import { LocalAgentShellPane } from "./local-agent-shell-pane";
 import { WorkspaceCommandBridge } from "./local-agent-workspace-command-bridge";
 import {
 	pickActiveSession,
@@ -201,6 +202,7 @@ function WorkspaceLayout({
 					hidden={tab !== "chat"}
 					userAvatarUrl={userAvatarUrl}
 				/>
+				<LocalAgentShellPane hidden={tab !== "shell"} />
 			</div>
 			<MobileSessionDrawer onClose={drawer.close} open={drawer.open}>
 				{sidebar(drawer.select)}

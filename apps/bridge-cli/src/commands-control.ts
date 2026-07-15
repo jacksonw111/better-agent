@@ -68,6 +68,16 @@ export interface ControlRestartCommand {
 	type: "control";
 }
 
+/** P4-T2: the workspace Shell tab's one-shot command runner. Routed to
+ * `CommandSink.runShell` — a CLI-GLOBAL wrapper (shell-runner.ts) that spawns
+ * `sh -c command` in the agent's workspace and streams its output back as
+ * `runShell`-marked tool events. Does NOT touch the agent. */
+export interface ControlRunShellCommand {
+	action: "runShell";
+	command: string;
+	type: "control";
+}
+
 /** The detail page's "Start desktop" button (`--cua`): provision + boot the
  * local VM and open its VNC. Routed to `CommandSink.startVm`. */
 export interface ControlStartVmCommand {
@@ -88,6 +98,7 @@ export type ControlCommand =
 	| ControlInterruptCommand
 	| ControlListSessionsCommand
 	| ControlRestartCommand
+	| ControlRunShellCommand
 	| ControlSetModelCommand
 	| ControlSetPermissionModeCommand
 	| ControlSetThinkingCommand
@@ -108,6 +119,9 @@ function parseControlCommandWithPayload(
 	}
 	if (data.action === "setThinking" && typeof data.level === "string") {
 		return { action: "setThinking", level: data.level, type: "control" };
+	}
+	if (data.action === "runShell" && typeof data.command === "string") {
+		return { action: "runShell", command: data.command, type: "control" };
 	}
 	return null;
 }

@@ -146,6 +146,14 @@ function foldMessage(state: FoldState, id: number, event: MessageEvent): void {
 }
 
 function foldTool(state: FoldState, id: number, event: ToolEvent): void {
+	// P4-T2: the workspace Shell tab's out-of-band `runShell` output rides the
+	// SAME event feed as the agent's own tool calls, so it would otherwise
+	// render as chat tool cards. Skip it entirely here (the Shell pane picks it
+	// out of the feed instead) — and DON'T touch `state.current`, so a shell
+	// command run mid-turn never fragments the assistant's in-flight bubble.
+	if (event.source === "runShell") {
+		return;
+	}
 	// A completed/failed follow-up for an already-started task never carries
 	// `input` again, so a call already known to be a task is routed there
 	// unconditionally — only a brand-new call needs the input-shape check.

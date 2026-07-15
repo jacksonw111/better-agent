@@ -51,3 +51,56 @@ describe("cua control commands", () => {
 		).not.toThrow();
 	});
 });
+
+describe("runShell control command (P4-T2)", () => {
+	it("parses runShell with a string command", () => {
+		expect(
+			parseCommandText({ type: "control", action: "runShell", command: "ls" })
+		).toEqual({ type: "control", action: "runShell", command: "ls" });
+	});
+
+	it("rejects a runShell with a non-string / missing command", () => {
+		expect(
+			parseCommandText({ type: "control", action: "runShell", command: 7 })
+		).toBeNull();
+		expect(
+			parseCommandText({ type: "control", action: "runShell" })
+		).toBeNull();
+	});
+
+	it("dispatches to sink.runShell with the command", () => {
+		const runShell = vi.fn<(command: string) => void>();
+		const sink: CommandSink & { runShell: typeof runShell } = {
+			answerApproval: vi.fn(),
+			runShell,
+			send: vi.fn(),
+		};
+		dispatchCommands(
+			[
+				{
+					id: 1,
+					data: { type: "control", action: "runShell", command: "pwd" },
+				},
+			],
+			sink,
+			{ current: 0 }
+		);
+		expect(runShell).toHaveBeenCalledWith("pwd");
+	});
+
+	it("is a no-op when the sink omits runShell", () => {
+		const sink: CommandSink = { answerApproval: vi.fn(), send: vi.fn() };
+		expect(() =>
+			dispatchCommands(
+				[
+					{
+						id: 1,
+						data: { type: "control", action: "runShell", command: "ls" },
+					},
+				],
+				sink,
+				{ current: 0 }
+			)
+		).not.toThrow();
+	});
+});

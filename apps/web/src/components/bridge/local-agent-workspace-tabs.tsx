@@ -1,15 +1,22 @@
 import { Tabs, TabsList, TabsTrigger } from "@better-agent/ui/components/tabs";
 
-// P2-T2: the workspace content pane's pill tab row. Chat is the only live tab;
-// Files/Git/Shell are disabled placeholders until the P4 CLI channels (fs/git/
-// shell commands) land. The row scrolls horizontally on narrow screens.
+// P2-T2: the workspace content pane's pill tab row. Chat is live; P4-T2 added
+// Shell (the runShell one-shot command runner); Files/Git remain disabled
+// placeholders until their P4 CLI channels land. The row scrolls horizontally
+// on narrow screens.
 
 export type WorkspaceTabId = "chat" | "files" | "git" | "shell";
+
+/** Enabled non-chat tabs (P4-T2: Shell). The pane itself handles the
+ * "capability absent / no active session" empty state, so the tab stays
+ * enabled unconditionally rather than gating on caps the tab row can't see. */
+const LIVE_TABS: { id: WorkspaceTabId; label: string }[] = [
+	{ id: "shell", label: "Shell" },
+];
 
 const PLACEHOLDER_TABS: { id: WorkspaceTabId; label: string }[] = [
 	{ id: "files", label: "Files" },
 	{ id: "git", label: "Git" },
-	{ id: "shell", label: "Shell" },
 ];
 
 /** Small "lands in P4" marker on each placeholder pill. */
@@ -41,6 +48,11 @@ export function LocalAgentWorkspaceTabs({
 				<TabsTrigger className="px-2.5" value="chat">
 					Chat
 				</TabsTrigger>
+				{LIVE_TABS.map((tab) => (
+					<TabsTrigger className="px-2.5" key={tab.id} value={tab.id}>
+						{tab.label}
+					</TabsTrigger>
+				))}
 				{PLACEHOLDER_TABS.map((tab) => (
 					<TabsTrigger
 						className="gap-1 px-2.5"

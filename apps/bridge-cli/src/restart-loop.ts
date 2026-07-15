@@ -16,6 +16,7 @@ import type {
 	RelayTransport,
 } from "./relay-client";
 import { runBridgeSession } from "./relay-client";
+import { type ShellRunnerDeps, withShellRunner } from "./shell-runner";
 
 export interface RunRestartLoopOptions {
 	adapter: Adapter;
@@ -75,6 +76,41 @@ function buildImageInputDeps(
 		},
 		supportsImages: agentSupportsImages(args.agentKind),
 	};
+}
+
+/** P4-T2: the shell runner's deps for this session — commands run in the CLI's
+ * validated workspace dir, and each event is pushed straight to the relay
+ * (best-effort, same fire-and-forget contract as `buildImageInputDeps`'s
+ * `pushStatus`) since these are out-of-band, not part of the agent's stream. */
+function buildShellRunnerDeps(
+	args: BridgeCliArgs,
+	transport: RelayTransport,
+	sessionId: string
+): ShellRunnerDeps {
+	return {
+		dir: args.dir,
+		pushEvent: (event) => {
+			transport
+				.pushEvents({ sessionId, events: [event] })
+				.catch(() => undefined);
+		},
+	};
+}
+
+/** Builds the full CommandSink wrapper stack around a freshly-started handle:
+ * image layer innermost (downloads a send's image refs), then the shell runner
+ * (out-of-band `runShell`), then CUA outermost (desktop start/stop). Shared by
+ * the initial launch and every in-place relaunch so the chain never drifts. */
+function wrapHandle(
+	handle: AgentHandle,
+	imageDeps: ImageInputDeps,
+	shellDeps: ShellRunnerDeps,
+	cua: CuaController | undefined
+) {
+	return withCua(
+		withShellRunner(withImageInput(handle, imageDeps), shellDeps),
+		cua
+	);
 }
 
 function printConnected(sessionId: string): void {
@@ -165,8 +201,9 @@ export async function runRestartLoop(
 	// text command's image refs are downloaded before the adapter's send sees
 	// them; withCua stays outermost, exactly as before.
 	const imageDeps = buildImageInputDeps(args, transport, sessionId);
+	const shellDeps = buildShellRunnerDeps(args, transport, sessionId);
 	const handleRef = {
-		current: withCua(withImageInput(options.handle, imageDeps), cua),
+		current: wrapHandle(options.handle, imageDeps, shellDeps, cua),
 	};
 	const agentSessionIdRef: AgentSessionIdRef = {};
 	// Hoisted here (NOT inside `runBridgeSession`) and passed into every
@@ -200,11 +237,10 @@ export async function runRestartLoop(
 		generation += 1;
 		outcome = result.outcome;
 		if (outcome === "restart") {
-			handleRef.current = withCua(
-				withImageInput(
-					await relaunch(adapter, args, transport, agentSessionIdRef),
-					imageDeps
-				),
+			handleRef.current = wrapHandle(
+				await relaunch(adapter, args, transport, agentSessionIdRef),
+				imageDeps,
+				shellDeps,
 				cua
 			);
 			onStart = printRestarted;

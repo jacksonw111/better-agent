@@ -12,6 +12,7 @@ import { TerminalBody } from "./terminal-body";
 import { TerminalHeader } from "./terminal-header";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 import { useFoldedTurns } from "./use-folded-turns";
+import { usePublishShellChannel } from "./use-shell-channel";
 import { useWebQueue } from "./use-web-queue";
 
 export interface TerminalProps {
@@ -153,6 +154,10 @@ export function Terminal({
 }: TerminalProps) {
 	const view = useTerminalView(session, transport, userAvatarUrl);
 	const { caps, sessionId } = view;
+	// P4-T2: publish this session's shell channel (feed's runShell events + the
+	// runShell control) to the module store the workspace Shell tab reads —
+	// avoids a second SSE connection for the pane.
+	usePublishShellChannel(view.events, caps.shell, view.runShell);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">

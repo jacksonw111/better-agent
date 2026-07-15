@@ -98,6 +98,12 @@ export interface CommandSink {
 	 * `control: listSessions` command — the detail page's "Past
 	 * conversations" button. */
 	listSessions?(): void;
+	/** P4-T2: runs a one-shot shell command in the agent's workspace, streaming
+	 * its output back as `runShell`-marked tool events. Provided by the
+	 * CLI-GLOBAL `withShellRunner` wrapper (shell-runner.ts), NOT the adapter —
+	 * it never touches the agent. Optional: a sink/fake without it makes the
+	 * `runShell` control command a silent no-op, like the other controls. */
+	runShell?(command: string): void;
 	/** P3-T2: `images` is the wire's id-based `ImageRef` list — the production
 	 * sink (`withImageInput`, image-input.ts) downloads them into `AgentImage`s
 	 * before the adapter sees them; fakes/tests that ignore the param keep

@@ -41,6 +41,11 @@ export interface ToolEvent extends TurnScoped {
 	 * append. Additive — no fold/render wiring here yet (owned by a parallel
 	 * task). */
 	preview?: string;
+	/** P4-T2: mirrors the CLI's `ToolEvent.source` — set to "runShell" on the
+	 * out-of-band Shell tab's tool events, which the Shell pane renders and
+	 * `bridge-turns.ts` filters OUT of the chat feed. Absent on ordinary
+	 * agent-emitted tool events. */
+	source?: "runShell";
 	status: "started" | "completed" | "failed";
 	/** R1-T2: a short human-readable label for the tool call, when the wire
 	 * carries one distinct from `name`. Additive — no fold/render wiring here
