@@ -90,4 +90,9 @@ export interface BridgeMessageStore {
 		afterSeq: number,
 		limit: number
 	): Promise<BridgeMessageRow[]>;
+	/** Returns the LAST `limit` persisted events (highest seqs), in ascending
+	 * seq order — the bounded backward scan `bridge.pendingRequests` (P5-1)
+	 * uses to find still-open approval/question events near the stream's tail
+	 * without paging the whole history forward. */
+	listTail(sessionId: string, limit: number): Promise<BridgeMessageRow[]>;
 }

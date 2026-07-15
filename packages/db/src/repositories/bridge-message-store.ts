@@ -2,7 +2,7 @@ import type {
 	BridgeMessageRow,
 	BridgeMessageStore,
 } from "@better-agent/agent/ports";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -47,6 +47,17 @@ export function createBridgeMessageStore(db: Db): BridgeMessageStore {
 				.orderBy(asc(schema.bridgeMessages.seq))
 				.limit(limit);
 			return rows.map(toRow);
+		},
+		async listTail(sessionId, limit) {
+			// Fetch the highest seqs via a DESC scan, then reverse so callers
+			// always see ascending seq order (same contract as `list`).
+			const rows = await db
+				.select()
+				.from(schema.bridgeMessages)
+				.where(eq(schema.bridgeMessages.sessionId, sessionId))
+				.orderBy(desc(schema.bridgeMessages.seq))
+				.limit(limit);
+			return rows.map(toRow).reverse();
 		},
 	};
 }

@@ -8,6 +8,7 @@ import {
 } from "./bridge-attachments";
 import { listSessions } from "./bridge-list-sessions";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
+import { pendingRequests } from "./bridge-pending-requests";
 import { fetchConfig, restartSession } from "./bridge-restart";
 import {
 	archiveSession,
@@ -229,6 +230,10 @@ export const bridgeRouter = {
 			context.services.commandBus.notify(input.sessionId);
 			return { ok: true };
 		}),
+
+	// P5-1: still-unanswered approval/question replay for (re)connect — see
+	// bridge-pending-requests.ts.
+	pendingRequests,
 
 	// P3-T2: image input — web uploads against an owned bridge session (user
 	// plane), the CLI downloads the bytes back (bridge-token plane) to inject

@@ -31,6 +31,11 @@ import {
 	type StatusSnapshotDetail,
 } from "./bridge-status-snapshot";
 import { mergeEvents } from "./event-feed";
+import { stripAckedEchoes } from "./use-bridge-feed-echoes";
+import {
+	applyPendingReplay,
+	extractReplayedRows,
+} from "./use-bridge-feed-pending";
 
 /** First id handed to an optimistic local echo. Local echoes count DOWN from
  * here (-1, -2, …); server ids are always ≥ 0, so a negative id can never
@@ -66,6 +71,12 @@ export interface FeedState {
 	/** The latest `queue_update` detail (R3-T1 Part A), or `null` before one has
 	 * arrived (or it was malformed) — see bridge-queue-status.ts. */
 	queueUpdate: QueueUpdateDetail | null;
+	/** P5-1: ids appended by a `pendingReplay` (still-open approval/question
+	 * events replayed from ABOVE the seeded window) — kept OUT of `maxSeenId`
+	 * so the live connection still starts at the seed's mark, with this set
+	 * deduping the eventual live redelivery instead. See
+	 * use-bridge-feed-pending.ts. */
+	replayedPendingIds: Record<number, true>;
 	/** The latest curated status details, folded incrementally off each merge's
 	 * new tail instead of rescanning the whole `events` array per render.
 	 * `null` before an event of that kind has arrived (or its latest one was
@@ -89,6 +100,7 @@ export const initialFeedState: FeedState = {
 	nextLocalId: INITIAL_LOCAL_ID,
 	pendingEchoes: 0,
 	queueUpdate: null,
+	replayedPendingIds: {},
 	sessionList: null,
 	sessionReady: null,
 	statusSnapshot: null,
@@ -163,58 +175,11 @@ export type FeedAction =
 	/** R3-T3: mirrors "answer"/"unanswer" for a `question` turn. */
 	| { answers: string[][]; requestId: string; type: "answerQuestion" }
 	| { requestId: string; type: "unanswerQuestion" }
+	/** P5-1: replays still-open approval/question events fetched from
+	 * `bridge.pendingRequests` — appended without advancing `maxSeenId`, see
+	 * use-bridge-feed-pending.ts. */
+	| { events: RawBridgeEvent[]; type: "pendingReplay" }
 	| { type: "reset" };
-
-function isUserMessage(entry: StreamEvent): entry is StreamEvent & {
-	event: { text: string };
-} {
-	const { event } = entry;
-	return (
-		event.kind === "message" &&
-		event.role === "user" &&
-		typeof event.text === "string"
-	);
-}
-
-interface StripResult {
-	events: StreamEvent[];
-	/** How many pending echoes this pass cancelled — subtracted from
-	 * `FeedState.pendingEchoes` so the fast-path gate stays accurate. */
-	stripped: number;
-}
-
-/** Drops each optimistic echo (negative id) once its server-persisted twin
- * (id ≥ 0, same text) has arrived, so the user's own line shows instantly on
- * send AND isn't duplicated when the CLI's persisted copy comes back through
- * history/live. One server copy cancels exactly one pending echo. Only called
- * when at least one echo is actually pending (see the reducer's fast path). */
-function stripAckedEchoes(events: StreamEvent[]): StripResult {
-	const serverTextCounts = new Map<string, number>();
-	for (const entry of events) {
-		if (entry.id >= 0 && isUserMessage(entry)) {
-			serverTextCounts.set(
-				entry.event.text,
-				(serverTextCounts.get(entry.event.text) ?? 0) + 1
-			);
-		}
-	}
-	if (serverTextCounts.size === 0) {
-		return { events, stripped: 0 };
-	}
-	let stripped = 0;
-	const filtered = events.filter((entry) => {
-		if (entry.id < 0 && isUserMessage(entry)) {
-			const remaining = serverTextCounts.get(entry.event.text) ?? 0;
-			if (remaining > 0) {
-				serverTextCounts.set(entry.event.text, remaining - 1);
-				stripped += 1;
-				return false;
-			}
-		}
-		return true;
-	});
-	return { events: filtered, stripped };
-}
 
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 	switch (action.type) {
@@ -243,6 +208,8 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 			delete answeredQuestions[action.requestId];
 			return { ...state, answeredQuestions };
 		}
+		case "pendingReplay":
+			return applyPendingReplay(state, action.events);
 		case "localEcho": {
 			// Optimistic echo of the user's own line: appended directly (never
 			// through `mergeEvents`) with a negative id, so it shows instantly and
@@ -271,14 +238,22 @@ function mergeFeedEvents(
 	state: FeedState,
 	incoming: RawBridgeEvent[]
 ): FeedState {
-	const result = mergeEvents(state.events, state.maxSeenId, incoming);
+	// P5-1: rows already rendered via pending replay are dropped here (their
+	// ids still advance the mark) — see use-bridge-feed-pending.ts.
+	const { droppedMaxId, replayedPendingIds, rows } = extractReplayedRows(
+		state.replayedPendingIds,
+		incoming
+	);
+	const result = mergeEvents(state.events, state.maxSeenId, rows);
+	const maxSeenId = Math.max(result.maxSeenId, droppedMaxId);
 	const details = nextStatusDetails(state, result.parsed);
 	if (state.pendingEchoes === 0) {
 		return {
 			...state,
 			...details,
 			events: result.events,
-			maxSeenId: result.maxSeenId,
+			maxSeenId,
+			replayedPendingIds,
 		};
 	}
 	const { events, stripped } = stripAckedEchoes(result.events);
@@ -286,7 +261,8 @@ function mergeFeedEvents(
 		...state,
 		...details,
 		events,
-		maxSeenId: result.maxSeenId,
+		maxSeenId,
 		pendingEchoes: state.pendingEchoes - stripped,
+		replayedPendingIds,
 	};
 }

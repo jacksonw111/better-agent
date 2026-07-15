@@ -262,5 +262,11 @@ export function memoryBridgeMessageStore(
 					.slice(0, limit)
 			);
 		},
+		listTail(sessionId, limit) {
+			const rows = rowsBySession.get(sessionId) ?? [];
+			return Promise.resolve(
+				[...rows].sort((a, b) => a.seq - b.seq).slice(-limit)
+			);
+		},
 	};
 }

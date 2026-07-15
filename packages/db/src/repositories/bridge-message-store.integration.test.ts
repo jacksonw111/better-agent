@@ -108,6 +108,36 @@ it("appendMany persists a batch in one insert, listed in seq order", async () =>
 	]);
 });
 
+it("listTail returns the LAST limit rows in ascending seq order", async () => {
+	const store = createBridgeMessageStore(db);
+	const sessionId = await seedSession();
+
+	await store.appendMany(sessionId, [
+		{ seq: 1, event: { i: 1 } },
+		{ seq: 2, event: { i: 2 } },
+		{ seq: 3, event: { i: 3 } },
+		{ seq: 4, event: { i: 4 } },
+	]);
+
+	const rows = await store.listTail(sessionId, 2);
+	expect(rows).toEqual([
+		{ seq: 3, event: { i: 3 } },
+		{ seq: 4, event: { i: 4 } },
+	]);
+});
+
+it("listTail is session-scoped and returns everything when under the limit", async () => {
+	const store = createBridgeMessageStore(db);
+	const sessionA = await seedSession();
+	const sessionB = await seedSession();
+
+	await store.append(sessionA, 1, { from: "a" });
+	await store.append(sessionB, 1, { from: "b" });
+
+	const rows = await store.listTail(sessionA, 10);
+	expect(rows).toEqual([{ seq: 1, event: { from: "a" } }]);
+});
+
 it("appendMany is a no-op for an empty batch", async () => {
 	const store = createBridgeMessageStore(db);
 	const sessionId = await seedSession();

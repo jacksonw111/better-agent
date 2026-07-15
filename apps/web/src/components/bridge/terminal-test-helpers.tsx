@@ -116,6 +116,11 @@ export function makeControllableTransport() {
 	const sendInput = vi.fn().mockResolvedValue(undefined);
 	const observe = vi.fn().mockResolvedValue([]);
 	const history = vi.fn().mockResolvedValue([]);
+	// P5-1: defaults to "nothing pending, nothing answered" so existing tests
+	// see the pre-replay behavior; replay tests override the resolved value.
+	const pendingRequests = vi
+		.fn()
+		.mockResolvedValue({ answered: [], pending: [] });
 	const transport: BridgeTransport = {
 		connectStream: (args) => {
 			latest = args;
@@ -126,6 +131,7 @@ export function makeControllableTransport() {
 		},
 		history,
 		observe,
+		pendingRequests,
 		sendInput,
 	};
 	return {
@@ -133,6 +139,7 @@ export function makeControllableTransport() {
 		sendInput,
 		observe,
 		history,
+		pendingRequests,
 		connectCalls,
 		current: () => latest,
 	};
