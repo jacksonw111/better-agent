@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ingestEvents, MAX_PUSH_BATCH } from "../bridge/ingest-events";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import { bridgeProcedure, userProcedure } from "../index";
+import {
+	getBridgeAttachment,
+	uploadBridgeAttachment,
+} from "./bridge-attachments";
 import { listSessions } from "./bridge-list-sessions";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { fetchConfig, restartSession } from "./bridge-restart";
@@ -225,6 +229,12 @@ export const bridgeRouter = {
 			context.services.commandBus.notify(input.sessionId);
 			return { ok: true };
 		}),
+
+	// P3-T2: image input — web uploads against an owned bridge session (user
+	// plane), the CLI downloads the bytes back (bridge-token plane) to inject
+	// into the agent. See bridge-attachments.ts.
+	uploadBridgeAttachment,
+	getBridgeAttachment,
 
 	// P2-T1: paginated + per-session attention signal — see bridge-list-sessions.ts.
 	listSessions,

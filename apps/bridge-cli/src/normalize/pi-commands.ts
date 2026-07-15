@@ -6,31 +6,13 @@
 
 import { asString, isRecord } from "./types";
 
-/** The values pi's `prompt` command accepts for `streamingBehavior` — see
- * `buildPiPromptCommand`'s doc comment (R2-T3 item 1, CRITICAL). ASSUMPTION
- * (unverified, no `pi` binary in this sandbox — per the brief's researched
- * rpc-types v0.80.6 shape): `"steer"` interrupts the current turn with this
- * message, `"followUp"` queues it behind the current turn. */
-export type PiStreamingBehavior = "followUp" | "steer";
-
-/**
- * Builds one `pi --mode rpc` stdin command for a user turn.
- *
- * CRITICAL (R2-T3 item 1): pi ERRORS on a bare `prompt` sent while it's still
- * streaming a turn — the adapter's streaming tracker (adapters/pi-streaming.ts)
- * must pass `"followUp"` (the safe, non-interrupting default) whenever a
- * `send()` lands mid-turn; `streamingBehavior` is omitted entirely (unchanged
- * from before this fix) for an idle send, and `"steer"` is supported for a
- * future mid-turn-redirect UI but never sent by this adapter today.
- */
-export function buildPiPromptCommand(
-	text: string,
-	streamingBehavior?: PiStreamingBehavior
-): string {
-	return streamingBehavior === undefined
-		? JSON.stringify({ type: "prompt", message: text })
-		: JSON.stringify({ type: "prompt", message: text, streamingBehavior });
-}
+// The `prompt` frame builder (+ its PiStreamingBehavior/PiPromptImage types)
+// lives in ./pi-prompt — re-exported so existing importers keep working.
+export {
+	buildPiPromptCommand,
+	type PiPromptImage,
+	type PiStreamingBehavior,
+} from "./pi-prompt";
 
 /** The thinking-effort levels pi's `set_thinking_level` command accepts
  * (R2-T3 item 2). ASSUMPTION (unverified, no `pi` binary in this sandbox —

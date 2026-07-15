@@ -217,6 +217,8 @@ export type TextWhen = "queue" | "steer" | "interrupt";
 export interface SessionCapabilities {
 	approval: "gated" | "none";
 	busyModes: TextWhen[];
+	/** P3-T2: adapter can inject images; a pre-P3-T2 handshake omits → false. */
+	images?: boolean;
 	mcp: "live" | "restart" | "none";
 	modelSwitch: boolean;
 	permissionModes: string[];
@@ -234,6 +236,8 @@ export interface SessionCapabilities {
 export interface ResolvedCapabilities extends AgentCapabilities {
 	approval: SessionCapabilities["approval"];
 	busyModes: SessionCapabilities["busyModes"];
+	/** P3-T2: gates the attach surface; only a live handshake enables it. */
+	images: boolean;
 	mcp: SessionCapabilities["mcp"];
 	quota: boolean;
 	sessionOps: SessionCapabilities["sessionOps"];
@@ -249,6 +253,7 @@ function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
 		...base,
 		approval: base.toolApproval ? "gated" : "none",
 		busyModes: base.interrupt ? ["queue", "interrupt"] : ["queue"],
+		images: false,
 		mcp: "none",
 		quota: false,
 		sessionOps: base.sessionList ? ["list"] : [],
@@ -280,6 +285,7 @@ export function resolveCapabilities(
 		...fallback,
 		approval: handshake.approval,
 		busyModes: handshake.busyModes,
+		images: handshake.images ?? false,
 		mcp: handshake.mcp,
 		modelSwitch: handshake.modelSwitch,
 		permissionModes: handshake.permissionModes,

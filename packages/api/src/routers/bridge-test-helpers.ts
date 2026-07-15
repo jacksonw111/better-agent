@@ -16,6 +16,10 @@ import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usa
 import { createRouterClient } from "@orpc/server";
 import { createCommandBus } from "../bridge/command-bus";
 import type { AuthedBridgeToken } from "../context";
+import {
+	type MemoryAttachmentStore,
+	memoryAttachmentStore,
+} from "./bridge-test-helpers-attachments";
 import { memoryMcpServerStore } from "./bridge-test-helpers-mcp";
 import {
 	cascadeDeleteSessions,
@@ -55,6 +59,7 @@ interface TestServices {
 	commandBus: ReturnType<typeof createCommandBus>;
 	relayStore: ReturnType<typeof createInMemoryRelayStore>;
 	stores: {
+		attachment: MemoryAttachmentStore;
 		bridgeToken: BridgeTokenStore;
 		bridgeSession: BridgeSessionStore;
 		bridgeMessage: BridgeMessageStore;
@@ -111,10 +116,12 @@ export function build() {
 	const relayStore = createInMemoryRelayStore();
 	const commandBus = createCommandBus();
 	const usageRecord = createFakeUsageRecordStore();
+	const attachment = memoryAttachmentStore();
 	const services: TestServices = {
 		commandBus,
 		relayStore,
 		stores: {
+			attachment,
 			bridgeToken,
 			bridgeSession,
 			bridgeMessage,
@@ -125,6 +132,7 @@ export function build() {
 	};
 	const { userClientFor, bridgeClientFor } = createClientFactories(services);
 	return {
+		attachment,
 		bridgeToken,
 		bridgeSession,
 		bridgeMessage,

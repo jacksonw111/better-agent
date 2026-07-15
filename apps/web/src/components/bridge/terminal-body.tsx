@@ -12,6 +12,7 @@ import { TerminalComposer } from "./terminal-composer";
 import { TerminalFeed } from "./terminal-feed";
 import { TurnUsagePanel } from "./turn-usage-panel";
 import { UsageUpdateLine } from "./usage-update-line";
+import type { ImageRef, UploadImage } from "./use-image-attachments";
 import type { WebQueue } from "./use-web-queue";
 
 // `Terminal`'s body — feed, (capability-gated) usage chip, and composer —
@@ -32,8 +33,11 @@ export interface TerminalBodyProps {
 	commandCatalog: CommandCatalogDetail | null;
 	disabled: boolean;
 	ended: boolean;
+	/** P3-T2: uploads one composer image against this session (see
+	 * `TerminalComposerProps.imageUpload`); absent hides the attach surface. */
+	imageUpload?: UploadImage;
 	interrupt: () => void;
-	onSend: (text: string, when?: TextWhen) => Promise<void>;
+	onSend: (text: string, when?: TextWhen, images?: ImageRef[]) => Promise<void>;
 	/** R3-T1: pi's queued-message count, or `null` before one has arrived — see
 	 * bridge-queue-status.ts. */
 	queueUpdate: QueueUpdateDetail | null;
@@ -56,8 +60,9 @@ interface BodyComposerProps {
 	caps: ResolvedCapabilities;
 	commandCatalog: CommandCatalogDetail | null;
 	disabled: boolean;
+	imageUpload?: UploadImage;
 	interrupt: () => void;
-	onSend: (text: string, when?: TextWhen) => Promise<void>;
+	onSend: (text: string, when?: TextWhen, images?: ImageRef[]) => Promise<void>;
 	queueUpdate: QueueUpdateDetail | null;
 	sending: boolean;
 	sessionReady: SessionReadyDetail | null;
@@ -94,6 +99,7 @@ function BodyComposer({
 	caps,
 	commandCatalog,
 	disabled,
+	imageUpload,
 	interrupt,
 	onSend,
 	queueUpdate,
@@ -111,6 +117,7 @@ function BodyComposer({
 			busyModes={caps.busyModes}
 			canInterrupt={caps.interrupt}
 			disabled={disabled}
+			imageUpload={caps.images ? imageUpload : undefined}
 			model={sessionReady?.model}
 			models={sessionReady?.models}
 			onInterrupt={interrupt}
@@ -163,6 +170,7 @@ export function TerminalBody(props: TerminalBodyProps) {
 				caps={props.caps}
 				commandCatalog={props.commandCatalog}
 				disabled={props.disabled}
+				imageUpload={props.imageUpload}
 				interrupt={props.interrupt}
 				onSend={props.onSend}
 				queueUpdate={props.queueUpdate}

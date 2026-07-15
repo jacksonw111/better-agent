@@ -114,7 +114,23 @@ function useTerminalView(
 		turnInFlight,
 	});
 	const sessionId = bridge.sessionReady?.sessionId ?? session.id;
-	return { ...bridge, avatars, caps, sessionId, turns, turnInFlight, webQueue };
+	// P3-T2: the composer's per-session image upload — present only when the
+	// transport can upload; the capability gate (caps.images) applies in
+	// TerminalBody so a fake transport in tests can still opt out.
+	const { uploadAttachment } = transport;
+	const imageUpload = uploadAttachment
+		? (file: File) => uploadAttachment({ file, sessionId: session.id })
+		: undefined;
+	return {
+		...bridge,
+		avatars,
+		caps,
+		imageUpload,
+		sessionId,
+		turns,
+		turnInFlight,
+		webQueue,
+	};
 }
 
 /**
@@ -196,6 +212,7 @@ function BodyFromView({
 			commandCatalog={view.commandCatalog}
 			disabled={!view.canSend}
 			ended={view.status === "ended"}
+			imageUpload={view.imageUpload}
 			interrupt={view.interrupt}
 			onSend={view.sendInput}
 			queueUpdate={view.queueUpdate}

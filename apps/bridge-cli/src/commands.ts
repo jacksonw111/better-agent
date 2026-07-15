@@ -13,7 +13,11 @@ import {
 	isControlRecord,
 	parseControlCommand,
 } from "./commands-control";
-import { parseTextCommand, type TextCommand } from "./commands-text-when";
+import {
+	type ImageRef,
+	parseTextCommand,
+	type TextCommand,
+} from "./commands-text-when";
 import { isRecord } from "./normalize/types";
 
 /** One relayed command/event; mirrors `RelayEvent` from `@better-agent/agent/ports`. */
@@ -57,7 +61,7 @@ export function parseCommandText(data: unknown): ParsedCommand | null {
 		return parseControlCommand(data);
 	}
 	if (isRecord(data) && typeof data.text === "string") {
-		return parseTextCommand(data.text, data.when);
+		return parseTextCommand(data.text, data.when, data.images);
 	}
 	return null;
 }
@@ -94,9 +98,13 @@ export interface CommandSink {
 	 * `control: listSessions` command — the detail page's "Past
 	 * conversations" button. */
 	listSessions?(): void;
-	send(text: string): void;
+	/** P3-T2: `images` is the wire's id-based `ImageRef` list — the production
+	 * sink (`withImageInput`, image-input.ts) downloads them into `AgentImage`s
+	 * before the adapter sees them; fakes/tests that ignore the param keep
+	 * working unchanged. */
+	send(text: string, images?: ImageRef[]): void;
 	/** R3-T1: sends under a specific busy-turn `TextWhen`; see `dispatchTextCommand`. */
-	sendWith?(text: string, when: TextWhen): void;
+	sendWith?(text: string, when: TextWhen, images?: ImageRef[]): void;
 	/** Changes the model used for subsequent turns. Called for a
 	 * `control: setModel` command. */
 	setModel?(model: string): void;
@@ -149,7 +157,7 @@ export function dispatchCommands(
 	for (const command of commands) {
 		const parsed = parseCommandText(command.data);
 		if (parsed?.type === "text") {
-			dispatchTextCommand(sink, parsed.text, parsed.when);
+			dispatchTextCommand(sink, parsed.text, parsed.when, parsed.images);
 		} else if (parsed?.type === "approval") {
 			sink.answerApproval(parsed.requestId, parsed.optionId);
 		} else if (parsed?.type === "control") {

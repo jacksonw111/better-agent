@@ -74,60 +74,88 @@ describe("dispatchCommands control:setThinking", () => {
 	});
 });
 
-/** R3-T1: `dispatchTextCommand`'s `sendWith`-vs-`send` routing. */
+/** R3-T1: `dispatchTextCommand`'s `sendWith`-vs-`send` routing. P3-T2: both
+ * mocks carry the optional trailing image-ref param. */
 function sendWithSink(): CommandSink & {
-	send: Mock<(text: string) => void>;
-	sendWith: Mock<(text: string, when: string) => void>;
+	send: Mock<CommandSink["send"]>;
+	sendWith: Mock<NonNullable<CommandSink["sendWith"]>>;
 } {
 	return { answerApproval: vi.fn(), send: vi.fn(), sendWith: vi.fn() };
 }
 
-describe("dispatchTextCommand", () => {
-	it("prefers sendWith for 'steer' when the sink implements it", () => {
-		const sink = sendWithSink();
-		dispatchTextCommand(sink, "redirect", "steer");
-		expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("redirect", "steer");
-		expect(sink.send).not.toHaveBeenCalled();
-	});
+it("prefers sendWith for 'steer' when the sink implements it", () => {
+	const sink = sendWithSink();
+	dispatchTextCommand(sink, "redirect", "steer");
+	expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("redirect", "steer");
+	expect(sink.send).not.toHaveBeenCalled();
+});
 
-	it("prefers sendWith for 'interrupt' when the sink implements it", () => {
-		const sink = sendWithSink();
-		dispatchTextCommand(sink, "fresh", "interrupt");
-		expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("fresh", "interrupt");
-		expect(sink.send).not.toHaveBeenCalled();
-	});
+it("prefers sendWith for 'interrupt' when the sink implements it", () => {
+	const sink = sendWithSink();
+	dispatchTextCommand(sink, "fresh", "interrupt");
+	expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("fresh", "interrupt");
+	expect(sink.send).not.toHaveBeenCalled();
+});
 
-	it("uses plain send (never sendWith) for 'queue', even when sendWith exists", () => {
-		const sink = sendWithSink();
-		dispatchTextCommand(sink, "go", "queue");
-		expect(sink.send).toHaveBeenCalledExactlyOnceWith("go");
-		expect(sink.sendWith).not.toHaveBeenCalled();
-	});
+it("uses plain send (never sendWith) for 'queue', even when sendWith exists", () => {
+	const sink = sendWithSink();
+	dispatchTextCommand(sink, "go", "queue");
+	expect(sink.send).toHaveBeenCalledExactlyOnceWith("go");
+	expect(sink.sendWith).not.toHaveBeenCalled();
+});
 
-	it("uses plain send (never sendWith) when `when` is absent, even when sendWith exists", () => {
-		const sink = sendWithSink();
-		dispatchTextCommand(sink, "go", undefined);
-		expect(sink.send).toHaveBeenCalledExactlyOnceWith("go");
-		expect(sink.sendWith).not.toHaveBeenCalled();
-	});
+it("uses plain send (never sendWith) when `when` is absent, even when sendWith exists", () => {
+	const sink = sendWithSink();
+	dispatchTextCommand(sink, "go", undefined);
+	expect(sink.send).toHaveBeenCalledExactlyOnceWith("go");
+	expect(sink.sendWith).not.toHaveBeenCalled();
+});
 
-	it("falls back to send for 'interrupt' when the sink has no sendWith (no throw)", () => {
-		const sink: CommandSink = { answerApproval: vi.fn(), send: vi.fn() };
-		dispatchTextCommand(sink, "fresh", "interrupt");
-		expect(sink.send).toHaveBeenCalledExactlyOnceWith("fresh");
-	});
+it("falls back to send for 'interrupt' when the sink has no sendWith (no throw)", () => {
+	const sink: CommandSink = { answerApproval: vi.fn(), send: vi.fn() };
+	dispatchTextCommand(sink, "fresh", "interrupt");
+	expect(sink.send).toHaveBeenCalledExactlyOnceWith("fresh");
+});
 
-	it("dispatchCommands routes a relayed { when: 'steer' } text command through sendWith", () => {
-		const sink = sendWithSink();
-		const afterIdRef = { current: 0 };
+it("dispatchCommands routes a relayed { when: 'steer' } text command through sendWith", () => {
+	const sink = sendWithSink();
+	const afterIdRef = { current: 0 };
 
-		dispatchCommands(
-			[{ id: 1, data: { type: "text", text: "redirect", when: "steer" } }],
-			sink,
-			afterIdRef
-		);
+	dispatchCommands(
+		[{ id: 1, data: { type: "text", text: "redirect", when: "steer" } }],
+		sink,
+		afterIdRef
+	);
 
-		expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("redirect", "steer");
-		expect(sink.send).not.toHaveBeenCalled();
-	});
+	expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("redirect", "steer");
+	expect(sink.send).not.toHaveBeenCalled();
+});
+
+// P3-T2: image refs ride the dispatch — passed ONLY when present, so the
+// image-less calls above stay arity-identical to the pre-P3-T2 wire.
+const IMAGE_REF = { id: "att-1", mime: "image/png", name: "shot.png" };
+
+it("passes image refs through plain send", () => {
+	const sink = sendWithSink();
+	dispatchTextCommand(sink, "look", undefined, [IMAGE_REF]);
+	expect(sink.send).toHaveBeenCalledExactlyOnceWith("look", [IMAGE_REF]);
+});
+
+it("passes image refs through sendWith for 'interrupt'", () => {
+	const sink = sendWithSink();
+	dispatchTextCommand(sink, "look", "interrupt", [IMAGE_REF]);
+	expect(sink.sendWith).toHaveBeenCalledExactlyOnceWith("look", "interrupt", [
+		IMAGE_REF,
+	]);
+	expect(sink.send).not.toHaveBeenCalled();
+});
+
+it("dispatchCommands routes a relayed { text, images } command's refs into send", () => {
+	const sink = sendWithSink();
+	dispatchCommands(
+		[{ id: 1, data: { type: "text", text: "look", images: [IMAGE_REF] } }],
+		sink,
+		{ current: 0 }
+	);
+	expect(sink.send).toHaveBeenCalledExactlyOnceWith("look", [IMAGE_REF]);
 });

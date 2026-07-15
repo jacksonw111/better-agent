@@ -3,6 +3,7 @@
 // max-lines-per-file gate, mirrors capture-agent-session-id.ts.
 
 import type { CommandSink } from "./commands";
+import type { ImageRef } from "./commands-text-when";
 import type { PollOutcome } from "./poll-loop";
 import type { RelayTransport } from "./relay-client";
 import { type SessionWatchdog, STALLED_STATUS } from "./session-watchdog";
@@ -79,9 +80,14 @@ export function watchdogSink(
 			watchdog.observeTurnEnd();
 			handle.interrupt?.();
 		},
-		send(text: string): void {
+		send(text: string, images?: ImageRef[]): void {
 			watchdog.observeTurnStart();
-			handle.send(text);
+			// P3-T2: arity-preserving forward — see dispatchTextCommand's note.
+			if (images) {
+				handle.send(text, images);
+			} else {
+				handle.send(text);
+			}
 		},
 	};
 }

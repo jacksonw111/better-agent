@@ -1,5 +1,10 @@
 import type { NormalizedEvent } from "../normalize/types";
 import type { QuotaSnapshot } from "./quota/types";
+import type {
+	AgentStartConfig,
+	ResolvedMcpServer,
+	ResolvedSkill,
+} from "./start-config";
 
 /** Which local coding agent a bridge session drives. Mirrors `AGENT_KINDS`
  * in `packages/api/src/routers/bridge.ts` — keep the two in sync. */
@@ -55,6 +60,10 @@ export interface SessionCapabilities {
 	approval: "gated" | "none";
 	/** Mid-turn interruption: queued follow-up, live steer, hard interrupt. */
 	busyModes: ("queue" | "steer" | "interrupt")[];
+	/** P3-T2: the adapter can inject user-uploaded images into a turn (claude's
+	 * content-block array, pi's `prompt.images`) — gates the composer's attach
+	 * UI. */
+	images: boolean;
 	/** MCP servers: swappable LIVE, only after a restart, or unsupported. */
 	mcp: "live" | "restart" | "none";
 	/** Switching models mid-session. */
@@ -135,6 +144,20 @@ export interface StatusSnapshotDetail {
 // for the 300-line cap, re-exported here (mirrors `AgentCapabilities` above).
 export type { QuotaSnapshot, QuotaWindow } from "./quota/types";
 
+/** P3-T2: one user-uploaded image, ALREADY downloaded + base64'd by the CLI
+ * (see `apps/bridge-cli/src/image-input.ts`) by the time it reaches an
+ * adapter's `send`/`sendWith` — distinct from the wire's id-based `ImageRef`
+ * (`apps/bridge-cli/src/commands-text-when.ts`), which only references a
+ * server-side attachment. */
+export interface AgentImage {
+	/** Base64-encoded image bytes (no data-URI prefix). */
+	data: string;
+	/** One of the upload whitelist: image/png, image/jpeg, image/webp,
+	 * image/gif (enforced server-side at upload). */
+	mimeType: string;
+	name: string;
+}
+
 /** A running agent process, already normalizing its own output. */
 export interface AgentHandle {
 	/**
@@ -187,16 +210,20 @@ export interface AgentHandle {
 	 * `Adapter.start` from `StartOptions.skills`, not here.
 	 */
 	reloadSkills?(): void;
-	/** Feeds a user command (from the web UI, relayed through the server) to the agent. */
-	send(text: string): void;
+	/** Feeds a user command (from the web UI, relayed through the server) to
+	 * the agent. P3-T2: `images` (already downloaded + base64'd — see
+	 * `AgentImage`) rides along for adapters whose
+	 * `SessionCapabilities.images` is true (claude-code/pi); others never
+	 * receive it (the CLI's image layer strips it first). */
+	send(text: string, images?: AgentImage[]): void;
 	/** R3-T1: sends `text` under a specific busy-turn policy — see `TextWhen`.
 	 * Optional, same degrade-safely contract as `interrupt`: pi implements all
 	 * three modes, claude-code/codex/opencode implement "interrupt" (abort
 	 * then `send`) and fall through to `send` for "queue"; none implement
 	 * "steer" — hidden from the user by their `SessionCapabilities.busyModes`
 	 * not listing it, so `CommandSink`'s dispatch never calls it with "steer"
-	 * for them. */
-	sendWith?(text: string, when: TextWhen): void;
+	 * for them. P3-T2: `images` — same contract as `send`. */
+	sendWith?(text: string, when: TextWhen, images?: AgentImage[]): void;
 	/**
 	 * Replaces the session's MCP servers LIVE (R5-b), no restart. Only adapters
 	 * whose agent supports live MCP reconfiguration implement it — claude-code
@@ -252,45 +279,14 @@ export interface StartOptions {
 	skills?: ResolvedSkill[];
 }
 
-/** An MCP server resolved server-side (`resolveMcpServers` in
- * `packages/api`), redeclared locally so the CLI takes no runtime dep on the
- * API package — same reason `AgentStartConfig` is redeclared. `headers`
- * already carries the decrypted `Authorization` (never the ciphertext); the
- * transport is HTTP (`type: "http"` in the SDK/agent config the adapters
- * build). */
-export interface ResolvedMcpServer {
-	headers: Record<string, string>;
-	name: string;
-	url: string;
-}
-
-/** A skill resolved server-side (`resolveSkills` in `packages/api`) into the
- * three parts a `SKILL.md` needs — its frontmatter `name`/`description` and
- * the markdown body (`instructions`). Redeclared locally so the CLI takes no
- * runtime dep on the API package (same reason as `ResolvedMcpServer`). */
-export interface ResolvedSkill {
-	description: string;
-	instructions: string;
-	name: string;
-}
-
-/** Startup config the bridge CLI forwards to an adapter (a subset of the
- * server's `BridgeTokenConfig`, redeclared locally so the CLI doesn't take a
- * runtime dep on `@better-agent/agent`). */
-export interface AgentStartConfig {
-	appendSystemPrompt?: string;
-	effort?: "low" | "medium" | "high" | "xhigh" | "max";
-	maxBudgetUsd?: number;
-	maxTurns?: number;
-	/** The model id to start the session with. Only claude-code applies this
-	 * (SDK `Options.model`) as of R2-b; see per-adapter notes for the rest. */
-	model?: string;
-	/** The permission mode to start the session with (agent-specific values,
-	 * e.g. claude's "default"/"plan"/"acceptEdits"/…). Only claude-code applies
-	 * this as of R2-b — ignored (not just unsupported) by pi, which has no
-	 * permission-mode concept at all. */
-	permissionMode?: string;
-}
+// `ResolvedMcpServer`/`ResolvedSkill`/`AgentStartConfig` live in
+// ./start-config.ts — split out for the 300-line cap, re-exported here
+// (mirrors `QuotaSnapshot` above).
+export type {
+	AgentStartConfig,
+	ResolvedMcpServer,
+	ResolvedSkill,
+} from "./start-config";
 
 /** Spawns and wires up one local coding agent in `dir`. */
 export interface Adapter {

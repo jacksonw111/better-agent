@@ -16,7 +16,7 @@ import { type NormalizedEvent, userMessageEvent } from "../normalize/types";
 import { type ApprovalRegistry, retractPendingApprovals } from "./approvals";
 import { type QuestionRegistry, retractPendingQuestions } from "./questions";
 import { bumpTurnEpoch, type TurnEpochRef } from "./turn-epoch";
-import type { TextWhen } from "./types";
+import type { AgentImage, TextWhen } from "./types";
 
 interface PiSendWithDeps {
 	// R3-1 review finding 1: sendInterrupted below retracts pending
@@ -30,23 +30,36 @@ interface PiSendWithDeps {
 	streaming: { isStreaming(): boolean; reset(): void };
 }
 
-function sendQueued(deps: PiSendWithDeps, text: string): void {
+function sendQueued(
+	deps: PiSendWithDeps,
+	text: string,
+	images?: AgentImage[]
+): void {
 	bumpTurnEpoch(deps.epoch);
 	deps.events.push(userMessageEvent(text));
 	deps.io.writeLine(
 		buildPiPromptCommand(
 			text,
-			deps.streaming.isStreaming() ? "followUp" : undefined
+			deps.streaming.isStreaming() ? "followUp" : undefined,
+			images
 		)
 	);
 }
 
-function sendSteered(deps: PiSendWithDeps, text: string): void {
+function sendSteered(
+	deps: PiSendWithDeps,
+	text: string,
+	images?: AgentImage[]
+): void {
 	deps.events.push(userMessageEvent(text));
-	deps.io.writeLine(buildPiPromptCommand(text, "steer"));
+	deps.io.writeLine(buildPiPromptCommand(text, "steer", images));
 }
 
-function sendInterrupted(deps: PiSendWithDeps, text: string): void {
+function sendInterrupted(
+	deps: PiSendWithDeps,
+	text: string,
+	images?: AgentImage[]
+): void {
 	bumpTurnEpoch(deps.epoch);
 	deps.streaming.reset();
 	// R3-1 review finding 1: same retraction step as AgentHandle.interrupt —
@@ -57,23 +70,24 @@ function sendInterrupted(deps: PiSendWithDeps, text: string): void {
 	retractPendingQuestions(deps.questions, deps.events);
 	deps.io.writeLine(JSON.stringify({ type: "abort" }));
 	deps.events.push(userMessageEvent(text));
-	deps.io.writeLine(buildPiPromptCommand(text));
+	deps.io.writeLine(buildPiPromptCommand(text, undefined, images));
 }
 
 /** Builds the pi adapter's `sendWith` — dispatches to the matching busy-turn
- * policy above. */
+ * policy above. P3-T2: downloaded `images` (see `AgentImage`) ride whichever
+ * policy's prompt frame goes out. */
 export function makePiSendWith(
 	deps: PiSendWithDeps
-): (text: string, when: TextWhen) => void {
-	return (text, when) => {
+): (text: string, when: TextWhen, images?: AgentImage[]) => void {
+	return (text, when, images) => {
 		if (when === "steer") {
-			sendSteered(deps, text);
+			sendSteered(deps, text, images);
 			return;
 		}
 		if (when === "interrupt") {
-			sendInterrupted(deps, text);
+			sendInterrupted(deps, text, images);
 			return;
 		}
-		sendQueued(deps, text);
+		sendQueued(deps, text, images);
 	};
 }

@@ -5,7 +5,7 @@
 // implementation, rather than three near-identical inline closures, since
 // all three adapter files already sit close to the repo's 300-line cap.
 
-import type { TextWhen } from "./types";
+import type { AgentImage, TextWhen } from "./types";
 
 /** R3-1 review finding 2 (ASSUMPTION, unverified — no `codex` binary in this
  * sandbox): the longest this helper waits for `doInterrupt()`'s own request
@@ -28,7 +28,11 @@ interface InterruptThenSendDeps {
 	 * timeout above, whichever comes first) before sending — see the finding
 	 * 2 doc above. */
 	doInterrupt(): Promise<void> | void;
-	doSend(text: string): void;
+	/** P3-T2: `images` (already downloaded — see `AgentImage`) rides through
+	 * untouched. codex/opencode pass a `doSend` that simply ignores it (their
+	 * capability is `images: false`, so the CLI's image layer never forwards
+	 * any); claude-code's builds content blocks. */
+	doSend(text: string, images?: AgentImage[]): void;
 }
 
 /** Resolves once `result` settles, or after `INTERRUPT_SETTLE_TIMEOUT_MS`,
@@ -53,14 +57,14 @@ function afterInterruptSettles(result: Promise<void> | void): Promise<void> {
  * `doSend(text)`, since these adapters have no third policy to apply. */
 export function makeInterruptThenSend(
 	deps: InterruptThenSendDeps
-): (text: string, when: TextWhen) => void {
-	return (text, when) => {
+): (text: string, when: TextWhen, images?: AgentImage[]) => void {
+	return (text, when, images) => {
 		if (when === "interrupt") {
 			afterInterruptSettles(deps.doInterrupt()).then(() => {
-				deps.doSend(text);
+				deps.doSend(text, images);
 			});
 			return;
 		}
-		deps.doSend(text);
+		deps.doSend(text, images);
 	};
 }

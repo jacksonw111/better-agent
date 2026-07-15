@@ -31,6 +31,7 @@ import {
 	makeListSessions,
 	recordSessionInfo,
 } from "./claude-code-status";
+import { userTurn } from "./claude-code-user-turn";
 import { makeInterruptThenSend } from "./interrupt-then-send";
 import { findOnPath } from "./process-io";
 import {
@@ -42,6 +43,7 @@ import {
 import type {
 	Adapter,
 	AgentHandle,
+	AgentImage,
 	ResolvedMcpServer,
 	StartOptions,
 } from "./types";
@@ -53,15 +55,9 @@ import type {
 // AsyncIterable of user turns, manages the claude subprocess + handshake, and
 // yields SDK messages whose shapes match the CLI stream-json we already
 // normalize. Tool permission requests route through `canUseTool` back to the
-// web approval UI.
-
-function userTurn(text: string): SDKUserMessage {
-	return {
-		type: "user",
-		message: { role: "user", content: text },
-		parent_tool_use_id: null,
-	};
-}
+// web approval UI. P3-T2: `userTurn` (claude-code-user-turn.ts) builds the
+// turn — a bare string, or a content-block array when downloaded images ride
+// along.
 
 /** The plumbing `drainSession` closes over — bundled into one object so it
  * stays under the repo's max-params gate (mirrors `StartClaudeQueryDeps`
@@ -186,15 +182,16 @@ function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 		retractPendingApprovals(approvals, events);
 		session.interrupt().catch(() => undefined);
 	}
-	function doSend(text: string): void {
+	function doSend(text: string, images?: AgentImage[]): void {
 		// A new turn begins — bump the epoch BEFORE pushing the user's own
 		// turn-start event, so everything from here on (including this event)
 		// carries the new epoch.
 		bumpTurnEpoch(epoch);
 		// Persist the user's own turn (see userMessageEvent) so it survives
-		// a page reload, THEN forward it to the agent.
+		// a page reload, THEN forward it to the agent. P3-T2: images (already
+		// downloaded + base64'd by image-input.ts) become content blocks.
 		events.push(userMessageEvent(text));
-		input.push(userTurn(text));
+		input.push(userTurn(text, images));
 	}
 	return {
 		events,

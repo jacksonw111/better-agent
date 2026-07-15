@@ -4,10 +4,12 @@
 // of exiting. Split out of index.ts's `main` to keep both files under the
 // line cap; see `runBridgeSession`'s doc comment in relay-client.ts for why
 // it returns a `PollOutcome` instead of just ending the process itself.
+import { agentSupportsImages } from "./adapters/session-capabilities";
 import type { Adapter, AgentHandle } from "./adapters/types";
 import type { BridgeCliArgs } from "./args";
 import type { AfterIdRef } from "./commands";
 import type { CuaController } from "./cua/cua-controller";
+import { type ImageInputDeps, withImageInput } from "./image-input";
 import type {
 	AgentSessionIdRef,
 	PollOutcome,
@@ -29,15 +31,17 @@ export interface RunRestartLoopOptions {
 
 /** Adds `startVm`/`stopVm` to a handle so the CommandSink dispatch can route the
  * web's Start/Stop desktop commands to the (restart-surviving) CUA controller.
- * Every other method is inherited from the real handle via the prototype. */
-function withCua(
-	handle: AgentHandle,
+ * Every other method is inherited from the real handle via the prototype.
+ * Generic (P3-T2) because the handle it wraps is now the image layer's
+ * `ImageInputHandle` (wire `ImageRef`s), not the adapter's raw `AgentHandle`. */
+function withCua<H extends object>(
+	handle: H,
 	cua: CuaController | undefined
-): AgentHandle {
+): H {
 	if (!cua) {
 		return handle;
 	}
-	const wrapped = Object.create(handle) as AgentHandle & {
+	const wrapped = Object.create(handle) as H & {
 		startVm?: () => void;
 		stopVm?: () => void;
 	};
@@ -48,6 +52,29 @@ function withCua(
 		cua.stopVm().catch(() => undefined);
 	};
 	return wrapped;
+}
+
+/** P3-T2: builds the image layer's deps for this session — download via the
+ * transport's bridge-token-authed `getAttachment`, capability from the
+ * adapter's own constant, failure notes pushed best-effort straight to the
+ * server (same contract as session-watchdog-wiring.ts's `pushStalledStatus`). */
+function buildImageInputDeps(
+	args: BridgeCliArgs,
+	transport: RelayTransport,
+	sessionId: string
+): ImageInputDeps {
+	const { getAttachment } = transport;
+	return {
+		fetchImage: getAttachment
+			? (attachmentId) => getAttachment({ attachmentId })
+			: undefined,
+		pushStatus: (event) => {
+			transport
+				.pushEvents({ sessionId, events: [event] })
+				.catch(() => undefined);
+		},
+		supportsImages: agentSupportsImages(args.agentKind),
+	};
 }
 
 function printConnected(sessionId: string): void {
@@ -68,7 +95,7 @@ function printRestarted(sessionId: string): void {
  * latest handle without being re-registered. */
 function wireShutdown(
 	controller: AbortController,
-	handleRef: { current: AgentHandle }
+	handleRef: { current: Pick<AgentHandle, "stop"> }
 ): void {
 	const stop = () => {
 		controller.abort();
@@ -134,7 +161,13 @@ export async function runRestartLoop(
 ): Promise<void> {
 	const { adapter, args, sessionId, transport, cua } = options;
 	const controller = new AbortController();
-	const handleRef = { current: withCua(options.handle, cua) };
+	// P3-T2: the image layer wraps the raw adapter handle (innermost) so a
+	// text command's image refs are downloaded before the adapter's send sees
+	// them; withCua stays outermost, exactly as before.
+	const imageDeps = buildImageInputDeps(args, transport, sessionId);
+	const handleRef = {
+		current: withCua(withImageInput(options.handle, imageDeps), cua),
+	};
 	const agentSessionIdRef: AgentSessionIdRef = {};
 	// Hoisted here (NOT inside `runBridgeSession`) and passed into every
 	// generation below: relay command reads are non-destructive and every
@@ -168,7 +201,10 @@ export async function runRestartLoop(
 		outcome = result.outcome;
 		if (outcome === "restart") {
 			handleRef.current = withCua(
-				await relaunch(adapter, args, transport, agentSessionIdRef),
+				withImageInput(
+					await relaunch(adapter, args, transport, agentSessionIdRef),
+					imageDeps
+				),
 				cua
 			);
 			onStart = printRestarted;

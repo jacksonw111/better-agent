@@ -1,6 +1,7 @@
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { ImageRef } from "./use-image-attachments";
 
 // P2-T5: the WEB-side editable busy queue. When a turn is in flight and the
 // user submits with the default "queue" policy, the composer holds the
@@ -14,6 +15,9 @@ import { toast } from "sonner";
 
 export interface WebQueueItem {
 	id: string;
+	/** P3-T2: already-uploaded image refs snapshotted at queue time; flushed
+	 * with the text so a queued send keeps its attachments. */
+	images?: ImageRef[];
 	queuedAt: number;
 	text: string;
 	/** Snapshotted at queue time — the web queue only ever holds the default
@@ -22,7 +26,7 @@ export interface WebQueueItem {
 }
 
 export interface WebQueue {
-	enqueue: (text: string) => void;
+	enqueue: (text: string, images?: ImageRef[]) => void;
 	items: WebQueueItem[];
 	remove: (id: string) => void;
 }
@@ -31,8 +35,13 @@ export interface UseWebQueueArgs {
 	/** The session is over — queued items can never be delivered, so they're
 	 * dropped (with a toast) rather than silently lost. */
 	ended: boolean;
-	/** The ordinary chat send (`useBridgeTerminal`'s `sendInput`, bare text). */
-	send: (text: string) => void | Promise<void>;
+	/** The ordinary chat send (`useBridgeTerminal`'s `sendInput` — bare text,
+	 * plus the item's snapshotted image refs when it has any). */
+	send: (
+		text: string,
+		when?: undefined,
+		images?: ImageRef[]
+	) => void | Promise<void>;
 	/** The bridge session ROW id (stable per session) — a switch drops the
 	 * queue so items never leak into another session's conversation. */
 	sessionId: string;
@@ -64,7 +73,7 @@ function dropAll(itemsRef: ItemsRef, setItems: SetItems): void {
 function flush(
 	itemsRef: ItemsRef,
 	setItems: SetItems,
-	send: (text: string) => void | Promise<void>
+	send: UseWebQueueArgs["send"]
 ): void {
 	const batch = itemsRef.current;
 	if (batch.length === 0) {
@@ -74,7 +83,13 @@ function flush(
 	setItems([]);
 	const sendAll = async () => {
 		for (const item of batch) {
-			await send(item.text);
+			// Arity-preserving: an image-less item calls `send` exactly like the
+			// pre-P3-T2 flush did, so callers/fakes asserting call shapes hold.
+			if (item.images) {
+				await send(item.text, undefined, item.images);
+			} else {
+				await send(item.text);
+			}
 		}
 	};
 	sendAll().catch(() => {
@@ -124,7 +139,7 @@ export function useWebQueue(args: UseWebQueueArgs): WebQueue {
 	const itemsRef = useRef<WebQueueItem[]>(items);
 	useQueueLifecycle(args, itemsRef, setItems);
 
-	const enqueue = (text: string) => {
+	const enqueue = (text: string, images?: ImageRef[]) => {
 		nextItemId += 1;
 		const item: WebQueueItem = {
 			id: `wq-${nextItemId}`,
@@ -132,6 +147,9 @@ export function useWebQueue(args: UseWebQueueArgs): WebQueue {
 			text,
 			when: "queue",
 		};
+		if (images && images.length > 0) {
+			item.images = images;
+		}
 		itemsRef.current = [...itemsRef.current, item];
 		setItems(itemsRef.current);
 	};

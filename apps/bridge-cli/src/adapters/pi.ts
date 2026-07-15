@@ -35,7 +35,12 @@ import {
 	type TurnEpochRef,
 	turnStampingQueue,
 } from "./turn-epoch";
-import { type Adapter, AGENT_EXITED_STATUS, type AgentHandle } from "./types";
+import {
+	type Adapter,
+	AGENT_EXITED_STATUS,
+	type AgentHandle,
+	type AgentImage,
+} from "./types";
 
 /** ASSUMPTION (unverified, no `pi` binary available in this sandbox): `pi`'s
  * RPC mode is invoked as `pi --mode rpc`, with the working directory set via
@@ -194,18 +199,19 @@ function buildPiAgentHandle(deps: PiAgentHandleDeps): AgentHandle {
 		events,
 		getStatus: statusTracker.request,
 		interrupt: makePiInterrupt(deps),
-		send(text: string): void {
+		send(text: string, images?: AgentImage[]): void {
 			// A new turn begins — bump BEFORE pushing (see `interrupt` above).
 			bumpTurnEpoch(epoch);
 			events.push(userMessageEvent(text));
-			// CRITICAL (R2-T3 item 1): a bare prompt sent while pi is still
-			// streaming a turn errors — `followUp` is the always-safe,
-			// non-interrupting choice for a send that lands mid-turn (`"steer"`
-			// isn't sent by this adapter today, see buildPiPromptCommand's doc).
+			// CRITICAL (R2-T3 item 1): a bare prompt sent mid-stream errors —
+			// `followUp` is the always-safe, non-interrupting choice (`"steer"`
+			// isn't sent by this adapter today; see buildPiPromptCommand's doc).
+			// P3-T2: downloaded images ride the prompt frame's `images` field.
 			io.writeLine(
 				buildPiPromptCommand(
 					text,
-					streaming.isStreaming() ? "followUp" : undefined
+					streaming.isStreaming() ? "followUp" : undefined,
+					images
 				)
 			);
 		},

@@ -36,6 +36,14 @@ export interface BridgeTransport {
 		sessionId: string;
 	}) => Promise<RawBridgeEvent[]>;
 	sendInput: (input: { data: unknown; sessionId: string }) => Promise<void>;
+	/** P3-T2: uploads one composer image against the bridge session; the
+	 * returned ref rides the text command as `images[]`. Optional so existing
+	 * fake transports in tests keep compiling — the attach UI only mounts when
+	 * both this and the `images` capability are present. */
+	uploadAttachment?: (input: {
+		file: File;
+		sessionId: string;
+	}) => Promise<{ id: string; mime: string; name: string }>;
 }
 
 export function createBridgeTransport(): BridgeTransport {
@@ -51,5 +59,6 @@ export function createBridgeTransport(): BridgeTransport {
 		sendInput: async (input) => {
 			await client.bridge.sendInput(input);
 		},
+		uploadAttachment: (input) => client.bridge.uploadBridgeAttachment(input),
 	};
 }

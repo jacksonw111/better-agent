@@ -12,6 +12,7 @@ import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import type { ConnectionState } from "./terminal-connection";
 import type { TerminalConnectionStatus } from "./terminal-status";
 import type { FeedState } from "./use-bridge-feed";
+import type { ImageRef } from "./use-image-attachments";
 
 // Pieces of `useBridgeTerminal` pulled out purely to keep that file (and its
 // main hook) under the repo's max-lines gates: the "Past conversations" timeout
@@ -55,7 +56,11 @@ export interface UseBridgeTerminalResult {
 	 * text, identical to the pre-R3-T1 single-argument call. See
 	 * `parseCommandText` (apps/bridge-cli/src/commands.ts) for the wire shape
 	 * this produces. */
-	sendInput: (text: string, when?: TextWhen) => Promise<void>;
+	sendInput: (
+		text: string,
+		when?: TextWhen,
+		images?: ImageRef[]
+	) => Promise<void>;
 	sending: boolean;
 	/** The latest `session_list` detail, or `null` before a `listSessions`
 	 * request has gotten a reply. */
@@ -158,7 +163,11 @@ export interface BuildResultArgs {
 	queueUpdate: QueueUpdateDetail | null;
 	/** Asks the CLI to tear down and relaunch under the same sessionId (R3). */
 	restart: () => Promise<void>;
-	sendInput: (text: string, when?: TextWhen) => Promise<void>;
+	sendInput: (
+		text: string,
+		when?: TextWhen,
+		images?: ImageRef[]
+	) => Promise<void>;
 	sending: boolean;
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;

@@ -42,6 +42,12 @@ export interface RelayTransport {
 		 * as `mcpServers`. */
 		skills: ResolvedSkill[];
 	}>;
+	/** P3-T2: downloads one uploaded image's bytes
+	 * (`bridge.getBridgeAttachment`, bridge-token authed) for injection into
+	 * the agent — see image-input.ts. Optional so transports/test fakes that
+	 * don't implement it degrade to the failed-download note path instead of
+	 * crashing. */
+	getAttachment?(input: { attachmentId: string }): Promise<File>;
 	/** R0-T2: opens the WS duplex channel (see ws-duplex.ts) as an alternative
 	 * to `pollCommands`/`pushEvents` — optional so a transport (or a test
 	 * fake) that doesn't implement it behaves EXACTLY as it did before R0-T2:

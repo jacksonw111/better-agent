@@ -70,6 +70,7 @@ export function createRelayTransport(
 		},
 		pollCommands: (input) => client.bridge.pollCommands(input),
 		fetchConfig: () => client.bridge.fetchConfig(),
+		getAttachment: (input) => client.bridge.getBridgeAttachment(input),
 		openDuplex: (input): Promise<DuplexChannel | null> =>
 			connectDuplexChannel({
 				afterId: input.afterId,

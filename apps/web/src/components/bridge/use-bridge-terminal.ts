@@ -30,6 +30,7 @@ import {
 	type UseBridgeTerminalResult,
 	useListSessionsWithTimeout,
 } from "./use-bridge-terminal-parts";
+import { type ImageRef, imageCountSuffix } from "./use-image-attachments";
 import { useSseConnection } from "./use-sse-connection";
 
 export type { UseBridgeTerminalResult } from "./use-bridge-terminal-parts";
@@ -57,9 +58,25 @@ function useSendInput(
 	// the pre-R3-T1 wire shape — since `parseCommandText`
 	// (apps/bridge-cli/src/commands.ts) accepts both a bare string and
 	// `{text, when}` (no `type` field required for the latter).
-	const sendInput = (text: string, when?: TextWhen): Promise<void> => {
+	//
+	// P3-T2: `images` rides as id refs; the local echo appends the SAME count
+	// suffix the CLI appends before forwarding to the agent (see
+	// imageCountSuffix's sync note), so echo and persisted message dedupe.
+	const sendInput = (
+		text: string,
+		when?: TextWhen,
+		images?: ImageRef[]
+	): Promise<void> => {
 		const trimmed = text.trim();
-		dispatchFeed({ type: "localEcho", text: trimmed });
+		const withImages = images && images.length > 0 ? images : undefined;
+		dispatchFeed({
+			type: "localEcho",
+			text: `${trimmed}${imageCountSuffix(withImages?.length ?? 0)}`,
+		});
+		if (withImages) {
+			const overridden = when && when !== "queue" ? when : undefined;
+			return sendRaw({ text: trimmed, when: overridden, images: withImages });
+		}
 		if (when && when !== "queue") {
 			return sendRaw({ text: trimmed, when });
 		}

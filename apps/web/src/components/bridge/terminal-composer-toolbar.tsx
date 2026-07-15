@@ -4,8 +4,10 @@ import {
 	PromptInputTools,
 } from "@better-agent/ui/components/prompt-input";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import type { TerminalComposerProps } from "./terminal-composer";
 import { ComposerControls } from "./terminal-controls";
+import type { ImageAttachments } from "./use-image-attachments";
 
 // The composer's bottom-right toolbar (menus + Send/Stop) plus the prop
 // resolution that feeds it — split out of terminal-composer.tsx purely to
@@ -15,6 +17,9 @@ const NOOP = () => undefined;
 const NO_MODES: readonly string[] = [];
 
 export interface ComposerToolbarProps {
+	/** P3-T2: the paperclip attach button, rendered in the toolbar's left slot
+	 * when the session's image capability is on. */
+	attachSlot?: ReactNode;
 	canStop: boolean;
 	controlsDisabled: boolean;
 	model?: string;
@@ -72,6 +77,7 @@ function SendOrStopButton({
  * cluster to the right. Split out of `TerminalComposer` to keep it under the
  * max-lines-per-function gate. */
 export function ComposerToolbar({
+	attachSlot,
 	canStop,
 	controlsDisabled,
 	model,
@@ -88,7 +94,7 @@ export function ComposerToolbar({
 }: ComposerToolbarProps) {
 	return (
 		<PromptInputToolbar>
-			<div aria-hidden="true" />
+			<div aria-hidden={attachSlot ? undefined : "true"}>{attachSlot}</div>
 			<PromptInputTools>
 				<ComposerControls
 					disabled={controlsDisabled}
@@ -121,14 +127,19 @@ function computeCanStop(props: TerminalComposerProps): boolean {
 }
 
 /** Send is disabled while the composer itself is disabled, a send is already
- * in flight, or the draft is blank — split out for the same complexity-budget
- * reason as `computeCanStop`. */
+ * in flight, an image upload is still in flight, or there's nothing to send
+ * (blank draft AND no attached images) — split out for the same
+ * complexity-budget reason as `computeCanStop`. */
 function computeSendDisabled(
 	disabled: boolean,
 	sending: boolean,
-	text: string
+	text: string,
+	images?: ImageAttachments
 ) {
-	return disabled || sending || text.trim() === "";
+	if (disabled || sending || (images?.uploading ?? false)) {
+		return true;
+	}
+	return text.trim() === "" && (images?.pending.length ?? 0) === 0;
 }
 
 /** Resolves the toolbar's props from the composer's own (mostly-optional)
@@ -137,7 +148,8 @@ function computeSendDisabled(
  * every optional control callback/value add up fast in one function). */
 export function resolveToolbarProps(
 	props: TerminalComposerProps,
-	text: string
+	text: string,
+	images?: ImageAttachments
 ): ComposerToolbarProps {
 	const { disabled, sending } = props;
 	return {
@@ -151,7 +163,7 @@ export function resolveToolbarProps(
 		onSetThinking: props.onSetThinking ?? NOOP,
 		permissionMode: props.permissionMode,
 		permissionModes: props.permissionModes ?? NO_MODES,
-		sendDisabled: computeSendDisabled(disabled, sending, text),
+		sendDisabled: computeSendDisabled(disabled, sending, text, images),
 		showNextTurnHint: props.showNextTurnHint ?? false,
 		thinkingLevels: props.thinkingLevels ?? NO_MODES,
 	};

@@ -41,6 +41,43 @@ describe("parseTextCommand", () => {
 	});
 });
 
+describe("parseTextCommand — images (P3-T2)", () => {
+	const ref = { id: "att-1", mime: "image/png", name: "shot.png" };
+
+	it("carries well-formed image refs through", () => {
+		expect(parseTextCommand("go", undefined, [ref])).toEqual({
+			text: "go",
+			type: "text",
+			images: [ref],
+		});
+	});
+
+	it("filters malformed entries, keeping the valid ones", () => {
+		expect(
+			parseTextCommand("go", "steer", [ref, { id: 1 }, "nope", null])
+		).toEqual({ text: "go", type: "text", when: "steer", images: [ref] });
+	});
+
+	it("omits `images` for an absent/empty/non-array value (plain text command)", () => {
+		expect(parseTextCommand("go", undefined)).toEqual({
+			text: "go",
+			type: "text",
+		});
+		expect(parseTextCommand("go", undefined, [])).toEqual({
+			text: "go",
+			type: "text",
+		});
+		expect(parseTextCommand("go", undefined, "bogus")).toEqual({
+			text: "go",
+			type: "text",
+		});
+		expect(parseTextCommand("go", undefined, [{ id: "x" }])).toEqual({
+			text: "go",
+			type: "text",
+		});
+	});
+});
+
 describe("parseCommandText — text command `when` (R3-T1)", () => {
 	it("a bare string still parses with no `when` (back-compat)", () => {
 		expect(parseCommandText("go")).toEqual({ type: "text", text: "go" });
@@ -64,6 +101,15 @@ describe("parseCommandText — text command `when` (R3-T1)", () => {
 			type: "text",
 			text: "go",
 			when: "interrupt",
+		});
+	});
+
+	it("a `{ text, images }` object carries the image refs through (P3-T2)", () => {
+		const ref = { id: "att-1", mime: "image/png", name: "shot.png" };
+		expect(parseCommandText({ text: "look", images: [ref] })).toEqual({
+			type: "text",
+			text: "look",
+			images: [ref],
 		});
 	});
 });

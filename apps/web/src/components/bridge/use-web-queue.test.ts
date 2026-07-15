@@ -111,3 +111,15 @@ it("drops the queue (with a toast) when the session ends", () => {
 	expect(result.current.items).toEqual([]);
 	expect(send).not.toHaveBeenCalled();
 });
+
+it("flushes an item's snapshotted image refs with its text (P3-T2)", async () => {
+	const { rerender, result, send } = setup();
+	const refs = [{ id: "att-1", mime: "image/png", name: "shot.png" }];
+
+	act(() => result.current.enqueue("看图", refs));
+	rerender({ turnInFlight: false });
+
+	await waitFor(() => {
+		expect(send.mock.calls).toEqual([["看图", undefined, refs]]);
+	});
+});

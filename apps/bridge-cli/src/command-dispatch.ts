@@ -6,6 +6,7 @@
 import type { TextWhen } from "./adapters/types";
 import type { CommandSink } from "./commands";
 import type { ControlCommand } from "./commands-control";
+import type { ImageRef } from "./commands-text-when";
 
 // Each of these one-liners exists purely so `dispatchControlCommand`'s own
 // branching doesn't also carry the optional-chaining call itself — eslint's
@@ -56,13 +57,26 @@ function callAnswerQuestion(
 export function dispatchTextCommand(
 	sink: CommandSink,
 	text: string,
-	when?: TextWhen
+	when?: TextWhen,
+	images?: ImageRef[]
 ): void {
+	// P3-T2: `images` is only ever passed as a THIRD/second argument when the
+	// command actually carried some — an image-less dispatch stays
+	// arity-identical to the pre-P3-T2 calls, so sinks (and test fakes) that
+	// assert exact call shapes keep working unchanged.
 	if (when && when !== "queue" && sink.sendWith) {
-		sink.sendWith(text, when);
+		if (images) {
+			sink.sendWith(text, when, images);
+		} else {
+			sink.sendWith(text, when);
+		}
 		return;
 	}
-	sink.send(text);
+	if (images) {
+		sink.send(text, images);
+	} else {
+		sink.send(text);
+	}
 }
 
 /** Routes one parsed `ControlCommand` to the matching (optional) `CommandSink`

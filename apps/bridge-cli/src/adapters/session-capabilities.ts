@@ -5,7 +5,7 @@
 // or codex, which doesn't emit session_ready yet — R2-T2's job).
 
 import { PI_THINKING_LEVELS } from "../normalize/pi-commands";
-import type { SessionCapabilities } from "./types";
+import type { AgentKind, SessionCapabilities } from "./types";
 
 /** claude-code: the SDK's full control surface — live MCP reconfiguration,
  * on-demand quota/context usage, a `list` session op (`listSessions`), and
@@ -15,6 +15,8 @@ import type { SessionCapabilities } from "./types";
 export const CLAUDE_CODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
+	// P3-T2: the Agent SDK accepts base64 image content blocks on a user turn.
+	images: true,
 	mcp: "live",
 	modelSwitch: true,
 	permissionModes: ["default", "acceptEdits", "plan", "dontAsk"],
@@ -35,6 +37,8 @@ export const CLAUDE_CODE_SESSION_CAPABILITIES: SessionCapabilities = {
 export const OPENCODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
+	// P3-T2: not wired for this adapter yet — the composer hides its attach UI.
+	images: false,
 	mcp: "restart",
 	modelSwitch: true,
 	permissionModes: ["build", "plan"],
@@ -55,6 +59,9 @@ export const OPENCODE_SESSION_CAPABILITIES: SessionCapabilities = {
 export const PI_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "none",
 	busyModes: ["queue", "steer", "interrupt"],
+	// P3-T2: pi's `prompt` RPC accepts `images: [{type, data, mimeType}]`
+	// (VERIFIED against pi-mono's packages/coding-agent/docs/rpc.md @ main).
+	images: true,
 	mcp: "none",
 	modelSwitch: true,
 	permissionModes: [],
@@ -82,6 +89,8 @@ export const PI_SESSION_CAPABILITIES: SessionCapabilities = {
 export const CODEX_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
+	// P3-T2: not wired for this adapter yet — the composer hides its attach UI.
+	images: false,
 	mcp: "restart",
 	modelSwitch: true,
 	permissionModes: ["untrusted", "on-request", "never"],
@@ -92,3 +101,18 @@ export const CODEX_SESSION_CAPABILITIES: SessionCapabilities = {
 	thinkingLevels: [],
 	usage: "stream",
 };
+
+/** P3-T2: whether `agentKind`'s adapter can accept downloaded images on
+ * `send`/`sendWith` — read by the CLI's image layer (image-input.ts) to strip
+ * images (with a visible status note) before they reach an adapter that
+ * would silently ignore them. Sourced from the same constants the adapters
+ * hand out on `session_ready`, so the two can never drift. */
+export function agentSupportsImages(kind: AgentKind): boolean {
+	const byKind: Record<AgentKind, SessionCapabilities> = {
+		"claude-code": CLAUDE_CODE_SESSION_CAPABILITIES,
+		codex: CODEX_SESSION_CAPABILITIES,
+		opencode: OPENCODE_SESSION_CAPABILITIES,
+		pi: PI_SESSION_CAPABILITIES,
+	};
+	return byKind[kind].images;
+}

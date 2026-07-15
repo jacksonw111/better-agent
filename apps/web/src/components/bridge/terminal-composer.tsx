@@ -9,18 +9,15 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useClientPref } from "@/utils/preferences";
 import type { TextWhen } from "./agent-capabilities";
-import { BusyInputHint } from "./busy-input-hint";
 import { handleCtrlEnterKeyDown } from "./composer-enter-policy";
+import { imageDropHandlers, useComposerImages } from "./composer-image-strip";
 import { usePermissionModeCycle } from "./permission-mode-cycle";
 import { SlashPickerList } from "./slash-picker-list";
-import {
-	ComposerToolbar,
-	resolveToolbarProps,
-} from "./terminal-composer-toolbar";
+import { composerHint, composerToolbar } from "./terminal-composer-extras";
 import { useBusySend } from "./use-busy-send";
+import type { ImageRef, UploadImage } from "./use-image-attachments";
 import { type UseSlashPickerResult, useSlashPicker } from "./use-slash-picker";
-import type { WebQueue, WebQueueItem } from "./use-web-queue";
-import { WebQueueCards } from "./web-queue-cards";
+import type { WebQueue } from "./use-web-queue";
 
 export interface TerminalComposerProps {
 	/** R3-T1: the busy-turn send policies this agent actually supports (see
@@ -32,6 +29,11 @@ export interface TerminalComposerProps {
 	 * Stop button (vs. a disabled Send) is offered while a turn is in flight. */
 	canInterrupt?: boolean;
 	disabled: boolean;
+	/** P3-T2: uploads one attached image against the session, returning the ref
+	 * a send carries. Presence gates the whole attach surface (paperclip /
+	 * paste / drop / thumbnails) — absent when the agent's `images` capability
+	 * is off or the transport can't upload. */
+	imageUpload?: UploadImage;
 	/** The session's active model, highlighted in the model menu. */
 	model?: string;
 	/** The model ids the agent reports (`session_ready.models`); the model menu
@@ -41,8 +43,9 @@ export interface TerminalComposerProps {
 	onInterrupt?: () => void;
 	/** R3-T1: `when` rides the send only when the user picked something other
 	 * than the default "queue" — see `submit()`'s single-vs-two-argument call
-	 * below, kept byte-identical to the pre-R3-T1 call for the default case. */
-	onSend: (text: string, when?: TextWhen) => void;
+	 * below, kept byte-identical to the pre-R3-T1 call for the default case.
+	 * P3-T2: `images` carries the uploaded refs of the attached images. */
+	onSend: (text: string, when?: TextWhen, images?: ImageRef[]) => void;
 	onSetModel?: (model: string) => void;
 	onSetPermissionMode?: (mode: string) => void;
 	onSetThinking?: (level: string) => void;
@@ -165,13 +168,6 @@ function ComposerBox({
  * Selecting an item only fills the box (`/name `); sending still goes through
  * the same `onSend` path as any other line.
  */
-/** True only once a turn is actually in flight AND the agent supports more
- * than the bare default — with a single busy mode there's nothing to pick,
- * so the hint/dropdown would just be noise. Split out purely to keep
- * `TerminalComposer` itself under the repo's cyclomatic-complexity gate. */
-function shouldShowBusyHint(props: TerminalComposerProps): boolean {
-	return (props.turnInFlight ?? false) && (props.busyModes?.length ?? 0) > 1;
-}
 
 /** P1-T5: Esc cancels an interruptible in-flight turn — keyboard parity with
  * the toolbar's Stop button. Document-level so the composer needn't hold
@@ -198,40 +194,6 @@ function useEscInterrupt(props: TerminalComposerProps): void {
 	}, [enabled, onInterrupt]);
 }
 
-/** The web queue's cards plus the busy-input hint row, stacked in that order
- * above the box — split out of `TerminalComposer` purely to keep it under the
- * repo's max-lines-per-function gate. "Edit" loads the card's text back into
- * the composer (replacing the current draft) and removes the card. */
-function composerHint(
-	props: TerminalComposerProps,
-	busySend: { setWhen: (when: TextWhen) => void; when: TextWhen },
-	setText: (text: string) => void
-): ReactNode {
-	const onEdit = (item: WebQueueItem) => {
-		setText(item.text);
-		props.webQueue?.remove(item.id);
-	};
-	return (
-		<>
-			{props.webQueue && (
-				<WebQueueCards
-					items={props.webQueue.items}
-					onEdit={onEdit}
-					onRemove={(id) => props.webQueue?.remove(id)}
-				/>
-			)}
-			{shouldShowBusyHint(props) && (
-				<BusyInputHint
-					busyModes={props.busyModes ?? []}
-					onWhenChange={busySend.setWhen}
-					queuedCount={props.queuedCount}
-					when={busySend.when}
-				/>
-			)}
-		</>
-	);
-}
-
 export function TerminalComposer(props: TerminalComposerProps) {
 	const { disabled } = props;
 	const [text, setText] = useState("");
@@ -241,7 +203,8 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		skills: props.skills,
 		text,
 	});
-	const { setWhen, submit, when } = useBusySend(props, text, setText);
+	const images = useComposerImages(props.imageUpload);
+	const { setWhen, submit, when } = useBusySend(props, text, setText, images);
 	useEscInterrupt(props);
 	const sendByCtrlEnter = useClientPref("sendByCtrlEnter");
 	const handleTabCycle = usePermissionModeCycle({
@@ -259,8 +222,8 @@ export function TerminalComposer(props: TerminalComposerProps) {
 		handleTabCycle(event) ||
 		handleCtrlEnterKeyDown(event, sendByCtrlEnter, submit);
 
-	const toolbar = <ComposerToolbar {...resolveToolbarProps(props, text)} />;
-	const hint = composerHint(props, { setWhen, when }, setText);
+	const toolbar = composerToolbar(props, text, images);
+	const hint = composerHint(props, { setWhen, when }, setText, images);
 
 	// Keep this wrapper's classes AND the inner PromptInput's classes in sync
 	// with their twin in packages/ui/src/components/chat/chat-composer.tsx
@@ -268,7 +231,10 @@ export function TerminalComposer(props: TerminalComposerProps) {
 	// floats as a glass pill (shadow-lg + backdrop-blur, matching the dock) and
 	// `pb-safe-composer` clears the home indicator; desktop keeps the solid card.
 	return (
-		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-safe-composer sm:px-4 md:pb-4">
+		<div
+			className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-safe-composer sm:px-4 md:pb-4"
+			{...(images ? imageDropHandlers(images) : {})}
+		>
 			<ComposerBox
 				disabled={disabled}
 				hint={hint}
