@@ -140,28 +140,27 @@ function ApprovalTurnRow({
 	);
 }
 
-function BridgeChatRowImpl({
+/** The non-conversational turn kinds — status/error/file lines and the
+ * task/plan/approval/question cards. All share ONE left edge: the assistant
+ * message's text column, via the `pl-9` wrapper in `BridgeChatRowImpl`
+ * (`pl-9` ≈ avatar + row gap, the same indent `StreamingSkeleton` uses so it
+ * reads as "under the message text"). Before, these clung to the feed's left
+ * edge while messages sat next to their avatar, so cards and message text
+ * never lined up. */
+function SideTurn({
 	answered,
 	answeredQuestions,
-	attachSkeleton,
-	avatars,
-	ended,
 	onAnswerApproval,
 	onAnswerQuestion,
 	turn,
-}: BridgeChatRowProps) {
+}: {
+	answered: Record<string, string>;
+	answeredQuestions: Record<string, string[][]>;
+	onAnswerApproval: (requestId: string, optionId: string) => void;
+	onAnswerQuestion: (requestId: string, answers: string[][]) => void;
+	turn: Exclude<BridgeTurn, UserTurn | AssistantTurn>;
+}) {
 	switch (turn.kind) {
-		case "user":
-			return <ChatRow avatars={avatars} message={userMessage(turn)} />;
-		case "assistant":
-			return (
-				<AssistantWithSkeleton
-					attachSkeleton={attachSkeleton}
-					avatars={avatars}
-					ended={ended}
-					turn={turn}
-				/>
-			);
 		case "status":
 			return <StatusLine event={turn.event} />;
 		case "error":
@@ -187,6 +186,47 @@ function BridgeChatRowImpl({
 					event={turn.event}
 					onAnswer={onAnswerQuestion}
 				/>
+			);
+	}
+}
+
+function BridgeChatRowImpl({
+	answered,
+	answeredQuestions,
+	attachSkeleton,
+	avatars,
+	ended,
+	onAnswerApproval,
+	onAnswerQuestion,
+	turn,
+}: BridgeChatRowProps) {
+	switch (turn.kind) {
+		case "user":
+			return <ChatRow avatars={avatars} message={userMessage(turn)} />;
+		case "assistant":
+			return (
+				<AssistantWithSkeleton
+					attachSkeleton={attachSkeleton}
+					avatars={avatars}
+					ended={ended}
+					turn={turn}
+				/>
+			);
+		default:
+			// `pl-9` pulls every status/error/file line and task/plan/approval/
+			// question card in to the assistant message's text column (the same
+			// indent `StreamingSkeleton` uses) so the whole feed shares one left
+			// edge instead of cards clinging to the feed's left margin.
+			return (
+				<div className="pl-9">
+					<SideTurn
+						answered={answered}
+						answeredQuestions={answeredQuestions}
+						onAnswerApproval={onAnswerApproval}
+						onAnswerQuestion={onAnswerQuestion}
+						turn={turn}
+					/>
+				</div>
 			);
 	}
 }

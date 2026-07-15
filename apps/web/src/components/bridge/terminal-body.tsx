@@ -154,10 +154,10 @@ export function TerminalBody(props: TerminalBodyProps) {
 				turns={props.turns}
 			/>
 			{props.caps.usageMode === "stream" && (
-				<>
+				<div className="pb-3">
 					<TurnUsagePanel detail={props.turnUsage} />
 					<UsageUpdateLine detail={props.usageUpdate} />
-				</>
+				</div>
 			)}
 			<BodyComposer
 				caps={props.caps}

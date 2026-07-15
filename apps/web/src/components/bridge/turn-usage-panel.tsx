@@ -75,15 +75,23 @@ export function TurnUsagePanel({ detail }: TurnUsagePanelProps) {
 		return null;
 	}
 	return (
-		<div className="mx-auto flex w-full max-w-3xl flex-wrap gap-x-6 gap-y-2 bg-muted/40 px-3 py-2 sm:px-4">
-			{stats.map((stat) => (
-				<div className="flex flex-col" key={stat.label}>
-					<span className="text-muted-foreground text-xs uppercase tracking-wide">
-						{stat.label}
-					</span>
-					<span className="font-medium text-sm tabular-nums">{stat.value}</span>
-				</div>
-			))}
+		<div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
+			{/* Outer box mirrors the composer's outer (max-w-3xl + px-3/sm:px-4);
+			 * the inner bg fills only the content box, so its left/right edges
+			 * land exactly on the input box's border instead of spanning past
+			 * it. */}
+			<div className="flex flex-wrap gap-x-6 gap-y-2 rounded-md bg-muted/40 px-3 py-2">
+				{stats.map((stat) => (
+					<div className="flex flex-col" key={stat.label}>
+						<span className="text-muted-foreground text-xs uppercase tracking-wide">
+							{stat.label}
+						</span>
+						<span className="font-medium text-sm tabular-nums">
+							{stat.value}
+						</span>
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }
