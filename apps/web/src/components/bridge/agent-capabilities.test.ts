@@ -234,3 +234,15 @@ it("resolves fs false without a handshake, true when reported", () => {
 	});
 	expect(resolved.fs).toBe(true);
 });
+
+// P4-T4: the Git tab mirrors the shell/fs gating on `git`.
+it("resolves git false without a handshake, true when reported", () => {
+	expect(resolveCapabilities("claude-code", null).git).toBe(false);
+	expect(resolveCapabilities("pi", { capabilities: HANDSHAKE }).git).toBe(
+		false
+	);
+	const resolved = resolveCapabilities("claude-code", {
+		capabilities: { ...HANDSHAKE, git: true },
+	});
+	expect(resolved.git).toBe(true);
+});

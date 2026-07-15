@@ -135,6 +135,16 @@ export interface SessionControls {
 	 * asynchronously as a `status_snapshot` status event (see
 	 * bridge-status-snapshot.ts). */
 	getStatus: () => Promise<void>;
+	/** P4-T4: commits ALL working-tree changes with `message` — `{ type:
+	 * "control", action: "gitCommit", requestId, message }`; replied as a
+	 * `git_commit` status event correlated by git-correlation.ts. */
+	gitCommit: (requestId: string, message: string) => Promise<void>;
+	/** P4-T4: staged+unstaged workspace diff (optionally one path) — the reply
+	 * arrives as chunked `git_diff` status events. */
+	gitDiff: (requestId: string, path?: string) => Promise<void>;
+	/** P4-T4: porcelain status summary of the workspace — replied as one
+	 * `git_status` status event echoing `requestId`. */
+	gitStatus: (requestId: string) => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
 	/** Asks the CLI to tear down and relaunch under the same sessionId (R3) —
@@ -184,5 +194,15 @@ export function useSessionControls(
 			),
 		fsRead: (requestId: string, path: string) =>
 			sendControlCommand(sendRaw, "fsRead", { path, requestId }),
+		gitStatus: (requestId: string) =>
+			sendControlCommand(sendRaw, "gitStatus", { requestId }),
+		gitDiff: (requestId: string, path?: string) =>
+			sendControlCommand(
+				sendRaw,
+				"gitDiff",
+				path === undefined ? { requestId } : { path, requestId }
+			),
+		gitCommit: (requestId: string, message: string) =>
+			sendControlCommand(sendRaw, "gitCommit", { message, requestId }),
 	};
 }

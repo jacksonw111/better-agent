@@ -13,6 +13,7 @@ import { TerminalHeader } from "./terminal-header";
 import { useBridgeTerminal } from "./use-bridge-terminal";
 import { useFoldedTurns } from "./use-folded-turns";
 import { usePublishFsChannel } from "./use-fs-channel";
+import { usePublishGitChannel } from "./use-git-channel";
 import { usePublishShellChannel } from "./use-shell-channel";
 import { useWebQueue } from "./use-web-queue";
 
@@ -155,16 +156,7 @@ export function Terminal({
 }: TerminalProps) {
 	const view = useTerminalView(session, transport, userAvatarUrl);
 	const { caps, sessionId } = view;
-	// P4-T2: publish this session's shell channel (feed's runShell events + the
-	// runShell control) to the module store the workspace Shell tab reads —
-	// avoids a second SSE connection for the pane.
-	usePublishShellChannel(view.events, caps.shell, view.runShell);
-	// P4-T3: likewise for the fs channel (Files tab + composer @file picker) —
-	// requestId-correlated fsList/fsRead over the same feed, see use-fs-channel.ts.
-	usePublishFsChannel(view.events, caps.fs, {
-		list: view.fsList,
-		read: view.fsRead,
-	});
+	usePublishWorkspaceChannels(view);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -198,6 +190,24 @@ export function Terminal({
 }
 
 type TerminalView = ReturnType<typeof useTerminalView>;
+
+/** Publishes this session's workspace-tab channels to their module stores —
+ * shell (P4-T2), fs (P4-T3: Files tab + composer @file picker) and git
+ * (P4-T4) — so those panes never need a second SSE connection. Split out of
+ * `Terminal` for the max-lines-per-function gate. */
+function usePublishWorkspaceChannels(view: TerminalView): void {
+	const { caps } = view;
+	usePublishShellChannel(view.events, caps.shell, view.runShell);
+	usePublishFsChannel(view.events, caps.fs, {
+		list: view.fsList,
+		read: view.fsRead,
+	});
+	usePublishGitChannel(view.events, caps.git, {
+		commit: view.gitCommit,
+		diff: view.gitDiff,
+		status: view.gitStatus,
+	});
+}
 
 /** The feed + usage + composer, built from the terminal hook's `view` — split
  * out so `Terminal` itself stays under the max-lines-per-function gate.

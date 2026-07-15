@@ -35,7 +35,6 @@ const MINUTES_2 = 120_000;
 const MINUTES_3 = 180_000;
 const MINUTES_10 = 600_000;
 const STILL_LIVE_PATTERN = /still-live/;
-const PLACEHOLDER_TAB_PATTERNS = [/Git/];
 
 /** Newest-first: approval, processing, live, ended — one of each signal. */
 function buildSignalSessions() {
@@ -179,7 +178,7 @@ it("rename persists via the renameSession mutation and updates the row", async (
 	);
 });
 
-it("renders the tab row with Chat active, Shell/Files enabled, Git disabled (P4-T3)", async () => {
+it("renders the tab row with Chat active and Shell/Files/Git enabled (P4-T4)", async () => {
 	const { view } = renderApp();
 	await waitFor(() => {
 		expect(view.getByRole("tab", { name: "Chat" })).toBeDefined();
@@ -187,19 +186,12 @@ it("renders the tab row with Chat active, Shell/Files enabled, Git disabled (P4-
 	expect(
 		view.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")
 	).toBe("true");
-	// Shell (P4-T2) and Files (P4-T3) are live tabs — enabled, no P4 pill.
-	for (const liveName of ["Shell", "Files"]) {
+	// Shell (P4-T2), Files (P4-T3) and Git (P4-T4) are live tabs — enabled,
+	// no P4 pill left.
+	for (const liveName of ["Shell", "Files", "Git"]) {
 		const live = view.getByRole("tab", { name: liveName });
 		expect(live.hasAttribute("disabled")).toBe(false);
 		expect(live.getAttribute("aria-disabled")).not.toBe("true");
-	}
-	for (const name of PLACEHOLDER_TAB_PATTERNS) {
-		const tab = view.getByRole("tab", { name });
-		const disabled =
-			tab.hasAttribute("disabled") ||
-			tab.getAttribute("aria-disabled") === "true" ||
-			tab.hasAttribute("data-disabled");
-		expect(disabled).toBe(true);
 	}
 });
 

@@ -36,6 +36,23 @@ function callFsList(sink: CommandSink, requestId: string, path?: string): void {
 function callFsRead(sink: CommandSink, requestId: string, path: string): void {
 	sink.fsRead?.(requestId, path);
 }
+function callGitStatus(sink: CommandSink, requestId: string): void {
+	sink.gitStatus?.(requestId);
+}
+function callGitDiff(
+	sink: CommandSink,
+	requestId: string,
+	path?: string
+): void {
+	sink.gitDiff?.(requestId, path);
+}
+function callGitCommit(
+	sink: CommandSink,
+	requestId: string,
+	message: string
+): void {
+	sink.gitCommit?.(requestId, message);
+}
 function callListSessions(sink: CommandSink): void {
 	sink.listSessions?.();
 }
@@ -105,6 +122,25 @@ const NO_ARG_CALLS: Record<string, (sink: CommandSink) => void> = {
 	stopVm: callStopVm,
 };
 
+/** P4-T4: the git actions' arm, split out of `dispatchControlCommand` to keep
+ * that function's branch count under eslint's complexity gate. Returns whether
+ * `command` was one of the git actions (handled or not-implemented no-op). */
+function dispatchGitControlCommand(
+	command: ControlCommand,
+	sink: CommandSink
+): boolean {
+	if (command.action === "gitStatus") {
+		callGitStatus(sink, command.requestId);
+	} else if (command.action === "gitDiff") {
+		callGitDiff(sink, command.requestId, command.path);
+	} else if (command.action === "gitCommit") {
+		callGitCommit(sink, command.requestId, command.message);
+	} else {
+		return false;
+	}
+	return true;
+}
+
 export function dispatchControlCommand(
 	command: ControlCommand,
 	sink: CommandSink
@@ -112,7 +148,12 @@ export function dispatchControlCommand(
 	const noArg = NO_ARG_CALLS[command.action];
 	if (noArg) {
 		noArg(sink);
-	} else if (command.action === "setModel") {
+		return;
+	}
+	if (dispatchGitControlCommand(command, sink)) {
+		return;
+	}
+	if (command.action === "setModel") {
 		callSetModel(sink, command.model);
 	} else if (command.action === "setPermissionMode") {
 		callSetPermissionMode(sink, command.mode);

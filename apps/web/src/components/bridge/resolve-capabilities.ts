@@ -30,6 +30,9 @@ export interface SessionCapabilities {
 	/** P4-T3: CLI answers `fsList`/`fsRead` (Files tab, @file picker); a
 	 * pre-P4-T3 handshake omits → false. */
 	fs?: boolean;
+	/** P4-T4: CLI answers `gitStatus`/`gitDiff`/`gitCommit` (Git tab); a
+	 * pre-P4-T4 handshake omits → false. */
+	git?: boolean;
 	/** P3-T2: adapter can inject images; a pre-P3-T2 handshake omits → false. */
 	images?: boolean;
 	mcp: "live" | "restart" | "none";
@@ -53,6 +56,8 @@ export interface ResolvedCapabilities extends AgentCapabilities {
 	/** P4-T3: gates the Files tab + @file picker; only a live handshake
 	 * enables it. */
 	fs: boolean;
+	/** P4-T4: gates the Git tab; only a P4-T4+ handshake enables it. */
+	git: boolean;
 	/** P3-T2: gates the attach surface; only a live handshake enables it. */
 	images: boolean;
 	mcp: SessionCapabilities["mcp"];
@@ -71,6 +76,7 @@ function staticCapabilities(kind: AgentKind): ResolvedCapabilities {
 		approval: base.toolApproval ? "gated" : "none",
 		busyModes: base.interrupt ? ["queue", "interrupt"] : ["queue"],
 		fs: false,
+		git: false,
 		images: false,
 		mcp: "none",
 		quota: false,
@@ -103,6 +109,7 @@ export function resolveCapabilities(
 		approval: handshake.approval,
 		busyModes: handshake.busyModes,
 		fs: handshake.fs ?? false,
+		git: handshake.git ?? false,
 		images: handshake.images ?? false,
 		mcp: handshake.mcp,
 		modelSwitch: handshake.modelSwitch,

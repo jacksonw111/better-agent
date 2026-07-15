@@ -10,6 +10,7 @@ import type { BridgeCliArgs } from "./args";
 import type { AfterIdRef } from "./commands";
 import type { CuaController } from "./cua/cua-controller";
 import { withFsReader } from "./fs-reader";
+import { withGitRunner } from "./git-runner";
 import { type ImageInputDeps, withImageInput } from "./image-input";
 import type {
 	AgentSessionIdRef,
@@ -101,8 +102,9 @@ function buildShellRunnerDeps(
 /** Builds the full CommandSink wrapper stack around a freshly-started handle:
  * image layer innermost (downloads a send's image refs), then the shell runner
  * (out-of-band `runShell`), then the fs reader (P4-T3's read-only
- * `fsList`/`fsRead` — its `{dir, pushEvent}` deps are structurally the shell
- * runner's, so `shellDeps` is shared), then CUA outermost (desktop
+ * `fsList`/`fsRead`), then the git runner (P4-T4's `gitStatus`/`gitDiff`/
+ * `gitCommit`) — all three wrappers' `{dir, pushEvent}` deps are structurally
+ * the shell runner's, so `shellDeps` is shared — then CUA outermost (desktop
  * start/stop). Shared by the initial launch and every in-place relaunch so
  * the chain never drifts. */
 function wrapHandle(
@@ -112,8 +114,11 @@ function wrapHandle(
 	cua: CuaController | undefined
 ) {
 	return withCua(
-		withFsReader(
-			withShellRunner(withImageInput(handle, imageDeps), shellDeps),
+		withGitRunner(
+			withFsReader(
+				withShellRunner(withImageInput(handle, imageDeps), shellDeps),
+				shellDeps
+			),
 			shellDeps
 		),
 		cua

@@ -3,6 +3,7 @@
 // the relay `commands` channel is parsed here into a typed `ControlCommand`;
 // command-dispatch.ts routes each to the matching CommandSink method.
 
+import { type GitControlCommand, parseGitControlCommand } from "./commands-git";
 import {
 	type ControlAnswerQuestionCommand,
 	parseAnswerQuestionCommand,
@@ -118,6 +119,7 @@ export type ControlCommand =
 	| ControlAnswerQuestionCommand
 	| ControlFsListCommand
 	| ControlFsReadCommand
+	| GitControlCommand
 	| ControlGetStatusCommand
 	| ControlInterruptCommand
 	| ControlListSessionsCommand
@@ -211,6 +213,7 @@ export function parseControlCommand(
 	return (
 		parseControlCommandWithPayload(data) ??
 		parseFsControlCommand(data) ??
+		parseGitControlCommand(data) ??
 		parseAnswerQuestionCommand(data) ??
 		parseSimpleControlCommand(data)
 	);

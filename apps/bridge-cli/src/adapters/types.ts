@@ -62,9 +62,10 @@ export interface SessionCapabilities {
 	busyModes: ("queue" | "steer" | "interrupt")[];
 	/** P4-T3: read-only `fsList`/`fsRead` (Files tab) — CLI-side, like `shell`. */
 	fs: boolean;
+	/** P4-T4: `gitStatus`/`gitDiff`/`gitCommit` (Git tab) — CLI-side, like `fs`. */
+	git: boolean;
 	/** P3-T2: the adapter can inject user-uploaded images into a turn (claude's
-	 * content-block array, pi's `prompt.images`) — gates the composer's attach
-	 * UI. */
+	 * content-block array, pi's `prompt.images`) — gates the attach UI. */
 	images: boolean;
 	/** MCP servers: swappable LIVE, only after a restart, or unsupported. */
 	mcp: "live" | "restart" | "none";
@@ -76,8 +77,7 @@ export interface SessionCapabilities {
 	quota: boolean;
 	/** Session-management operations the agent supports. */
 	sessionOps: ("list" | "fork" | "tree" | "compact")[];
-	/** P4-T2: out-of-band `runShell` (Shell tab). Always true — CLI-side
-	 * (shell-runner.ts); handshake-gated so old CLIs hide the tab. */
+	/** P4-T2: out-of-band `runShell` (Shell tab) — CLI-side, handshake-gated. */
 	shell: boolean;
 	/** The agent exposes a skills list. */
 	skills: boolean;

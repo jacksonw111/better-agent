@@ -16,6 +16,7 @@ import {
 } from "./local-agent-detail";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import { LocalAgentFilesPane } from "./local-agent-files-pane";
+import { LocalAgentGitPane } from "./local-agent-git-pane";
 import {
 	deriveLocalAgentEntries,
 	type LocalAgentEntry,
@@ -205,6 +206,7 @@ function WorkspaceLayout({
 				/>
 				<LocalAgentShellPane hidden={tab !== "shell"} />
 				<LocalAgentFilesPane hidden={tab !== "files"} />
+				<LocalAgentGitPane hidden={tab !== "git"} />
 			</div>
 			<MobileSessionDrawer onClose={drawer.close} open={drawer.open}>
 				{sidebar(drawer.select)}

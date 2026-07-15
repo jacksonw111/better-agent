@@ -100,6 +100,19 @@ export interface CommandSink {
 	 * `apps/bridge-cli/src/adapters/types.ts`'s `StatusSnapshotDetail`). Called
 	 * for a `control: getStatus` command — the detail page's status line. */
 	getStatus?(): void;
+	/** P4-T4: stages EVERYTHING (`git add -A`) then commits with `message`,
+	 * replying with a `git_commit` status event echoing `requestId`. Provided
+	 * by the CLI-GLOBAL `withGitRunner` wrapper (git-runner.ts), NOT the
+	 * adapter. Optional, same silent-no-op contract as the other controls. */
+	gitCommit?(requestId: string, message: string): void;
+	/** P4-T4: staged+unstaged workspace diff (optionally one `path`), replying
+	 * with chunked `git_diff` status events echoing `requestId`. Same
+	 * `withGitRunner` provenance and no-op contract as `gitCommit`. */
+	gitDiff?(requestId: string, path?: string): void;
+	/** P4-T4: `git status --porcelain` summary of the workspace, replying with
+	 * a `git_status` status event echoing `requestId` (`notARepo: true` when
+	 * the workspace isn't a git repo). Same provenance as `gitCommit`. */
+	gitStatus?(requestId: string): void;
 	/** Cancels the in-flight turn but leaves the session alive. Called for a
 	 * `control: interrupt` command — the detail page's Stop/Interrupt
 	 * button. */

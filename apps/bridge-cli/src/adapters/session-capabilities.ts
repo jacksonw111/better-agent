@@ -16,6 +16,7 @@ export const CLAUDE_CODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
 	fs: true,
+	git: true,
 	// P3-T2: the Agent SDK accepts base64 image content blocks on a user turn.
 	images: true,
 	mcp: "live",
@@ -42,6 +43,7 @@ export const OPENCODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
 	fs: true,
+	git: true,
 	// P3-T2: not wired for this adapter yet — the composer hides its attach UI.
 	images: false,
 	mcp: "restart",
@@ -67,6 +69,7 @@ export const PI_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "none",
 	busyModes: ["queue", "steer", "interrupt"],
 	fs: true,
+	git: true,
 	// P3-T2: pi's `prompt` RPC accepts `images: [{type, data, mimeType}]`
 	// (VERIFIED against pi-mono's packages/coding-agent/docs/rpc.md @ main).
 	images: true,
@@ -101,6 +104,7 @@ export const CODEX_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
 	fs: true,
+	git: true,
 	// P3-T2: not wired for this adapter yet — the composer hides its attach UI.
 	images: false,
 	mcp: "restart",

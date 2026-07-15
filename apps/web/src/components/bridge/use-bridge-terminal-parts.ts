@@ -38,6 +38,11 @@ export interface UseBridgeTerminalResult {
 	 * reply arrives asynchronously as a `status_snapshot` status event,
 	 * reflected in `statusSnapshot` once it lands. */
 	getStatus: () => Promise<void>;
+	/** P4-T4: the git channel's control senders — requestId-correlated, see
+	 * `SessionControls.gitStatus`/`gitDiff`/`gitCommit`. */
+	gitCommit: (requestId: string, message: string) => Promise<void>;
+	gitDiff: (requestId: string, path?: string) => Promise<void>;
+	gitStatus: (requestId: string) => Promise<void>;
 	/** Cancels the in-flight turn without ending the session — the detail
 	 * page's Stop/Interrupt button. Routed as `{ type: "control", action:
 	 * "interrupt" }`; see `apps/bridge-cli/src/commands.ts`. */
@@ -167,6 +172,10 @@ export interface BuildResultArgs {
 	/** Requests a fresh `status_snapshot` — the detail page's status refresh
 	 * affordance. Fire-and-forget, same shape as `listSessions`. */
 	getStatus: () => Promise<void>;
+	/** P4-T4: see `UseBridgeTerminalResult.gitStatus`/`gitDiff`/`gitCommit`. */
+	gitCommit: (requestId: string, message: string) => Promise<void>;
+	gitDiff: (requestId: string, path?: string) => Promise<void>;
+	gitStatus: (requestId: string) => Promise<void>;
 	interrupt: () => Promise<void>;
 	listSessions: () => Promise<void>;
 	/** The latest `queue_update` detail (R3-T1), or `null` before pi has
@@ -205,6 +214,9 @@ export function buildResult(args: BuildResultArgs): UseBridgeTerminalResult {
 		events: args.feed.events,
 		fsList: args.fsList,
 		fsRead: args.fsRead,
+		gitCommit: args.gitCommit,
+		gitDiff: args.gitDiff,
+		gitStatus: args.gitStatus,
 		status: args.ended ? "ended" : args.conn.status,
 		canSend: !args.ended,
 		sending: args.sending,
