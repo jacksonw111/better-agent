@@ -45,8 +45,7 @@ function clampLimit(limit: number): number {
 	return Math.min(Math.floor(limit), MAX_LIMIT);
 }
 
-// Empty date omits the filter entirely so the API returns the most recent
-// trading session's billboard.
+// An explicit date filters to that session; empty date omits the filter.
 function buildFilter(date: string): string {
 	return date ? `&filter=(TRADE_DATE='${date}')` : "";
 }
@@ -57,9 +56,12 @@ export async function getDragonTiger(
 	opts: { fetchImpl?: typeof fetch; signal?: AbortSignal } = {}
 ): Promise<DragonTigerRow[]> {
 	const size = clampLimit(limit);
+	// Sort by TRADE_DATE first so an omitted date returns the MOST RECENT
+	// session's billboard (not the biggest historical deals — the report spans
+	// all history), then by deal amount within the session.
 	const url =
 		`${EM_URL}?reportName=${REPORT_NAME}&columns=ALL${buildFilter(date)}` +
-		`&pageSize=${size}&pageNumber=1&sortColumns=BILLBOARD_DEAL_AMT&sortTypes=-1`;
+		`&pageSize=${size}&pageNumber=1&sortColumns=TRADE_DATE,BILLBOARD_DEAL_AMT&sortTypes=-1,-1`;
 	try {
 		const res = await fetchWithRetry(
 			url,

@@ -35,14 +35,17 @@ describe("getDragonTiger normalization", () => {
 		});
 	});
 
-	it("omits the date filter (returns most recent session) when date is empty", async () => {
+	it("omits the date filter and sorts by TRADE_DATE desc (most recent session) when date is empty", async () => {
 		let requestedUrl = "";
 		const fetchImpl = (url: string) => {
 			requestedUrl = url;
 			return Promise.resolve(Response.json({ result: { data: [] } }));
 		};
 		await getDragonTiger("", 30, { fetchImpl: fetchImpl as typeof fetch });
-		expect(requestedUrl).not.toContain("TRADE_DATE");
+		// No date FILTER, but TRADE_DATE leads the sort so the newest session
+		// comes first (the report spans all history).
+		expect(requestedUrl).not.toContain("filter=(TRADE_DATE");
+		expect(requestedUrl).toContain("sortColumns=TRADE_DATE,BILLBOARD_DEAL_AMT");
 	});
 });
 
