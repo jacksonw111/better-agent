@@ -123,7 +123,7 @@ export const agentsRouter = {
 				context.authedUser.id,
 				input.id
 			);
-			const defs = await assembleAgentToolDefs(context, agent);
+			const { defs } = await assembleAgentToolDefs(context, agent);
 			return defs.map((def) => ({
 				name: def.name,
 				description: def.description,
