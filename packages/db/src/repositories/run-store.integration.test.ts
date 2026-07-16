@@ -91,19 +91,23 @@ it("insert persists a Run as created and getById returns it with issue snapshots
 			url: "https://github.com/acme/app/issues/42",
 		},
 	];
+	// S2-T3: tasks.create pre-generates the Run id so launchKey === run id;
+	// the store must persist a caller-provided id as-is.
+	const runId = crypto.randomUUID();
 
 	const created = await store.insert({
-		...runInput(taskId, computerId, "run-1"),
+		...runInput(taskId, computerId, runId),
 		branch: "task/abc12345",
+		id: runId,
 		issueSnapshots: snapshots,
 		workspaceKind: "repository",
 	});
 
-	expect(created.id).toBeTruthy();
+	expect(created.id).toBe(runId);
 	expect(created.status).toBe("created");
 	expect(created.taskId).toBe(taskId);
 	expect(created.computerId).toBe(computerId);
-	expect(created.launchKey).toBe("run-1");
+	expect(created.launchKey).toBe(runId);
 	expect(created.workspaceKind).toBe("repository");
 	expect(created.branch).toBe("task/abc12345");
 	expect(created.issueSnapshots).toEqual(snapshots);

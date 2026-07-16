@@ -61,6 +61,9 @@ export interface RunInsert {
 	agentKind: BridgeAgentKind;
 	branch: string | null;
 	computerId: string;
+	/** Pre-generated Run id (S2-T3): tasks.create mints the uuid up front so
+	 * `launchKey` can literally equal it (D4). DB default when omitted. */
+	id?: string;
 	issueSnapshots: IssueSnapshot[];
 	/** Idempotency key for Launch delivery — equals the run id (D4). */
 	launchKey: string;

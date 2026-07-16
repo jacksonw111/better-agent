@@ -6,13 +6,18 @@ import {
 	createReplayGuard,
 	signComputerRequest,
 } from "@better-agent/agent/crypto/computer-signature";
+import type { BridgeMessageRow } from "@better-agent/agent/ports";
 import {
 	createFakeRunStore,
 	createFakeTaskStore,
 } from "@better-agent/agent/testing/fake-task-stores";
 import { createRouterClient } from "@orpc/server";
+import { createComputerControlChannel } from "../computers/control-channel";
 import type { ComputerAuthHeaders } from "../context";
-import { memoryBridgeTokenStore } from "./bridge-test-helpers-stores";
+import {
+	memoryBridgeMessageStore,
+	memoryBridgeTokenStore,
+} from "./bridge-test-helpers-stores";
 import { appRouter } from "./index";
 
 // Shared fixtures for the computers router tests — in-memory ComputerStore +
@@ -129,14 +134,14 @@ export function signedAuth(
 	};
 }
 
-export function buildComputerRig() {
+function buildRigServices() {
 	const rows = new Map<string, ComputerRow>();
 	const computer: ComputerStore = {
 		...memoryPairingCodes([]),
 		...memoryComputerRows(rows),
 	};
-	// S2-T2: the launch-delivery stores heartbeat/ackLaunch read alongside the
-	// computer store — empty by default, seeded by the runs router tests.
+	// S2-T2/S2-T3: the launch-delivery stores heartbeat/ackLaunch/tasks.create
+	// read alongside the computer store — empty by default.
 	const run = createFakeRunStore();
 	const task = createFakeTaskStore();
 	const bridgeToken = memoryBridgeTokenStore(
@@ -144,11 +149,34 @@ export function buildComputerRig() {
 		new Map(),
 		() => undefined
 	);
+	// Recorded so tests can assert that Task Start never writes lifecycle chat
+	// messages (§19.2) — the map must stay empty through the whole flow.
+	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
 	const services = {
 		authz: { enabled: false },
+		// Real channel, no registered sockets: notifyComputer is a push no-op and
+		// delivery falls back to heartbeat pendingCommands, exactly like a no-WS
+		// production computer (D4).
+		computerControl: createComputerControlChannel({
+			bridgeToken,
+			computer,
+			run,
+			task,
+		}),
 		computerReplayGuard: createReplayGuard(),
-		stores: { bridgeToken, computer, run, task },
+		stores: {
+			bridgeMessage: memoryBridgeMessageStore(bridgeMessages),
+			bridgeToken,
+			computer,
+			run,
+			task,
+		},
 	} as never;
+	return { bridgeMessages, bridgeToken, computer, rows, run, services, task };
+}
+
+export function buildComputerRig() {
+	const { services, ...stores } = buildRigServices();
 	const base = {
 		services,
 		authedAgent: null,
@@ -167,13 +195,9 @@ export function buildComputerRig() {
 	const computerClientFor = (auth: ComputerAuthHeaders) =>
 		createRouterClient(appRouter, { context: { ...base, computerAuth: auth } });
 	return {
-		bridgeToken,
-		computer,
+		...stores,
 		computerClientFor,
 		publicClient,
-		rows,
-		run,
-		task,
 		userClientFor,
 	};
 }

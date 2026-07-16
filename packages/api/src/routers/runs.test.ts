@@ -1,80 +1,11 @@
-import { generateComputerKeyPair } from "@better-agent/agent/crypto/computer-signature";
-import { createRunSessionCredential } from "@better-agent/agent/task/run-session-credential";
 import { expect, it } from "vitest";
-import {
-	ALICE,
-	BOB,
-	buildComputerRig,
-	signedAuth,
-} from "./computers-test-helpers";
+import { ALICE, BOB, buildComputerRig } from "./computers-test-helpers";
+import { pairComputer, seedRun } from "./runs-test-helpers";
 
 // S2-T2: idempotent launch delivery (master spec §15.3). The queue IS the
 // state: heartbeat pendingCommands = the computer's still-`created` Runs
 // rendered as launch payloads; runs.ackLaunch flips a Run to `launching`,
 // after which no reconnect or heartbeat can deliver it again.
-
-const REGISTRATION = {
-	name: "John's MacBook",
-	platform: "darwin",
-	arch: "arm64",
-	clientVersion: "0.3.0",
-	runtimeInventory: [],
-	toolInventory: [],
-};
-
-type Rig = ReturnType<typeof buildComputerRig>;
-
-async function pairComputer(rig: Rig, user: typeof ALICE) {
-	const { code } = await rig.userClientFor(user).computers.createPairingCode();
-	const keys = generateComputerKeyPair();
-	const { computerId } = await rig.publicClient.computers.pair({
-		...REGISTRATION,
-		code,
-		publicKeyPem: keys.publicKeyPem,
-	});
-	// Per-computer strictly increasing timestamps for the replay guard —
-	// sequential test calls can otherwise collide within one millisecond.
-	let lastTs = Date.now();
-	const client = () => {
-		lastTs += 1;
-		return rig.computerClientFor(
-			signedAuth(computerId, keys.privateKeyPem, lastTs)
-		);
-	};
-	return { client, computerId };
-}
-
-async function seedRun(
-	rig: Rig,
-	computerId: string,
-	overrides?: { repositoryFullName: string; repositoryUrl: string }
-) {
-	const task = await rig.task.insert({
-		userId: ALICE.id,
-		computerId,
-		agentKind: "claude-code",
-		name: "Fix login flake",
-		description: "Fix the flaky login test with /tdd",
-		openingMessage: "Fix the flaky login test with /tdd",
-		repositoryFullName: overrides?.repositoryFullName ?? null,
-		repositoryUrl: overrides?.repositoryUrl ?? null,
-	});
-	const credential = await createRunSessionCredential({
-		bridgeTokenStore: rig.bridgeToken,
-	})({ agentKind: task.agentKind, taskId: task.id, userId: ALICE.id });
-	const launchKey = crypto.randomUUID();
-	const run = await rig.run.insert({
-		agentKind: task.agentKind,
-		branch: null,
-		computerId,
-		issueSnapshots: [],
-		launchKey,
-		sessionTokenId: credential.tokenId,
-		taskId: task.id,
-		workspaceKind: overrides ? "repository" : "standalone",
-	});
-	return { credential, run, task };
-}
 
 it("heartbeat delivers a full standalone launch payload for a created run", async () => {
 	const rig = buildComputerRig();

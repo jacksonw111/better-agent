@@ -18,6 +18,7 @@ import { pushSubscriptionsRouter } from "./push-subscriptions";
 import { runsRouter } from "./runs";
 import { sessionsRouter } from "./sessions";
 import { skillsRouter } from "./skills";
+import { tasksRouter } from "./tasks";
 import { usageRouter } from "./usage";
 import { userSessionsRouter } from "./user-sessions";
 
@@ -40,6 +41,7 @@ export const appRouter = {
 	runs: runsRouter,
 	sessions: sessionsRouter,
 	skills: skillsRouter,
+	tasks: tasksRouter,
 	usage: usageRouter,
 	userSessions: userSessionsRouter,
 };

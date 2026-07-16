@@ -103,7 +103,7 @@ export function createFakeRunStore(
 			const now = new Date();
 			const run: RunRow = {
 				...input,
-				id: crypto.randomUUID(),
+				id: input.id ?? crypto.randomUUID(),
 				status: "created",
 				sessionId: null,
 				sessionTokenId: input.sessionTokenId ?? null,
