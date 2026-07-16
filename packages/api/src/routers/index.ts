@@ -9,6 +9,7 @@ import { authRouter } from "./auth";
 import { bridgeRouter } from "./bridge";
 import { composioRouter } from "./composio";
 import { computersRouter } from "./computers";
+import { githubRouter } from "./github";
 import { inviteRouter } from "./invite";
 import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
@@ -31,6 +32,7 @@ export const appRouter = {
 	bridge: bridgeRouter,
 	composio: composioRouter,
 	computers: computersRouter,
+	github: githubRouter,
 	invite: inviteRouter,
 	mcp: mcpRouter,
 	memory: memoryRouter,

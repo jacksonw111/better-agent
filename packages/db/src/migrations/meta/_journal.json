@@ -330,6 +330,20 @@
       "when": 1784180288937,
       "tag": "0046_calm_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1784193188365,
+      "tag": "0047_tearful_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1784193784022,
+      "tag": "0048_messy_senator_kelly",
+      "breakpoints": true
     }
   ]
 }

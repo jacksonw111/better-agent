@@ -5,6 +5,11 @@ import type { ComputerStore } from "@better-agent/agent/computer-ports";
 import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type { ComputerReplayGuard } from "@better-agent/agent/crypto/computer-signature";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
+import type { SecretBox } from "@better-agent/agent/crypto/secret-box";
+import type {
+	GithubClient,
+	GithubConnectionStore,
+} from "@better-agent/agent/github/github-ports";
 import type {
 	AgentStore,
 	AttachmentStore,
@@ -78,6 +83,9 @@ export interface AgentServices {
 	emailSender: EmailSender;
 	/** Memory embeddings via Workers AI (decision D1); null when CF creds unset. */
 	embeddingClient: EmbeddingClient | null;
+	/** S4-T1 (D7): builds a GithubClient bound to one decrypted PAT. The
+	 * server wires the real fetch client; tests inject fakes (§19.6). */
+	githubClient: (token: string) => GithubClient;
 	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;
 	mcp: (serverId: string) => Promise<McpService | null>;
@@ -91,6 +99,10 @@ export interface AgentServices {
 	rateLimiter: RateLimiter;
 	relayStore: RelayStore;
 	runtime: SessionRuntime;
+	/** Symmetric credential encryption (CREDENTIALS_SECRET). Routers use it to
+	 * encrypt tokens before they reach a store and to decrypt server-side —
+	 * plaintext credentials never rest in the DB nor leave the server. */
+	secretBox: SecretBox;
 	stores: {
 		providerCatalog: ProviderCatalogStore;
 		modelCache: ModelCacheStore;
@@ -116,6 +128,7 @@ export interface AgentServices {
 		bridgeMessage: BridgeMessageStore;
 		bridgeUsage: BridgeUsageStore;
 		computer: ComputerStore;
+		githubConnection: GithubConnectionStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
 		pushSubscription: PushSubscriptionStore;

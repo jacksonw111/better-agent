@@ -11,6 +11,7 @@
     "./session/*": "./src/session/*.ts",
     "./provider/*": "./src/provider/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
+    "./github/*": "./src/github/*.ts",
     "./auth/*": "./src/auth/*.ts",
     "./bridge/*": "./src/bridge/*.ts",
     "./tool/*": "./src/tool/*.ts",
@@ -31,7 +32,7 @@
     "@ai-sdk/xai": "3.0.95",
     "ai": "6.0.205",
     "evlog": "catalog:",
-    "jose": "^6.2.3",
+    "jose": "6.2.3",
     "zod": "catalog:"
   },
   "devDependencies": {

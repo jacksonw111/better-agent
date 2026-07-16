@@ -1,5 +1,6 @@
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
 import { createReplayGuard } from "@better-agent/agent/crypto/computer-signature";
+import { createGithubClient } from "@better-agent/agent/github/github-client";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
@@ -16,6 +17,7 @@ import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-tok
 import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usage-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
 import { createComputerStore } from "@better-agent/db/repositories/computer-store";
+import { createGithubConnectionStore } from "@better-agent/db/repositories/github-connection-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item-store";
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
@@ -106,6 +108,7 @@ interface StoreParts {
 	db: Db;
 	deps: ReturnType<typeof buildProviderDeps>;
 	embeddingClient: ReturnType<typeof buildEmbeddingClient>;
+	githubConnectionStore: ReturnType<typeof createGithubConnectionStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	memoryItemStore: ReturnType<typeof createMemoryItemStore>;
 	memoryStore: ReturnType<typeof createMemoryStore>;
@@ -113,6 +116,7 @@ interface StoreParts {
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
 	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
 	runStore: ReturnType<typeof createRunStore>;
+	secretBox: ReturnType<typeof getSecretBox>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
 	skillStore: ReturnType<typeof createSkillStore>;
@@ -149,6 +153,7 @@ function buildStores(
 		bridgeMessage: parts.bridgeMessageStore,
 		bridgeUsage: parts.bridgeUsageStore,
 		computer: parts.computerStore,
+		githubConnection: parts.githubConnectionStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
 		pushSubscription: parts.pushSubscriptionStore,
@@ -190,6 +195,11 @@ function assembleServices(
 			parts.openConnectorAccount
 		),
 		embeddingClient: parts.embeddingClient,
+		// S4-T1 (D7): real fetch-based GitHub client, one instance per decrypted
+		// PAT. Routers decrypt via secretBox right before calling this — the
+		// token never rests anywhere but as secret-box ciphertext.
+		githubClient: (token: string) => createGithubClient({ token }),
+		secretBox: parts.secretBox,
 		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
 		authz: buildAuthzClient(parts.authzBinding),
 		// P3-T3: Web Push — null (feature disabled fail-open) without VAPID keys.
@@ -237,8 +247,10 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		bridgeMessageStore: createBridgeMessageStore(db),
 		bridgeUsageStore: createBridgeUsageStore(db),
 		computerStore: createComputerStore(db),
+		githubConnectionStore: createGithubConnectionStore(db),
 		taskStore: createTaskStore(db),
 		runStore: createRunStore(db),
+		secretBox,
 	};
 }
 

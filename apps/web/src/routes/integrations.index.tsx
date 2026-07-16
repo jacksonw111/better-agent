@@ -2,11 +2,12 @@ import { cn } from "@better-agent/ui/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { AccountsList } from "@/components/integrations/accounts-list";
+import { GithubConnectionSection } from "@/components/integrations/github-connection-section";
 import { McpServersSection } from "@/components/integrations/mcp-servers-section";
 import { OcAccountsList } from "@/components/integrations/oc-accounts-list";
 import { PageContainer } from "@/components/layout/page-container";
 
-type SettingsTab = "composio" | "openconnector" | "mcp";
+type SettingsTab = "composio" | "openconnector" | "mcp" | "github";
 
 const DEFAULT_TAB: SettingsTab = "composio";
 
@@ -14,10 +15,16 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: string }> = [
 	{ id: "composio", label: "Composio" },
 	{ id: "openconnector", label: "OpenConnector" },
 	{ id: "mcp", label: "MCP Servers" },
+	{ id: "github", label: "GitHub" },
 ];
 
 function isSettingsTab(value: unknown): value is SettingsTab {
-	return value === "composio" || value === "openconnector" || value === "mcp";
+	return (
+		value === "composio" ||
+		value === "openconnector" ||
+		value === "mcp" ||
+		value === "github"
+	);
 }
 
 export const Route = createFileRoute("/integrations/")({
@@ -67,6 +74,7 @@ function IntegrationsPage() {
 					{tab === "composio" && <AccountsList />}
 					{tab === "openconnector" && <OcAccountsList />}
 					{tab === "mcp" && <McpServersSection />}
+					{tab === "github" && <GithubConnectionSection />}
 				</div>
 			</div>
 		</PageContainer>
