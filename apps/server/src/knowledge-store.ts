@@ -18,7 +18,8 @@ export interface MultipartPart {
 
 /** The multipart-upload surface the resumable Knowledge Base upload needs on
  * top of the plain object ops — implemented by s3-bucket.ts against R2's S3
- * endpoint. */
+ * endpoint. `getStream` exists so the content route can pipe large objects to
+ * the browser without buffering them in server memory. */
 export interface MultipartBucket extends R2Bucket {
 	abortMultipartUpload(key: string, uploadId: string): Promise<void>;
 	completeMultipartUpload(
@@ -28,6 +29,7 @@ export interface MultipartBucket extends R2Bucket {
 	): Promise<void>;
 	/** Returns the multipart upload id. */
 	createMultipartUpload(key: string, mime: string): Promise<string>;
+	getStream(key: string): Promise<ReadableStream<Uint8Array> | null>;
 	listParts(key: string, uploadId: string): Promise<MultipartPart[]>;
 	uploadPart(
 		key: string,
@@ -178,8 +180,19 @@ function makeFinishOps(
 function makeReadOps(
 	meta: KnowledgeDocumentMetaStore,
 	requireBucket: () => MultipartBucket
-): Pick<KnowledgeStore, "getById" | "getBytes" | "list"> {
+): Pick<KnowledgeStore, "getById" | "getBytes" | "getContent" | "list"> {
 	return {
+		async getContent(ownerId, documentId) {
+			const row = await meta.getByIdForOwner(ownerId, documentId);
+			if (row?.status !== "ready") {
+				return null;
+			}
+			const body = await requireBucket().getStream(row.r2Key);
+			if (!body) {
+				return null;
+			}
+			return { document: toRow(row), body };
+		},
 		async getById(ownerId, documentId) {
 			const row = await meta.getByIdForOwner(ownerId, documentId);
 			return row ? toRow(row) : null;

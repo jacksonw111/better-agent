@@ -184,17 +184,20 @@ function usePdfViewerState() {
 	};
 }
 
-interface PdfViewerProps {
+interface PdfViewerSrcProps {
 	onClose: () => void;
-	pdfUrl: string;
+	/** A directly-fetchable PDF URL (already proxied/authed); null = failed. */
+	src: string | null;
 	title?: string;
 }
 
-export function PdfViewer({ pdfUrl, onClose, title }: PdfViewerProps) {
+/** The viewer over a resolved URL — for sources our own server can stream
+ * (e.g. Knowledge Base documents) that must NOT go through the public
+ * pdf-proxy. Finance callers use PdfViewer below, which proxies first. */
+export function PdfViewerSrc({ src, onClose, title }: PdfViewerSrcProps) {
 	const zoom = useZoom();
 	const { error: moduleError, mod } = usePdfModule();
 	const state = usePdfViewerState();
-	const src = proxyPdfUrl(pdfUrl);
 	const {
 		numPages,
 		setNumPages,
@@ -232,5 +235,17 @@ export function PdfViewer({ pdfUrl, onClose, title }: PdfViewerProps) {
 				/>
 			)}
 		</>
+	);
+}
+
+interface PdfViewerProps {
+	onClose: () => void;
+	pdfUrl: string;
+	title?: string;
+}
+
+export function PdfViewer({ pdfUrl, onClose, title }: PdfViewerProps) {
+	return (
+		<PdfViewerSrc onClose={onClose} src={proxyPdfUrl(pdfUrl)} title={title} />
 	);
 }

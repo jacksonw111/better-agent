@@ -15,6 +15,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
+import { applyKnowledgeContentRoute } from "./knowledge-content";
 import { buildMemoryMcpApp } from "./memory-mcp";
 import { createPdfProxyHandler } from "./pdf-proxy";
 
@@ -229,6 +230,7 @@ export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	const app = new Hono<EvlogVariables>();
 	applyMiddleware(app);
 	applyBridgeStreamRoute(app, services);
+	applyKnowledgeContentRoute(app, services);
 	applyPdfProxyRoute(app);
 	applyInternalRoutes(app, services);
 	// Registered BEFORE the catch-all oRPC middleware so /mcp/memory requests

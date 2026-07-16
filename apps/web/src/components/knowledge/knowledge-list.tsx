@@ -1,8 +1,9 @@
 import { Button } from "@better-agent/ui/components/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { UploadIcon } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { Loader2Icon, UploadIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/list/confirm-dialog";
 import { ListToolbar } from "@/components/list/list-toolbar";
 import { Pagination } from "@/components/list/pagination";
 import { useDebouncedValue } from "@/components/list/use-debounced-value";
@@ -12,13 +13,13 @@ import { DocumentDrawer } from "./document-drawer";
 import { DocumentGroups } from "./knowledge-groups";
 import { KnowledgeListSkeleton } from "./knowledge-skeletons";
 import type { KnowledgeDocument } from "./knowledge-types";
-import { UploadProgress } from "./upload-progress";
-import { useDocumentUpload } from "./use-document-upload";
+import { UploadDialog } from "./upload-dialog";
+import { type DocumentUpload, useDocumentUpload } from "./use-document-upload";
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 250;
 
-function useDeleteDocument() {
+function useDeleteDocument(onSettled: () => void) {
 	const queryClient = useQueryClient();
 	return useMutation(
 		orpc.knowledgeBase.delete.mutationOptions({
@@ -29,30 +30,8 @@ function useDeleteDocument() {
 				});
 			},
 			onError: (error) => toast.error(error.message),
+			onSettled,
 		})
-	);
-}
-
-function UploadButton({ onFiles }: { onFiles: (files: File[]) => void }) {
-	const inputRef = useRef<HTMLInputElement>(null);
-	return (
-		<>
-			<input
-				aria-label="Upload documents"
-				className="hidden"
-				multiple
-				onChange={(event) => {
-					onFiles([...(event.target.files ?? [])]);
-					event.target.value = "";
-				}}
-				ref={inputRef}
-				type="file"
-			/>
-			<Button onClick={() => inputRef.current?.click()}>
-				<UploadIcon className="size-4" />
-				Upload
-			</Button>
-		</>
 	);
 }
 
@@ -75,7 +54,7 @@ function DocumentResults({
 }: {
 	isPending: boolean;
 	items: KnowledgeDocument[];
-	onDelete: (id: string) => void;
+	onDelete: (doc: KnowledgeDocument) => void;
 	onOpen: (doc: KnowledgeDocument) => void;
 	searching: boolean;
 }) {
@@ -90,6 +69,26 @@ function DocumentResults({
 		return <EmptyState searching={searching} />;
 	}
 	return <DocumentGroups groups={groups} onDelete={onDelete} onOpen={onOpen} />;
+}
+
+/** Compact reopen affordance while uploads run behind a closed modal. */
+function ActiveUploadsChip({
+	onOpen,
+	upload,
+}: {
+	onOpen: () => void;
+	upload: DocumentUpload;
+}) {
+	const active = upload.uploads.filter((u) => u.status === "uploading").length;
+	if (active === 0) {
+		return null;
+	}
+	return (
+		<Button className="self-start" onClick={onOpen} size="sm" variant="outline">
+			<Loader2Icon className="size-3.5 animate-spin" />
+			Uploading {active} {active === 1 ? "file" : "files"}…
+		</Button>
+	);
 }
 
 // Search/page/drawer state + the paginated server query, split out of
@@ -132,35 +131,69 @@ function useKnowledgePage() {
 	};
 }
 
+function DeleteDocumentDialog({
+	onClose,
+	onConfirm,
+	pending,
+	pendingDelete,
+}: {
+	onClose: () => void;
+	onConfirm: (doc: KnowledgeDocument) => void;
+	pending: boolean;
+	pendingDelete: KnowledgeDocument | null;
+}) {
+	return (
+		<ConfirmDialog
+			description={
+				pendingDelete
+					? `"${pendingDelete.name}" will be permanently removed from storage. This can't be undone.`
+					: ""
+			}
+			onConfirm={() => {
+				if (pendingDelete) {
+					onConfirm(pendingDelete);
+				}
+			}}
+			onOpenChange={(open) => {
+				if (!open) {
+					onClose();
+				}
+			}}
+			open={pendingDelete !== null}
+			pending={pending}
+			title="Delete document?"
+		/>
+	);
+}
+
 /** The Knowledge Base page: searchable, paginated documents grouped by upload
- * day. Uploading is resumable (see use-document-upload.ts); clicking a row
+ * day with aligned columns. Uploading happens in a modal (resumable, confetti
+ * on completion); deleting always confirms through a modal; clicking a row
  * opens the viewer drawer, which only closes via its close icon. */
 export function KnowledgeList() {
 	const view = useKnowledgePage();
 	const upload = useDocumentUpload();
-	const deleteDocument = useDeleteDocument();
+	const [uploadOpen, setUploadOpen] = useState(false);
+	const [pendingDelete, setPendingDelete] = useState<KnowledgeDocument | null>(
+		null
+	);
+	const deleteDocument = useDeleteDocument(() => setPendingDelete(null));
 	const { documents } = view;
-
 	const items = documents.data?.items ?? [];
 	const total = documents.data?.total ?? 0;
 
 	return (
 		<div className="flex flex-col gap-3">
-			<ListToolbar
-				action={<UploadButton onFiles={(files) => files.map(upload.start)} />}
-				onSearch={view.setSearch}
-				placeholder="Search documents…"
-				search={view.search}
-			/>
-			<UploadProgress
-				onCancel={upload.cancel}
-				onRetry={upload.retry}
-				uploads={upload.uploads}
+			<KnowledgeToolbar
+				onUploadOpen={() => setUploadOpen(true)}
+				upload={upload}
+				uploadOpen={uploadOpen}
+				view={view}
 			/>
 			<DocumentResults
 				isPending={documents.isPending}
 				items={items}
-				onDelete={(id) => deleteDocument.mutate({ documentId: id })}
+				onDelete={setPendingDelete}
 				onOpen={view.openDocument}
 				searching={view.debouncedSearch.length > 0}
 			/>
@@ -170,11 +203,85 @@ export function KnowledgeList() {
 				pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
 				total={total}
 			/>
+			<KnowledgeOverlays
+				deleteDocument={deleteDocument}
+				pendingDelete={pendingDelete}
+				setPendingDelete={setPendingDelete}
+				setUploadOpen={setUploadOpen}
+				upload={upload}
+				uploadOpen={uploadOpen}
+				view={view}
+			/>
+		</div>
+	);
+}
+
+function KnowledgeToolbar({
+	onUploadOpen,
+	upload,
+	uploadOpen,
+	view,
+}: {
+	onUploadOpen: () => void;
+	upload: DocumentUpload;
+	uploadOpen: boolean;
+	view: ReturnType<typeof useKnowledgePage>;
+}) {
+	return (
+		<>
+			<ListToolbar
+				action={
+					<Button onClick={onUploadOpen}>
+						<UploadIcon className="size-4" />
+						Upload
+					</Button>
+				}
+				onSearch={view.setSearch}
+				placeholder="Search documents…"
+				search={view.search}
+			/>
+			{uploadOpen ? null : (
+				<ActiveUploadsChip onOpen={onUploadOpen} upload={upload} />
+			)}
+		</>
+	);
+}
+
+function KnowledgeOverlays({
+	deleteDocument,
+	pendingDelete,
+	setPendingDelete,
+	setUploadOpen,
+	upload,
+	uploadOpen,
+	view,
+}: {
+	deleteDocument: ReturnType<typeof useDeleteDocument>;
+	pendingDelete: KnowledgeDocument | null;
+	setPendingDelete: (doc: KnowledgeDocument | null) => void;
+	setUploadOpen: (open: boolean) => void;
+	upload: DocumentUpload;
+	uploadOpen: boolean;
+	view: ReturnType<typeof useKnowledgePage>;
+}) {
+	return (
+		<>
+			<UploadDialog
+				onOpenChange={setUploadOpen}
+				open={uploadOpen}
+				upload={upload}
+			/>
+			<DeleteDocumentDialog
+				onClose={() => setPendingDelete(null)}
+				onConfirm={(doc) => deleteDocument.mutate({ documentId: doc.id })}
+				pending={deleteDocument.isPending}
+				pendingDelete={pendingDelete}
+			/>
 			<DocumentDrawer
 				doc={view.selected}
 				onClose={view.closeDrawer}
 				open={view.drawerOpen}
 			/>
-		</div>
+		</>
 	);
 }

@@ -79,6 +79,7 @@ function makeBucket(
 ): MultipartBucket {
 	return {
 		get: () => Promise.resolve(null),
+		getStream: () => Promise.resolve(null),
 		put: () => Promise.resolve(),
 		delete: (key) => {
 			calls.push(`r2.delete:${key}`);

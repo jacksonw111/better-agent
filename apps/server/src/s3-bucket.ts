@@ -77,7 +77,7 @@ interface S3Ctx {
 
 function makeObjectOps(
 	ctx: S3Ctx
-): Pick<MultipartBucket, "delete" | "get" | "put"> {
+): Pick<MultipartBucket, "delete" | "get" | "getStream" | "put"> {
 	return {
 		async get(key): Promise<R2ObjectBody | null> {
 			const res = await ctx.aws.fetch(ctx.objectUrl(key));
@@ -89,6 +89,16 @@ function makeObjectOps(
 			}
 			const bytes = await res.arrayBuffer();
 			return { arrayBuffer: () => Promise.resolve(bytes) };
+		},
+		async getStream(key) {
+			const res = await ctx.aws.fetch(ctx.objectUrl(key));
+			if (res.status === NOT_FOUND) {
+				return null;
+			}
+			if (res.status !== OK) {
+				throw new Error(`S3 GET ${key} failed: ${res.status}`);
+			}
+			return res.body;
 		},
 		async put(key, value) {
 			const res = await ctx.aws.fetch(ctx.objectUrl(key), {

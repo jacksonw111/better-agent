@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { celebrateSuccess } from "@/utils/celebrate";
 import { client, orpc } from "@/utils/orpc";
 
 // Resumable (断点续传) upload against the knowledgeBase router. The file is
@@ -20,7 +21,7 @@ export interface UploadItem {
 	id: string;
 	/** 0..1, counted in stored parts. */
 	progress: number;
-	status: "error" | "uploading";
+	status: "done" | "error" | "uploading";
 }
 
 async function runUpload(
@@ -83,8 +84,7 @@ async function runTracked(id: string, file: File, ops: UploadTrackerOps) {
 			(documentId) => ops.patch(id, { documentId }),
 			(progress) => ops.patch(id, { progress })
 		);
-		ops.remove(id);
-		toast.success(`Uploaded ${file.name}`);
+		ops.patch(id, { status: "done", progress: 1 });
 		await ops.invalidate();
 	} catch (error) {
 		ops.patch(id, {
@@ -100,16 +100,14 @@ function startUpload(file: File, ops: UploadTrackerOps) {
 		toast.error(invalid);
 		return;
 	}
-	const item: UploadItem = {
+	ops.add({
 		id: crypto.randomUUID(),
 		file,
 		documentId: null,
 		progress: 0,
 		status: "uploading",
 		error: null,
-	};
-	ops.add(item);
-	runTracked(item.id, file, ops);
+	});
 }
 
 /** Drop an upload row and discard its stored parts server-side. */
@@ -118,7 +116,7 @@ function cancelUpload(item: UploadItem | undefined, ops: UploadTrackerOps) {
 		return;
 	}
 	ops.remove(item.id);
-	if (item.documentId) {
+	if (item.documentId && item.status !== "done") {
 		client.knowledgeBase
 			.abortUpload({ documentId: item.documentId })
 			.catch(() => {
@@ -127,12 +125,37 @@ function cancelUpload(item: UploadItem | undefined, ops: UploadTrackerOps) {
 	}
 }
 
+/** Confetti + toast once per batch: fires when the last in-flight upload
+ * settles and at least one made it (celebrateSuccess is the repo-wide
+ * "you created something" convention). */
+function useBatchCelebration(uploads: UploadItem[]) {
+	const activeCount = uploads.filter((u) => u.status === "uploading").length;
+	const doneCount = uploads.filter((u) => u.status === "done").length;
+	const prevActive = useRef(0);
+	useEffect(() => {
+		if (prevActive.current > 0 && activeCount === 0 && doneCount > 0) {
+			celebrateSuccess(
+				doneCount === 1
+					? "Document uploaded"
+					: `${doneCount} documents uploaded`
+			);
+		}
+		prevActive.current = activeCount;
+	}, [activeCount, doneCount]);
+}
+
 export function useDocumentUpload() {
 	const [uploads, setUploads] = useState<UploadItem[]>([]);
 	const queryClient = useQueryClient();
+	useBatchCelebration(uploads);
 
 	const ops: UploadTrackerOps = {
-		add: (item) => setUploads((prev) => [...prev, item]),
+		// A new batch replaces the previous batch's settled "done" rows, so the
+		// celebration count and the visible list stay scoped to this batch.
+		add: (item) => {
+			setUploads((prev) => [...prev.filter((u) => u.status !== "done"), item]);
+			runTracked(item.id, item.file, ops);
+		},
 		patch: (id, changes) =>
 			setUploads((prev) =>
 				prev.map((item) => (item.id === id ? { ...item, ...changes } : item))
@@ -164,5 +187,11 @@ export function useDocumentUpload() {
 				uploads.find((upload) => upload.id === id),
 				ops
 			),
+		/** Drop completed rows (dialog close tidies the list; in-flight rows stay
+		 * and errored rows keep their Resume affordance). */
+		dismissSettled: () =>
+			setUploads((prev) => prev.filter((u) => u.status !== "done")),
 	};
 }
+
+export type DocumentUpload = ReturnType<typeof useDocumentUpload>;

@@ -69,6 +69,15 @@ export interface KnowledgeStore {
 		ownerId: string,
 		documentId: string
 	): Promise<{ data: Uint8Array; document: KnowledgeDocumentRow } | null>;
+	/** A streaming body for a ready document — the content route pipes this to
+	 * the browser, so previews never buffer whole objects in server memory. */
+	getContent(
+		ownerId: string,
+		documentId: string
+	): Promise<{
+		body: ReadableStream<Uint8Array>;
+		document: KnowledgeDocumentRow;
+	} | null>;
 	/** Start — or resume — an upload. A pending document with the same owner,
 	 * name and size is treated as the same interrupted upload and returned with
 	 * its already-stored parts. */

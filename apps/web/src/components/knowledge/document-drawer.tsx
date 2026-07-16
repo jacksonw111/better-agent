@@ -1,12 +1,14 @@
 import { Button } from "@better-agent/ui/components/button";
 import { useIsMobile } from "@better-agent/ui/hooks/use-mobile";
-import { XIcon } from "lucide-react";
-import { type CSSProperties, useState } from "react";
+import { formatBytes } from "@better-agent/ui/lib/format-bytes";
+import { DownloadIcon, XIcon } from "lucide-react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { Drawer } from "vaul";
+import { PdfViewerSrc } from "@/components/pdf/pdf-viewer";
+import { documentContentUrl } from "./content-url";
 import { DocumentPreview } from "./document-preview";
 import {
 	documentDateTimeFormatter,
-	formatBytes,
 	type KnowledgeDocument,
 } from "./knowledge-types";
 
@@ -26,9 +28,9 @@ function DrawerHeader({
 	return (
 		<header className="flex items-center justify-between gap-3 p-4">
 			<div className="min-w-0">
-				<Drawer.Title className="truncate font-medium text-sm">
+				<p className="truncate font-medium text-sm">
 					{doc?.name ?? "Document"}
-				</Drawer.Title>
+				</p>
 				{doc ? (
 					<p className="text-muted-foreground text-xs">
 						{formatBytes(doc.size)} ·{" "}
@@ -36,15 +38,54 @@ function DrawerHeader({
 					</p>
 				) : null}
 			</div>
-			<Button
-				aria-label="Close"
-				onClick={onClose}
-				size="icon-xs"
-				variant="ghost"
-			>
-				<XIcon className="size-4" />
-			</Button>
+			<div className="flex shrink-0 items-center gap-1">
+				{doc ? (
+					<Button
+						render={
+							// biome-ignore lint/a11y/useAnchorContent: Button injects the children into the anchor
+							<a href={documentContentUrl(doc.id, { download: true })} />
+						}
+						size="icon-xs"
+						variant="ghost"
+					>
+						<DownloadIcon className="size-4" />
+					</Button>
+				) : null}
+				<Button
+					aria-label="Close"
+					onClick={onClose}
+					size="icon-xs"
+					variant="ghost"
+				>
+					<XIcon className="size-4" />
+				</Button>
+			</div>
 		</header>
+	);
+}
+
+function DrawerBody({
+	doc,
+	onClose,
+}: {
+	doc: KnowledgeDocument;
+	onClose: () => void;
+}) {
+	// Stable per-document identity: react-pdf refetches whenever `file` changes,
+	// so the URL must not be rebuilt on every render.
+	const src = useMemo(() => documentContentUrl(doc.id), [doc.id]);
+	if (doc.mime === "application/pdf") {
+		// The full annual-report viewer: streamed loading, zoom, page count —
+		// it brings its own header (title + close), so no DrawerHeader here.
+		return <PdfViewerSrc onClose={onClose} src={src} title={doc.name} />;
+	}
+	return (
+		<>
+			<DrawerHeader doc={doc} onClose={onClose} />
+			<div className="min-h-0 flex-1 overflow-auto">
+				<DocumentPreview doc={doc} />
+			</div>
+		</>
 	);
 }
 
@@ -88,10 +129,10 @@ export function DocumentDrawer({
 					}
 					style={isMobile ? MOBILE_CONTENT_STYLE : DESKTOP_CONTENT_STYLE}
 				>
-					<DrawerHeader doc={rendered} onClose={onClose} />
-					<div className="min-h-0 flex-1 overflow-auto">
-						{rendered ? <DocumentPreview doc={rendered} /> : null}
-					</div>
+					<Drawer.Title className="sr-only">
+						{rendered?.name ?? "Document"}
+					</Drawer.Title>
+					{rendered ? <DrawerBody doc={rendered} onClose={onClose} /> : null}
 				</Drawer.Content>
 			</Drawer.Portal>
 		</Drawer.Root>
