@@ -127,7 +127,10 @@ function extractQueries(args: unknown): string[] {
 	return [...new Set(queries.map((q) => q.trim()))];
 }
 
-function buildSearchTool(deferred: ToolDef[], active: Set<string>): ToolDef {
+export function buildSearchTool(
+	deferred: ToolDef[],
+	active: Set<string>
+): ToolDef {
 	return {
 		name: SEARCH_TOOL_NAME,
 		description:

@@ -18,7 +18,7 @@ import type {
 import { applyCachePolicy, resolveCachePolicy } from "../provider/cache-policy";
 import type { ModelFactory } from "../provider/model-factory";
 import { buildTools } from "../tool/registry";
-import { buildDeferredBinding, shouldDefer } from "../tool/tool-search";
+import type { SkillActivation } from "../tool/tool-skill";
 import type { ToolDef } from "../tool/types";
 import type { CancellationRegistry } from "./cancellation";
 import type { Summarizer } from "./compaction";
@@ -39,6 +39,7 @@ import type { DrainCtx } from "./runtime-drain";
 import { drainStream } from "./runtime-drain";
 import { finalizeAssistant } from "./runtime-finalize";
 import { buildAssistantCtx, settleTitleEvent } from "./runtime-support";
+import { prepareToolBinding } from "./runtime-tool-binding";
 import { SessionBusyError, type SessionLock } from "./session-lock";
 import type { Titler } from "./titler";
 import { maybeTitle } from "./titler";
@@ -84,9 +85,13 @@ export interface SessionRuntimeDeps {
 
 export interface RunTurnInput {
 	abortSignal?: AbortSignal;
+	/** A /name-activated skill whose tools are pre-revealed (no `skill` call). */
+	activeSkillName?: string;
 	/** Ids of attachments uploaded for this turn (linked to the user message). */
 	attachmentIds?: string[];
 	sessionId: string;
+	/** The agent's assignable skills, loadable on demand via the `skill` tool. */
+	skills?: SkillActivation[];
 	text: string;
 	tools?: ToolDef[];
 }
@@ -110,7 +115,6 @@ interface AttemptArgs {
 	providerOptions: SharedV3ProviderOptions;
 }
 
-// Deferred binding: inactive schemas aren't sent; search grows the set.
 function deferStepOptions(args: AttemptArgs) {
 	return args.activeToolNames
 		? { prepareStep: () => ({ activeTools: args.activeToolNames?.() }) }
@@ -213,19 +217,18 @@ async function prepareMessages(
 	return applyCachePolicy({ messages: rawMessages, sessionId }, policy);
 }
 
-// Assemble the turn's tool set. Past the defer threshold, defer-marked schemas
-// are withheld and reached through search_tools (token cost scales with tools
-// USED).
-function prepareToolBinding(tools: ToolDef[] | undefined): {
-	activeNames?: () => string[];
-	defs: ToolDef[];
-} {
-	const toolDefs = [...(tools ?? [])];
-	if (!shouldDefer(toolDefs)) {
-		return { defs: toolDefs };
-	}
-	const binding = buildDeferredBinding(toolDefs);
-	return { defs: binding.defs, activeNames: binding.activeNames };
+function persistTurn(
+	deps: SessionRuntimeDeps,
+	sessionId: string,
+	input: RunTurnInput
+): Promise<unknown> {
+	return persistUserTurn({
+		messageStore: deps.messageStore,
+		attachmentStore: deps.attachmentStore,
+		sessionId,
+		text: input.text,
+		attachmentIds: input.attachmentIds,
+	});
 }
 
 async function* executeTurn(
@@ -234,16 +237,14 @@ async function* executeTurn(
 ): AsyncGenerator<RunEvent, Message> {
 	const { sessionId, text, abortSignal, tools } = input;
 	const { session, agent } = await loadContext(deps, sessionId);
-	await persistUserTurn({
-		messageStore: deps.messageStore,
-		attachmentStore: deps.attachmentStore,
-		sessionId,
-		text,
-		attachmentIds: input.attachmentIds,
-	});
+	await persistTurn(deps, sessionId, input);
 	const titlePromise = maybeTitle(deps, session, agent, text);
 	const cached = await prepareMessages(deps, agent, session, sessionId);
-	const binding = prepareToolBinding(tools);
+	const binding = prepareToolBinding(
+		tools,
+		input.skills,
+		input.activeSkillName
+	);
 	const { assistant, ctx } = await buildAssistantCtx(
 		deps.messageStore,
 		agent,
@@ -272,7 +273,6 @@ async function* executeTurn(
 		outcome,
 		userId: session.userId,
 	});
-	// Settles on done AND error: title derives from the persisted user message.
 	yield* settleTitleEvent(deps.sessionStore, sessionId, titlePromise);
 	return message;
 }

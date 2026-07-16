@@ -1,6 +1,7 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
 import type { Session } from "@better-agent/agent/session/types";
 import { buildRemoteToolDefs } from "@better-agent/agent/tool/remote-tools";
+import type { SkillActivation } from "@better-agent/agent/tool/tool-skill";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -29,26 +30,31 @@ const sessionIdInput = z.object({ sessionId: z.uuid() });
 // the running turn via `observe` instead of polling listMessages.
 const turnChannels = createTurnChannelRegistry();
 
-// Skills T3: folds the turn's ACTIVE skill (derived from the `/skill-name`
-// directive in the conversation, see skill-activation.ts) into the assembled
-// toolset — `text` is this turn's just-submitted prompt, not yet persisted.
+// Skills T3: the agent's assigned skills are loadable on demand via the runtime
+// `skill` tool. This returns the assembled defs, each skill's activation
+// (playbook + tool names), and the name of any skill the user explicitly
+// activated via /name (its tools get pre-revealed). `text` is this turn's
+// just-submitted prompt, not yet persisted.
 async function agentToolDefs(
 	context: Context,
 	agentId: string,
 	sessionId: string,
 	text: string
-): Promise<ToolDef[]> {
+): Promise<{
+	activeSkillName?: string;
+	defs: ToolDef[];
+	skills: SkillActivation[];
+}> {
 	const agent = await context.services.stores.agent.get(agentId);
 	if (!agent) {
-		return [];
+		return { defs: [], skills: [] };
 	}
-	const activeSkill = await resolveActiveSkill(
-		context,
-		agentId,
-		sessionId,
-		text
-	);
-	return assembleAgentToolDefs(context, agent, activeSkill);
+	const [assigned, activeSkill] = await Promise.all([
+		context.services.stores.skill.listAgentSkills(agentId),
+		resolveActiveSkill(context, agentId, sessionId, text),
+	]);
+	const assembled = await assembleAgentToolDefs(context, agent, assigned);
+	return { ...assembled, activeSkillName: activeSkill?.name };
 }
 
 async function requireUserSession(
@@ -84,7 +90,11 @@ async function* streamUserTurn(
 		const remoteDefs = input.tools
 			? buildRemoteToolDefs(input.tools, context.services.pendingToolCallStore)
 			: [];
-		const toolDefs = await agentToolDefs(
+		const {
+			defs: toolDefs,
+			skills,
+			activeSkillName,
+		} = await agentToolDefs(
 			context,
 			session.agentId,
 			input.sessionId,
@@ -104,6 +114,8 @@ async function* streamUserTurn(
 				sessionId: input.sessionId,
 				text: input.text,
 				tools: allDefs.length > 0 ? allDefs : undefined,
+				skills: skills.length > 0 ? skills : undefined,
+				activeSkillName,
 				attachmentIds: input.attachmentIds,
 			}),
 			channel,

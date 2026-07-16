@@ -13,18 +13,15 @@ import type { MessageWithParts } from "./types";
 
 function formatSkillIndex(skills: SkillRow[]): string {
 	const lines = skills.map(
-		(skill) => `- /${skill.name} — ${skill.description ?? ""}`
+		(skill) => `- ${skill.name}: ${skill.description ?? ""}`
 	);
-	// IMPORTANT framing: skills are user-activated playbooks, NOT tools. The
-	// model must never emit a tool call named after a skill (there is no such
-	// tool — it would just error). When a skill fits, either it is already
-	// active (its instructions appear under "Active skill" below) or the model
-	// should suggest the user type its /command to activate it.
+	// Discovery layer (progressive disclosure): the model loads a skill's full
+	// playbook + tools on demand by calling the `skill` tool — it does NOT call
+	// the skill by name as a tool. The user can also activate one via /name.
 	return [
 		"## Available skills",
-		"These are playbooks the USER activates by typing the /command below.",
-		"They are NOT tools or functions — never call a skill as a tool. If one",
-		"fits and isn't already active, tell the user to type its /command.",
+		"Load one with the `skill` tool — skill({ name }) — to get its full",
+		"playbook and tools. (The user can also activate one by typing /name.)",
 		...lines,
 	].join("\n");
 }

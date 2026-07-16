@@ -12,6 +12,7 @@ import {
 	buildOpenConnectorToolDefs,
 	type OpenConnectorService,
 } from "@better-agent/agent/tool/openconnector-tools";
+import type { SkillActivation } from "@better-agent/agent/tool/tool-skill";
 import type { ToolDef } from "@better-agent/agent/tool/types";
 import { log } from "evlog";
 import type { Context } from "../context";
@@ -135,9 +136,35 @@ function dedupeByName(defs: ToolDef[]): ToolDef[] {
 	return [...byName.values()];
 }
 
-// An agent's tools: every authenticated toolkit of each linked composio account,
-// each linked MCP server's tools, plus its enabled built-in tools — plus, when
-// `activeSkill` is passed (Skills T3), that skill's own tools folded in.
+// One assigned skill resolved for on-demand loading via the `skill` tool: its
+// playbook + the names of every tool it can use. A built-in finance skill
+// brings no tools of its own — its allowedTools name the agent's OWN (deferred)
+// finance-mcp tools, which the `skill` tool simply reveals. A user skill may
+// also bring its own builtin/MCP tools, registered (deferred) below so they
+// exist to reveal.
+async function resolveSkillActivation(
+	context: Context,
+	skill: SkillRow
+): Promise<{ activation: SkillActivation; ownDefs: ToolDef[] }> {
+	const ownDefs = await assembleSkillToolDefs(context, skill);
+	const toolNames = [
+		...new Set([...(skill.allowedTools ?? []), ...ownDefs.map((d) => d.name)]),
+	];
+	return {
+		activation: {
+			name: skill.name,
+			description: skill.description ?? "",
+			instructions: skill.instructions ?? "",
+			toolNames,
+		},
+		ownDefs,
+	};
+}
+
+// An agent's tools + skills. Base tools = every authenticated composio toolkit,
+// each MCP server's tools, and enabled builtins. Assigned skills are loadable
+// on demand via the `skill` tool (runtime), so their own tools are registered
+// deferred here and their activation metadata returned alongside the defs.
 export async function assembleAgentToolDefs(
 	context: Context,
 	agent: {
@@ -147,8 +174,8 @@ export async function assembleAgentToolDefs(
 		mcpServerIds: string[];
 		toolAllowlist?: string[] | null;
 	},
-	activeSkill?: SkillRow | null
-): Promise<ToolDef[]> {
+	skills: SkillRow[] = []
+): Promise<{ defs: ToolDef[]; skills: SkillActivation[] }> {
 	const perAccount = await Promise.all(
 		(agent.composioAccountIds ?? []).map(async (accountId) => {
 			const service = await context.services.composio(accountId);
@@ -173,9 +200,16 @@ export async function assembleAgentToolDefs(
 		),
 		...buildBuiltinToolDefs(agent.builtinTools ?? []),
 	];
-	if (!activeSkill) {
-		return baseDefs;
-	}
-	const skillDefs = await assembleSkillToolDefs(context, activeSkill);
-	return dedupeByName([...baseDefs, ...skillDefs]);
+	const resolved = await Promise.all(
+		skills.map((skill) => resolveSkillActivation(context, skill))
+	);
+	const skillDefs = resolved
+		.flatMap((r) => r.ownDefs)
+		.map((def) => ({ ...def, defer: true }));
+	// Base LAST so the agent's own copy of a tool (e.g. a visible builtin) wins
+	// over a skill re-declaring the same name as deferred — dedupe keeps last.
+	return {
+		defs: dedupeByName([...skillDefs, ...baseDefs]),
+		skills: resolved.map((r) => r.activation),
+	};
 }

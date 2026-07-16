@@ -112,12 +112,13 @@ async function skillTurnPrompt(
 	return extractSystemPrompt(messages);
 }
 
-it("injects the skill index when the agent has assigned skills", async () => {
+it("injects the skill index (discovery) when the agent has assigned skills", async () => {
 	const skill = fakeSkill({ name: "deploy", description: "Ship a release" });
 	const prompt = await skillTurnPrompt(["hi"], [skill]);
 	expect(prompt).toContain("## Available skills");
 	expect(prompt).toContain("deploy: Ship a release");
-	expect(prompt).toContain("/deploy");
+	// Discovery points at the `skill` tool, not "call the skill by name".
+	expect(prompt).toContain("skill` tool");
 	expect(prompt).not.toContain("Active skill");
 });
 
