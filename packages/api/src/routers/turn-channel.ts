@@ -14,11 +14,15 @@ export interface TurnChannel {
 export function createTurnChannel(): TurnChannel {
 	const buffer: RunEvent[] = [];
 	let closed = false;
-	let wake: (() => void) | null = null;
+	// Multiple concurrent observers (the original SSE response AND any client
+	// that reconnected via the observe endpoint) each keep their own cursor and
+	// their own wake callback, so a reconnect never starves the original.
+	const waiters = new Set<() => void>();
 	const notify = () => {
-		const resume = wake;
-		wake = null;
-		resume?.();
+		for (const resume of waiters) {
+			resume();
+		}
+		waiters.clear();
 	};
 	return {
 		push(event) {
@@ -32,6 +36,8 @@ export function createTurnChannel(): TurnChannel {
 			notify();
 		},
 		async *observe() {
+			// Replay from the start so a late/reconnecting observer reconstructs
+			// the whole turn (message-start + every delta so far), then tails live.
 			let index = 0;
 			while (true) {
 				const next = buffer[index];
@@ -44,9 +50,32 @@ export function createTurnChannel(): TurnChannel {
 					return;
 				}
 				await new Promise<void>((resolve) => {
-					wake = resolve;
+					waiters.add(resolve);
 				});
 			}
+		},
+	};
+}
+
+/** Tracks the live TurnChannel for each running session so a reconnecting
+ * client can re-attach to the in-flight turn's event stream instead of polling.
+ * Single-instance / in-memory (see [[server-runs-in-docker]]): register on turn
+ * start, unregister when the pump completes. */
+export interface TurnChannelRegistry {
+	get(sessionId: string): TurnChannel | undefined;
+	register(sessionId: string, channel: TurnChannel): void;
+	unregister(sessionId: string): void;
+}
+
+export function createTurnChannelRegistry(): TurnChannelRegistry {
+	const active = new Map<string, TurnChannel>();
+	return {
+		get: (sessionId) => active.get(sessionId),
+		register(sessionId, channel) {
+			active.set(sessionId, channel);
+		},
+		unregister(sessionId) {
+			active.delete(sessionId);
 		},
 	};
 }

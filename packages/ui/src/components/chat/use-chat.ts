@@ -1,14 +1,10 @@
 import type { AgentClient } from "@jacksonw111/agent-client";
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 import type { AttachmentRef, ChatBlock, ChatMessage } from "./chat-blocks";
 import { toChatMessage } from "./chat-blocks";
-import {
-	isObserving,
-	observePollInterval,
-	type StallRef,
-} from "./chat-observe";
+import { hasRunningTurn, useObserveTurn } from "./chat-observe";
 import { type ChatSessionStore, chatSession } from "./chat-session-store";
 import { streamPrompt } from "./chat-stream";
 
@@ -139,23 +135,29 @@ export function useChat(sessionId: string, agentClient: AgentClient) {
 		store.getSnapshot,
 		store.getSnapshot
 	);
-	const stallRef: StallRef = useRef(null);
 	// Server history seeds the view ONLY on cold start (refresh): before the user
 	// has interacted this session (no committed turns, no draft). Once they do,
-	// the query freezes at its seed value and committed/draft own everything —
-	// no mid-session refetch, so the completed-turn handoff simply doesn't exist.
+	// the query freezes at its seed value and committed/draft own everything.
 	const seedPhase = committed.length === 0 && draft.length === 0;
 	const history = useQuery({
 		queryKey: messagesKey(sessionId),
 		queryFn: () => agentClient.listMessages(sessionId),
 		enabled: sessionId !== "" && seedPhase,
-		// On a cold start where the trailing turn is still streaming server-side,
-		// poll until it lands so a refresh mid-turn keeps updating.
-		refetchInterval: (query) => observePollInterval(query.state.data, stallRef),
 	});
-	const observing = seedPhase && isObserving(history.data, stallRef);
-
 	const seedRows = history.data ?? [];
+	// If the seeded history's trailing turn is still streaming server-side,
+	// re-attach to its live event stream and refetch on progress + completion —
+	// no interval polling, and it settles the instant the turn ends.
+	const running = seedPhase && hasRunningTurn(seedRows);
+	const observing = useObserveTurn(
+		agentClient.observe,
+		sessionId,
+		running,
+		() => {
+			history.refetch();
+		}
+	);
+
 	const messages: ChatMessage[] = [
 		...seedRows.map(toChatMessage),
 		...committed,
@@ -167,7 +169,8 @@ export function useChat(sessionId: string, agentClient: AgentClient) {
 
 	const stop = () => stopSession(store, sessionId, agentClient);
 
-	// `streaming` also covers observing a detached server-side turn on cold start,
-	// so the composer stays disabled and Stop stays available after a reload.
-	return { messages, streaming: streaming || observing, send, stop };
+	// `streaming` also covers a detached server-side turn observed on cold start
+	// (running from the seeded history, observing from the live stream), so the
+	// composer stays disabled and Stop stays available after a reload.
+	return { messages, streaming: streaming || running || observing, send, stop };
 }

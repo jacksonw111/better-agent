@@ -15,10 +15,19 @@ import { authorizedUserProcedure } from "../index";
 import { assembleAgentToolDefs } from "./agent-tool-defs";
 import { drain, errorMessage, promptInput } from "./sessions";
 import { resolveActiveSkill } from "./skill-activation";
-import { createTurnChannel, pumpTurn } from "./turn-channel";
+import {
+	createTurnChannel,
+	createTurnChannelRegistry,
+	pumpTurn,
+} from "./turn-channel";
 
 const idInput = z.object({ id: z.uuid() });
 const sessionIdInput = z.object({ sessionId: z.uuid() });
+
+// In-memory, single-instance registry of live turns (see [[server-runs-in-docker]]).
+// `prompt` registers its channel here so a reconnecting client can re-attach to
+// the running turn via `observe` instead of polling listMessages.
+const turnChannels = createTurnChannelRegistry();
 
 // Skills T3: folds the turn's ACTIVE skill (derived from the `/skill-name`
 // directive in the conversation, see skill-activation.ts) into the assembled
@@ -87,6 +96,9 @@ async function* streamUserTurn(
 		// NOT passed to the runtime — a client disconnect must not kill the turn.
 		// Stop goes through the cancel endpoint (cancellation registry) instead.
 		const channel = createTurnChannel();
+		// Register for the turn's lifetime so a reconnecting client can re-attach
+		// via observe; unregister once the pump (and thus the turn) finishes.
+		turnChannels.register(input.sessionId, channel);
 		const pump = pumpTurn(
 			context.services.runtime.runTurn({
 				sessionId: input.sessionId,
@@ -96,12 +108,29 @@ async function* streamUserTurn(
 			}),
 			channel,
 			(error) => ({ type: "error", message: errorMessage(error) })
-		);
+		).finally(() => turnChannels.unregister(input.sessionId));
 		context.waitUntil?.(pump);
 		yield* channel.observe();
 	} catch (error) {
 		yield { type: "error", message: errorMessage(error) };
 	}
+}
+
+// Re-attach to a session's in-flight turn: replays the running turn's events
+// (message-start + everything so far) then tails live, so a reconnecting client
+// renders the turn without polling. Yields nothing if no turn is running (the
+// client then just shows the persisted history from listMessages).
+async function* observeUserTurn(
+	context: Context,
+	userId: string,
+	sessionId: string
+): AsyncGenerator<RunEvent, void> {
+	await requireUserSession(context, userId, sessionId);
+	const channel = turnChannels.get(sessionId);
+	if (!channel) {
+		return;
+	}
+	yield* channel.observe();
 }
 
 export const userSessionsRouter = {
@@ -189,6 +218,12 @@ export const userSessionsRouter = {
 		.input(promptInput)
 		.handler(({ input, context }) =>
 			streamUserTurn(context, context.authedUser.id, input)
+		),
+
+	observe: authorizedUserProcedure
+		.input(sessionIdInput)
+		.handler(({ input, context }) =>
+			observeUserTurn(context, context.authedUser.id, input.sessionId)
 		),
 
 	cancel: authorizedUserProcedure

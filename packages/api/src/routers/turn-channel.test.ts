@@ -1,6 +1,10 @@
 import type { RunEvent } from "@better-agent/agent/session/events";
 import { expect, it } from "vitest";
-import { createTurnChannel, pumpTurn } from "./turn-channel";
+import {
+	createTurnChannel,
+	createTurnChannelRegistry,
+	pumpTurn,
+} from "./turn-channel";
 
 const errorEvent = (error: unknown): RunEvent => ({
 	type: "error",
@@ -43,6 +47,33 @@ it("a late observer still sees the full buffered event log", async () => {
 		seen.push(event.type);
 	}
 	expect(seen).toEqual(["text-delta", "text-delta", "done"]);
+});
+
+it("two concurrent observers each see every event (reconnect must not starve the original)", async () => {
+	const channel = createTurnChannel();
+	const a: string[] = [];
+	const b: string[] = [];
+	// Both observers attach BEFORE the turn runs, then consume concurrently.
+	const drainInto = async (sink: string[]) => {
+		for await (const event of channel.observe()) {
+			sink.push(event.type);
+		}
+	};
+	const observers = Promise.all([drainInto(a), drainInto(b)]);
+	await pumpTurn(makeTurn([]), channel, errorEvent);
+	await observers;
+	expect(a).toEqual(["text-delta", "text-delta", "done"]);
+	expect(b).toEqual(a);
+});
+
+it("registry tracks a live channel by session id and clears it on unregister", () => {
+	const registry = createTurnChannelRegistry();
+	const channel = createTurnChannel();
+	expect(registry.get("s1")).toBeUndefined();
+	registry.register("s1", channel);
+	expect(registry.get("s1")).toBe(channel);
+	registry.unregister("s1");
+	expect(registry.get("s1")).toBeUndefined();
 });
 
 it("a thrown turn surfaces as an error event and still closes the channel", async () => {

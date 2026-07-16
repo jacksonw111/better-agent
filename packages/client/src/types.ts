@@ -66,6 +66,11 @@ export interface AgentClient {
 	getAttachment(id: string): Promise<Blob>;
 	/** Replay a session's full message history with parts. */
 	listMessages(sessionId: string): Promise<MessageHistory>;
+	/** Re-attach to a session's in-flight turn: replays the running turn's
+	 * events then tails live, ending immediately when the turn finishes (or at
+	 * once if none is running). Lets a reconnecting client follow a turn without
+	 * polling. Optional — only the user-session plane implements it. */
+	observe?(sessionId: string): AsyncGenerator<RunEvent>;
 	/** Run one turn, returning the final assistant message (auto-creates a session if omitted). */
 	run(text: string, options?: RunOptions): Promise<RunResult>;
 	/** Run one turn, streaming run events (auto-creates a session if omitted). */

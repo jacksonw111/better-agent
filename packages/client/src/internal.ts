@@ -197,6 +197,10 @@ export function createUserSessionClientFrom(
 		listMessages(sessionId) {
 			return client.userSessions.listMessages({ sessionId });
 		},
+		async *observe(sessionId) {
+			// The oRPC streaming call resolves to the event iterable (like prompt).
+			yield* await client.userSessions.observe({ sessionId });
+		},
 
 		...attachmentMethods(client.userSessions),
 
