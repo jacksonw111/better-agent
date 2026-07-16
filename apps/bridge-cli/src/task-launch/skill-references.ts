@@ -1,7 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { parseSkillFrontmatter } from "../detect-inventory";
+import type { AgentKind } from "../adapters/types";
+import {
+	parseSkillFrontmatter,
+	runtimeSkillCapability,
+} from "../detect-inventory";
 
 // S25-T1 (design D6, master spec §6.6/§10.2): client-side Skill Reference
 // resolution — the single interface the Task Start Context assembly calls.
@@ -104,4 +108,22 @@ export async function resolveSkillReferences(
 		SKILL_REFERENCE,
 		(token, name: string) => bodies.get(name) ?? token
 	);
+}
+
+/**
+ * D6/§10.2: the per-runtime resolver the start-context assembly gets. Skill
+ * References only resolve for a runtime whose skill inventory capability is
+ * `discoverable` (see `runtimeSkillCapability` — claude-code today); every
+ * capability-`none` runtime gets the identity resolver, so a `/text` token in
+ * the Description reaches it verbatim — the platform never fakes an expansion
+ * for a runtime that has no skill inventory (§6.6).
+ */
+export function skillResolverForAgent(
+	agentKind: AgentKind,
+	deps: SkillReferenceDeps
+): (description: string) => Promise<string> {
+	if (runtimeSkillCapability(agentKind) !== "discoverable") {
+		return (description) => Promise.resolve(description);
+	}
+	return (description) => resolveSkillReferences(description, deps);
 }

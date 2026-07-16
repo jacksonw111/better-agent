@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
 	ComputerRuntimeInventoryItem,
+	ComputerSkillCapability,
 	ManagedToolInventoryItem,
 	ManagedToolName,
 	SkillSummary,
@@ -111,11 +112,22 @@ async function readClaudeSkills(
 	return skills;
 }
 
+/** The single source of truth for which runtime has a local skill inventory
+ * (D2/D6): claude-code discovers `~/.claude/skills`; every other v1 runtime
+ * reports `none`. Shared with task-launch's Skill Reference resolution seam
+ * (skill-references.ts) so the capability the server sees and the client-side
+ * expansion decision can never disagree. */
+export function runtimeSkillCapability(
+	agentKind: AgentKind
+): ComputerSkillCapability {
+	return agentKind === "claude-code" ? "discoverable" : "none";
+}
+
 async function toRuntimeItem(
 	agentKind: AgentKind,
 	deps: DetectInventoryDeps
 ): Promise<ComputerRuntimeInventoryItem> {
-	if (agentKind === "claude-code") {
+	if (runtimeSkillCapability(agentKind) === "discoverable") {
 		return {
 			agentKind,
 			skillCapability: "discoverable",

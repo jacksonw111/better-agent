@@ -9,7 +9,7 @@ import { prepareRepositoryRunWorkspace } from "./repo-workspace";
 import { createRunSessionSupplier } from "./run-session";
 import {
 	defaultSkillReferenceDeps,
-	resolveSkillReferences,
+	skillResolverForAgent,
 } from "./skill-references";
 import { prepareRunWorkspace } from "./standalone-workspace";
 import { buildTaskStartContext } from "./start-context";
@@ -38,11 +38,10 @@ async function buildStartContext(
 	workspacePath: string
 ): Promise<string> {
 	const { toolInventory } = await detectComputerInventory();
-	const resolve =
-		command.agentKind === "claude-code"
-			? (description: string) =>
-					resolveSkillReferences(description, defaultSkillReferenceDeps())
-			: (description: string) => Promise.resolve(description);
+	const resolve = skillResolverForAgent(
+		command.agentKind,
+		defaultSkillReferenceDeps()
+	);
 	return buildTaskStartContext(
 		{
 			description: command.description,
