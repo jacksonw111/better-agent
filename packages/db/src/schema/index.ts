@@ -5,6 +5,7 @@ export * from "./attachments";
 export * from "./auth";
 export * from "./bridge";
 export * from "./composio";
+export * from "./computers";
 export * from "./mcp";
 export * from "./memory";
 export * from "./openconnector";
