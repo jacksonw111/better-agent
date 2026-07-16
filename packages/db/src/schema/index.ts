@@ -14,5 +14,6 @@ export * from "./push";
 export * from "./sessions";
 export * from "./settings";
 export * from "./skills";
+export * from "./tasks";
 export * from "./usage";
 export * from "./web-authz";

@@ -74,6 +74,14 @@ export const bridgeSessions = pgTable(
 		// `session_ready` event arrives, and never set at all for adapters that
 		// don't report one.
 		agentSessionId: text("agent_session_id"),
+		// S2-T1: back-reference to the Run this session relays for, set when the
+		// client binds the launched runtime to its pre-issued session credential
+		// (D4). Nullable: legacy sessions and token-based sessions have no Run.
+		// Deliberately NOT a foreign key: runs.session_id already references
+		// this table, and declaring both FKs makes bridge.ts and tasks.ts
+		// circularly import each other (TS7022 implicit-any on both tables).
+		// runs.session_id carries the authoritative, FK-enforced binding.
+		runId: uuid("run_id"),
 		// The VNC WebSocket endpoint the browser noVNC viewer connects through
 		// for a cua/computer-use session. Nullable: only set for sessions that
 		// boot a Cua VM; null for every other local-agent run.

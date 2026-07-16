@@ -6,6 +6,7 @@
   "exports": {
     "./ports": "./src/ports.ts",
     "./computer-ports": "./src/computer-ports.ts",
+    "./task-ports": "./src/task/task-ports.ts",
     "./agent/*": "./src/agent/*.ts",
     "./session/*": "./src/session/*.ts",
     "./provider/*": "./src/provider/*.ts",
