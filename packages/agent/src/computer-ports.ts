@@ -42,6 +42,14 @@ export interface ManagedToolInventoryItem {
 	name: ManagedToolName;
 }
 
+/** A queued control-channel command a Computer picks up via the heartbeat
+ * fallback path (D4). Slice 1 always returns an empty list; Slice 2 fills it
+ * with launch commands awaiting ack. */
+export interface ComputerPendingCommand {
+	kind: "launch";
+	runId: string;
+}
+
 /** What the client sends when a Computer registers (first pair or a
  * re-register of the same identity, which only refreshes attributes). */
 export interface ComputerRegistrationInput {

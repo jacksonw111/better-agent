@@ -147,6 +147,58 @@ it("authedBridgeToken is null for a revoked token", async () => {
 	expect(ctx.authedBridgeToken).toBeNull();
 });
 
+// S1-T2: raw x-ba-* computer-auth headers are extracted into context; the
+// signature itself is only verified later by computerProcedure.
+
+function fakeHonoWithHeaders(headers: Record<string, string>) {
+	return {
+		req: {
+			header: (name: string) => headers[name.toLowerCase()],
+			query: () => undefined,
+		},
+	} as never;
+}
+
+const COMPUTER_TIMESTAMP_MS = 1_752_600_000_000;
+
+const COMPUTER_HEADERS = {
+	"x-ba-computer-id": "computer-1",
+	"x-ba-timestamp": String(COMPUTER_TIMESTAMP_MS),
+	"x-ba-signature": "c2ln",
+};
+
+it("extracts computerAuth from the x-ba-* headers", async () => {
+	const ctx = await createContext({
+		context: fakeHonoWithHeaders(COMPUTER_HEADERS),
+		services: {} as unknown as AgentServices,
+	});
+	expect(ctx.computerAuth).toEqual({
+		computerId: "computer-1",
+		signature: "c2ln",
+		timestampMs: COMPUTER_TIMESTAMP_MS,
+	});
+});
+
+it("computerAuth is null when a header is missing or the timestamp is not an integer", async () => {
+	const services = {} as unknown as AgentServices;
+	const missing = await createContext({
+		context: fakeHonoWithHeaders({
+			"x-ba-computer-id": "computer-1",
+			"x-ba-timestamp": String(COMPUTER_TIMESTAMP_MS),
+		}),
+		services,
+	});
+	expect(missing.computerAuth).toBeNull();
+	const garbled = await createContext({
+		context: fakeHonoWithHeaders({
+			...COMPUTER_HEADERS,
+			"x-ba-timestamp": "not-a-number",
+		}),
+		services,
+	});
+	expect(garbled.computerAuth).toBeNull();
+});
+
 it("authedBridgeToken is null for an unknown bt_ token", async () => {
 	const services = {
 		stores: { bridgeToken: { findByHash: () => Promise.resolve(null) } },

@@ -8,6 +8,7 @@ import { agentsRouter } from "./agents";
 import { authRouter } from "./auth";
 import { bridgeRouter } from "./bridge";
 import { composioRouter } from "./composio";
+import { computersRouter } from "./computers";
 import { inviteRouter } from "./invite";
 import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
@@ -27,6 +28,7 @@ export const appRouter = {
 	admin: adminRouter,
 	bridge: bridgeRouter,
 	composio: composioRouter,
+	computers: computersRouter,
 	invite: inviteRouter,
 	mcp: mcpRouter,
 	memory: memoryRouter,

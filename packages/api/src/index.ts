@@ -1,4 +1,5 @@
 import { isAdminEmail } from "@better-agent/agent/auth/admin";
+import { verifyComputerRequest } from "@better-agent/agent/crypto/computer-signature";
 import { ORPCError, os } from "@orpc/server";
 
 import type { Context } from "./context";
@@ -27,6 +28,50 @@ export const bridgeProcedure = o.use(({ context, next }) => {
 		});
 	}
 	return next({ context: { authedBridgeToken: bridgeToken } });
+});
+
+// Computer-plane auth (S1-T2, design D1): a client-mode CLI signs every
+// request — Ed25519 over `${computerId}.${timestamp}` in the x-ba-* headers —
+// verified against the Computer's stored public key, then the replay guard
+// enforces the freshness window and strictly increasing per-computer
+// timestamps. Every failure is the same UNAUTHORIZED (no oracle for
+// attackers), and the guard only runs AFTER signature verification so bogus
+// requests can never advance a computer's monotonic floor.
+function computerUnauthorized(): ORPCError<"UNAUTHORIZED", unknown> {
+	return new ORPCError("UNAUTHORIZED", {
+		message: "Computer authentication failed",
+	});
+}
+
+export const computerProcedure = o.use(async ({ context, next }) => {
+	const auth = context.computerAuth;
+	if (!auth) {
+		throw computerUnauthorized();
+	}
+	const computer = await context.services.stores.computer.getById(
+		auth.computerId
+	);
+	if (!computer) {
+		throw computerUnauthorized();
+	}
+	const validSignature = verifyComputerRequest(
+		computer.publicKeyPem,
+		auth.computerId,
+		auth.timestampMs,
+		auth.signature
+	);
+	if (!validSignature) {
+		throw computerUnauthorized();
+	}
+	const replay = context.services.computerReplayGuard.check(
+		auth.computerId,
+		auth.timestampMs,
+		Date.now()
+	);
+	if (replay !== "ok") {
+		throw computerUnauthorized();
+	}
+	return next({ context: { computer } });
 });
 
 // Context resolves the user from the DB on every request, so this rejects

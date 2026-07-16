@@ -15,6 +15,34 @@ export interface AuthedBridgeToken {
 	userId: string;
 }
 
+/** Raw x-ba-* computer-auth headers (S1-T2). Extraction only — the Ed25519
+ * signature is verified later by computerProcedure, which has store access. */
+export interface ComputerAuthHeaders {
+	computerId: string;
+	signature: string;
+	timestampMs: number;
+}
+
+const COMPUTER_ID_HEADER = "x-ba-computer-id";
+const COMPUTER_TIMESTAMP_HEADER = "x-ba-timestamp";
+const COMPUTER_SIGNATURE_HEADER = "x-ba-signature";
+
+function extractComputerAuth(
+	options: CreateContextOptions
+): ComputerAuthHeaders | null {
+	const computerId = options.context.req.header(COMPUTER_ID_HEADER);
+	const timestamp = options.context.req.header(COMPUTER_TIMESTAMP_HEADER);
+	const signature = options.context.req.header(COMPUTER_SIGNATURE_HEADER);
+	if (!(computerId && timestamp && signature)) {
+		return null;
+	}
+	const timestampMs = Number(timestamp);
+	if (!(Number.isSafeInteger(timestampMs) && timestampMs > 0)) {
+		return null;
+	}
+	return { computerId, signature, timestampMs };
+}
+
 const BEARER_PREFIX = "Bearer ";
 // A JWT is three dot-separated segments (header.payload.signature); agent
 // tokens are `ba_<base64url>` and never contain a dot; bridge tokens are
@@ -148,17 +176,21 @@ export async function createContext(options: CreateContextOptions) {
 		services: options.services,
 		...auth,
 		clientIp: clientIp(options),
+		computerAuth: extractComputerAuth(options),
 		userAgent: userAgent(options),
 		waitUntil: extractWaitUntil(options),
 	};
 }
 
-// `authedBridgeToken` is marked optional here (even though createContext
-// always sets it) so that pre-existing Context object literals built by other
-// routers' tests — which predate the bridge plane and only set
-// authedAgent/authedUser — keep type-checking without every one of them
-// having to be touched.
+// `authedBridgeToken` and `computerAuth` are marked optional here (even
+// though createContext always sets them) so that pre-existing Context object
+// literals built by other routers' tests — which predate the bridge/computer
+// planes and only set authedAgent/authedUser — keep type-checking without
+// every one of them having to be touched.
 export type Context = Omit<
 	Awaited<ReturnType<typeof createContext>>,
-	"authedBridgeToken"
-> & { authedBridgeToken?: AuthedBridgeToken | null };
+	"authedBridgeToken" | "computerAuth"
+> & {
+	authedBridgeToken?: AuthedBridgeToken | null;
+	computerAuth?: ComputerAuthHeaders | null;
+};

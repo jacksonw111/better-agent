@@ -1,7 +1,9 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import type { BridgeUsageStore } from "@better-agent/agent/bridge/usage-ports";
+import type { ComputerStore } from "@better-agent/agent/computer-ports";
 import type { TokenService } from "@better-agent/agent/crypto/agent-token";
+import type { ComputerReplayGuard } from "@better-agent/agent/crypto/computer-signature";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type {
 	AgentStore,
@@ -64,6 +66,9 @@ export interface AgentServices {
 	 * relay command was appended for its session (see command-bus.ts). */
 	commandBus: CommandBus;
 	composio: (accountId: string) => Promise<ComposioService | null>;
+	/** In-memory anti-replay for computer-plane signatures (S1-T2, design D1):
+	 * per-computer strictly increasing timestamps within the auth window. */
+	computerReplayGuard: ComputerReplayGuard;
 	emailSender: EmailSender;
 	/** Memory embeddings via Workers AI (decision D1); null when CF creds unset. */
 	embeddingClient: EmbeddingClient | null;
@@ -104,6 +109,7 @@ export interface AgentServices {
 		bridgeSession: BridgeSessionStore;
 		bridgeMessage: BridgeMessageStore;
 		bridgeUsage: BridgeUsageStore;
+		computer: ComputerStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
 		pushSubscription: PushSubscriptionStore;

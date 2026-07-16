@@ -1,4 +1,5 @@
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
+import { createReplayGuard } from "@better-agent/agent/crypto/computer-signature";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
@@ -13,6 +14,7 @@ import { createBridgeSessionStore } from "@better-agent/db/repositories/bridge-s
 import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-token-store";
 import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usage-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
+import { createComputerStore } from "@better-agent/db/repositories/computer-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item-store";
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
@@ -97,6 +99,7 @@ interface StoreParts {
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
+	computerStore: ReturnType<typeof createComputerStore>;
 	db: Db;
 	deps: ReturnType<typeof buildProviderDeps>;
 	embeddingClient: ReturnType<typeof buildEmbeddingClient>;
@@ -140,6 +143,7 @@ function buildStores(
 		bridgeSession: parts.bridgeSessionStore,
 		bridgeMessage: parts.bridgeMessageStore,
 		bridgeUsage: parts.bridgeUsageStore,
+		computer: parts.computerStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
 		pushSubscription: parts.pushSubscriptionStore,
@@ -190,6 +194,10 @@ function assembleServices(
 		// NOT persisted/shared across processes: a WS connection always lives on
 		// the same Node process as the CommandBus instance that can notify it.
 		commandBus: createCommandBus(),
+		// Computer-plane anti-replay (S1-T2, design D1). In-memory on purpose:
+		// signature timestamps must strictly increase per computer, and the
+		// single-instance Docker deployment means one process sees them all.
+		computerReplayGuard: createReplayGuard(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }
@@ -212,6 +220,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		bridgeSessionStore: createBridgeSessionStore(db),
 		bridgeMessageStore: createBridgeMessageStore(db),
 		bridgeUsageStore: createBridgeUsageStore(db),
+		computerStore: createComputerStore(db),
 	};
 }
 
