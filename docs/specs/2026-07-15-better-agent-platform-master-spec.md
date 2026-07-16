@@ -162,6 +162,8 @@ Server-side GitHub Connection 用于：
 - 获取 Issue 快照。
 - 后续读取 Pull Request、Review 和 CI 状态。
 
+第一版 Connection 形态：用户在 Integrations 页粘贴 GitHub fine-grained Personal Access Token，Server 加密存储。权限只需 Repository metadata 与 Issues 读取，Pull Request 读取随 Slice 5 增加。第一版不注册 GitHub App，也不做 OAuth 回调，两者都与个人使用加 Docker 自托管的形态不匹配。Connection 实体带 credential type 字段（如 `pat`），未来多用户阶段可替换为 GitHub App 而不改动 Task 侧。
+
 Computer 上的本地 `gh` 用于 Agent Runtime 的实际 GitHub 操作。Server 的 GitHub 凭据永远不能复制到 Computer，本地 `gh` 凭据也不能上传到 Server。
 
 ## 6. 核心领域模型
@@ -201,6 +203,8 @@ Skill Inventory 是选定 Runtime 在选定 Computer 上可用的 Skill 列表�
 
 它不是全局 Skill Marketplace，也不是自动注入列表。
 
+Skill 是 Runtime 能力握手的一部分。Runtime Adapter 上报 skill 能力（`none` 或 `discoverable`）；报 `none` 的 Runtime 在 Wizard 中完全隐藏 Skill 区块，不显示空列表，也不伪造统一体验。
+
 ### 6.5 Skill Palette
 
 Skill Palette 是用户在当前 New Task Wizard 中勾选的 Skill 子集。
@@ -238,6 +242,8 @@ Task 记录：
 - 一个或多个顺序 Run。
 
 第一版创建 Task 时立即创建并尝试启动第一个 Run。
+
+Task 具有显式 status 字段，并保留 `draft` 值。第一版 Wizard 保持原子 Start，不提供保存草稿入口；启动失败的 Task 停留在带失败 Run 的可重试状态。status 字段为未来的保存草稿和离线排队预留模型位置，届时无需迁移。
 
 ### 6.8 Task Name
 
@@ -330,6 +336,8 @@ Linked Issue 只有在已选 Repository 后才能添加，并且必须属于该 
 
 评论不进入初始上下文。如果最新讨论重要，Agent 使用本地 `gh` 获取。
 
+快照归属规则：Task Opening Message 属于 Task，创建时组装且不可变；Issue 快照属于 Run，每次 Run 启动时重新获取最新 title、body 和 URL。重试产生的新 Run 使用启动那一刻的最新快照，Issue 在两次 Run 之间被编辑时，新 Run 不会拿着过期需求工作。Run 记录上的快照同时说明该次执行时 Agent 看到的需求是什么。
+
 Wizard 允许添加多个 Linked Issue。对于代码交付，推荐一个独立可交付 Issue 对应一个 Task 和一个 Pull Request；额外 Linked Issue 默认是参考上下文，Better Agent 不擅自为它们生成关闭语义。
 
 ### 6.16 Repository Cache
@@ -341,6 +349,10 @@ Repository Cache 是每台 Computer 上由 Client 管理的可复用 Repository 
 - 每个 Task 重复 clone 同一 Repository。
 - Repository 未变化时重复下载相同依赖。
 - 多个 Task 共享一个有未提交修改的工作目录。
+
+实现定案：Cache 是每个 Repository identity 一个 bare clone；Task Workspace 通过 `git worktree add` 创建；Cache 的 fetch 和 sync 用文件锁串行化，避免并行 Task 同时同步同一 Repository。
+
+依赖复用推迟：pnpm、npm、cargo 等包管理器自带全局内容寻址缓存，新 Workspace 里的安装本来就能复用它们。Better Agent 第一版不自建依赖缓存与 environment setup version 失效机制，等出现真实痛点（例如需要长时间编译的 setup）再引入。
 
 ### 6.17 Task Workspace
 
@@ -375,6 +387,14 @@ Pairing 凭据：
 - 不等于 Runtime 登录。
 - 不等于 GitHub Connection。
 - 不携带 Server-side GitHub 凭据。
+
+Computer 稳定身份：
+
+- Pairing 时 Client 生成密钥对，私钥保存在本机配置目录，Server 保存公钥并签发 Computer ID。
+- 之后每次注册用私钥签名认证；同一身份文件即同一 Computer。
+- 配置目录整体迁移到另一台机器视为同一 Computer；注册时刷新 hostname 与操作系统属性。
+- 身份文件丢失或系统重装后重新 Pairing 即创建新 Computer，旧 Computer 由用户手动删除；不提供认领旧 Computer 的机制。
+- 同一台机器上用不同配置目录运行多个 Client，视为多台 Computer，不阻止也不特殊处理。
 
 ### 7.3 持续连接
 
@@ -496,7 +516,7 @@ Repository-backed Run：
 
 1. Client 查找 Repository Cache。
 2. Cache 不存在时 clone；存在时同步所需 refs。
-3. 根据 Repository 和环境准备版本判断依赖是否可复用。
+3. 依赖安装交给 Runtime 与包管理器自身的全局缓存；平台第一版不自建依赖复用层（见 6.16）。
 4. 创建独立 Task Workspace。
 5. 为开发 Task 准备独立 branch。
 
@@ -505,7 +525,7 @@ Stand-alone Run：
 1. 创建干净托管 Task 目录。
 2. 将该目录作为 Runtime 启动目录。
 
-依赖复用必须按 Repository 和相关 setup/environment version 失效。不能为了复用而让不同 Task 共用同一个可写工作目录。
+不能为了复用而让不同 Task 共用同一个可写工作目录。依赖缓存的复用与失效机制随 6.16 的推迟决定一并推迟。
 
 ### 9.3 Runtime 启动
 
@@ -553,6 +573,8 @@ Agent 实际收到的指令与可见 Opening Message 的差异只有必要的执
 - `/skill` 在它出现的位置解析为完整 Skill 指令或 Runtime-native Skill 激活形式。
 - 添加实际本地 Task Workspace 路径。
 - 添加已知工具事实。
+
+Skill 解析收敛到一个 Adapter 接口：给定引用和位置，返回替换文本。默认实现读取该 Skill 的 SKILL.md 内容并在引用位置 inline 展开，对所有 Runtime 成立；Runtime 原生激活形式（例如 Claude Code 保留 `/name` 让 Runtime 自行激活）是可选优化，不是前提。
 
 Agent Environment Context 可以表达：
 
@@ -693,7 +715,7 @@ Stand-alone Task 不需要 Repository、Issue 或 Project。
 - 输入 Name 和 Description。
 - GitHub Step 留空并 Start。
 
-Client 创建干净托管 Task 目录作为起始目录。Description 可以说明需要处理的目标资源。Runtime 是否能够访问资源、是否需要用户批准以及如何执行，由 Runtime 的原生能力决定。
+Client 创建干净托管 Task 目录作为起始目录。第一版不提供远程目录浏览或 Working Location 选择器；目标资源（例如 `~/Pictures`）由用户直接写在 Description 里。Runtime 是否能够访问资源、是否需要用户批准以及如何执行，由 Runtime 的原生能力决定。
 
 Better Agent 不把 Stand-alone Task 变成另一个特殊产品，也不为它建立单独的 Task 类型。
 
@@ -759,7 +781,7 @@ Better Agent 不声称 Task Workspace 限制 Runtime 只能访问该目录。
 - Runtime Start Failure：Run 失败并显示真实错误，不生成虚假聊天消息。
 - Control reconnect：按 Run ID 恢复或忽略重复 Launch。
 - Session reconnect：使用现有 cursor、idempotency 和 relay 恢复机制。
-- Retry：同一 Task 创建新的顺序 Run，而不是复制 Task 需求记录。
+- Retry：同一 Task 创建新的顺序 Run，而不是复制 Task 需求记录。新 Run 启动时重新获取 Linked Issue 快照（见 6.15）。
 
 ## 17. UI 信息架构
 
@@ -828,7 +850,7 @@ Conversation 首屏应让用户立即看懂：
 
 - 同一 Repository 不为每个 Task 重复完整 clone。
 - 每个 Task 获得独立可写 Workspace。
-- 依赖缓存按 Repository 和环境版本复用或失效。
+- 依赖复用交给包管理器全局缓存；平台第一版不自建依赖缓存层。
 - 一个 Workspace 同时只有一个写入 Run。
 
 ## 19. 测试策略
@@ -870,6 +892,7 @@ Conversation 首屏应让用户立即看懂：
 - 更换 Computer 清理无效 Runtime。
 - 只读 `git`/`gh` 展示。
 - Skill Palette 过滤和 `/` 插入。
+- Skill 能力为 `none` 的 Runtime 完全隐藏 Skill 区块。
 - Name/Description 必填。
 - Repository 可选。
 - 无 Repository 时 Issue disabled。
@@ -889,7 +912,7 @@ Conversation 首屏应让用户立即看懂：
 
 - 第二个相同 Repository Task 复用 Cache。
 - 每个 Task 仍获得独立 Workspace。
-- 环境 setup version 变化使相应准备缓存失效。
+- Cache 的 fetch/sync 有锁，并行 Task 不会同时同步同一 Repository。
 - 并行 Task 不共享未提交修改。
 
 ### 19.6 GitHub
@@ -923,6 +946,13 @@ Conversation 首屏应让用户立即看懂：
 - Computer-level Launch Command。
 - 幂等启动。
 - Run 生命周期。
+
+### Slice 2.5：Headless Task 启动链路
+
+- 通过 API 直接创建 Task 并触发 Run，无 Wizard。
+- 端到端打通 Launch 幂等 → Workspace 准备 → Runtime 启动 → session relay 绑定。
+- 19.2 的 Task Start 集成测试在此落地。
+- Wizard 作为纯 UI 层在 Slice 3 盖在这条链路之上。
 
 ### Slice 3：New Task Wizard 与 Stand-alone Task
 
