@@ -24,7 +24,7 @@
 ### D1. Computer 身份与认证（spec §7.2）
 - Client 首次 pairing 时用 `node:crypto` 生成 **Ed25519** 密钥对。私钥 PEM 存本机 `~/.better-agent/identity.json`（`{ computerId, privateKeyPem, serverUrl }`，mode 0600）；Server 存公钥并签发 `computerId`。
 - Pairing 流程：Web Computers 页 → "Pair new computer" → server 生成一次性 pairing code（`pc_` 前缀，sha256 入库，TTL 10 分钟，单次使用）→ 用户运行 `agent-cli --client --pair <code> --server <url>` → client 生成密钥对，调 `computers.pair { code, publicKeyPem, name, platform, arch, clientVersion }` → 返回 `{ computerId }` → 写 identity 文件。
-- 后续请求签名认证：headers `x-ba-computer-id`、`x-ba-timestamp`（ms epoch）、`x-ba-signature` = Ed25519 签名 over `${timestamp}.${sha256hex(bodyJson)}`。Server 校验：computer 存在、签名验证通过、|now − timestamp| ≤ 5 分钟。抽成 `computerProcedure` 中间件（对照现有 `bridgeProcedure`）。
+- 后续请求签名认证：headers `x-ba-computer-id`、`x-ba-timestamp`（ms epoch）、`x-ba-signature` = Ed25519 签名 over `${computerId}.${timestamp}`。Server 校验：computer 存在、签名验证通过、|now − timestamp| ≤ 5 分钟、且时间戳对该 computer 严格递增（in-memory map 防重放，Docker 单实例足够）。抽成 `computerProcedure` 中间件（对照现有 `bridgeProcedure`）。
 - 身份文件丢失 = 重新 pair = 新 Computer；不做认领。重复注册（同 computerId）只更新属性与 inventory。
 
 ### D2. Inventory（spec §6.1/§18.1）
