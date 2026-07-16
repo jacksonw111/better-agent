@@ -33,6 +33,10 @@ export type BridgeTokenRow = Awaited<
 	ReturnType<Client["bridge"]["listTokens"]>
 >[number];
 
+export type ComputerListItem = Awaited<
+	ReturnType<Client["computers"]["list"]>
+>[number];
+
 export type BridgeSessionRow = Awaited<
 	ReturnType<Client["bridge"]["listSessions"]>
 >["sessions"][number];

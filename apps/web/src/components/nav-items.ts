@@ -9,6 +9,7 @@ import { BookMarked, Bot, Gauge, Laptop, Plug, Wand2 } from "lucide-react";
 export const WEB_NAV_ITEMS = [
 	{ icon: Gauge, label: "Dashboard", to: "/dashboard" },
 	{ icon: Bot, label: "Agents", match: ["/chat"], to: "/agents" },
+	{ icon: Laptop, label: "Computers", to: "/computers" },
 	{ icon: Laptop, label: "Local Agents", to: "/local" },
 	{ icon: BookMarked, label: "Memories", to: "/memories" },
 	{ icon: Wand2, label: "Skills", to: "/skills" },
