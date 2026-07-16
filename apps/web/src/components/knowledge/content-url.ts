@@ -13,3 +13,14 @@ export function documentContentUrl(
 	const download = options?.download ? "&download=1" : "";
 	return `${env.VITE_SERVER_URL}/knowledge/${documentId}/content?access_token=${token}${download}`;
 }
+
+/** The raw-body chunk upload route (one multipart part). XHR posts here so
+ * upload.onprogress can drive a byte-level progress bar — fetch/oRPC can't
+ * report upload progress. */
+export function documentPartUrl(
+	documentId: string,
+	partNumber: number
+): string {
+	const token = encodeURIComponent(getAccessToken() ?? "");
+	return `${env.VITE_SERVER_URL}/knowledge/${documentId}/parts/${partNumber}?access_token=${token}`;
+}

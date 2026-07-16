@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { celebrateSuccess } from "@/utils/celebrate";
-import { client, orpc } from "@/utils/orpc";
+import { client, orpc, refreshAccessToken } from "@/utils/orpc";
+import { documentPartUrl } from "./content-url";
 
 // Resumable (断点续传) upload against the knowledgeBase router. The file is
 // sliced into the server-mandated fixed part size and sent chunk by chunk;
@@ -22,6 +23,56 @@ export interface UploadItem {
 	/** 0..1, counted in stored parts. */
 	progress: number;
 	status: "done" | "error" | "uploading";
+}
+
+const HTTP_UNAUTHORIZED = 401;
+const HTTP_OK_MAX = 299;
+
+/** POST one raw chunk via XMLHttpRequest — the only browser transport that
+ * reports UPLOAD progress (fetch can't), which is what keeps the bar moving
+ * smoothly instead of jumping per completed part. */
+function postChunk(
+	url: string,
+	chunk: Blob,
+	onFraction: (fraction: number) => void
+): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open("POST", url);
+		xhr.upload.onprogress = (event) => {
+			if (event.lengthComputable && event.total > 0) {
+				onFraction(event.loaded / event.total);
+			}
+		};
+		xhr.onload = () => resolve(xhr.status);
+		xhr.onerror = () => reject(new Error("Network error during upload"));
+		xhr.send(chunk);
+	});
+}
+
+/** One chunk with a single refresh-then-retry on 401 — long uploads can
+ * outlive the access token the part URLs embed. */
+async function uploadChunk(
+	documentId: string,
+	partNumber: number,
+	chunk: Blob,
+	onFraction: (fraction: number) => void
+): Promise<void> {
+	let status = await postChunk(
+		documentPartUrl(documentId, partNumber),
+		chunk,
+		onFraction
+	);
+	if (status === HTTP_UNAUTHORIZED && (await refreshAccessToken())) {
+		status = await postChunk(
+			documentPartUrl(documentId, partNumber),
+			chunk,
+			onFraction
+		);
+	}
+	if (status > HTTP_OK_MAX || status < 1) {
+		throw new Error(`Chunk upload failed (${status})`);
+	}
 }
 
 async function runUpload(
@@ -47,11 +98,9 @@ async function runUpload(
 			start,
 			Math.min(start + document.partSize, file.size)
 		);
-		await client.knowledgeBase.uploadPart({
-			documentId: document.id,
-			partNumber,
-			chunk: new File([chunk], file.name),
-		});
+		await uploadChunk(document.id, partNumber, chunk, (fraction) =>
+			onProgress((stored.size + fraction) / partCount)
+		);
 		stored.add(partNumber);
 		onProgress(stored.size / partCount);
 	}
