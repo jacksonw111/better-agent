@@ -3,6 +3,7 @@ import {
 	Bot,
 	Gauge,
 	Laptop,
+	Library,
 	ListTodo,
 	Plug,
 	Wand2,
@@ -22,6 +23,7 @@ export const WEB_NAV_ITEMS = [
 	{ icon: Gauge, label: "Dashboard", to: "/dashboard" },
 	{ icon: Bot, label: "Agents", match: ["/chat"], to: "/agents" },
 	{ icon: BookMarked, label: "Memories", to: "/memories" },
+	{ icon: Library, label: "Knowledge", to: "/knowledge" },
 	{ icon: Wand2, label: "Skills", to: "/skills" },
 	{ icon: Plug, label: "Integrations", to: "/integrations" },
 ] as const;

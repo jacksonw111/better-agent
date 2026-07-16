@@ -10,6 +10,7 @@ import type {
 	GithubClient,
 	GithubConnectionStore,
 } from "@better-agent/agent/github/github-ports";
+import type { KnowledgeStore } from "@better-agent/agent/knowledge-ports";
 import type {
 	AgentStore,
 	AttachmentStore,
@@ -129,6 +130,7 @@ export interface AgentServices {
 		bridgeUsage: BridgeUsageStore;
 		computer: ComputerStore;
 		githubConnection: GithubConnectionStore;
+		knowledge: KnowledgeStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
 		pushSubscription: PushSubscriptionStore;

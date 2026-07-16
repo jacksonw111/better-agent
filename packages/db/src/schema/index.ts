@@ -7,6 +7,7 @@ export * from "./bridge";
 export * from "./composio";
 export * from "./computers";
 export * from "./github";
+export * from "./knowledge";
 export * from "./mcp";
 export * from "./memory";
 export * from "./openconnector";

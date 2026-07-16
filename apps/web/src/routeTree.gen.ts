@@ -21,6 +21,7 @@ import { Route as SkillsIndexRouteImport } from './routes/skills.index'
 import { Route as MemoriesIndexRouteImport } from './routes/memories.index'
 import { Route as LocalIndexRouteImport } from './routes/local.index'
 import { Route as LocalAgentsIndexRouteImport } from './routes/local-agents.index'
+import { Route as KnowledgeIndexRouteImport } from './routes/knowledge.index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
 import { Route as ComputersIndexRouteImport } from './routes/computers.index'
 import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
@@ -94,6 +95,11 @@ const LocalIndexRoute = LocalIndexRouteImport.update({
 const LocalAgentsIndexRoute = LocalAgentsIndexRouteImport.update({
   id: '/local-agents/',
   path: '/local-agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KnowledgeIndexRoute = KnowledgeIndexRouteImport.update({
+  id: '/knowledge/',
+  path: '/knowledge/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IntegrationsIndexRoute = IntegrationsIndexRouteImport.update({
@@ -187,6 +193,7 @@ export interface FileRoutesByFullPath {
   '/bridge/': typeof BridgeIndexRoute
   '/computers/': typeof ComputersIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
+  '/knowledge/': typeof KnowledgeIndexRoute
   '/local-agents/': typeof LocalAgentsIndexRoute
   '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
@@ -215,6 +222,7 @@ export interface FileRoutesByTo {
   '/bridge': typeof BridgeIndexRoute
   '/computers': typeof ComputersIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
+  '/knowledge': typeof KnowledgeIndexRoute
   '/local-agents': typeof LocalAgentsIndexRoute
   '/local': typeof LocalIndexRoute
   '/memories': typeof MemoriesIndexRoute
@@ -244,6 +252,7 @@ export interface FileRoutesById {
   '/bridge/': typeof BridgeIndexRoute
   '/computers/': typeof ComputersIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
+  '/knowledge/': typeof KnowledgeIndexRoute
   '/local-agents/': typeof LocalAgentsIndexRoute
   '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
@@ -274,6 +283,7 @@ export interface FileRouteTypes {
     | '/bridge/'
     | '/computers/'
     | '/integrations/'
+    | '/knowledge/'
     | '/local-agents/'
     | '/local/'
     | '/memories/'
@@ -302,6 +312,7 @@ export interface FileRouteTypes {
     | '/bridge'
     | '/computers'
     | '/integrations'
+    | '/knowledge'
     | '/local-agents'
     | '/local'
     | '/memories'
@@ -330,6 +341,7 @@ export interface FileRouteTypes {
     | '/bridge/'
     | '/computers/'
     | '/integrations/'
+    | '/knowledge/'
     | '/local-agents/'
     | '/local/'
     | '/memories/'
@@ -359,6 +371,7 @@ export interface RootRouteChildren {
   BridgeIndexRoute: typeof BridgeIndexRoute
   ComputersIndexRoute: typeof ComputersIndexRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
+  KnowledgeIndexRoute: typeof KnowledgeIndexRoute
   LocalAgentsIndexRoute: typeof LocalAgentsIndexRoute
   LocalIndexRoute: typeof LocalIndexRoute
   MemoriesIndexRoute: typeof MemoriesIndexRoute
@@ -452,6 +465,13 @@ declare module '@tanstack/react-router' {
       path: '/local-agents'
       fullPath: '/local-agents/'
       preLoaderRoute: typeof LocalAgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/knowledge/': {
+      id: '/knowledge/'
+      path: '/knowledge'
+      fullPath: '/knowledge/'
+      preLoaderRoute: typeof KnowledgeIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/integrations/': {
@@ -575,6 +595,7 @@ const rootRouteChildren: RootRouteChildren = {
   BridgeIndexRoute: BridgeIndexRoute,
   ComputersIndexRoute: ComputersIndexRoute,
   IntegrationsIndexRoute: IntegrationsIndexRoute,
+  KnowledgeIndexRoute: KnowledgeIndexRoute,
   LocalAgentsIndexRoute: LocalAgentsIndexRoute,
   LocalIndexRoute: LocalIndexRoute,
   MemoriesIndexRoute: MemoriesIndexRoute,

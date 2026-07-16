@@ -11,6 +11,7 @@ it("orders the nav Tasks-first with Computers second and no Local Agents", () =>
 		"Dashboard",
 		"Agents",
 		"Memories",
+		"Knowledge",
 		"Skills",
 		"Integrations",
 	]);

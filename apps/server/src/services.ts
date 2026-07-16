@@ -4,9 +4,6 @@ import { createGithubClient } from "@better-agent/agent/github/github-client";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
-import { createModelSummarizer } from "@better-agent/agent/session/model-summarizer";
-import { createModelTitler } from "@better-agent/agent/session/model-titler";
-import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createCommandBus } from "@better-agent/api/bridge/command-bus";
 import { createComputerControlChannel } from "@better-agent/api/computers/control-channel";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
@@ -18,6 +15,7 @@ import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usa
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
 import { createComputerStore } from "@better-agent/db/repositories/computer-store";
 import { createGithubConnectionStore } from "@better-agent/db/repositories/github-connection-store";
+import { createKnowledgeDocumentStore } from "@better-agent/db/repositories/knowledge-document-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item-store";
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
@@ -33,10 +31,11 @@ import { createUsageRecordStore } from "@better-agent/db/repositories/usage-reco
 import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
 import { env } from "@better-agent/env/server";
-import { createAttachmentStore, type R2Bucket } from "./attachment-store";
+import { createAttachmentStore } from "./attachment-store";
 import { buildAuthServices } from "./auth-services";
 import { buildAuthzClient, type ServiceBinding } from "./authz-client";
 import { buildEmbeddingClient } from "./embedding-client";
+import { createKnowledgeStore, type MultipartBucket } from "./knowledge-store";
 import { buildMcpResolver } from "./mcp";
 import {
 	buildComposioAccountResolver,
@@ -50,49 +49,10 @@ import {
 	buildProviderDeps,
 	buildRateLimiter,
 	buildRelayStore,
-	buildSessionLock,
 	type Db,
 	getSecretBox,
 } from "./services-infra";
-
-function buildRuntime(parts: {
-	attachmentStore: ReturnType<typeof createAttachmentStore>;
-	cancellation: CancellationRegistry;
-	deps: ReturnType<typeof buildProviderDeps>;
-	embeddingClient: ReturnType<typeof buildEmbeddingClient>;
-	memoryItemStore: ReturnType<typeof createMemoryItemStore>;
-	memoryStore: ReturnType<typeof createMemoryStore>;
-	messageStore: ReturnType<typeof createMessageStore>;
-	sessionStore: ReturnType<typeof createSessionStore>;
-	skillStore: ReturnType<typeof createSkillStore>;
-	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
-}) {
-	const { deps } = parts;
-	return createSessionRuntime({
-		sessionStore: parts.sessionStore,
-		messageStore: parts.messageStore,
-		attachmentStore: parts.attachmentStore,
-		agentStore: deps.agentStore,
-		modelFactory: deps.modelFactory,
-		sessionLock: buildSessionLock(),
-		modelCacheStore: deps.modelCache,
-		providerCatalogStore: deps.providerCatalog,
-		summarizer: createModelSummarizer(deps.modelFactory),
-		titler: createModelTitler(deps.modelFactory),
-		cancellation: parts.cancellation,
-		usageRecordStore: parts.usageRecordStore,
-		// B1 retrieval injection (see packages/agent/src/session/memory-retrieval.ts):
-		// each turn kNN-searches the agent's assigned memories against the latest
-		// user message and injects the top-k into the system prompt.
-		memoryStore: parts.memoryStore,
-		memoryItemStore: parts.memoryItemStore,
-		embeddingClient: parts.embeddingClient,
-		// Skills T3 injection (see packages/agent/src/session/skill-context.ts):
-		// each turn injects the agent's skill index + any activated skill's full
-		// instructions into the system prompt.
-		skillStore: parts.skillStore,
-	});
-}
+import { buildRuntime } from "./services-runtime";
 
 // Shared by buildStores + assembleServices (both take "everything needed to
 // construct a store"); factored out so neither signature repeats the list.
@@ -109,6 +69,7 @@ interface StoreParts {
 	deps: ReturnType<typeof buildProviderDeps>;
 	embeddingClient: ReturnType<typeof buildEmbeddingClient>;
 	githubConnectionStore: ReturnType<typeof createGithubConnectionStore>;
+	knowledgeStore: ReturnType<typeof createKnowledgeStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	memoryItemStore: ReturnType<typeof createMemoryItemStore>;
 	memoryStore: ReturnType<typeof createMemoryStore>;
@@ -154,6 +115,7 @@ function buildStores(
 		bridgeUsage: parts.bridgeUsageStore,
 		computer: parts.computerStore,
 		githubConnection: parts.githubConnectionStore,
+		knowledge: parts.knowledgeStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
 		pushSubscription: parts.pushSubscriptionStore,
@@ -254,20 +216,32 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 	};
 }
 
+// Uploads-backed stores (attachment blobs + knowledge documents) share the
+// same multipart bucket; split out to keep buildServices under the line gate.
+function buildUploadStores(db: Db, uploads?: MultipartBucket) {
+	return {
+		attachmentStore: createAttachmentStore(
+			createAttachmentMetaStore(db),
+			uploads
+		),
+		knowledgeStore: createKnowledgeStore(
+			createKnowledgeDocumentStore(db),
+			uploads
+		),
+	};
+}
+
 export function buildServices(
 	db: Db,
 	authzBinding?: ServiceBinding,
-	uploads?: R2Bucket,
+	uploads?: MultipartBucket,
 	mcpBinding?: ServiceBinding
 ) {
 	const secretBox = getSecretBox();
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
 	const messageStore = createMessageStore(db);
-	const attachmentStore = createAttachmentStore(
-		createAttachmentMetaStore(db),
-		uploads
-	);
+	const { attachmentStore, knowledgeStore } = buildUploadStores(db, uploads);
 	const cancellation = buildCancellation();
 	// Shared across buildRuntime (B1 memory-retrieval / Skills T3 injection) and
 	// the stores exposed on context.services — one instance each, not one per use.
@@ -292,6 +266,7 @@ export function buildServices(
 		runtime,
 		cancellation,
 		attachmentStore,
+		knowledgeStore,
 		sessionStore,
 		messageStore,
 		memoryStore,

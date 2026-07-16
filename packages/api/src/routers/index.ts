@@ -11,6 +11,7 @@ import { composioRouter } from "./composio";
 import { computersRouter } from "./computers";
 import { githubRouter } from "./github";
 import { inviteRouter } from "./invite";
+import { knowledgeBaseRouter } from "./knowledge-base";
 import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
 import { openConnectorRouter } from "./openconnector";
@@ -34,6 +35,7 @@ export const appRouter = {
 	computers: computersRouter,
 	github: githubRouter,
 	invite: inviteRouter,
+	knowledgeBase: knowledgeBaseRouter,
 	mcp: mcpRouter,
 	memory: memoryRouter,
 	openConnector: openConnectorRouter,
