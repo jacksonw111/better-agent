@@ -3,11 +3,9 @@ import { prepareRunWorkspace, standaloneTaskDir } from "./standalone-workspace";
 
 // S25-T1 (design D5): a stand-alone Run works in the clean managed directory
 // `~/.better-agent/tasks/<taskId>/`. Creation is recursive AND idempotent —
-// a retry's new Run reuses the SAME task directory, never a fresh one — and
-// a repository workspace intent fails with the S4-T3 placeholder error
-// instead of pretending to prepare anything. Repository Tasks ARE creatable
-// since S4-T2, so until S4-T3 lands their launch genuinely reports a failed
-// Run with this real error — never a silent stand-alone fallback.
+// a retry's new Run reuses the SAME task directory, never a fresh one.
+// Repository-backed workspaces are prepared by repo-workspace.ts (S4-T3);
+// launch-wiring.ts routes on the workspace kind.
 
 const HOME = "/home/tester";
 const TASK_ID = "3f2b8a10-0000-4000-8000-000000000001";
@@ -68,26 +66,5 @@ describe("prepareRunWorkspace - standalone", () => {
 				deps
 			)
 		).rejects.toThrow("EACCES: permission denied, mkdir");
-	});
-});
-
-describe("prepareRunWorkspace - repository placeholder", () => {
-	it("fails with the S4-T3 placeholder instead of preparing anything", async () => {
-		const { deps } = fakeDeps();
-		await expect(
-			prepareRunWorkspace(
-				{
-					taskId: TASK_ID,
-					workspace: {
-						cloneUrl: "https://github.com/a/b.git",
-						defaultBranch: "main",
-						fullName: "a/b",
-						kind: "repository",
-					},
-				},
-				deps
-			)
-		).rejects.toThrow("repository workspaces land in S4-T3");
-		expect(deps.mkdirRecursive).not.toHaveBeenCalled();
 	});
 });

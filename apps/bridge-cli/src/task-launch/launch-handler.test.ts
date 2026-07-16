@@ -5,7 +5,6 @@ import {
 	type LaunchHandlerDeps,
 	type StartedRunSession,
 } from "./launch-handler";
-import { prepareRunWorkspace } from "./standalone-workspace";
 
 // S25-T1: the single launch processor behind BOTH delivery channels
 // (/computer-ws push and heartbeat pendingCommands). Idempotency is
@@ -191,31 +190,9 @@ describe("launch handler - failures report the real error", () => {
 	});
 });
 
-describe("launch handler - repository placeholder", () => {
-	it("a repository workspace intent fails with the S4-T3 placeholder", async () => {
-		const { deps, statuses } = fakeDeps({
-			prepareWorkspace: (command) =>
-				prepareRunWorkspace(command, {
-					homeDir: () => "/home/tester",
-					mkdirRecursive: () => Promise.resolve(),
-				}),
-		});
-		await createLaunchHandler(deps).handle(
-			launchCommand({
-				workspace: {
-					cloneUrl: "https://github.com/a/b.git",
-					defaultBranch: "main",
-					fullName: "a/b",
-					kind: "repository",
-				},
-			})
-		);
-		expect(statuses.at(-1)).toEqual({
-			errorMessage: "repository workspaces land in S4-T3",
-			status: "failed",
-		});
-	});
-});
+// S4-T3: repository workspace preparation (and its failure → `failed` with
+// the real git stderr) is covered in repo-workspace.test.ts, including a
+// launch-handler integration test — the placeholder failure is gone.
 
 describe("launch handler - settle", () => {
 	it("waits for every in-flight run session to wind down", async () => {

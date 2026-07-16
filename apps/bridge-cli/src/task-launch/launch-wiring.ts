@@ -5,6 +5,7 @@ import type { ComputerTransport } from "../computer-transport";
 import { detectComputerInventory } from "../detect-inventory";
 import { runControlChannel } from "./control-ws";
 import { createLaunchHandler } from "./launch-handler";
+import { prepareRepositoryRunWorkspace } from "./repo-workspace";
 import { createRunSessionSupplier } from "./run-session";
 import {
 	defaultSkillReferenceDeps,
@@ -62,7 +63,20 @@ export function createTaskLaunchRuntime(config: TaskLaunchRuntimeConfig): {
 		ackLaunch: (runId) => config.transport.ackLaunch(runId),
 		buildStartContext,
 		log: config.log,
-		prepareWorkspace: prepareRunWorkspace,
+		// D5's workspace fork (§9.2): repository intents go through the shared
+		// bare cache + per-task worktree; stand-alone intents get the clean
+		// managed task directory. Both funnel into the same status sequence.
+		prepareWorkspace: (command) =>
+			command.workspace.kind === "repository"
+				? prepareRepositoryRunWorkspace({
+						runId: command.runId,
+						taskId: command.taskId,
+						workspace: command.workspace,
+					})
+				: prepareRunWorkspace({
+						taskId: command.taskId,
+						workspace: command.workspace,
+					}),
 		runSession: createRunSessionSupplier({ serverUrl: config.serverUrl }),
 		signal: config.signal,
 		updateRunStatus: (report) => config.transport.updateRunStatus(report),

@@ -1,21 +1,23 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { RunLaunchCommand } from "@better-agent/agent/task-ports";
+import type {
+	RunLaunchCommand,
+	StandaloneWorkspaceIntent,
+} from "@better-agent/agent/task-ports";
 
 // S25-T1 (design D5, master spec §9.2): stand-alone workspace preparation.
 // A stand-alone Run works in the clean managed directory
 // `~/.better-agent/tasks/<taskId>/` — created recursively, and REUSED by a
 // retry's new Run (same Task, same directory), which is why creation is
-// deliberately idempotent. Repository-backed workspaces are S4-T3: receiving
-// one today is a real, reported failure — never a silent fallback to a
-// stand-alone directory the Task didn't ask for.
+// deliberately idempotent. Repository-backed workspaces live in
+// repo-workspace.ts (S4-T3); launch-wiring.ts routes on the workspace kind,
+// and the type below only admits stand-alone intents.
 
-/** What a Launch Command contributes to workspace preparation. */
-export type WorkspaceLaunchIntent = Pick<
-	RunLaunchCommand,
-	"taskId" | "workspace"
->;
+/** What a stand-alone Launch Command contributes to workspace preparation. */
+export type WorkspaceLaunchIntent = Pick<RunLaunchCommand, "taskId"> & {
+	workspace: StandaloneWorkspaceIntent;
+};
 
 /** Injectable for tests; production uses the real home dir + filesystem. */
 export interface PrepareWorkspaceDeps {
@@ -33,18 +35,14 @@ export function standaloneTaskDir(homeDir: string, taskId: string): string {
 }
 
 /**
- * Prepares the Run's working directory and returns its absolute path.
- * Stand-alone only in this slice — a repository intent fails with the S4-T3
- * placeholder (a REAL `failed` Run, per §16, not a pretend success). Any
- * filesystem error propagates verbatim so the Run records the true cause.
+ * Prepares a stand-alone Run's working directory and returns its absolute
+ * path. Any filesystem error propagates verbatim so the Run records the
+ * true cause (§16).
  */
 export function prepareRunWorkspace(
 	command: WorkspaceLaunchIntent,
 	deps: PrepareWorkspaceDeps = {}
 ): Promise<string> {
-	if (command.workspace.kind === "repository") {
-		return Promise.reject(new Error("repository workspaces land in S4-T3"));
-	}
 	const home = deps.homeDir ?? homedir;
 	const mkdirRecursive = deps.mkdirRecursive ?? defaultMkdirRecursive;
 	const path = standaloneTaskDir(home(), command.taskId);
