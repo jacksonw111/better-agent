@@ -259,3 +259,32 @@ it("create defaults agentSessionId to null; setAgentSessionId records it", async
 	const after = await store.get(created.id);
 	expect(after?.agentSessionId).toBe("claude-session-abc");
 });
+
+it("create with runId persists the bridge_sessions.run_id back-reference (S2-T2)", async () => {
+	const store = createBridgeSessionStore(db);
+	const userId = await seedUser("alice@x.com");
+	const tokenId = await seedToken(userId);
+	const runId = crypto.randomUUID();
+
+	const created = await store.create({
+		userId,
+		tokenId,
+		agentKind: "claude-code",
+		runId,
+	});
+	expect(created.runId).toBe(runId);
+
+	const [raw] = await db
+		.select({ runId: bridgeSessions.runId })
+		.from(bridgeSessions)
+		.where(eq(bridgeSessions.id, created.id));
+	expect(raw?.runId).toBe(runId);
+
+	// Omitted (every pre-Run caller): stays null.
+	const bare = await store.create({
+		userId,
+		tokenId,
+		agentKind: "claude-code",
+	});
+	expect(bare.runId).toBeNull();
+});

@@ -14,7 +14,7 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 import { users } from "./auth";
-import { bridgeSessions } from "./bridge";
+import { bridgeSessions, bridgeTokens } from "./bridge";
 import { computers } from "./computers";
 
 // A Task: the user's persistent unit of work (S2-T1, master spec §6.7).
@@ -79,6 +79,10 @@ export const runs = pgTable(
 			.notNull()
 			.default([]),
 		sessionId: uuid("session_id").references(() => bridgeSessions.id),
+		// S2-T2 (D4): the internal bridge token pre-issued at Run creation as the
+		// Launch payload's sessionCredential — named `task:<taskId>`, never shown
+		// in any user UI. Nullable: rows predating S2-T3's creation flow.
+		sessionTokenId: uuid("session_token_id").references(() => bridgeTokens.id),
 		// The real launch/execution error (§16) — never a synthesized message.
 		errorMessage: text("error_message"),
 		createdAt: timestamp("created_at", { withTimezone: true })

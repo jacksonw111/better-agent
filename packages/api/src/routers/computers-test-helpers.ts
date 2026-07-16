@@ -6,8 +6,13 @@ import {
 	createReplayGuard,
 	signComputerRequest,
 } from "@better-agent/agent/crypto/computer-signature";
+import {
+	createFakeRunStore,
+	createFakeTaskStore,
+} from "@better-agent/agent/testing/fake-task-stores";
 import { createRouterClient } from "@orpc/server";
 import type { ComputerAuthHeaders } from "../context";
+import { memoryBridgeTokenStore } from "./bridge-test-helpers-stores";
 import { appRouter } from "./index";
 
 // Shared fixtures for the computers router tests — in-memory ComputerStore +
@@ -130,10 +135,19 @@ export function buildComputerRig() {
 		...memoryPairingCodes([]),
 		...memoryComputerRows(rows),
 	};
+	// S2-T2: the launch-delivery stores heartbeat/ackLaunch read alongside the
+	// computer store — empty by default, seeded by the runs router tests.
+	const run = createFakeRunStore();
+	const task = createFakeTaskStore();
+	const bridgeToken = memoryBridgeTokenStore(
+		new Map(),
+		new Map(),
+		() => undefined
+	);
 	const services = {
 		authz: { enabled: false },
 		computerReplayGuard: createReplayGuard(),
-		stores: { computer },
+		stores: { bridgeToken, computer, run, task },
 	} as never;
 	const base = {
 		services,
@@ -152,5 +166,14 @@ export function buildComputerRig() {
 		createRouterClient(appRouter, { context: { ...base, authedUser: user } });
 	const computerClientFor = (auth: ComputerAuthHeaders) =>
 		createRouterClient(appRouter, { context: { ...base, computerAuth: auth } });
-	return { computer, computerClientFor, publicClient, rows, userClientFor };
+	return {
+		bridgeToken,
+		computer,
+		computerClientFor,
+		publicClient,
+		rows,
+		run,
+		task,
+		userClientFor,
+	};
 }

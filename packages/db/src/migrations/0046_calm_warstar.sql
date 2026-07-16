@@ -1,0 +1,2 @@
+ALTER TABLE "runs" ADD COLUMN "session_token_id" uuid;--> statement-breakpoint
+ALTER TABLE "runs" ADD CONSTRAINT "runs_session_token_id_bridge_tokens_id_fk" FOREIGN KEY ("session_token_id") REFERENCES "public"."bridge_tokens"("id") ON DELETE no action ON UPDATE no action;

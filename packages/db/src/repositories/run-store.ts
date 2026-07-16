@@ -1,5 +1,5 @@
 import type { RunRow, RunStore } from "@better-agent/agent/task-ports";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -20,6 +20,7 @@ function toRow(row: typeof schema.runs.$inferSelect): RunRow {
 		branch: row.branch ?? null,
 		issueSnapshots: row.issueSnapshots,
 		sessionId: row.sessionId ?? null,
+		sessionTokenId: row.sessionTokenId ?? null,
 		errorMessage: row.errorMessage ?? null,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
@@ -74,6 +75,42 @@ function makeRunReads(
 	};
 }
 
+// The computer-plane reads (S2-T2, D4): the launch queue and the ack lookup.
+// Split from makeRunReads to keep both under the max-lines-per-function gate.
+function makeComputerRunReads(
+	db: Db
+): Pick<RunStore, "getByIdForComputer" | "listCreatedByComputer"> {
+	return {
+		async getByIdForComputer(id, computerId) {
+			const rows = await db
+				.select()
+				.from(schema.runs)
+				.where(
+					and(eq(schema.runs.id, id), eq(schema.runs.computerId, computerId))
+				)
+				.limit(1);
+			const row = rows[0];
+			return row ? toRow(row) : null;
+		},
+		// The Computer's pending launches: still-`created` Runs, oldest first. A
+		// Run leaves this queue the moment its ack flips it to `launching`, which
+		// is what makes redelivery (reconnect / heartbeat fallback) idempotent.
+		async listCreatedByComputer(computerId) {
+			const rows = await db
+				.select()
+				.from(schema.runs)
+				.where(
+					and(
+						eq(schema.runs.computerId, computerId),
+						eq(schema.runs.status, "created")
+					)
+				)
+				.orderBy(asc(schema.runs.createdAt));
+			return rows.map(toRow);
+		},
+	};
+}
+
 function makeRunWrites(db: Db): Pick<RunStore, "insert" | "updateStatus"> {
 	return {
 		async insert(input) {
@@ -100,6 +137,7 @@ function makeRunWrites(db: Db): Pick<RunStore, "insert" | "updateStatus"> {
 export function createRunStore(db: Db): RunStore {
 	return {
 		...makeRunReads(db),
+		...makeComputerRunReads(db),
 		...makeRunWrites(db),
 	};
 }

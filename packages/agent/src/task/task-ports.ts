@@ -64,6 +64,10 @@ export interface RunInsert {
 	issueSnapshots: IssueSnapshot[];
 	/** Idempotency key for Launch delivery — equals the run id (D4). */
 	launchKey: string;
+	/** The pre-issued internal bridge token backing `sessionCredential` in the
+	 * Launch payload (S2-T2, design D4). Optional so pre-S2-T2 callers keep
+	 * compiling; S2-T3's run creation always sets it. */
+	sessionTokenId?: string | null;
 	taskId: string;
 	workspaceKind: WorkspaceKind;
 }
@@ -75,18 +79,56 @@ export interface RunRow extends RunInsert {
 	/** Relay binding — set once the client attaches the runtime to its
 	 * pre-issued bridge session (D4). */
 	sessionId: string | null;
+	sessionTokenId: string | null;
 	status: RunStatus;
 	updatedAt: Date;
 	/** The client-reported local workspace path, once prepared. */
 	workspacePath: string | null;
 }
 
-/** Partial status update from the client: only provided fields change. */
+/** Partial status update from the client: only provided fields change.
+ * `status` itself is optional so a pure binding update (e.g. startSession
+ * setting `sessionId`) never has to guess the Run's current status. */
 export interface RunStatusUpdate {
 	errorMessage?: string | null;
 	sessionId?: string;
-	status: RunStatus;
+	status?: RunStatus;
 	workspacePath?: string;
+}
+
+/** Workspace intent delivered with a Launch Command (§9.1): everything the
+ * client needs to decide how to prepare the Run's working directory. */
+export interface RepositoryWorkspaceIntent {
+	cloneUrl: string;
+	defaultBranch: string;
+	fullName: string;
+	kind: "repository";
+}
+
+export interface StandaloneWorkspaceIntent {
+	kind: "standalone";
+}
+
+export type RunWorkspaceIntent =
+	| StandaloneWorkspaceIntent
+	| RepositoryWorkspaceIntent;
+
+/** The Launch Command for a Run awaiting launch (§9.1, design D4) — pushed
+ * over the computer control WS and returned as heartbeat `pendingCommands`.
+ * Delivery is idempotent by construction: only `created` Runs produce one,
+ * and the client's ack (runs.ackLaunch) moves the Run past `created`. */
+export interface RunLaunchCommand {
+	agentKind: BridgeAgentKind;
+	/** The user's instruction, verbatim (§6.9). */
+	description: string;
+	issueSnapshots: IssueSnapshot[];
+	kind: "launch";
+	runId: string;
+	/** Raw pre-issued `bt_…` bridge token the client uses to attach the
+	 * launched runtime to the existing session relay (D4). */
+	sessionCredential: string;
+	taskId: string;
+	workspace: RunWorkspaceIntent;
 }
 
 export interface TaskStore {
@@ -105,12 +147,17 @@ export interface TaskStore {
 
 export interface RunStore {
 	getById(id: string): Promise<RunRow | null>;
+	/** Computer-scoped read; null when the Run isn't on that Computer. */
+	getByIdForComputer(id: string, computerId: string): Promise<RunRow | null>;
 	getByLaunchKey(launchKey: string): Promise<RunRow | null>;
 	insert(input: RunInsert): Promise<RunRow>;
 	/** The most recent Run for the Task, or null when it has none. */
 	latestByTask(taskId: string): Promise<RunRow | null>;
 	/** Chronological (createdAt asc) — Runs are sequential per Task. */
 	listByTask(taskId: string): Promise<RunRow[]>;
+	/** The Computer's launch queue (D4): its `created` Runs, oldest first.
+	 * A Run leaves this list the moment its ack flips it to `launching`. */
+	listCreatedByComputer(computerId: string): Promise<RunRow[]>;
 	/** False when the Run is unknown; unspecified fields stay untouched. */
 	updateStatus(id: string, update: RunStatusUpdate): Promise<boolean>;
 }

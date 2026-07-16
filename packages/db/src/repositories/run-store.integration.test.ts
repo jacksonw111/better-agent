@@ -207,6 +207,77 @@ it("updateStatus updates only the provided fields", async () => {
 	expect(row.sessionId).toBe(sessionId);
 });
 
+async function seedBridgeToken(userId: string, hash: string): Promise<string> {
+	const [token] = await db
+		.insert(bridgeTokens)
+		.values({ userId, tokenHash: hash })
+		.returning();
+	return token?.id ?? "";
+}
+
+it("insert persists sessionTokenId and getById returns it", async () => {
+	const store = createRunStore(db);
+	const { computerId, taskId, userId } = await seedTask();
+	const sessionTokenId = await seedBridgeToken(userId, "hash-session-token");
+
+	const created = await store.insert({
+		...runInput(taskId, computerId, "run-1"),
+		sessionTokenId,
+	});
+	expect(created.sessionTokenId).toBe(sessionTokenId);
+	expect((await store.getById(created.id))?.sessionTokenId).toBe(
+		sessionTokenId
+	);
+
+	// Omitted (pre-S2-T3 callers): stays null.
+	const bare = await store.insert(runInput(taskId, computerId, "run-2"));
+	expect(bare.sessionTokenId).toBeNull();
+});
+
+it("listCreatedByComputer returns only that computer's created Runs, oldest first", async () => {
+	const store = createRunStore(db);
+	const { computerId, taskId, userId } = await seedTask();
+	const seedRunAt = async (launchKey: string, createdAt: Date) => {
+		const [row] = await db
+			.insert(runs)
+			.values({ ...runInput(taskId, computerId, launchKey), createdAt })
+			.returning();
+		return row?.id ?? "";
+	};
+	const second = await seedRunAt("run-2", new Date("2026-07-15T12:01:00Z"));
+	const first = await seedRunAt("run-1", new Date("2026-07-15T12:00:00Z"));
+	const acked = await seedRunAt("run-3", new Date("2026-07-15T12:02:00Z"));
+	await store.updateStatus(acked, { status: "launching" });
+	// Another computer's created Run must never appear in this queue.
+	const [other] = await db
+		.insert(computers)
+		.values({ userId, publicKeyPem: "pem", name: "Other" })
+		.returning();
+	await store.insert({
+		...runInput(taskId, other?.id ?? "", "run-4"),
+	});
+
+	const pending = await store.listCreatedByComputer(computerId);
+	expect(pending.map((row) => row.id)).toEqual([first, second]);
+});
+
+it("getByIdForComputer is scoped to the computer", async () => {
+	const store = createRunStore(db);
+	const { computerId, taskId, userId } = await seedTask();
+	const created = await store.insert(runInput(taskId, computerId, "run-1"));
+	const [other] = await db
+		.insert(computers)
+		.values({ userId, publicKeyPem: "pem", name: "Other" })
+		.returning();
+
+	expect((await store.getByIdForComputer(created.id, computerId))?.id).toBe(
+		created.id
+	);
+	expect(
+		await store.getByIdForComputer(created.id, other?.id ?? "")
+	).toBeNull();
+});
+
 it("updateStatus returns false for an unknown Run", async () => {
 	const store = createRunStore(db);
 	await seedTask();

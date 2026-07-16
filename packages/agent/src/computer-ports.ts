@@ -6,6 +6,7 @@
 // can run (runtime inventory) and which managed tools are installed.
 
 import type { BridgeAgentKind } from "./bridge-token-ports";
+import type { RunLaunchCommand } from "./task/task-ports";
 
 /** How often a client-mode CLI reports a heartbeat to the server. */
 export const COMPUTER_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -43,12 +44,10 @@ export interface ManagedToolInventoryItem {
 }
 
 /** A queued control-channel command a Computer picks up via the heartbeat
- * fallback path (D4). Slice 1 always returns an empty list; Slice 2 fills it
- * with launch commands awaiting ack. */
-export interface ComputerPendingCommand {
-	kind: "launch";
-	runId: string;
-}
+ * fallback path (D4). S2-T2 upgraded the S1 `{ kind: "launch", runId }`
+ * placeholder to the full Launch Command: the pending queue IS the set of
+ * still-`created` Runs on the Computer, rendered as launch payloads. */
+export type ComputerPendingCommand = RunLaunchCommand;
 
 /** What the client sends when a Computer registers (first pair or a
  * re-register of the same identity, which only refreshes attributes). */

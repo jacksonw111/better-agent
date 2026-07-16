@@ -31,6 +31,7 @@ function toRow(
 		label: row.label ?? null,
 		name: row.name ?? null,
 		agentSessionId: row.agentSessionId ?? null,
+		runId: row.runId ?? null,
 		status: row.status,
 		createdAt: row.createdAt,
 		lastSeenAt: row.lastSeenAt,
@@ -182,10 +183,10 @@ async function listSessionPage(
 // max-lines-per-function gate.
 export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 	return {
-		async create({ userId, tokenId, agentKind, label }) {
+		async create({ userId, tokenId, agentKind, label, runId }) {
 			const rows = await db
 				.insert(schema.bridgeSessions)
-				.values({ userId, tokenId, agentKind, label })
+				.values({ userId, tokenId, agentKind, label, runId })
 				.returning();
 			const row = rows[0];
 			if (!row) {

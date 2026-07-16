@@ -10,6 +10,7 @@ import { listSessions } from "./bridge-list-sessions";
 import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { pendingRequests } from "./bridge-pending-requests";
 import { fetchConfig, restartSession } from "./bridge-restart";
+import { requireRunForSessionToken } from "./bridge-run-binding";
 import {
 	archiveSession,
 	deleteSession,
@@ -64,16 +65,31 @@ export const bridgeRouter = {
 			z.object({
 				agentKind: z.enum(AGENT_KINDS),
 				label: z.string().min(1).optional(),
+				// S2-T2 (D4): set when the CLI starts a session with a Run's
+				// pre-issued credential — binds bridge_sessions.run_id and
+				// runs.session_id. Omitted by every pre-Run flow, which stays
+				// byte-identical.
+				runId: z.uuid().optional(),
 			})
 		)
 		.handler(async ({ input, context }) => {
 			const { userId, tokenId } = context.authedBridgeToken;
+			const run = input.runId
+				? await requireRunForSessionToken(context, input.runId, tokenId)
+				: null;
 			const session = await context.services.stores.bridgeSession.create({
 				userId,
 				tokenId,
 				agentKind: input.agentKind,
 				label: input.label,
+				runId: run?.id,
 			});
+			if (run) {
+				// The authoritative (FK-enforced) half of the binding.
+				await context.services.stores.run.updateStatus(run.id, {
+					sessionId: session.id,
+				});
+			}
 			// Return the token's persisted startup config so the CLI can apply it
 			// (appendSystemPrompt, maxTurns, …) when launching the agent.
 			const token = await context.services.stores.bridgeToken.getById(

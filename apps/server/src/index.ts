@@ -4,6 +4,7 @@ import { serve } from "@hono/node-server";
 import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
 import { registerBridgeWsRoute } from "./bridge-ws";
+import { registerComputerWsRoute } from "./computer-ws";
 import { createS3Bucket } from "./s3-bucket";
 import { buildServices } from "./services";
 import { createVncRouteDeps, registerVncRoutes } from "./vnc-proxy";
@@ -40,6 +41,8 @@ const { injectWebSocket, upgradeWebSocket } = registerVncRoutes(
 // `upgradeWebSocket` instance as the VNC routes above — see bridge-ws.ts's
 // top comment for why a second `createNodeWebSocket({app})` isn't safe here.
 registerBridgeWsRoute(app, upgradeWebSocket, services);
+// Computer control channel (S2-T2, D4): launch delivery to client-mode CLIs.
+registerComputerWsRoute(app, upgradeWebSocket, services);
 
 const server = serve(
 	{

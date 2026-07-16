@@ -20,6 +20,11 @@ export interface BridgeSessionRow {
 	/** P3-T1: user-set display name (web rename) — distinct from `label`, the
 	 * CLI's launch-time label, which is never mutated. */
 	name: string | null;
+	/** S2-T2 (D4): the Run this session relays for, set at creation when the
+	 * client starts the session with its Run-bound credential. Optional (not
+	 * `string | null`) so pre-existing row literals in tests keep compiling —
+	 * same precedent as Context's authedBridgeToken/computerAuth. */
+	runId?: string | null;
 	starred: boolean;
 	status: BridgeSessionStatus;
 	tokenId: string;
@@ -42,6 +47,8 @@ export interface BridgeSessionStore {
 		tokenId: string;
 		agentKind: BridgeAgentKind;
 		label?: string;
+		/** S2-T2 (D4): binds the session to its Run at creation. */
+		runId?: string;
 	}): Promise<BridgeSessionRow>;
 	/** Hard-deletes the session row (and its persisted messages) if it belongs
 	 * to `userId`; a no-op otherwise. */

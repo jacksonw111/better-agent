@@ -115,6 +115,7 @@ function newSessionRow(
 		label: input.label ?? null,
 		name: null,
 		agentSessionId: null,
+		runId: input.runId ?? null,
 		status: "active",
 		createdAt: new Date(),
 		lastSeenAt: new Date(),

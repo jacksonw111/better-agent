@@ -18,6 +18,7 @@ import {
 	type FakePushSubscriptionStore,
 } from "@better-agent/agent/testing/fake-push-subscription-store";
 import { createFakeSkillStore } from "@better-agent/agent/testing/fake-skill-store";
+import { createFakeRunStore } from "@better-agent/agent/testing/fake-task-stores";
 import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
 import { createCommandBus } from "../bridge/command-bus";
@@ -93,6 +94,8 @@ interface TestServices {
 		bridgeMessage: BridgeMessageStore;
 		mcpServer: McpServerStore;
 		pushSubscription: FakePushSubscriptionStore;
+		/** S2-T2: startSession's optional runId binds against this store. */
+		run: ReturnType<typeof createFakeRunStore>;
 		skill: SkillStore;
 		usageRecord: ReturnType<typeof createFakeUsageRecordStore>;
 	};
@@ -153,6 +156,7 @@ export function build() {
 	const usageRecord = createFakeUsageRecordStore();
 	const attachment = memoryAttachmentStore();
 	const pushSubscription = createFakePushSubscriptionStore();
+	const run = createFakeRunStore();
 	const pushSends: CapturedPush[] = [];
 	const services: TestServices = {
 		commandBus,
@@ -165,6 +169,7 @@ export function build() {
 			bridgeMessage,
 			mcpServer,
 			pushSubscription,
+			run,
 			skill,
 			usageRecord,
 		},
@@ -178,6 +183,7 @@ export function build() {
 		mcpServer,
 		pushSends,
 		pushSubscription,
+		run,
 		skill,
 		usageRecord,
 		services,

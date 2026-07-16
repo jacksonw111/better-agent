@@ -9,6 +9,7 @@ import type { EvlogVariables } from "evlog/hono";
 import type { Hono } from "hono";
 import type { WSContext } from "hono/ws";
 import type { AgentServices } from "./app";
+import { attachHeartbeat, type HeartbeatRaw } from "./ws-heartbeat";
 
 // R0-T1 of the local-agent transport refactor: the CLI<->server duplex
 // channel that replaces HTTP command-polling (see
@@ -28,19 +29,6 @@ import type { AgentServices } from "./app";
 // there instead of created here).
 
 const HTTP_UNAUTHORIZED = 401;
-/** Server-initiated ws-level ping cadence (protocol requirement, not app data). */
-const PING_INTERVAL_MS = 15_000;
-/** Terminate the raw socket once this many consecutive pings go unanswered. */
-const MAX_MISSED_PONGS = 2;
-
-/** The subset of the `ws` library's socket this file drives directly for the
- * heartbeat — kept minimal/local instead of depending on `@types/ws` here. */
-interface HeartbeatRaw {
-	off(event: "pong", listener: () => void): void;
-	on(event: "pong", listener: () => void): void;
-	ping(): void;
-	terminate(): void;
-}
 
 /** Bridges Hono's callback-style WS events to the `BridgeWsSocket` interface
  * `createBridgeWsConnection` drives. `bind` is called from `onOpen` once the
@@ -58,31 +46,6 @@ function createDeferredBridgeSocket(): {
 		bind: (live) => {
 			ws = live;
 		},
-	};
-}
-
-/** Sends a ws-level ping every `PING_INTERVAL_MS` and terminates the raw
- * socket after `MAX_MISSED_PONGS` consecutive pings go unanswered. Returns a
- * cleanup function to call on close. `onPong` additionally lets the caller
- * treat a pong as session liveness (touch `lastSeenAt`). */
-function attachHeartbeat(raw: HeartbeatRaw, onPong: () => void): () => void {
-	let missedPongs = 0;
-	const handlePong = () => {
-		missedPongs = 0;
-		onPong();
-	};
-	raw.on("pong", handlePong);
-	const timer = setInterval(() => {
-		if (missedPongs >= MAX_MISSED_PONGS) {
-			raw.terminate();
-			return;
-		}
-		missedPongs += 1;
-		raw.ping();
-	}, PING_INTERVAL_MS);
-	return () => {
-		clearInterval(timer);
-		raw.off("pong", handlePong);
 	};
 }
 

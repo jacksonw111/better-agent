@@ -7,6 +7,7 @@ import { createModelSummarizer } from "@better-agent/agent/session/model-summari
 import { createModelTitler } from "@better-agent/agent/session/model-titler";
 import { createSessionRuntime } from "@better-agent/agent/session/runtime";
 import { createCommandBus } from "@better-agent/api/bridge/command-bus";
+import { createComputerControlChannel } from "@better-agent/api/computers/control-channel";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
 import { createBridgeMessageStore } from "@better-agent/db/repositories/bridge-message-store";
@@ -21,9 +22,11 @@ import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
 import { createPushSubscriptionStore } from "@better-agent/db/repositories/push-subscription-store";
+import { createRunStore } from "@better-agent/db/repositories/run-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { createSkillStore } from "@better-agent/db/repositories/skill-store";
+import { createTaskStore } from "@better-agent/db/repositories/task-store";
 import { createUsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
@@ -109,9 +112,11 @@ interface StoreParts {
 	messageStore: ReturnType<typeof createMessageStore>;
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
 	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
+	runStore: ReturnType<typeof createRunStore>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
 	skillStore: ReturnType<typeof createSkillStore>;
+	taskStore: ReturnType<typeof createTaskStore>;
 	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
@@ -147,7 +152,9 @@ function buildStores(
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
 		pushSubscription: parts.pushSubscriptionStore,
+		run: parts.runStore,
 		skill: parts.skillStore,
+		task: parts.taskStore,
 		...authStores,
 	};
 }
@@ -198,6 +205,15 @@ function assembleServices(
 		// signature timestamps must strictly increase per computer, and the
 		// single-instance Docker deployment means one process sees them all.
 		computerReplayGuard: createReplayGuard(),
+		// S2-T2 (D4): /computer-ws registry + launch push. In-process like
+		// commandBus — a live WS is always on the same Node process; heartbeat
+		// pendingCommands covers the no-WS gap.
+		computerControl: createComputerControlChannel({
+			bridgeToken: parts.bridgeTokenStore,
+			computer: parts.computerStore,
+			run: parts.runStore,
+			task: parts.taskStore,
+		}),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }
@@ -221,6 +237,8 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		bridgeMessageStore: createBridgeMessageStore(db),
 		bridgeUsageStore: createBridgeUsageStore(db),
 		computerStore: createComputerStore(db),
+		taskStore: createTaskStore(db),
+		runStore: createRunStore(db),
 	};
 }
 

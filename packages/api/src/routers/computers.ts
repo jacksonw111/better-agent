@@ -1,7 +1,6 @@
 import {
 	COMPUTER_OFFLINE_AFTER_MS,
 	COMPUTER_PAIRING_CODE_TTL_MS,
-	type ComputerPendingCommand,
 	type ComputerRow,
 } from "@better-agent/agent/computer-ports";
 import {
@@ -10,6 +9,7 @@ import {
 } from "@better-agent/agent/crypto/auth-tokens";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
+import { buildPendingLaunchCommands } from "../computers/pending-commands";
 import {
 	authorizedUserProcedure,
 	computerProcedure,
@@ -99,11 +99,16 @@ const register = computerProcedure
 		return { ok: true };
 	});
 
-// `pendingCommands` is the no-WS fallback delivery slot for control-channel
-// commands (D4) — always empty in Slice 1, filled with launches in Slice 2.
+// `pendingCommands` is the no-WS fallback delivery path for control-channel
+// commands (D4, S2-T2): the Computer's still-`created` Runs rendered as
+// Launch payloads — identical to what /computer-ws pushes, so a Computer
+// without a live WS still launches within one heartbeat interval (≤10s).
 const heartbeat = computerProcedure.handler(async ({ context }) => {
 	await context.services.stores.computer.touch(context.computer.id, new Date());
-	const pendingCommands: ComputerPendingCommand[] = [];
+	const pendingCommands = await buildPendingLaunchCommands(
+		context.services.stores,
+		context.computer
+	);
 	return { ok: true, pendingCommands };
 });
 

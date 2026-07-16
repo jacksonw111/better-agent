@@ -40,6 +40,7 @@ import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
+import type { RunStore, TaskStore } from "@better-agent/agent/task-ports";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { McpService } from "@better-agent/agent/tool/mcp-tools";
 import type { OpenConnectorService } from "@better-agent/agent/tool/openconnector-tools";
@@ -48,6 +49,7 @@ import type { ActivityStore } from "@better-agent/db/repositories/activity-store
 import type { UsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
 import type { CommandBus } from "./bridge/command-bus";
+import type { ComputerControlChannel } from "./computers/control-channel";
 
 export interface AgentServices {
 	agentValidator: AgentValidator;
@@ -66,6 +68,10 @@ export interface AgentServices {
 	 * relay command was appended for its session (see command-bus.ts). */
 	commandBus: CommandBus;
 	composio: (accountId: string) => Promise<ComposioService | null>;
+	/** S2-T2 (D4): the /computer-ws registry + launch push path. In-process on
+	 * purpose (same rationale as commandBus); heartbeat pendingCommands is the
+	 * cross-process/no-WS fallback. */
+	computerControl: ComputerControlChannel;
 	/** In-memory anti-replay for computer-plane signatures (S1-T2, design D1):
 	 * per-computer strictly increasing timestamps within the auth window. */
 	computerReplayGuard: ComputerReplayGuard;
@@ -113,7 +119,9 @@ export interface AgentServices {
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
 		pushSubscription: PushSubscriptionStore;
+		run: RunStore;
 		skill: SkillStore;
+		task: TaskStore;
 	};
 	tokenService: TokenService;
 }
