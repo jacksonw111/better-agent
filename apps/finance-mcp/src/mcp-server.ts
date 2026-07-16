@@ -30,6 +30,9 @@ import "./tool-defs-limitup";
 import "./tool-defs-buzz";
 import "./tool-defs-cnx";
 import "./tool-defs-global";
+// Side-effect import: registers finance_trade_calendar / finance_market_breadth
+// (QuantSkills integration Phase 0) onto the shared TOOLS registry.
+import "./tool-defs-market-stats";
 import { runTool, type ToolEnv, toolText } from "./tools-impl";
 
 // MCP server core (Streamable HTTP, stateless JSON mode): handshake + tool

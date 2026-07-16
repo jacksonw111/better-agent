@@ -140,7 +140,12 @@ export type {
 	MemoryRow,
 	MemoryStore,
 } from "./memory-ports";
-export type { AgentSkillRow, SkillRow, SkillStore } from "./skill-ports";
+export type {
+	AgentSkillRow,
+	BuiltinSkillDef,
+	SkillRow,
+	SkillStore,
+} from "./skill-ports";
 
 export interface SettingsStore {
 	delete(key: string): Promise<void>;

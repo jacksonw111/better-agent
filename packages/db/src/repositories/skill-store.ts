@@ -1,5 +1,9 @@
-import type { SkillRow, SkillStore } from "@better-agent/agent/ports";
-import { and, eq, inArray } from "drizzle-orm";
+import type {
+	BuiltinSkillDef,
+	SkillRow,
+	SkillStore,
+} from "@better-agent/agent/ports";
+import { and, eq, inArray, or } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -11,6 +15,7 @@ function toRow(row: typeof schema.skills.$inferSelect): SkillRow {
 	return {
 		id: row.id,
 		userId: row.userId,
+		isBuiltin: row.isBuiltin,
 		name: row.name,
 		description: row.description ?? null,
 		instructions: row.instructions ?? null,
@@ -80,6 +85,32 @@ async function createSkill(
 	return toRow(row);
 }
 
+// A user sees their own skills plus every built-in template.
+async function listByUser(db: Db, userId: string): Promise<SkillRow[]> {
+	const rows = await db
+		.select()
+		.from(schema.skills)
+		.where(
+			or(eq(schema.skills.userId, userId), eq(schema.skills.isBuiltin, true))
+		);
+	return rows.map(toRow);
+}
+
+async function updateSkill(
+	db: Db,
+	id: string,
+	userId: string,
+	patch: Parameters<SkillStore["update"]>[2]
+): Promise<SkillRow | null> {
+	const rows = await db
+		.update(schema.skills)
+		.set({ ...patch, updatedAt: new Date() })
+		.where(and(eq(schema.skills.id, id), eq(schema.skills.userId, userId)))
+		.returning();
+	const row = rows[0];
+	return row ? toRow(row) : null;
+}
+
 // The plain read/write ops (everything but the agent link ops and the
 // transactional delete), split into their own factory so createSkillStore
 // stays under the repo's max-lines-per-function gate.
@@ -98,22 +129,8 @@ function makeSkillRwOps(
 			return row ? toRow(row) : null;
 		},
 		getMany: (ids) => selectSkillsByIds(db, ids),
-		async listByUser(userId) {
-			const rows = await db
-				.select()
-				.from(schema.skills)
-				.where(eq(schema.skills.userId, userId));
-			return rows.map(toRow);
-		},
-		async update(id, userId, patch) {
-			const rows = await db
-				.update(schema.skills)
-				.set({ ...patch, updatedAt: new Date() })
-				.where(and(eq(schema.skills.id, id), eq(schema.skills.userId, userId)))
-				.returning();
-			const row = rows[0];
-			return row ? toRow(row) : null;
-		},
+		listByUser: (userId) => listByUser(db, userId),
+		update: (id, userId, patch) => updateSkill(db, id, userId, patch),
 	};
 }
 
@@ -138,10 +155,48 @@ async function deleteSkill(db: Db, id: string, userId: string): Promise<void> {
 	});
 }
 
+// Idempotent seed of a built-in skill, matched by (name, isBuiltin=true): the
+// content fields are refreshed on every deploy so editing a template in code +
+// re-seeding propagates, while its stable id keeps existing agent assignments
+// intact. Never sets userId (built-ins are ownerless).
+async function upsertBuiltin(db: Db, def: BuiltinSkillDef): Promise<SkillRow> {
+	const content = {
+		description: def.description,
+		instructions: def.instructions,
+		allowedTools: def.allowedTools ?? null,
+	};
+	const existing = await db
+		.select()
+		.from(schema.skills)
+		.where(
+			and(eq(schema.skills.name, def.name), eq(schema.skills.isBuiltin, true))
+		)
+		.limit(1);
+	const found = existing[0];
+	if (found) {
+		const updated = await db
+			.update(schema.skills)
+			.set({ ...content, updatedAt: new Date() })
+			.where(eq(schema.skills.id, found.id))
+			.returning();
+		return toRow(updated[0] ?? found);
+	}
+	const inserted = await db
+		.insert(schema.skills)
+		.values({ name: def.name, isBuiltin: true, ...content })
+		.returning();
+	const row = inserted[0];
+	if (!row) {
+		throw new Error(`Failed to seed built-in skill ${def.name}`);
+	}
+	return toRow(row);
+}
+
 export function createSkillStore(db: Db): SkillStore {
 	return {
 		...makeAgentLinkOps(db),
 		...makeSkillRwOps(db),
 		delete: (id, userId) => deleteSkill(db, id, userId),
+		upsertBuiltin: (def) => upsertBuiltin(db, def),
 	};
 }

@@ -48,15 +48,18 @@ services:
       timeout: 5s
       retries: 5
 
-  # One-shot: applies pending drizzle migrations, then exits. The server waits
-  # for it to complete successfully. Reuses the server image.
+  # One-shot: applies pending drizzle migrations, then seeds the built-in
+  # skills (idempotent, by name), then exits. The server waits for it to
+  # complete successfully. Reuses the server image; seed-skills runs via tsx on
+  # the image's source tree (COPY . .) so it can read builtin-skills/*.md.
   migrate:
     image: ghcr.io/jacksonw111/better-agent-server:${IMAGE_TAG:-latest}
-    command: ["node", "dist/migrate.mjs"]
+    command:
+      ["sh", "-c", "node dist/migrate.mjs && pnpm exec tsx src/seed-skills.ts"]
     environment:
       DATABASE_URL: postgres://better_agent:${POSTGRES_PASSWORD}@postgres:5432/better_agent
-      # migrate only needs DATABASE_URL; skip the full app env schema (which
-      # requires AUTH_JWT_SECRET, CORS_ORIGIN, … that this one-shot doesn't use).
+      # migrate + seed only need DATABASE_URL; skip the full app env schema
+      # (which requires AUTH_JWT_SECRET, CORS_ORIGIN, … this one-shot doesn't use).
       SKIP_ENV_VALIDATION: "1"
     depends_on:
       postgres:

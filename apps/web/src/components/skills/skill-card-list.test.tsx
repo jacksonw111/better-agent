@@ -8,6 +8,7 @@ function makeSkill(overrides: Partial<SkillRow> = {}): SkillRow {
 	return {
 		id: "skill-1",
 		userId: "user-1",
+		isBuiltin: false,
 		name: "release checklist",
 		description: "steps to cut a release",
 		instructions: null,

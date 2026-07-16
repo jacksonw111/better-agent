@@ -37,10 +37,14 @@ function SkillTableRow({
 				{createdFormatter.format(new Date(skill.createdAt))}
 			</TableCell>
 			<TableCell className="text-right">
-				<DeleteConfirm
-					label={`Delete ${skill.name}? It's unassigned from every agent it's linked to.`}
-					onConfirm={() => onDelete(skill.id)}
-				/>
+				{skill.isBuiltin ? (
+					<span className="text-muted-foreground text-xs">只读</span>
+				) : (
+					<DeleteConfirm
+						label={`Delete ${skill.name}? It's unassigned from every agent it's linked to.`}
+						onConfirm={() => onDelete(skill.id)}
+					/>
+				)}
 			</TableCell>
 		</TableRow>
 	);

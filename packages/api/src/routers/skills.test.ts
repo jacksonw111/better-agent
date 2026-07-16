@@ -194,6 +194,43 @@ it("rejects assign when the caller doesn't own the skill", async () => {
 	).rejects.toThrow();
 });
 
+it("exposes built-ins read-only: listable, assignable, but not editable", async () => {
+	const stores = freshStores();
+	stores.skill.upsertBuiltin({
+		name: "market-review",
+		description: "A股复盘",
+		instructions: "复盘流程",
+		allowedTools: ["finance_market_breadth"],
+	});
+	const alice = buildClient(ALICE, stores);
+	const [builtin] = await alice.skills.list();
+	expect(builtin?.isBuiltin).toBe(true);
+
+	// Readable + assignable to the caller's own agent.
+	const fetched = await alice.skills.get({ skillId: builtin?.id ?? "" });
+	expect(fetched.name).toBe("market-review");
+	const agent = await stores.agent.create({
+		...AGENT_INPUT,
+		tokenHash: "hash-a",
+		userId: ALICE.id,
+	});
+	await alice.skills.assignAgent({
+		agentId: agent.id,
+		skillId: builtin?.id ?? "",
+	});
+	expect(await alice.skills.listAssigned({ agentId: agent.id })).toHaveLength(
+		1
+	);
+
+	// But never editable or deletable through the owner-scoped router.
+	await expect(
+		alice.skills.update({ skillId: builtin?.id ?? "", name: "hacked" })
+	).rejects.toThrow();
+	await expect(
+		alice.skills.delete({ skillId: builtin?.id ?? "" })
+	).rejects.toThrow();
+});
+
 const OWNED_MCP_ID = "11111111-1111-4111-8111-111111111111";
 const FOREIGN_MCP_ID = "22222222-2222-4222-8222-222222222222";
 

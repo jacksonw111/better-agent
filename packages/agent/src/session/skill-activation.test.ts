@@ -44,6 +44,7 @@ function fakeSkill(overrides: Partial<SkillRow> = {}): SkillRow {
 	return {
 		id: crypto.randomUUID(),
 		userId: "user-1",
+		isBuiltin: false,
 		name: "deploy",
 		description: "Ship a release",
 		instructions: "1. Run tests\n2. Tag\n3. Push",

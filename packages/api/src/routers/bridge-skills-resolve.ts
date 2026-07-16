@@ -22,10 +22,11 @@ async function resolveOne(
 	id: string
 ): Promise<ResolvedSkill | null> {
 	const skill = await context.services.stores.skill.get(id);
-	// Owner-scoped: an id for another user's skill (or one that's since been
-	// deleted) is silently skipped, not surfaced as an error — a token's
-	// persisted config can outlive the skill it references.
-	if (!skill || skill.userId !== userId) {
+	// Owner-scoped, plus built-in templates (ownerless, readable by all): an id
+	// for another user's skill (or one that's since been deleted) is silently
+	// skipped, not surfaced as an error — a token's persisted config can outlive
+	// the skill it references.
+	if (!skill || (skill.userId !== userId && !skill.isBuiltin)) {
 		return null;
 	}
 	return {

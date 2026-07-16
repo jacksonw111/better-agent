@@ -15,10 +15,21 @@ export interface SkillRow {
 	description: string | null;
 	id: string;
 	instructions: string | null;
+	/** Org-provided template: visible to all, read-only, no owner. */
+	isBuiltin: boolean;
 	mcpServerIds: string[] | null;
 	name: string;
 	updatedAt: Date;
-	userId: string;
+	/** Null for built-in skills; always set for user-created ones. */
+	userId: string | null;
+}
+
+/** A built-in skill definition, seeded (upserted by name) at deploy. */
+export interface BuiltinSkillDef {
+	allowedTools?: string[];
+	description: string;
+	instructions: string;
+	name: string;
 }
 
 /** An agent↔skill link row. */
@@ -45,6 +56,7 @@ export interface SkillStore {
 	getMany(ids: string[]): Promise<SkillRow[]>;
 	/** The skills assigned to an agent, resolved (not just ids). */
 	listAgentSkills(agentId: string): Promise<SkillRow[]>;
+	/** Skills visible to a user: their own plus all built-ins. */
 	listByUser(userId: string): Promise<SkillRow[]>;
 	unassignAgent(agentId: string, skillId: string): Promise<void>;
 	/** Owner-scoped partial update; unset fields are left unchanged. Returns
@@ -60,4 +72,7 @@ export interface SkillStore {
 			mcpServerIds?: string[] | null;
 		}
 	): Promise<SkillRow | null>;
+	/** Idempotently seed a built-in skill, matched by name: inserts if absent,
+	 * otherwise refreshes its content. Owner-scoped ops never touch built-ins. */
+	upsertBuiltin(def: BuiltinSkillDef): Promise<SkillRow>;
 }

@@ -8,6 +8,7 @@ import { BUZZ_HANDLERS } from "./tools-impl-buzz";
 import { CNX_HANDLERS } from "./tools-impl-cnx";
 import { GLOBAL_HANDLERS } from "./tools-impl-global";
 import { LIMITUP_HANDLERS } from "./tools-impl-limitup";
+import { MARKET_STATS_HANDLERS } from "./tools-impl-market-stats";
 
 export const V6_HANDLERS: Record<
 	string,
@@ -17,4 +18,5 @@ export const V6_HANDLERS: Record<
 	...BUZZ_HANDLERS,
 	...CNX_HANDLERS,
 	...GLOBAL_HANDLERS,
+	...MARKET_STATS_HANDLERS,
 };

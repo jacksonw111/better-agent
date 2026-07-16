@@ -6,23 +6,28 @@ import type { SkillRow, SkillStore } from "../ports";
 // (packages/db/src/repositories/skill-store.ts) already has integration
 // coverage; this fake only needs to behave correctly, not persist anything.
 
+function newSkill(input: Parameters<SkillStore["create"]>[0]): SkillRow {
+	const now = new Date();
+	return {
+		id: crypto.randomUUID(),
+		userId: input.userId,
+		isBuiltin: false,
+		name: input.name,
+		description: input.description ?? null,
+		instructions: input.instructions ?? null,
+		allowedTools: input.allowedTools ?? null,
+		mcpServerIds: input.mcpServerIds ?? null,
+		createdAt: now,
+		updatedAt: now,
+	};
+}
+
 function makeSkillRwOps(
 	map: Map<string, SkillRow>
 ): Pick<SkillStore, "create" | "get" | "getMany" | "listByUser" | "update"> {
 	return {
 		create(input) {
-			const now = new Date();
-			const skill: SkillRow = {
-				id: crypto.randomUUID(),
-				userId: input.userId,
-				name: input.name,
-				description: input.description ?? null,
-				instructions: input.instructions ?? null,
-				allowedTools: input.allowedTools ?? null,
-				mcpServerIds: input.mcpServerIds ?? null,
-				createdAt: now,
-				updatedAt: now,
-			};
+			const skill = newSkill(input);
 			map.set(skill.id, skill);
 			return Promise.resolve(skill);
 		},
@@ -38,7 +43,9 @@ function makeSkillRwOps(
 		},
 		listByUser(userId) {
 			return Promise.resolve(
-				[...map.values()].filter((skill) => skill.userId === userId)
+				[...map.values()].filter(
+					(skill) => skill.userId === userId || skill.isBuiltin
+				)
 			);
 		},
 		update(id, userId, patch) {
@@ -100,6 +107,26 @@ export function createFakeSkillStore(seed: SkillRow[] = []): SkillStore {
 				map.delete(id);
 			}
 			return Promise.resolve();
+		},
+		upsertBuiltin(def) {
+			const now = new Date();
+			const found = [...map.values()].find(
+				(skill) => skill.isBuiltin && skill.name === def.name
+			);
+			const skill: SkillRow = {
+				id: found?.id ?? crypto.randomUUID(),
+				userId: null,
+				isBuiltin: true,
+				name: def.name,
+				description: def.description,
+				instructions: def.instructions,
+				allowedTools: def.allowedTools ?? null,
+				mcpServerIds: null,
+				createdAt: found?.createdAt ?? now,
+				updatedAt: now,
+			};
+			map.set(skill.id, skill);
+			return Promise.resolve(skill);
 		},
 	};
 }

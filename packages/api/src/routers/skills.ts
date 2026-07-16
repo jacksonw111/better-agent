@@ -46,7 +46,8 @@ async function filterOwnedMcpServerIds(
 }
 
 // Loads a skill and asserts the caller owns it. NOT_FOUND for both missing and
-// other-owner skills, so ownership never leaks.
+// other-owner skills, so ownership never leaks. Built-in skills have no owner,
+// so this (used for edit/delete) rejects them — they are read-only.
 async function requireOwnedSkill(
 	context: Context,
 	userId: string,
@@ -54,6 +55,20 @@ async function requireOwnedSkill(
 ): Promise<SkillRow> {
 	const skill = await context.services.stores.skill.get(skillId);
 	if (!skill || skill.userId !== userId) {
+		throw new ORPCError("NOT_FOUND", { message: "Skill not found" });
+	}
+	return skill;
+}
+
+// Loads a skill the caller may READ/assign: their own or any built-in. Used by
+// get/assign/unassign so users can wire org templates onto their agents.
+async function requireReadableSkill(
+	context: Context,
+	userId: string,
+	skillId: string
+): Promise<SkillRow> {
+	const skill = await context.services.stores.skill.get(skillId);
+	if (!skill || (skill.userId !== userId && !skill.isBuiltin)) {
 		throw new ORPCError("NOT_FOUND", { message: "Skill not found" });
 	}
 	return skill;
@@ -98,7 +113,7 @@ export const skillsRouter = {
 	get: authorizedUserProcedure
 		.input(idInput)
 		.handler(({ input, context }) =>
-			requireOwnedSkill(context, context.authedUser.id, input.skillId)
+			requireReadableSkill(context, context.authedUser.id, input.skillId)
 		),
 
 	update: authorizedUserProcedure
@@ -143,7 +158,7 @@ export const skillsRouter = {
 		.input(assignInput)
 		.handler(async ({ input, context }) => {
 			await requireOwnedAgentId(context, context.authedUser.id, input.agentId);
-			await requireOwnedSkill(context, context.authedUser.id, input.skillId);
+			await requireReadableSkill(context, context.authedUser.id, input.skillId);
 			await context.services.stores.skill.assignAgent(input);
 			return { ok: true };
 		}),
@@ -152,7 +167,7 @@ export const skillsRouter = {
 		.input(assignInput)
 		.handler(async ({ input, context }) => {
 			await requireOwnedAgentId(context, context.authedUser.id, input.agentId);
-			await requireOwnedSkill(context, context.authedUser.id, input.skillId);
+			await requireReadableSkill(context, context.authedUser.id, input.skillId);
 			await context.services.stores.skill.unassignAgent(
 				input.agentId,
 				input.skillId

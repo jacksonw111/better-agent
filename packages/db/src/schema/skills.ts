@@ -1,4 +1,5 @@
 import {
+	boolean,
 	index,
 	jsonb,
 	pgTable,
@@ -14,13 +15,18 @@ import { users } from "./auth";
 // T1): { name, description, instructions, allowedTools?, mcpServerIds? }. The
 // owner (`userId`) creates it; agents are linked via `agent_skills`. Modeled
 // exactly on `memories` (packages/db/src/schema/memory.ts).
+//
+// Built-in skills (`isBuiltin=true`, `userId=null`) are org-provided templates
+// seeded at deploy (apps/server/src/seed-skills.ts) — visible read-only to
+// every user and assignable to their agents, but never editable/deletable
+// through the owner-scoped router. See docs/research/2026-07-15-quantskills-integration.md.
 export const skills = pgTable(
 	"skills",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		userId: uuid("user_id")
-			.notNull()
-			.references(() => users.id),
+		// Nullable: built-in skills have no owner. User-created skills always set it.
+		userId: uuid("user_id").references(() => users.id),
+		isBuiltin: boolean("is_builtin").notNull().default(false),
 		name: text("name").notNull(),
 		description: text("description"),
 		instructions: text("instructions"),

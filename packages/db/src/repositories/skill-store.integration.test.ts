@@ -103,6 +103,59 @@ it("listByUser scopes skills per owner", async () => {
 	expect(await store.listByUser(bob)).toHaveLength(1);
 });
 
+it("upsertBuiltin inserts then refreshes in place, keeping its id", async () => {
+	const store = createSkillStore(db);
+
+	const first = await store.upsertBuiltin({
+		name: "market-review",
+		description: "v1",
+		instructions: "step one",
+		allowedTools: ["finance_market_breadth"],
+	});
+	expect(first.isBuiltin).toBe(true);
+	expect(first.userId).toBeNull();
+
+	const second = await store.upsertBuiltin({
+		name: "market-review",
+		description: "v2",
+		instructions: "step two",
+	});
+	expect(second.id).toBe(first.id); // same row refreshed, not duplicated
+	expect(second.description).toBe("v2");
+	expect(second.instructions).toBe("step two");
+	expect(second.allowedTools).toBeNull();
+});
+
+it("listByUser returns the user's own skills plus every built-in", async () => {
+	const store = createSkillStore(db);
+	const alice = await seedUser("alice@x.com");
+	const bob = await seedUser("bob@x.com");
+	await store.create({ userId: alice, name: "A1" });
+	await store.create({ userId: bob, name: "B1" });
+	await store.upsertBuiltin({ name: "market-review", description: "builtin" });
+
+	const aliceSkills = await store.listByUser(alice);
+	expect(aliceSkills).toHaveLength(2); // own A1 + the built-in
+	expect(aliceSkills.some((row) => row.isBuiltin)).toBe(true);
+	expect(aliceSkills.some((row) => row.name === "A1")).toBe(true);
+	expect(aliceSkills.some((row) => row.name === "B1")).toBe(false);
+});
+
+it("built-ins resist owner-scoped update and delete", async () => {
+	const store = createSkillStore(db);
+	const alice = await seedUser("alice@x.com");
+	const builtin = await store.upsertBuiltin({
+		name: "market-review",
+		description: "builtin",
+	});
+
+	// A user cannot update or delete an ownerless built-in through the
+	// owner-scoped ops — update returns null, delete is a no-op.
+	expect(await store.update(builtin.id, alice, { name: "hacked" })).toBeNull();
+	await store.delete(builtin.id, alice);
+	expect(await store.get(builtin.id)).not.toBeNull();
+});
+
 it("update changes fields and is owner-scoped", async () => {
 	const store = createSkillStore(db);
 	const alice = await seedUser("alice@x.com");
