@@ -94,6 +94,11 @@ services:
       SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
       SILICONFLOW_BASE_URL: ${SILICONFLOW_BASE_URL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      # Web Push (P3-T3). Without the key pair the push feature is disabled
+      # fail-open (subscribe route errors clearly, ingest hook no-ops).
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
