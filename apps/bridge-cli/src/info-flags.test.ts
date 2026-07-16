@@ -37,10 +37,16 @@ describe("handleInfoFlags", () => {
 			)
 		).toBeUndefined();
 	});
+});
 
+// Split from "handleInfoFlags" purely for the max-lines gate.
+describe("handleInfoFlags - usage text", () => {
 	it("usage text documents every real flag", () => {
 		const flags = [
 			"--agent",
+			"--client",
+			"--pair",
+			"--name",
 			"--server",
 			"--token",
 			"--dir",
@@ -65,8 +71,10 @@ describe("parseArgs - unaffected by info flags", () => {
 			["--agent", "opencode", "--token", "t", "--server", "s"],
 			{}
 		);
-		expect(args.agentKind).toBe("opencode");
-		expect(args.token).toBe("t");
-		expect(args.serverUrl).toBe("s");
+		expect(args).toMatchObject({
+			agentKind: "opencode",
+			serverUrl: "s",
+			token: "t",
+		});
 	});
 });

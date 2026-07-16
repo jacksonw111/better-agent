@@ -1,9 +1,21 @@
 #!/usr/bin/env node
+import { arch, platform } from "node:os";
+import { generateComputerKeyPair } from "@better-agent/agent/crypto/computer-signature";
 import { AGENT_CLI, selectAdapter } from "./adapters";
 import { findOnPath } from "./adapters/process-io";
 import type { AgentKind } from "./adapters/types";
-import { handleInfoFlags, parseArgs } from "./args";
+import {
+	type ClientCliArgs,
+	handleInfoFlags,
+	parseArgs,
+	type SessionCliArgs,
+} from "./args";
+import { dispatchCli } from "./cli-dispatch";
+import { createHeartbeatWait, runComputerClient } from "./computer-client";
+import { createIdentityFile } from "./computer-identity";
+import { createComputerTransport } from "./computer-transport";
 import { createCuaController } from "./cua/cua-controller";
+import { detectComputerInventory } from "./detect-inventory";
 import { createRelayTransport } from "./relay-transport";
 import { runRestartLoop } from "./restart-loop";
 import { BRIDGE_CLI_VERSION } from "./version";
@@ -32,7 +44,7 @@ function requireAgentCli(agentKind: AgentKind): void {
  * startup config (Phase 4) in time for `adapter.start` to apply it
  * (appendSystemPrompt, maxTurns, …). */
 async function startAgentSession(
-	args: ReturnType<typeof parseArgs>,
+	args: SessionCliArgs,
 	adapter: ReturnType<typeof selectAdapter>,
 	transport: ReturnType<typeof createRelayTransport>
 ) {
@@ -50,15 +62,9 @@ async function startAgentSession(
 	return { sessionId, handle };
 }
 
-async function main(): Promise<void> {
-	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
-	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
-	if (infoOutput !== undefined) {
-		process.stdout.write(`${infoOutput}\n`);
-		return;
-	}
-
-	const args = parseArgs(rawArgv);
+/** The pre-existing session mode, verbatim — extracted from `main` so the
+ * mode dispatch stays a pure seam with zero session behavior change. */
+async function startSessionClient(args: SessionCliArgs): Promise<void> {
 	const adapter = selectAdapter(args.agentKind, {
 		opencodeTransport: args.opencodeTransport,
 	});
@@ -101,6 +107,45 @@ async function main(): Promise<void> {
 	} finally {
 		await cua?.dispose();
 	}
+}
+
+/** `--client` (S1-T3): pair-or-load the Computer identity, register with the
+ * detected inventory, and heartbeat until SIGINT/SIGTERM. Starts no Agent. */
+async function startComputerClient(args: ClientCliArgs): Promise<void> {
+	const controller = new AbortController();
+	process.once("SIGINT", () => controller.abort());
+	process.once("SIGTERM", () => controller.abort());
+	process.stdout.write(`Connecting ${args.name} → ${args.serverUrl}\n`);
+	await runComputerClient(args, {
+		detectInventory: () => detectComputerInventory(),
+		generateKeyPair: generateComputerKeyPair,
+		identityFile: createIdentityFile(),
+		log: (message) => process.stdout.write(`${message}\n`),
+		onHeartbeatError: (error) =>
+			process.stderr.write(`Computer heartbeat failed: ${error.message}\n`),
+		platformInfo: {
+			arch: arch(),
+			clientVersion: BRIDGE_CLI_VERSION,
+			platform: platform(),
+		},
+		transport: createComputerTransport({ serverUrl: args.serverUrl }),
+		wait: createHeartbeatWait(controller.signal),
+	});
+}
+
+async function main(): Promise<void> {
+	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
+	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
+	if (infoOutput !== undefined) {
+		process.stdout.write(`${infoOutput}\n`);
+		return;
+	}
+
+	const args = parseArgs(rawArgv);
+	await dispatchCli(args, {
+		startClient: startComputerClient,
+		startSession: startSessionClient,
+	});
 }
 
 main().catch((error: unknown) => {

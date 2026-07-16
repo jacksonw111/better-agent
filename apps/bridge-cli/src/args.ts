@@ -1,4 +1,5 @@
 import { existsSync, statSync } from "node:fs";
+import { hostname } from "node:os";
 import { resolve } from "node:path";
 import {
 	type AgentKind,
@@ -8,15 +9,25 @@ import {
 
 const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
-export const USAGE = `Usage: agent-cli --agent <kind> --server <url> --token <token> [options]
+export const USAGE = `Usage:
+  agent-cli --client --server <url> [--pair <code>] [--name <computer>]
+  agent-cli --agent <kind> --server <url> --token <token> [options]
 (alias: better-agent-bridge — kept for existing scripts)
 
-Required:
-  --agent <kind>    Agent to run: claude-code | opencode | codex | pi
-  --server <url>    Better Agent server URL (or BETTER_AGENT_BRIDGE_SERVER)
-  --token <token>   Bridge auth token (or BETTER_AGENT_BRIDGE_TOKEN)
+Modes:
+  --client          Keep this Computer registered and connected (starts no Agent)
+  --agent <kind>    Run one bridge session: claude-code | opencode | codex | pi
 
-Options:
+Required for both modes:
+  --server <url>    Better Agent server URL (or BETTER_AGENT_BRIDGE_SERVER)
+
+Client options:
+  --pair <code>     One-time pairing code from the web Computers page (first run
+                    only — afterwards the saved identity file is used)
+  --name <text>     Computer name shown in Better Agent (default: OS hostname)
+
+Session options:
+  --token <token>                  Bridge auth token (or BETTER_AGENT_BRIDGE_TOKEN)
   --dir <path>                     Working directory for the agent (default: cwd)
   --label <text>                   Session label shown in the web Local Agent view
   --resume <id>                    Resume a prior claude-code session id
@@ -53,6 +64,9 @@ export function handleInfoFlags(
 	return argv.includes("-h") || argv.includes("--help") ? USAGE : undefined;
 }
 
+/** The pre-existing session mode's full flag set. `SessionCliArgs` layers the
+ * `mode` discriminator on top so downstream session code (restart loop,
+ * relay) keeps consuming this shape unchanged. */
 export interface BridgeCliArgs {
 	agentKind: AgentKind;
 	/** `--cua`: auto-provision a local lume VM and stream it over VNC (remote
@@ -82,6 +96,24 @@ export interface BridgeCliArgs {
 	token: string;
 }
 
+export interface SessionCliArgs extends BridgeCliArgs {
+	mode: "session";
+}
+
+/** `--client`: a Computer-plane daemon (register + heartbeat, D1 signed auth
+ * from the identity file) — no bridge token and no Agent process, ever. */
+export interface ClientCliArgs {
+	mode: "client";
+	/** Computer name shown in the web Computers page (default: OS hostname). */
+	name: string;
+	/** One-time pairing code (`--pair pc_…`), present only on the first run —
+	 * afterwards the saved identity file carries the credentials. */
+	pairCode: string | undefined;
+	serverUrl: string;
+}
+
+export type CliArgs = SessionCliArgs | ClientCliArgs;
+
 const FLAG_TO_FIELD = {
 	"--agent": "agentKind",
 	"--cua-image": "cuaImage",
@@ -89,7 +121,9 @@ const FLAG_TO_FIELD = {
 	"--cua-vnc-url": "cuaVncUrl",
 	"--dir": "dir",
 	"--label": "label",
+	"--name": "name",
 	"--opencode-transport": "opencodeTransport",
+	"--pair": "pairCode",
 	"--resume": "resume",
 	"--server": "serverUrl",
 	"--token": "token",
@@ -140,10 +174,35 @@ function validateOpencodeTransport(
 	return value;
 }
 
+type CollectedFlags = Partial<Record<FlagField, string>>;
+
+/** `--client` branch: no bridge token (D1 signed identity replaces it) and no
+ * working directory — the client daemon never starts an Agent. */
+function parseClientArgs(
+	flags: CollectedFlags,
+	env: Record<string, string | undefined>
+): ClientCliArgs {
+	if (flags.agentKind !== undefined) {
+		throw new Error("--client cannot be combined with --agent");
+	}
+	const serverUrl = flags.serverUrl ?? env.BETTER_AGENT_BRIDGE_SERVER;
+	if (serverUrl === undefined) {
+		throw new Error("--server is required (or set BETTER_AGENT_BRIDGE_SERVER)");
+	}
+	return {
+		mode: "client",
+		name: flags.name ?? hostname(),
+		pairCode: flags.pairCode,
+		serverUrl,
+	};
+}
+
 /**
- * Parses `agent-cli`'s CLI arguments: `--agent`, `--dir`,
+ * Parses `agent-cli`'s CLI arguments into the discriminated `CliArgs` union:
+ * `--client` selects the Computer client mode (`--pair`, `--name`); otherwise
+ * the pre-existing session mode parses exactly as before (`--agent`, `--dir`,
  * `--token`, `--server`, and the optional
- * `--label`/`--resume`/`--opencode-transport`. Falls back to
+ * `--label`/`--resume`/`--opencode-transport`). Falls back to
  * env vars (`BETTER_AGENT_BRIDGE_TOKEN`, `BETTER_AGENT_BRIDGE_SERVER`) and the
  * current working directory so the token/server don't have to be typed on
  * every run.
@@ -151,9 +210,25 @@ function validateOpencodeTransport(
 export function parseArgs(
 	argv: string[],
 	env: Record<string, string | undefined> = process.env
-): BridgeCliArgs {
+): CliArgs {
 	const flags = collectFlags(argv);
 
+	if (argv.includes("--client")) {
+		return parseClientArgs(flags, env);
+	}
+	if (flags.pairCode !== undefined) {
+		throw new Error("--pair requires --client");
+	}
+	return parseSessionArgs(argv, flags, env);
+}
+
+/** The pre-existing session parse, byte-for-byte — only hoisted out of
+ * `parseArgs` so the mode split doesn't push it over the complexity gate. */
+function parseSessionArgs(
+	argv: string[],
+	flags: CollectedFlags,
+	env: Record<string, string | undefined>
+): SessionCliArgs {
 	const agentKind = flags.agentKind;
 	if (agentKind === undefined) {
 		throw new Error(
@@ -177,6 +252,7 @@ export function parseArgs(
 	}
 
 	return {
+		mode: "session",
 		agentKind,
 		token,
 		serverUrl,

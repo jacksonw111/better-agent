@@ -17,6 +17,16 @@ const BASE = [
 	"https://bridge.example.com",
 ];
 
+/** Narrows the discriminated union so existing session assertions can keep
+ * reading session-only fields — the only behavior they exercise is unchanged. */
+function parseSession(argv: string[] = BASE) {
+	const args = parseArgs(argv, {});
+	if (args.mode !== "session") {
+		throw new Error("Expected session arguments");
+	}
+	return args;
+}
+
 describe("parseArgs - accepted input", () => {
 	it("parses all flags", () => {
 		const args = parseArgs(
@@ -32,6 +42,7 @@ describe("parseArgs - accepted input", () => {
 			{}
 		);
 		expect(args).toEqual({
+			mode: "session",
 			agentKind: "claude-code",
 			token: "bt_abc",
 			serverUrl: "https://bridge.example.com",
@@ -48,45 +59,52 @@ describe("parseArgs - accepted input", () => {
 	});
 
 	it("defaults resume to undefined when --resume is omitted", () => {
-		const args = parseArgs(BASE, {});
+		const args = parseSession();
 		expect(args.resume).toBeUndefined();
 	});
 
 	it("sets debug when --debug is passed", () => {
-		const args = parseArgs([...BASE, "--debug"], {});
+		const args = parseSession([...BASE, "--debug"]);
 		expect(args.debug).toBe(true);
 	});
 
 	it("defaults dir to the current working directory and label to undefined", () => {
-		const args = parseArgs(BASE, {});
+		const args = parseSession();
 		expect(args.dir).toBe(process.cwd());
 		expect(args.label).toBeUndefined();
 	});
+});
 
+// Split from "parseArgs - accepted input" purely for the max-lines gate.
+describe("parseArgs - accepted agent kinds", () => {
 	it("accepts pi as an agent kind", () => {
-		const args = parseArgs(
-			["--agent", "pi", "--token", "t", "--server", "s"],
-			{}
-		);
+		const args = parseSession([
+			"--agent",
+			"pi",
+			"--token",
+			"t",
+			"--server",
+			"s",
+		]);
 		expect(args.agentKind).toBe("pi");
 	});
 });
 
 describe("parseArgs - cua", () => {
 	it("sets cua and cuaVncUrl from their flags", () => {
-		expect(parseArgs([...BASE, "--cua"], {}).cua).toBe(true);
-		const withUrl = parseArgs([...BASE, "--cua-vnc-url", "localhost:5900"], {});
+		expect(parseSession([...BASE, "--cua"]).cua).toBe(true);
+		const withUrl = parseSession([...BASE, "--cua-vnc-url", "localhost:5900"]);
 		expect(withUrl.cuaVncUrl).toBe("localhost:5900");
 	});
 });
 
 describe("parseArgs - opencode transport", () => {
 	it("defaults --opencode-transport to acp", () => {
-		expect(parseArgs(BASE, {}).opencodeTransport).toBe("acp");
+		expect(parseSession().opencodeTransport).toBe("acp");
 	});
 
 	it("accepts --opencode-transport serve", () => {
-		const args = parseArgs([...BASE, "--opencode-transport", "serve"], {});
+		const args = parseSession([...BASE, "--opencode-transport", "serve"]);
 		expect(args.opencodeTransport).toBe("serve");
 	});
 
@@ -105,13 +123,73 @@ describe("parseArgs - env var fallback", () => {
 			BETTER_AGENT_BRIDGE_TOKEN: "bt_env",
 			BETTER_AGENT_BRIDGE_SERVER: "https://env.example.com",
 		});
-		expect(args.token).toBe("bt_env");
-		expect(args.serverUrl).toBe("https://env.example.com");
+		expect(args).toMatchObject({
+			serverUrl: "https://env.example.com",
+			token: "bt_env",
+		});
 	});
 
 	it("prefers an explicit flag over the env var", () => {
 		const args = parseArgs(BASE, { BETTER_AGENT_BRIDGE_TOKEN: "bt_env" });
-		expect(args.token).toBe("bt_abc");
+		expect(args).toMatchObject({ token: "bt_abc" });
+	});
+});
+
+describe("parseArgs - client mode", () => {
+	const CLIENT_BASE = ["--client", "--server", "https://bridge.example.com"];
+
+	it("parses --client with --pair and --name, requiring no token or agent", () => {
+		const args = parseArgs(
+			[...CLIENT_BASE, "--pair", "pc_code123", "--name", "Studio Mac"],
+			{}
+		);
+		expect(args).toEqual({
+			mode: "client",
+			name: "Studio Mac",
+			pairCode: "pc_code123",
+			serverUrl: "https://bridge.example.com",
+		});
+	});
+
+	it("leaves pairCode undefined when --pair is omitted", () => {
+		const args = parseArgs(CLIENT_BASE, {});
+		expect(args.mode).toBe("client");
+		if (args.mode === "client") {
+			expect(args.pairCode).toBeUndefined();
+		}
+	});
+
+	it("uses the OS hostname when --name is omitted", () => {
+		const args = parseArgs(CLIENT_BASE, {});
+		expect(args.mode).toBe("client");
+		if (args.mode === "client") {
+			expect(args.name.length).toBeGreaterThan(0);
+		}
+	});
+
+	it("falls back to the server env var", () => {
+		const args = parseArgs(["--client"], {
+			BETTER_AGENT_BRIDGE_SERVER: "https://env.example.com",
+		});
+		expect(args).toMatchObject({ serverUrl: "https://env.example.com" });
+	});
+});
+
+describe("parseArgs - client mode rejections", () => {
+	it("rejects combining --client with --agent", () => {
+		expect(() => parseArgs([...BASE, "--client"], {})).toThrow(
+			"--client cannot be combined with --agent"
+		);
+	});
+
+	it("rejects --pair outside client mode", () => {
+		expect(() => parseArgs([...BASE, "--pair", "pc_code123"], {})).toThrow(
+			"--pair requires --client"
+		);
+	});
+
+	it("rejects a missing server in client mode", () => {
+		expect(() => parseArgs(["--client"], {})).toThrow(MISSING_SERVER);
 	});
 });
 
