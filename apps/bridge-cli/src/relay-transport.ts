@@ -61,6 +61,7 @@ export function createRelayTransport(
 			client.bridge.startSession({
 				...input,
 				agentKind: toAgentKind(input.agentKind),
+				runId: input.runId,
 			}),
 		pushEvents: async (input) => {
 			await client.bridge.pushEvents(input);

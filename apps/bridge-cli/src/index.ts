@@ -13,11 +13,15 @@ import {
 import { dispatchCli } from "./cli-dispatch";
 import { createHeartbeatWait, runComputerClient } from "./computer-client";
 import { createIdentityFile } from "./computer-identity";
-import { createComputerTransport } from "./computer-transport";
+import {
+	createComputerTransport,
+	createMonotonicTimestamp,
+} from "./computer-transport";
 import { createCuaController } from "./cua/cua-controller";
 import { detectComputerInventory } from "./detect-inventory";
 import { createRelayTransport } from "./relay-transport";
 import { runRestartLoop } from "./restart-loop";
+import { createTaskLaunchRuntime } from "./task-launch/launch-wiring";
 import { BRIDGE_CLI_VERSION } from "./version";
 
 // `process.argv` is `[nodeExecutable, scriptPath, ...userArgs]`.
@@ -109,17 +113,34 @@ async function startSessionClient(args: SessionCliArgs): Promise<void> {
 	}
 }
 
-/** `--client` (S1-T3): pair-or-load the Computer identity, register with the
- * detected inventory, and heartbeat until SIGINT/SIGTERM. Starts no Agent. */
+/** `--client` (S1-T3 + S25-T1): pair-or-load the Computer identity, register
+ * with the detected inventory, and heartbeat until SIGINT/SIGTERM — now with
+ * the launch pipeline attached, so delivered Launch Commands (WS push or
+ * heartbeat fallback) start managed runtimes in Task workspaces. */
 async function startComputerClient(args: ClientCliArgs): Promise<void> {
 	const controller = new AbortController();
 	process.once("SIGINT", () => controller.abort());
 	process.once("SIGTERM", () => controller.abort());
 	process.stdout.write(`Connecting ${args.name} → ${args.serverUrl}\n`);
+	// ONE strictly-increasing clock across the HTTP and WS planes — the
+	// server's replay guard is per-computer, not per-transport.
+	const clock = createMonotonicTimestamp();
+	const transport = createComputerTransport({
+		now: clock,
+		serverUrl: args.serverUrl,
+	});
+	const launch = createTaskLaunchRuntime({
+		log: (message) => process.stderr.write(`${message}\n`),
+		nextTimestamp: clock,
+		serverUrl: args.serverUrl,
+		signal: controller.signal,
+		transport,
+	});
 	await runComputerClient(args, {
 		detectInventory: () => detectComputerInventory(),
 		generateKeyPair: generateComputerKeyPair,
 		identityFile: createIdentityFile(),
+		launchHandler: launch.launchHandler,
 		log: (message) => process.stdout.write(`${message}\n`),
 		onHeartbeatError: (error) =>
 			process.stderr.write(`Computer heartbeat failed: ${error.message}\n`),
@@ -128,7 +149,8 @@ async function startComputerClient(args: ClientCliArgs): Promise<void> {
 			clientVersion: BRIDGE_CLI_VERSION,
 			platform: platform(),
 		},
-		transport: createComputerTransport({ serverUrl: args.serverUrl }),
+		startControlChannel: launch.startControlChannel,
+		transport,
 		wait: createHeartbeatWait(controller.signal),
 	});
 }

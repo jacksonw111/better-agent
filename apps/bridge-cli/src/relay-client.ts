@@ -76,7 +76,14 @@ export interface RelayTransport {
 		sessionId: string;
 		vncEndpoint: string | null;
 	}): Promise<void>;
-	startSession(input: { agentKind: string; label?: string }): Promise<{
+	startSession(input: {
+		agentKind: string;
+		label?: string;
+		/** S25-T1: set when a Run's pre-issued credential starts this session —
+		 * the server binds `bridge_sessions.run_id` and `runs.session_id` both
+		 * ways (S2-T2). Omitted by the pre-existing session mode. */
+		runId?: string;
+	}): Promise<{
 		config: AgentStartConfig | null;
 		mcpServers: ResolvedMcpServer[];
 		sessionId: string;

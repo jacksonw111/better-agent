@@ -1,5 +1,6 @@
 import { COMPUTER_HEARTBEAT_INTERVAL_MS } from "@better-agent/agent/computer-ports";
 import type { ComputerKeyPair } from "@better-agent/agent/crypto/computer-signature";
+import type { RunLaunchCommand } from "@better-agent/agent/task-ports";
 import type { ClientCliArgs } from "./args";
 import type { ComputerIdentity, IdentityFile } from "./computer-identity";
 import type {
@@ -9,9 +10,12 @@ import type {
 import type { ComputerInventory } from "./detect-inventory";
 
 // The client-mode lifecycle (S1-T3): pair-or-load an identity, register once
-// with the freshly detected inventory, then heartbeat forever. This module
-// NEVER starts an Agent process — launching runtimes arrives with Slice 2.5's
-// launch commands, and even then only through a dedicated path.
+// with the freshly detected inventory, then heartbeat forever. S25-T1 adds
+// launch delivery on top: every heartbeat's `pendingCommands` — and, when
+// wired, the /computer-ws push — feed the ONE launch handler
+// (task-launch/launch-handler.ts), whose seen-set + server ack keep the two
+// channels idempotent per runId. Launch processing never blocks the beat:
+// each run's session lives in its own async task.
 
 /** Resolves `true` after one heartbeat interval, `false` once aborted — the
  * loop's only exit. Errors never end it (see `runComputerClient`). */
@@ -39,15 +43,46 @@ export function createHeartbeatWait(
 		});
 }
 
+/** The launch handler's surface the client loop drives (S25-T1) — see
+ * task-launch/launch-handler.ts. `handle` never rejects; `settle` lets the
+ * shutdown path wait for in-flight run sessions' final status reports. */
+export interface LaunchCommandSink {
+	handle(command: RunLaunchCommand): Promise<void>;
+	settle(): Promise<void>;
+}
+
 export interface ComputerClientDeps {
 	detectInventory(): Promise<ComputerInventory>;
 	generateKeyPair(): ComputerKeyPair;
 	identityFile: IdentityFile;
+	/** S25-T1 launch processing. Optional: without one the client is a pure
+	 * register+heartbeat daemon, exactly as before. */
+	launchHandler?: LaunchCommandSink;
 	log(message: string): void;
 	onHeartbeatError(error: Error): void;
 	platformInfo: { arch: string; clientVersion: string; platform: string };
+	/** S25-T1: opens the /computer-ws push channel once the identity is
+	 * known. Optional — heartbeat `pendingCommands` alone must (and does)
+	 * deliver every launch, just with up to one beat of latency. */
+	startControlChannel?: (identity: ComputerIdentity) => void;
 	transport: ComputerTransport;
 	wait: HeartbeatWait;
+}
+
+/** Fires the launch handler for each delivered command WITHOUT awaiting —
+ * run sessions are long-lived; the heartbeat loop must keep beating. */
+function dispatchLaunches(
+	commands: RunLaunchCommand[],
+	handler: LaunchCommandSink | undefined
+): void {
+	if (!handler) {
+		return;
+	}
+	for (const command of commands) {
+		// `handle` never rejects by contract; the catch is belt-and-braces so a
+		// buggy handler can still never kill the heartbeat loop.
+		handler.handle(command).catch(() => undefined);
+	}
 }
 
 /** `--pair`: fresh keypair → pair (the server stores only the public key) →
@@ -91,9 +126,11 @@ export async function runComputerClient(
 	deps.transport.setIdentity(identity);
 	await deps.transport.register(attributes);
 	deps.log(`Computer connected: ${identity.computerId}`);
+	deps.startControlChannel?.(identity);
 	while (await deps.wait()) {
 		try {
-			await deps.transport.heartbeat();
+			const { pendingCommands } = await deps.transport.heartbeat();
+			dispatchLaunches(pendingCommands, deps.launchHandler);
 		} catch (error) {
 			// Transient by assumption: the server derives Offline from missed
 			// heartbeats, so the right move is to keep trying, not to exit.
@@ -102,5 +139,8 @@ export async function runComputerClient(
 			);
 		}
 	}
+	// Shutdown (SIGINT/SIGTERM aborted the wait): the shared signal is already
+	// winding every run session down — wait for their final status reports.
+	await deps.launchHandler?.settle();
 	return { computerId: identity.computerId };
 }

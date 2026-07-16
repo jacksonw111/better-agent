@@ -1,92 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ClientCliArgs } from "./args";
+import { createHeartbeatWait, runComputerClient } from "./computer-client";
 import {
-	type ComputerClientDeps,
-	createHeartbeatWait,
-	runComputerClient,
-} from "./computer-client";
-import type { ComputerIdentity } from "./computer-identity";
-import type { ComputerTransport } from "./computer-transport";
+	clientArgs,
+	fakeDeps,
+	fakeTransport,
+	SERVER_URL,
+	waitTimes,
+} from "./computer-client-test-helpers";
 
 // Lifecycle of the client mode (never starts an Agent): with --pair it
 // generates a keypair, pairs, persists the identity, then falls into the
 // same register-once + heartbeat loop the identity-file path uses. Transient
 // heartbeat errors are reported but never end the loop; only the injected
-// wait (abort-driven in production) does.
+// wait (abort-driven in production) does. The S25-T1 launch-delivery specs
+// live in computer-client-launch.test.ts; shared fixtures in
+// computer-client-test-helpers.ts.
 
-const SERVER_URL = "https://bridge.example.com";
 const PAIR_HINT = /--pair/;
-
-const storedIdentity: ComputerIdentity = {
-	computerId: "computer-9",
-	privateKeyPem: "stored-private-pem",
-	serverUrl: SERVER_URL,
-};
-
-function clientArgs(pairCode?: string): ClientCliArgs {
-	return {
-		mode: "client",
-		name: "Studio Mac",
-		pairCode,
-		serverUrl: SERVER_URL,
-	};
-}
-
-function fakeTransport() {
-	return {
-		heartbeat: vi.fn<ComputerTransport["heartbeat"]>(() => Promise.resolve()),
-		pair: vi.fn<ComputerTransport["pair"]>(() =>
-			Promise.resolve({ computerId: "computer-1" })
-		),
-		register: vi.fn<ComputerTransport["register"]>(() => Promise.resolve()),
-		setIdentity: vi.fn<ComputerTransport["setIdentity"]>(),
-	} satisfies ComputerTransport;
-}
-
-/** A wait that allows `beats` heartbeat intervals before ending the loop. */
-function waitTimes(beats: number): () => Promise<boolean> {
-	let remaining = beats;
-	return () => {
-		remaining -= 1;
-		return Promise.resolve(remaining >= 0);
-	};
-}
-
-function fakeDeps(
-	overrides: Partial<ComputerClientDeps> = {}
-): ComputerClientDeps {
-	return {
-		detectInventory: () =>
-			Promise.resolve({
-				runtimeInventory: [
-					{
-						agentKind: "claude-code" as const,
-						skillCapability: "discoverable" as const,
-						skills: [],
-					},
-				],
-				toolInventory: [
-					{ installed: true, name: "git" as const },
-					{ installed: false, name: "gh" as const },
-				],
-			}),
-		generateKeyPair: () => ({
-			privateKeyPem: "generated-private-pem",
-			publicKeyPem: "generated-public-pem",
-		}),
-		identityFile: {
-			load: () => Promise.resolve(storedIdentity),
-			loadOrFail: () => Promise.resolve(storedIdentity),
-			save: vi.fn(() => Promise.resolve()),
-		},
-		log: vi.fn(),
-		onHeartbeatError: vi.fn(),
-		platformInfo: { arch: "arm64", clientVersion: "0.4.0", platform: "darwin" },
-		transport: fakeTransport(),
-		wait: waitTimes(0),
-		...overrides,
-	};
-}
 
 describe("runComputerClient - pairing", () => {
 	it("pairs with a fresh keypair, persists the identity, then registers", async () => {
@@ -214,7 +144,7 @@ describe("runComputerClient - heartbeat loop", () => {
 		const transport = fakeTransport();
 		transport.heartbeat
 			.mockRejectedValueOnce(new Error("network unavailable"))
-			.mockResolvedValueOnce(undefined);
+			.mockResolvedValueOnce({ pendingCommands: [] });
 		const onHeartbeatError = vi.fn();
 
 		await runComputerClient(

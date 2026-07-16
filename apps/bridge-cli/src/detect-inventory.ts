@@ -56,7 +56,10 @@ function unquote(value: string): string {
 	}
 }
 
-function parseFrontmatter(content: string): {
+/** Exported for task-launch/skill-references.ts (S25-T1), which matches
+ * Skill References against the SAME frontmatter-name-or-entry discovery this
+ * module's inventory scan uses. */
+export function parseSkillFrontmatter(content: string): {
 	description?: string;
 	name?: string;
 } {
@@ -96,7 +99,7 @@ async function readClaudeSkills(
 	for (const entry of entries) {
 		try {
 			const content = await readTextFile(join(dir, entry, "SKILL.md"));
-			const frontmatter = parseFrontmatter(content);
+			const frontmatter = parseSkillFrontmatter(content);
 			skills.push({
 				description: frontmatter.description ?? "",
 				name: frontmatter.name ?? entry,

@@ -3,6 +3,7 @@ import type {
 	ManagedToolInventoryItem,
 } from "@better-agent/agent/computer-ports";
 import { signComputerRequest } from "@better-agent/agent/crypto/computer-signature";
+import type { RunLaunchCommand } from "@better-agent/agent/task-ports";
 import type { AppRouterClient } from "@better-agent/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -36,13 +37,36 @@ export interface ComputerSigningIdentity {
 	privateKeyPem: string;
 }
 
+/** A Run progress report (S25-T1) — mirrors `runs.updateStatus`'s input:
+ * only provided fields change, `errorMessage` carries the REAL error. */
+export interface RunStatusUpdateInput {
+	errorMessage?: string;
+	runId: string;
+	status?:
+		| "preparing_workspace"
+		| "starting_runtime"
+		| "running"
+		| "waiting_for_user"
+		| "completed"
+		| "stopped"
+		| "failed";
+	workspacePath?: string;
+}
+
 export interface ComputerTransport {
-	heartbeat(): Promise<void>;
+	/** Acks one delivered Launch Command (S25-T1, design D4) — ok:false means
+	 * the Run was already acked (a redelivery) and must be skipped. */
+	ackLaunch(runId: string): Promise<{ ok: boolean }>;
+	/** Heartbeat + the no-WS launch delivery fallback: the server returns the
+	 * Computer's still-unacked Launch Commands with every beat (D4). */
+	heartbeat(): Promise<{ pendingCommands: RunLaunchCommand[] }>;
 	pair(input: ComputerPairInput): Promise<{ computerId: string }>;
 	register(attributes: ComputerAttributes): Promise<void>;
 	/** Arms the signed routes. Called once, after pairing or after loading the
 	 * identity file — `pair` itself needs no identity. */
 	setIdentity(identity: ComputerSigningIdentity): void;
+	/** Reports a Run's launch progress / terminal state (S25-T1, §11.2). */
+	updateRunStatus(update: RunStatusUpdateInput): Promise<{ ok: boolean }>;
 }
 
 /** The x-ba-* header triple the server's `computerProcedure` verifies. */
@@ -91,8 +115,10 @@ export function createComputerTransport(config: {
 	});
 	const client = createORPCClient(link) as AppRouterClient;
 	return {
+		ackLaunch: (runId) => client.runs.ackLaunch({ runId }),
 		heartbeat: async () => {
-			await client.computers.heartbeat();
+			const { pendingCommands } = await client.computers.heartbeat();
+			return { pendingCommands };
 		},
 		pair: (input) => client.computers.pair(input),
 		register: async (attributes) => {
@@ -101,5 +127,6 @@ export function createComputerTransport(config: {
 		setIdentity: (next) => {
 			identity = next;
 		},
+		updateRunStatus: (update) => client.runs.updateStatus(update),
 	};
 }

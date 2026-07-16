@@ -25,6 +25,12 @@ export interface MessageEvent extends TurnScoped {
 	 * duplicate of their own final message (claude-code, pi). */
 	id?: string;
 	kind: "message";
+	/** S25-T1: marks a CLIENT-injected input rather than one the user typed —
+	 * "task-start" is the Task Start Context the launch path dispatches as a
+	 * Run's first user input (see task-launch/run-session.ts). The web uses it
+	 * to fold the injected wall of context (S3-T2). Absent on every ordinary
+	 * message. */
+	origin?: "task-start";
 	role: "user" | "assistant";
 	text: string;
 	thinking?: boolean;

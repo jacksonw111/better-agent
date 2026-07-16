@@ -29,6 +29,11 @@ export interface RunRestartLoopOptions {
 	cua?: CuaController;
 	handle: AgentHandle;
 	sessionId: string;
+	/** S25-T1: an EXTERNAL abort that ends this loop like SIGINT would —
+	 * task-launch sessions share the computer client's shutdown signal so a
+	 * SIGINT aborts every run session, not just the process's own handlers.
+	 * Optional: the pre-existing session mode never passes one. */
+	signal?: AbortSignal;
 	transport: RelayTransport;
 }
 
@@ -153,6 +158,28 @@ function wireShutdown(
 	process.once("SIGTERM", stop);
 }
 
+/** S25-T1: propagates an external abort (`RunRestartLoopOptions.signal`) into
+ * the loop's own controller — same effect as `wireShutdown`'s signal
+ * handlers, but drivable by the computer client (and by tests). */
+function linkExternalAbort(
+	signal: AbortSignal | undefined,
+	controller: AbortController,
+	handleRef: { current: Pick<AgentHandle, "stop"> }
+): void {
+	if (!signal) {
+		return;
+	}
+	const stop = () => {
+		controller.abort();
+		handleRef.current.stop();
+	};
+	if (signal.aborted) {
+		stop();
+		return;
+	}
+	signal.addEventListener("abort", stop, { once: true });
+}
+
 function buildPollOptions(args: BridgeCliArgs) {
 	return args.debug
 		? {
@@ -226,6 +253,7 @@ export async function runRestartLoop(
 	// `control:restart` command that triggered this relaunch.
 	const afterIdRef: AfterIdRef = { current: 0 };
 	wireShutdown(controller, handleRef);
+	linkExternalAbort(options.signal, controller, handleRef);
 
 	let outcome: PollOutcome;
 	let onStart = printConnected;
