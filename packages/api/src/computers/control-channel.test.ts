@@ -61,6 +61,8 @@ async function seedCreatedRun(rig: ChannelRig) {
 		name: "Fix login flake",
 		description: "Fix the flaky login test",
 		openingMessage: "Fix the flaky login test",
+		repositoryCloneUrl: null,
+		repositoryDefaultBranch: null,
 		repositoryFullName: null,
 		repositoryUrl: null,
 	});

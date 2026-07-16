@@ -2,7 +2,7 @@ import type { GithubClient } from "@better-agent/agent/github/github-ports";
 import { parseRepositoryUrl } from "@better-agent/agent/github/github-ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import type { Context } from "../context";
+import { requireGithubClient } from "../github/github-access";
 import { authorizedUserProcedure } from "../index";
 
 // GitHub Connection router (S4-T1, design D7 / master spec §5.5).
@@ -32,24 +32,6 @@ async function verifiedLogin(client: GithubClient): Promise<string> {
 		});
 	}
 	return identity.login;
-}
-
-// Decrypts the caller's stored PAT and builds a client for it. Missing
-// connection = PRECONDITION_FAILED: the feature exists, the setup step doesn't.
-async function requireGithubClient(
-	context: Context,
-	userId: string
-): Promise<GithubClient> {
-	const connection =
-		await context.services.stores.githubConnection.getByUser(userId);
-	if (!connection) {
-		throw new ORPCError("PRECONDITION_FAILED", {
-			message:
-				"GitHub is not connected — add a personal access token under Integrations → GitHub first.",
-		});
-	}
-	const token = context.services.secretBox.decrypt(connection.encryptedToken);
-	return context.services.githubClient(token);
 }
 
 function requireFullName(input: string): string {
@@ -102,21 +84,30 @@ export const githubRouter = {
 	searchRepositories: authorizedUserProcedure
 		.input(z.object({ query: z.string() }))
 		.handler(async ({ input, context }) => {
-			const client = await requireGithubClient(context, context.authedUser.id);
+			const client = await requireGithubClient(
+				context.services,
+				context.authedUser.id
+			);
 			return await client.searchRepositories(input.query);
 		}),
 
 	lookupRepository: authorizedUserProcedure
 		.input(z.object({ url: z.string().min(1) }))
 		.handler(async ({ input, context }) => {
-			const client = await requireGithubClient(context, context.authedUser.id);
+			const client = await requireGithubClient(
+				context.services,
+				context.authedUser.id
+			);
 			return await client.getRepositoryByFullName(requireFullName(input.url));
 		}),
 
 	searchIssues: authorizedUserProcedure
 		.input(z.object({ fullName: z.string().min(1), query: z.string() }))
 		.handler(async ({ input, context }) => {
-			const client = await requireGithubClient(context, context.authedUser.id);
+			const client = await requireGithubClient(
+				context.services,
+				context.authedUser.id
+			);
 			return await client.searchIssues(
 				requireFullName(input.fullName),
 				input.query
@@ -128,7 +119,10 @@ export const githubRouter = {
 			z.object({ fullName: z.string().min(1), number: z.number().int().min(1) })
 		)
 		.handler(async ({ input, context }) => {
-			const client = await requireGithubClient(context, context.authedUser.id);
+			const client = await requireGithubClient(
+				context.services,
+				context.authedUser.id
+			);
 			return await client.getIssue(
 				requireFullName(input.fullName),
 				input.number

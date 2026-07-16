@@ -6,6 +6,12 @@ import {
 	createReplayGuard,
 	signComputerRequest,
 } from "@better-agent/agent/crypto/computer-signature";
+import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
+import type {
+	GithubClient,
+	GithubIssueDetail,
+	GithubRepositorySummary,
+} from "@better-agent/agent/github/github-ports";
 import type { BridgeMessageRow } from "@better-agent/agent/ports";
 import {
 	createFakeRunStore,
@@ -19,6 +25,7 @@ import {
 	memoryBridgeSessionStore,
 	memoryBridgeTokenStore,
 } from "./bridge-test-helpers-stores";
+import { memoryConnectionStore } from "./github-test-helpers";
 import { appRouter } from "./index";
 
 // Shared fixtures for the computers router tests — in-memory ComputerStore +
@@ -135,21 +142,60 @@ export function signedAuth(
 	};
 }
 
+/** Seedable fake GitHub for the rig (S4-T2, §19.6): repositories by fullName,
+ * issue details by `fullName#number`. Numbers in `failingIssues` make getIssue
+ * throw a transport error; an unknown key resolves null (deleted/inaccessible/
+ * PR — exactly the real client's contract). The client ignores the token: the
+ * connection gate is the memory connection store, not the credential. */
+function buildFakeGithub() {
+	const repositories = new Map<string, GithubRepositorySummary>();
+	const issues = new Map<string, GithubIssueDetail>();
+	const failingIssues = new Set<string>();
+	const issueKey = (fullName: string, issueNumber: number) =>
+		`${fullName}#${issueNumber}`;
+	const client: GithubClient = {
+		verifyToken: () => Promise.resolve({ login: "octocat" }),
+		searchRepositories: () => Promise.resolve([...repositories.values()]),
+		getRepositoryByFullName: (fullName) =>
+			Promise.resolve(repositories.get(fullName) ?? null),
+		searchIssues: () => Promise.resolve([]),
+		getIssue: (fullName, issueNumber) => {
+			const key = issueKey(fullName, issueNumber);
+			if (failingIssues.has(key)) {
+				return Promise.reject(new Error("GitHub is unreachable"));
+			}
+			return Promise.resolve(issues.get(key) ?? null);
+		},
+	};
+	return { client, failingIssues, issueKey, issues, repositories };
+}
+
+/** S4-T2: GitHub context at Task Start — a seedable fake client behind the
+ * real connection-store gate (no connection row = PRECONDITION_FAILED). */
+function buildGithubRig() {
+	return {
+		github: buildFakeGithub(),
+		githubConnection: memoryConnectionStore(),
+		secretBox: createSecretBox("computers-rig-secret-32-chars-min"),
+	};
+}
+
+function emptyBridgeTokenStore() {
+	return memoryBridgeTokenStore(new Map(), new Map(), () => undefined);
+}
+
 function buildRigServices() {
 	const rows = new Map<string, ComputerRow>();
 	const computer: ComputerStore = {
 		...memoryPairingCodes([]),
 		...memoryComputerRows(rows),
 	};
+	const { github, githubConnection, secretBox } = buildGithubRig();
 	// S2-T2/S2-T3: the launch-delivery stores heartbeat/ackLaunch/tasks.create
 	// read alongside the computer store — empty by default.
 	const run = createFakeRunStore();
 	const task = createFakeTaskStore();
-	const bridgeToken = memoryBridgeTokenStore(
-		new Map(),
-		new Map(),
-		() => undefined
-	);
+	const bridgeToken = emptyBridgeTokenStore();
 	// Recorded so tests can assert that Task Start never writes lifecycle chat
 	// messages (§19.2) — the map must stay empty through the whole flow.
 	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
@@ -168,11 +214,14 @@ function buildRigServices() {
 			task,
 		}),
 		computerReplayGuard: createReplayGuard(),
+		githubClient: () => github.client,
+		secretBox,
 		stores: {
 			bridgeMessage: memoryBridgeMessageStore(bridgeMessages),
 			bridgeSession,
 			bridgeToken,
 			computer,
+			githubConnection,
 			run,
 			task,
 		},
@@ -182,8 +231,11 @@ function buildRigServices() {
 		bridgeSession,
 		bridgeToken,
 		computer,
+		github,
+		githubConnection,
 		rows,
 		run,
+		secretBox,
 		services,
 		task,
 	};

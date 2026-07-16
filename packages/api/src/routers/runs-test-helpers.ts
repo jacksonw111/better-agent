@@ -40,6 +40,17 @@ export const CLAUDE_ONLY_INVENTORY: ComputerRuntimeInventoryItem[] = [
 
 export type Rig = ReturnType<typeof buildComputerRig>;
 
+/** S4-T2: satisfies the rig's GitHub-connection gate for `user`. The fake
+ * client ignores the token, so an encrypted placeholder is enough. */
+export async function connectGithub(rig: Rig, user: typeof ALICE = ALICE) {
+	await rig.githubConnection.upsert({
+		credentialType: "pat",
+		encryptedToken: rig.secretBox.encrypt("github_pat_fake"),
+		tokenLast4: "fake",
+		userId: user.id,
+	});
+}
+
 export async function pairComputer(
 	rig: Rig,
 	user: typeof ALICE,
@@ -65,10 +76,17 @@ export async function pairComputer(
 	return { client, computerId };
 }
 
+export interface SeedRepository {
+	repositoryCloneUrl: string;
+	repositoryDefaultBranch: string;
+	repositoryFullName: string;
+	repositoryUrl: string;
+}
+
 export async function seedRun(
 	rig: Rig,
 	computerId: string,
-	overrides?: { repositoryFullName: string; repositoryUrl: string }
+	overrides?: SeedRepository
 ) {
 	const task = await rig.task.insert({
 		userId: ALICE.id,
@@ -77,6 +95,8 @@ export async function seedRun(
 		name: "Fix login flake",
 		description: "Fix the flaky login test with /tdd",
 		openingMessage: "Fix the flaky login test with /tdd",
+		repositoryCloneUrl: overrides?.repositoryCloneUrl ?? null,
+		repositoryDefaultBranch: overrides?.repositoryDefaultBranch ?? null,
 		repositoryFullName: overrides?.repositoryFullName ?? null,
 		repositoryUrl: overrides?.repositoryUrl ?? null,
 	});

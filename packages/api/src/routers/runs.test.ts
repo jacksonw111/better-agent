@@ -22,6 +22,7 @@ it("heartbeat delivers a full standalone launch payload for a created run", asyn
 			workspace: { kind: "standalone" },
 			description: "Fix the flaky login test with /tdd",
 			issueSnapshots: [],
+			repositoryUrl: null,
 			sessionCredential: credential.token,
 		},
 	]);
@@ -31,17 +32,22 @@ it("heartbeat delivers the repository workspace form for a repository run", asyn
 	const rig = buildComputerRig();
 	const { client, computerId } = await pairComputer(rig, ALICE);
 	await seedRun(rig, computerId, {
+		repositoryCloneUrl: "https://github.com/acme/app.git",
+		repositoryDefaultBranch: "develop",
 		repositoryFullName: "acme/app",
 		repositoryUrl: "https://github.com/acme/app",
 	});
 
 	const { pendingCommands } = await client().computers.heartbeat();
+	// S4-T2: the saved GitHub metadata verbatim — no derived clone URL, no
+	// assumed "main" default branch.
 	expect(pendingCommands[0]?.workspace).toEqual({
 		kind: "repository",
 		fullName: "acme/app",
 		cloneUrl: "https://github.com/acme/app.git",
-		defaultBranch: "main",
+		defaultBranch: "develop",
 	});
+	expect(pendingCommands[0]?.repositoryUrl).toBe("https://github.com/acme/app");
 });
 
 it("ackLaunch flips created to launching and stops all further delivery", async () => {

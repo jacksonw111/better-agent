@@ -13,8 +13,11 @@ import type { IssueSnapshot } from "@better-agent/agent/task-ports";
 export interface StartContextInput {
 	/** The user's instruction, verbatim, references unexpanded (§6.9). */
 	description: string;
-	/** This Run's issue snapshots (empty until S4-T2 populates them). */
+	/** This Run's issue snapshots, in the user's order (S4-T2, §6.15). */
 	issueSnapshots: IssueSnapshot[];
+	/** Canonical repository web URL from the Launch payload (S4-T2) — renders
+	 * the §10.1 `Repository:` line; absent/null for stand-alone Tasks. */
+	repositoryUrl?: string | null;
 	/** Local installed-or-not facts (detect-inventory, D2). */
 	toolInventory: ManagedToolInventoryItem[];
 	/** The prepared workspace's absolute path. */
@@ -30,14 +33,22 @@ export interface StartContextDeps {
 const NO_PREFLIGHT_FACT =
 	"Authentication and current health have not been preflighted; actual command output is authoritative.";
 
-/** §10.1's issue-section format, reused verbatim for the agent-facing text
- * (matches opening-message.ts's `gitHubContextBlocks`). */
-function issueBlocks(issues: IssueSnapshot[]): string[] {
-	if (issues.length === 0) {
+/** §10.1's GitHub block, reused verbatim for the agent-facing text (matches
+ * opening-message.ts's `gitHubContextBlocks`): a `Repository:` line when the
+ * payload carries one, then one issue section per snapshot, in order. The
+ * whole block is omitted when there is neither. */
+function gitHubBlocks(
+	repositoryUrl: string | null | undefined,
+	issues: IssueSnapshot[]
+): string[] {
+	if (!repositoryUrl && issues.length === 0) {
 		return [];
 	}
+	const header = repositoryUrl
+		? `## GitHub context\nRepository: ${repositoryUrl}`
+		: "## GitHub context";
 	return [
-		"## GitHub context",
+		header,
 		...issues.map(
 			(issue) =>
 				`### Issue #${issue.number}: ${issue.title}\n${issue.body}\n${issue.url}`
@@ -61,8 +72,8 @@ function environmentBlock(
 }
 
 /** Assembles the Task Start Context: resolved description, the GitHub block
- * (when this Run has issue snapshots), then the environment block — joined
- * by blank lines like the §10.1 opening message. */
+ * (when this Run has a repository or issue snapshots), then the environment
+ * block — joined by blank lines like the §10.1 opening message. */
 export async function buildTaskStartContext(
 	input: StartContextInput,
 	deps: StartContextDeps
@@ -72,7 +83,7 @@ export async function buildTaskStartContext(
 	);
 	return [
 		resolvedDescription,
-		...issueBlocks(input.issueSnapshots),
+		...gitHubBlocks(input.repositoryUrl, input.issueSnapshots),
 		environmentBlock(input.toolInventory, input.workspacePath),
 	].join("\n\n");
 }

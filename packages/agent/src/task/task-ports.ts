@@ -45,6 +45,12 @@ export interface TaskInsert {
 	name: string;
 	/** Assembled once at creation (§10.1) and immutable thereafter. */
 	openingMessage: string;
+	/** GitHub-resolved clone URL, saved at creation (S4-T2, §6.14) — the
+	 * Launch payload's repository intent uses it verbatim, never a guess. */
+	repositoryCloneUrl: string | null;
+	/** The repository's real default branch at creation time (S4-T2) —
+	 * replaces the pre-S4 assumed-"main" fallback. */
+	repositoryDefaultBranch: string | null;
 	repositoryFullName: string | null;
 	repositoryUrl: string | null;
 	userId: string;
@@ -126,6 +132,10 @@ export interface RunLaunchCommand {
 	description: string;
 	issueSnapshots: IssueSnapshot[];
 	kind: "launch";
+	/** Canonical GitHub web URL of the Task's repository (S4-T2) — the client
+	 * renders it as the start context's `Repository:` line (§10.1); null for
+	 * stand-alone Tasks. */
+	repositoryUrl: string | null;
 	runId: string;
 	/** Raw pre-issued `bt_…` bridge token the client uses to attach the
 	 * launched runtime to the existing session relay (D4). */

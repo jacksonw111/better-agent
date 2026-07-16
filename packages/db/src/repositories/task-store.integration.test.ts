@@ -39,6 +39,8 @@ function taskInput(userId: string, computerId: string): TaskInsert {
 		name: "Fix login flake",
 		openingMessage:
 			"Fix the flaky login test /research\n\n## Execution context",
+		repositoryCloneUrl: null,
+		repositoryDefaultBranch: null,
 		repositoryFullName: null,
 		repositoryUrl: null,
 		userId,
@@ -78,10 +80,14 @@ it("insert keeps repository fields when provided", async () => {
 		...taskInput(userId, computerId),
 		repositoryFullName: "acme/app",
 		repositoryUrl: "https://github.com/acme/app",
+		repositoryCloneUrl: "https://github.com/acme/app.git",
+		repositoryDefaultBranch: "develop",
 	});
 
 	expect(created.repositoryFullName).toBe("acme/app");
 	expect(created.repositoryUrl).toBe("https://github.com/acme/app");
+	expect(created.repositoryCloneUrl).toBe("https://github.com/acme/app.git");
+	expect(created.repositoryDefaultBranch).toBe("develop");
 });
 
 it("getById is owner-scoped: null for another user or an unknown id", async () => {

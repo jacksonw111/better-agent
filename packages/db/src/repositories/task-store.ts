@@ -18,6 +18,8 @@ function toRow(row: typeof schema.tasks.$inferSelect): TaskRow {
 		agentKind: row.agentKind,
 		repositoryFullName: row.repositoryFullName ?? null,
 		repositoryUrl: row.repositoryUrl ?? null,
+		repositoryCloneUrl: row.repositoryCloneUrl ?? null,
+		repositoryDefaultBranch: row.repositoryDefaultBranch ?? null,
 		openingMessage: row.openingMessage,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,

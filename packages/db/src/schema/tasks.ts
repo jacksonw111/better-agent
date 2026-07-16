@@ -36,10 +36,14 @@ export const tasks = pgTable(
 			.notNull()
 			.references(() => computers.id),
 		agentKind: text("agent_kind").$type<BridgeAgentKind>().notNull(),
-		// Optional GitHub context (§6.14): both null when the Task has no
-		// repository, in which case Runs use a stand-alone workspace.
+		// Optional GitHub context (§6.14): all null when the Task has no
+		// repository, in which case Runs use a stand-alone workspace. cloneUrl
+		// and defaultBranch are GitHub-resolved at creation (S4-T2) so Launch
+		// payloads carry real metadata, never an assumed branch.
 		repositoryFullName: text("repository_full_name"),
 		repositoryUrl: text("repository_url"),
+		repositoryCloneUrl: text("repository_clone_url"),
+		repositoryDefaultBranch: text("repository_default_branch"),
 		openingMessage: text("opening_message").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()

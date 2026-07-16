@@ -108,6 +108,7 @@ it("standalone chain: create → launch payload → ack → running → session 
 		workspace: { kind: "standalone" },
 		description: DESCRIPTION,
 		issueSnapshots: [],
+		repositoryUrl: null,
 		sessionCredential: expect.stringMatching(CREDENTIAL_SHAPE),
 	} satisfies RunLaunchCommand);
 

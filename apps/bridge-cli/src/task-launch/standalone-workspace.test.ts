@@ -5,7 +5,9 @@ import { prepareRunWorkspace, standaloneTaskDir } from "./standalone-workspace";
 // `~/.better-agent/tasks/<taskId>/`. Creation is recursive AND idempotent —
 // a retry's new Run reuses the SAME task directory, never a fresh one — and
 // a repository workspace intent fails with the S4-T3 placeholder error
-// instead of pretending to prepare anything.
+// instead of pretending to prepare anything. Repository Tasks ARE creatable
+// since S4-T2, so until S4-T3 lands their launch genuinely reports a failed
+// Run with this real error — never a silent stand-alone fallback.
 
 const HOME = "/home/tester";
 const TASK_ID = "3f2b8a10-0000-4000-8000-000000000001";

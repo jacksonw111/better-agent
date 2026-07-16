@@ -1,10 +1,7 @@
-import {
-	COMPUTER_OFFLINE_AFTER_MS,
-	type ComputerRow,
-} from "@better-agent/agent/computer-ports";
 import { assembleOpeningMessage } from "@better-agent/agent/task/opening-message";
 import { createRunSessionCredential } from "@better-agent/agent/task/run-session-credential";
 import type {
+	IssueSnapshot,
 	RunRow,
 	TaskRow,
 	WorkspaceKind,
@@ -13,6 +10,16 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
+import {
+	refreshedIssueSnapshots,
+	repositoryTaskFields,
+	resolveGithubStartContext,
+} from "./tasks-github-context";
+import {
+	notifyComputerBestEffort,
+	requireOnlineOwnedComputer,
+	requireRuntimeInInventory,
+} from "./tasks-guards";
 
 // Tasks router (S2-T3): atomic Start per master spec §8.5 — every validation
 // runs BEFORE the first write, so a rejected Start leaves no task/run rows;
@@ -32,51 +39,15 @@ const hasVisibleText = (value: string) => value.trim().length > 0;
 
 type Services = Context["services"];
 
-/** §8.5 step 2: the computer must be the caller's (unknown and foreign look
- * identical — no oracle) and currently connected. The first version never
- * queues a Start for an offline computer. */
-async function requireOnlineOwnedComputer(
-	services: Services,
-	userId: string,
-	computerId: string
-): Promise<ComputerRow> {
-	const computer = await services.stores.computer.getById(computerId);
-	if (!computer || computer.userId !== userId) {
-		throw new ORPCError("NOT_FOUND", { message: "Computer not found" });
-	}
-	if (Date.now() - computer.lastSeenAt.getTime() > COMPUTER_OFFLINE_AFTER_MS) {
-		throw new ORPCError("PRECONDITION_FAILED", {
-			message: "Computer is offline — reconnect it or pick another one",
-		});
-	}
-	return computer;
-}
-
-/** §8.5 step 3: the runtime must come from the computer's own inventory.
- * Deliberately the ONLY tool gate — git/gh presence or authentication is
- * never preflighted (§16); real command errors reach the Agent instead. */
-function requireRuntimeInInventory(
-	computer: ComputerRow,
-	agentKind: (typeof AGENT_KINDS)[number]
-): void {
-	const available = computer.runtimeInventory.some(
-		(item) => item.agentKind === agentKind
-	);
-	if (!available) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: `Agent runtime ${agentKind} is not in this computer's inventory`,
-		});
-	}
-}
-
 /** Appends the Task's next sequential Run: fresh session credential, fresh
- * pre-generated id so launchKey === run id (the D4 idempotency key). Issue
- * snapshots are re-fetched per Run at launch — no GitHub in this slice, so
- * always empty until S4-T2. */
+ * pre-generated id so launchKey === run id (the D4 idempotency key), and the
+ * issue snapshots fetched for THIS launch — snapshots belong to the Run
+ * (§6.15), so every caller passes the ones it just resolved. */
 async function appendRun(
 	services: Services,
 	task: TaskRow,
-	workspaceKind: WorkspaceKind
+	workspaceKind: WorkspaceKind,
+	issueSnapshots: IssueSnapshot[]
 ): Promise<RunRow> {
 	const credential = await createRunSessionCredential({
 		bridgeTokenStore: services.stores.bridgeToken,
@@ -87,26 +58,12 @@ async function appendRun(
 		branch: null,
 		computerId: task.computerId,
 		id: runId,
-		issueSnapshots: [],
+		issueSnapshots,
 		launchKey: runId,
 		sessionTokenId: credential.tokenId,
 		taskId: task.id,
 		workspaceKind,
 	});
-}
-
-/** §8.5 step 10: best-effort WS push. A failure never rolls the Start back —
- * the run is already queued, and heartbeat pendingCommands delivers it within
- * one interval (D4 fallback). */
-async function notifyComputerBestEffort(
-	services: Services,
-	computerId: string
-): Promise<void> {
-	try {
-		await services.computerControl.notifyComputer(computerId);
-	} catch {
-		// Swallowed on purpose: the heartbeat fallback is the delivery guarantee.
-	}
 }
 
 const create = authorizedUserProcedure
@@ -118,10 +75,15 @@ const create = authorizedUserProcedure
 			description: z
 				.string()
 				.refine(hasVisibleText, "Task description is required"),
+			// Linked issues, in the user's order (§6.15) — only valid alongside
+			// a repository; the handler enforces that pairing.
+			issueNumbers: z.array(z.number().int().min(1)).optional(),
 			name: z
 				.string()
 				.max(TASK_NAME_MAX_LENGTH)
 				.refine(hasVisibleText, "Task name is required"),
+			// Optional GitHub repository (§6.14), as `owner/repo`.
+			repositoryFullName: z.string().min(1).optional(),
 		})
 	)
 	.handler(async ({ input, context }) => {
@@ -132,13 +94,23 @@ const create = authorizedUserProcedure
 			input.computerId
 		);
 		requireRuntimeInInventory(computer, input.agentKind);
-		// §8.5 steps 4–8: assemble the opening message once (workspaceKind is
-		// always standalone until S4 lands GitHub context), then task + run.
+		// §8.5 steps 4–5: GitHub validation + snapshots, still BEFORE any write.
+		const { issueSnapshots, repository } = await resolveGithubStartContext(
+			services,
+			context.authedUser.id,
+			input
+		);
+		const workspaceKind: WorkspaceKind = repository
+			? "repository"
+			: "standalone";
+		// §8.5 steps 6–8: assemble the opening message once, then task + run.
 		const openingMessage = assembleOpeningMessage({
 			agentKind: input.agentKind,
 			computerName: computer.name,
 			description: input.description,
-			workspaceKind: "standalone",
+			issues: issueSnapshots,
+			repositoryUrl: repository?.url,
+			workspaceKind,
 		});
 		const task = await services.stores.task.insert({
 			agentKind: input.agentKind,
@@ -146,11 +118,10 @@ const create = authorizedUserProcedure
 			description: input.description,
 			name: input.name,
 			openingMessage,
-			repositoryFullName: null,
-			repositoryUrl: null,
+			...repositoryTaskFields(repository),
 			userId: context.authedUser.id,
 		});
-		const run = await appendRun(services, task, "standalone");
+		const run = await appendRun(services, task, workspaceKind, issueSnapshots);
 		await notifyComputerBestEffort(services, computer.id);
 		return { runId: run.id, taskId: task.id };
 	});
@@ -259,7 +230,19 @@ const retry = authorizedUserProcedure
 			context.authedUser.id,
 			task.computerId
 		);
-		const run = await appendRun(services, task, latest.workspaceKind);
+		// Snapshots belong to the Run: the new Run launches with the freshest
+		// obtainable issue state, falling back per-issue to the last snapshot.
+		const issueSnapshots = await refreshedIssueSnapshots(
+			services,
+			task,
+			latest.issueSnapshots
+		);
+		const run = await appendRun(
+			services,
+			task,
+			latest.workspaceKind,
+			issueSnapshots
+		);
 		await notifyComputerBestEffort(services, task.computerId);
 		return { runId: run.id };
 	});

@@ -27,6 +27,7 @@ function launchFrame(runId: string): RunLaunchCommand {
 		description: "d",
 		issueSnapshots: [],
 		kind: "launch",
+		repositoryUrl: null,
 		runId,
 		sessionCredential: "bt_x",
 		taskId: "task-1",

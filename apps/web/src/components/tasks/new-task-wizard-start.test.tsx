@@ -12,9 +12,10 @@ import type { ComputerListItem } from "@/utils/api-types";
 import { NewTaskWizard } from "./new-task-wizard";
 import { offlineBox, studioMac } from "./wizard-test-fixtures";
 
-// §19.3 (part 2): required-field interception on Request, the disabled
-// GitHub placeholder with a direct no-Review Start, and the Start success /
-// failure / offline paths. Step 1 chain cases live in new-task-wizard.test.tsx.
+// §19.3 (part 2): required-field interception on Request, the no-connection
+// GitHub step with a direct no-Review Start, and the Start success / failure
+// / offline paths. Step 1 chain cases live in new-task-wizard.test.tsx; the
+// connected Step 3 flows live in wizard-step-github.test.tsx.
 
 const STUDIO_MAC = /Studio Mac/;
 const OFFLINE_BOX = /Offline Box/;
@@ -26,6 +27,7 @@ const store = vi.hoisted(() => ({
 	computers: [] as unknown[],
 	createError: null as Error | null,
 	created: [] as Record<string, unknown>[],
+	githubConnected: false,
 	navigatedTo: [] as Record<string, unknown>[],
 	toastErrors: [] as string[],
 }));
@@ -57,6 +59,17 @@ vi.mock("@tanstack/react-router", () => ({
 	},
 }));
 
+/** Inert input-keyed queryOptions stub — these tests never connect GitHub,
+ * so every search/lookup procedure just resolves an empty result. */
+function inertQuery<T>(name: string, result: T) {
+	return {
+		queryOptions: ({ input }: { input: unknown }) => ({
+			queryKey: ["github", name, JSON.stringify(input)],
+			queryFn: () => Promise.resolve(result),
+		}),
+	};
+}
+
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
 		computers: {
@@ -67,6 +80,19 @@ vi.mock("@/utils/orpc", () => ({
 					queryFn: () => Promise.resolve(store.computers),
 				}),
 			},
+		},
+		github: {
+			status: {
+				key: () => ["github", "status"],
+				queryOptions: () => ({
+					queryKey: ["github", "status"],
+					queryFn: () => Promise.resolve({ connected: store.githubConnected }),
+				}),
+			},
+			searchRepositories: inertQuery("repos", []),
+			lookupRepository: inertQuery("lookup", null),
+			searchIssues: inertQuery("issues", []),
+			getIssue: inertQuery("issue", null),
 		},
 		tasks: {
 			create: {
@@ -118,12 +144,14 @@ function clickNext(view: View) {
 	fireEvent.click(view.getByRole("button", { name: "Next" }));
 }
 
-const GITHUB_PLACEHOLDER = /GitHub context lands with Slice 4/;
+const GITHUB_STEP = /Optionally attach a GitHub repository/;
+const CONNECT_HINT = /GitHub is not connected/;
 
 afterEach(() => {
 	store.computers = [];
 	store.createError = null;
 	store.created.length = 0;
+	store.githubConnected = false;
 	store.navigatedTo.length = 0;
 	store.toastErrors.length = 0;
 	cleanup();
@@ -136,37 +164,34 @@ it("blocks advancing past Request until name and description are filled", async 
 	clickNext(view);
 	expect(view.getByText("Task name is required")).toBeDefined();
 	expect(view.getByText("Task description is required")).toBeDefined();
-	expect(view.queryByText(GITHUB_PLACEHOLDER)).toBeNull();
+	expect(view.queryByText(GITHUB_STEP)).toBeNull();
 
 	fireEvent.change(view.getByLabelText("Task name"), {
 		target: { value: "Fix login" },
 	});
 	clickNext(view);
 	expect(view.getByText("Task description is required")).toBeDefined();
-	expect(view.queryByText(GITHUB_PLACEHOLDER)).toBeNull();
+	expect(view.queryByText(GITHUB_STEP)).toBeNull();
 
 	fireEvent.change(view.getByLabelText("Task description"), {
 		target: { value: "Make the login test pass" },
 	});
 	clickNext(view);
-	expect(view.getByText(GITHUB_PLACEHOLDER)).toBeDefined();
+	expect(await view.findByText(GITHUB_STEP)).toBeDefined();
 });
 
-it("renders GitHub as a disabled placeholder with a directly usable Start", async () => {
+it("without a GitHub connection: hint + disabled controls, Start still usable", async () => {
 	const view = renderWizard();
 	await driveToRequestStep(view, STUDIO_MAC);
 	fillRequest(view, "Fix login", "Make the login test pass");
 	clickNext(view);
 
-	expect(view.getByText(GITHUB_PLACEHOLDER)).toBeDefined();
+	// The connection hint points at Integrations; the controls stay disabled.
+	expect(await view.findByText(CONNECT_HINT)).toBeDefined();
 	const repository = view.getByLabelText("GitHub repository");
 	expect(repository.hasAttribute("disabled")).toBe(true);
 	const issues = view.getByLabelText("Linked issues");
 	expect(issues.hasAttribute("disabled")).toBe(true);
-	const addIssue = view.getByRole("button", {
-		name: "Add issue",
-	}) as HTMLButtonElement;
-	expect(addIssue.disabled).toBe(true);
 
 	// Direct Start, no Review step in between (spec §18.2).
 	const start = view.getByRole("button", {
@@ -218,7 +243,7 @@ it("stays on the wizard and shows the real error when Start fails", async () => 
 	});
 	expect(store.navigatedTo).toEqual([]);
 	expect(view.getByRole("button", { name: "Start" })).toBeDefined();
-	expect(view.getByText(GITHUB_PLACEHOLDER)).toBeDefined();
+	expect(await view.findByText(GITHUB_STEP)).toBeDefined();
 });
 
 it("lets an offline computer be inspected but never started", async () => {

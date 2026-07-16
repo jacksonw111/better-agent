@@ -14,21 +14,40 @@ export type WizardStep = (typeof WIZARD_STEPS)[number];
 /** Spec §8.3: Task Name is a UI label capped at 120 chars. */
 export const TASK_NAME_MAX_LENGTH = 120;
 
+/** The Step 3 repository selection (S4-T2, spec §6.14): just the identity the
+ * Start payload needs plus the URL shown in the picker. */
+export interface WizardRepository {
+	fullName: string;
+	url: string;
+}
+
+/** A linked issue in the wizard (spec §6.15) — number for the Start payload,
+ * title for display. Order is the user's add order. */
+export interface WizardIssue {
+	number: number;
+	title: string;
+}
+
 export interface WizardDraft {
 	agentKind: AgentKind | null;
 	computerId: string | null;
 	description: string;
+	/** Linked issues, in add order (spec §8.4) — only valid with a repository. */
+	issues: WizardIssue[];
 	name: string;
 	/** Skill names checked into the wizard's Skill Palette (spec §6.5). */
 	paletteSkillNames: string[];
+	repository: WizardRepository | null;
 }
 
 export const EMPTY_WIZARD_DRAFT: WizardDraft = {
 	agentKind: null,
 	computerId: null,
 	description: "",
+	issues: [],
 	name: "",
 	paletteSkillNames: [],
+	repository: null,
 };
 
 export const hasVisibleText = (value: string): boolean =>
@@ -90,6 +109,44 @@ export function withPaletteSkillToggled(
 	return {
 		...draft,
 		paletteSkillNames: checked ? [...withoutSkill, skillName] : withoutSkill,
+	};
+}
+
+/** Issues must come from the selected repository (spec §8.4): switching to a
+ * DIFFERENT repository clears them; re-selecting the same one keeps them. */
+export function withRepositorySelected(
+	draft: WizardDraft,
+	repository: WizardRepository
+): WizardDraft {
+	if (draft.repository?.fullName === repository.fullName) {
+		return { ...draft, repository };
+	}
+	return { ...draft, issues: [], repository };
+}
+
+/** Clearing the repository always clears the issues with it (spec §8.4). */
+export function withRepositoryCleared(draft: WizardDraft): WizardDraft {
+	return { ...draft, issues: [], repository: null };
+}
+
+/** Appends a linked issue, keeping add order; a duplicate number is a no-op. */
+export function withIssueAdded(
+	draft: WizardDraft,
+	issue: WizardIssue
+): WizardDraft {
+	if (draft.issues.some((existing) => existing.number === issue.number)) {
+		return draft;
+	}
+	return { ...draft, issues: [...draft.issues, issue] };
+}
+
+export function withIssueRemoved(
+	draft: WizardDraft,
+	issueNumber: number
+): WizardDraft {
+	return {
+		...draft,
+		issues: draft.issues.filter((issue) => issue.number !== issueNumber),
 	};
 }
 

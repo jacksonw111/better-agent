@@ -39,6 +39,14 @@ export type ComputerListItem = Awaited<
 
 export type TaskListItem = Awaited<ReturnType<Client["tasks"]["list"]>>[number];
 
+export type GithubRepositoryItem = Awaited<
+	ReturnType<Client["github"]["searchRepositories"]>
+>[number];
+
+export type GithubIssueItem = Awaited<
+	ReturnType<Client["github"]["searchIssues"]>
+>[number];
+
 export type TaskDetail = Awaited<ReturnType<Client["tasks"]["get"]>>;
 
 export type TaskRun = TaskDetail["runs"][number];

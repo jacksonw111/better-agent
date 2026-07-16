@@ -25,6 +25,7 @@ function launchCommand(
 		description: "Do the thing",
 		issueSnapshots: [],
 		kind: "launch",
+		repositoryUrl: null,
 		runId: RUN_ID,
 		sessionCredential: "bt_secret",
 		taskId: TASK_ID,

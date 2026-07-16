@@ -19,6 +19,7 @@ const pendingLaunch = {
 	description: "d",
 	issueSnapshots: [],
 	kind: "launch" as const,
+	repositoryUrl: null,
 	runId: "run-1",
 	sessionCredential: "bt_x",
 	taskId: "task-1",

@@ -46,6 +46,7 @@ async function buildStartContext(
 		{
 			description: command.description,
 			issueSnapshots: command.issueSnapshots,
+			repositoryUrl: command.repositoryUrl,
 			toolInventory,
 			workspacePath,
 		},

@@ -9,7 +9,13 @@ import { EmptyState } from "@/components/layout/empty-state";
 import type { ComputerListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { StepIndicator, WizardFooter } from "./wizard-chrome";
-import type { AgentKind, WizardDraft, WizardStep } from "./wizard-state";
+import type {
+	AgentKind,
+	WizardDraft,
+	WizardIssue,
+	WizardRepository,
+	WizardStep,
+} from "./wizard-state";
 import {
 	EMPTY_WIZARD_DRAFT,
 	paletteSkills,
@@ -17,7 +23,11 @@ import {
 	selectedRuntime,
 	WIZARD_STEPS,
 	withComputerSelected,
+	withIssueAdded,
+	withIssueRemoved,
 	withPaletteSkillToggled,
+	withRepositoryCleared,
+	withRepositorySelected,
 	withRuntimeSelected,
 } from "./wizard-state";
 import { WizardStepGithub } from "./wizard-step-github";
@@ -37,9 +47,16 @@ const LIST_REFETCH_INTERVAL_MS = 10_000;
 function useWizardDraft() {
 	const [draft, setDraft] = useState<WizardDraft>(EMPTY_WIZARD_DRAFT);
 	return {
+		addIssue: (issue: WizardIssue) =>
+			setDraft((current) => withIssueAdded(current, issue)),
+		clearRepository: () => setDraft(withRepositoryCleared),
 		draft,
+		removeIssue: (issueNumber: number) =>
+			setDraft((current) => withIssueRemoved(current, issueNumber)),
 		selectComputer: (computer: ComputerListItem) =>
 			setDraft((current) => withComputerSelected(current, computer)),
+		selectRepository: (repository: WizardRepository) =>
+			setDraft((current) => withRepositorySelected(current, repository)),
 		selectRuntime: (agentKind: AgentKind) =>
 			setDraft((current) => withRuntimeSelected(current, agentKind)),
 		setDescription: (description: string) =>
@@ -68,11 +85,20 @@ function useStartTask(draft: WizardDraft) {
 		if (draft.computerId === null || draft.agentKind === null) {
 			return;
 		}
+		// GitHub context rides along only when a repository was picked (§8.4) —
+		// an all-empty Step 3 sends exactly the stand-alone payload.
+		const github = draft.repository
+			? {
+					issueNumbers: draft.issues.map((issue) => issue.number),
+					repositoryFullName: draft.repository.fullName,
+				}
+			: {};
 		create.mutate({
 			agentKind: draft.agentKind,
 			computerId: draft.computerId,
 			description: draft.description,
 			name: draft.name,
+			...github,
 		});
 	};
 	return { start, starting: create.isPending };
@@ -115,7 +141,15 @@ function StepContent({
 			/>
 		);
 	}
-	return <WizardStepGithub />;
+	return (
+		<WizardStepGithub
+			draft={wizard.draft}
+			onAddIssue={wizard.addIssue}
+			onClearRepository={wizard.clearRepository}
+			onRemoveIssue={wizard.removeIssue}
+			onSelectRepository={wizard.selectRepository}
+		/>
+	);
 }
 
 function WizardBody({ computers }: { computers: ComputerListItem[] }) {

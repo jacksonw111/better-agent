@@ -14,7 +14,12 @@ import type {
 /** The Task fields a Launch Command derives from. */
 export type LaunchTaskSource = Pick<
 	TaskRow,
-	"description" | "id" | "repositoryFullName" | "repositoryUrl"
+	| "description"
+	| "id"
+	| "repositoryCloneUrl"
+	| "repositoryDefaultBranch"
+	| "repositoryFullName"
+	| "repositoryUrl"
 >;
 
 /** The Run fields a Launch Command derives from. */
@@ -23,28 +28,22 @@ export type LaunchRunSource = Pick<
 	"agentKind" | "id" | "issueSnapshots" | "workspaceKind"
 >;
 
-const GIT_URL_SUFFIX = ".git";
-
-/** Placeholder until S4 threads GitHub-resolved repository metadata (real
- * default branch) into Task creation. Repository Tasks cannot be created
- * before the wizard's GitHub step lands in S4, so no production Launch can
- * reach this fallback. */
-const ASSUMED_DEFAULT_BRANCH = "main";
-
+/** S4-T2: the repository intent carries the GitHub-resolved metadata saved at
+ * Task creation — the real cloneUrl and defaultBranch, never a derived URL or
+ * an assumed "main" (the pre-S4 fallback is gone on purpose). */
 function repositoryIntent(task: LaunchTaskSource): RunWorkspaceIntent {
-	if (!(task.repositoryFullName && task.repositoryUrl)) {
+	const { repositoryCloneUrl, repositoryDefaultBranch, repositoryFullName } =
+		task;
+	if (!(repositoryFullName && repositoryCloneUrl && repositoryDefaultBranch)) {
 		throw new Error(
-			`Task ${task.id} has a repository run but no repository identity`
+			`Task ${task.id} has a repository run but incomplete repository metadata`
 		);
 	}
-	const cloneUrl = task.repositoryUrl.endsWith(GIT_URL_SUFFIX)
-		? task.repositoryUrl
-		: `${task.repositoryUrl}${GIT_URL_SUFFIX}`;
 	return {
 		kind: "repository",
-		fullName: task.repositoryFullName,
-		cloneUrl,
-		defaultBranch: ASSUMED_DEFAULT_BRANCH,
+		fullName: repositoryFullName,
+		cloneUrl: repositoryCloneUrl,
+		defaultBranch: repositoryDefaultBranch,
 	};
 }
 
@@ -67,6 +66,7 @@ export function buildLaunchCommand(
 		workspace,
 		description: task.description,
 		issueSnapshots: run.issueSnapshots,
+		repositoryUrl: task.repositoryUrl,
 		sessionCredential: sessionToken,
 	};
 }

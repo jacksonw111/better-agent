@@ -60,7 +60,7 @@ describe("buildTaskStartContext - environment template", () => {
 });
 
 describe("buildTaskStartContext - GitHub block", () => {
-	it("inserts the issue sections between the description and the environment", async () => {
+	it("renders the Repository line and issue sections between description and environment", async () => {
 		const context = await buildTaskStartContext(
 			{
 				description: "Fix the bug.",
@@ -78,6 +78,7 @@ describe("buildTaskStartContext - GitHub block", () => {
 						url: "https://github.com/a/b/issues/9",
 					},
 				],
+				repositoryUrl: "https://github.com/a/b",
 				toolInventory: BOTH_TOOLS,
 				workspacePath: WORKSPACE,
 			},
@@ -86,6 +87,7 @@ describe("buildTaskStartContext - GitHub block", () => {
 		expect(context).toBe(`Fix the bug.
 
 ## GitHub context
+Repository: https://github.com/a/b
 
 ### Issue #7: Crash on save
 Steps to reproduce…
@@ -100,6 +102,46 @@ https://github.com/a/b/issues/9
 - gh is installed and managed by Better Agent.
 - Authentication and current health have not been preflighted; actual command output is authoritative.
 - Task workspace: ${WORKSPACE}`);
+	});
+});
+
+describe("buildTaskStartContext - Repository line variants", () => {
+	it("renders the Repository line alone for a repository task without issues", async () => {
+		const context = await buildTaskStartContext(
+			{
+				description: "d",
+				issueSnapshots: [],
+				repositoryUrl: "https://github.com/a/b",
+				toolInventory: [],
+				workspacePath: WORKSPACE,
+			},
+			identityResolve
+		);
+		expect(context).toContain(
+			"d\n\n## GitHub context\nRepository: https://github.com/a/b\n\n## Agent environment"
+		);
+	});
+
+	it("omits the Repository line when the payload has none (repositoryUrl null)", async () => {
+		const context = await buildTaskStartContext(
+			{
+				description: "d",
+				issueSnapshots: [
+					{
+						body: "b",
+						number: 7,
+						title: "T",
+						url: "https://github.com/a/b/issues/7",
+					},
+				],
+				repositoryUrl: null,
+				toolInventory: [],
+				workspacePath: WORKSPACE,
+			},
+			identityResolve
+		);
+		expect(context).toContain("## GitHub context\n\n### Issue #7: T");
+		expect(context).not.toContain("Repository:");
 	});
 });
 

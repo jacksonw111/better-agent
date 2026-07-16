@@ -43,7 +43,7 @@ export const ISSUE_DETAIL_FIXTURE: GithubIssueDetail = {
 	url: "https://github.com/octo/hello/issues/7",
 };
 
-function memoryConnectionStore() {
+export function memoryConnectionStore() {
 	const rows: GithubConnectionRow[] = [];
 	return {
 		rows,
