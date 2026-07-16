@@ -15,12 +15,14 @@ RUN pnpm -F server build
 # default), so this just keeps deploy consistent with it.
 RUN pnpm --filter=server deploy --prod --legacy --ignore-scripts /out \
   && cp -r apps/server/dist /out/dist \
-  && cp -r packages/db/src/migrations /out/migrations
+  && cp -r packages/db/src/migrations /out/migrations \
+  && cp -r apps/server/src/builtin-skills /out/builtin-skills
 
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 ENV MIGRATIONS_DIR=/app/migrations
+ENV BUILTIN_SKILLS_DIR=/app/builtin-skills
 COPY --from=build /out .
 EXPOSE 3000
 CMD ["node", "dist/index.mjs"]

@@ -16,10 +16,12 @@ async function seedSkills(): Promise<void> {
 		throw new Error("seed-skills: DATABASE_URL is required");
 	}
 
-	const skillsDir = join(
-		dirname(fileURLToPath(import.meta.url)),
-		"builtin-skills"
-	);
+	// In the production image the bundle lives in dist/ and the .md files are
+	// copied to BUILTIN_SKILLS_DIR (see deploy/docker/server.Dockerfile). In dev
+	// (tsx src/seed-skills.ts) fall back to the sibling source folder.
+	const skillsDir =
+		process.env.BUILTIN_SKILLS_DIR ??
+		join(dirname(fileURLToPath(import.meta.url)), "builtin-skills");
 	const db = createNodeDb(databaseUrl);
 	const skills = createSkillStore(db);
 
