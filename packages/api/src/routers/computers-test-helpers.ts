@@ -13,9 +13,10 @@ import {
 } from "@better-agent/agent/testing/fake-task-stores";
 import { createRouterClient } from "@orpc/server";
 import { createComputerControlChannel } from "../computers/control-channel";
-import type { ComputerAuthHeaders } from "../context";
+import type { AuthedBridgeToken, ComputerAuthHeaders } from "../context";
 import {
 	memoryBridgeMessageStore,
+	memoryBridgeSessionStore,
 	memoryBridgeTokenStore,
 } from "./bridge-test-helpers-stores";
 import { appRouter } from "./index";
@@ -152,6 +153,9 @@ function buildRigServices() {
 	// Recorded so tests can assert that Task Start never writes lifecycle chat
 	// messages (§19.2) — the map must stay empty through the whole flow.
 	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
+	// S25-T2: lets the cross-layer flow tests drive bridge.startSession(runId)
+	// with the launch payload's sessionCredential inside the SAME rig.
+	const bridgeSession = memoryBridgeSessionStore(new Map());
 	const services = {
 		authz: { enabled: false },
 		// Real channel, no registered sockets: notifyComputer is a push no-op and
@@ -166,13 +170,23 @@ function buildRigServices() {
 		computerReplayGuard: createReplayGuard(),
 		stores: {
 			bridgeMessage: memoryBridgeMessageStore(bridgeMessages),
+			bridgeSession,
 			bridgeToken,
 			computer,
 			run,
 			task,
 		},
 	} as never;
-	return { bridgeMessages, bridgeToken, computer, rows, run, services, task };
+	return {
+		bridgeMessages,
+		bridgeSession,
+		bridgeToken,
+		computer,
+		rows,
+		run,
+		services,
+		task,
+	};
 }
 
 export function buildComputerRig() {
@@ -194,8 +208,15 @@ export function buildComputerRig() {
 		createRouterClient(appRouter, { context: { ...base, authedUser: user } });
 	const computerClientFor = (auth: ComputerAuthHeaders) =>
 		createRouterClient(appRouter, { context: { ...base, computerAuth: auth } });
+	// S25-T2: the CLI plane — a bridge-token client for the run's pre-issued
+	// session credential, so flow tests can close the chain at startSession.
+	const bridgeClientFor = (bridgeAuth: AuthedBridgeToken) =>
+		createRouterClient(appRouter, {
+			context: { ...base, authedBridgeToken: bridgeAuth },
+		});
 	return {
 		...stores,
+		bridgeClientFor,
 		computerClientFor,
 		publicClient,
 		userClientFor,
