@@ -16,6 +16,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as SkillsIndexRouteImport } from './routes/skills.index'
 import { Route as MemoriesIndexRouteImport } from './routes/memories.index'
 import { Route as LocalIndexRouteImport } from './routes/local.index'
@@ -24,6 +25,8 @@ import { Route as IntegrationsIndexRouteImport } from './routes/integrations.ind
 import { Route as ComputersIndexRouteImport } from './routes/computers.index'
 import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
+import { Route as TasksNewRouteImport } from './routes/tasks.new'
+import { Route as TasksTaskIdRouteImport } from './routes/tasks.$taskId'
 import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryId'
 import { Route as LocalTokenIdRouteImport } from './routes/local.$tokenId'
 import { Route as LocalAgentsTokenIdRouteImport } from './routes/local-agents.$tokenId'
@@ -68,6 +71,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TasksIndexRoute = TasksIndexRouteImport.update({
+  id: '/tasks/',
+  path: '/tasks/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SkillsIndexRoute = SkillsIndexRouteImport.update({
   id: '/skills/',
   path: '/skills/',
@@ -106,6 +114,16 @@ const BridgeIndexRoute = BridgeIndexRouteImport.update({
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksNewRoute = TasksNewRouteImport.update({
+  id: '/tasks/new',
+  path: '/tasks/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksTaskIdRoute = TasksTaskIdRouteImport.update({
+  id: '/tasks/$taskId',
+  path: '/tasks/$taskId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemoriesMemoryIdRoute = MemoriesMemoryIdRouteImport.update({
@@ -163,6 +181,8 @@ export interface FileRoutesByFullPath {
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
+  '/tasks/$taskId': typeof TasksTaskIdRoute
+  '/tasks/new': typeof TasksNewRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/computers/': typeof ComputersIndexRoute
@@ -171,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
   '/skills/': typeof SkillsIndexRoute
+  '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
 }
@@ -188,6 +209,8 @@ export interface FileRoutesByTo {
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
+  '/tasks/$taskId': typeof TasksTaskIdRoute
+  '/tasks/new': typeof TasksNewRoute
   '/agents': typeof AgentsIndexRoute
   '/bridge': typeof BridgeIndexRoute
   '/computers': typeof ComputersIndexRoute
@@ -196,6 +219,7 @@ export interface FileRoutesByTo {
   '/local': typeof LocalIndexRoute
   '/memories': typeof MemoriesIndexRoute
   '/skills': typeof SkillsIndexRoute
+  '/tasks': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
 }
@@ -214,6 +238,8 @@ export interface FileRoutesById {
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
+  '/tasks/$taskId': typeof TasksTaskIdRoute
+  '/tasks/new': typeof TasksNewRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/computers/': typeof ComputersIndexRoute
@@ -222,6 +248,7 @@ export interface FileRoutesById {
   '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
   '/skills/': typeof SkillsIndexRoute
+  '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
 }
@@ -241,6 +268,8 @@ export interface FileRouteTypes {
     | '/local-agents/$tokenId'
     | '/local/$tokenId'
     | '/memories/$memoryId'
+    | '/tasks/$taskId'
+    | '/tasks/new'
     | '/agents/'
     | '/bridge/'
     | '/computers/'
@@ -249,6 +278,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/memories/'
     | '/skills/'
+    | '/tasks/'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
   fileRoutesByTo: FileRoutesByTo
@@ -266,6 +296,8 @@ export interface FileRouteTypes {
     | '/local-agents/$tokenId'
     | '/local/$tokenId'
     | '/memories/$memoryId'
+    | '/tasks/$taskId'
+    | '/tasks/new'
     | '/agents'
     | '/bridge'
     | '/computers'
@@ -274,6 +306,7 @@ export interface FileRouteTypes {
     | '/local'
     | '/memories'
     | '/skills'
+    | '/tasks'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
   id:
@@ -291,6 +324,8 @@ export interface FileRouteTypes {
     | '/local-agents/$tokenId'
     | '/local/$tokenId'
     | '/memories/$memoryId'
+    | '/tasks/$taskId'
+    | '/tasks/new'
     | '/agents/'
     | '/bridge/'
     | '/computers/'
@@ -299,6 +334,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/memories/'
     | '/skills/'
+    | '/tasks/'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
   fileRoutesById: FileRoutesById
@@ -317,6 +353,8 @@ export interface RootRouteChildren {
   LocalAgentsTokenIdRoute: typeof LocalAgentsTokenIdRoute
   LocalTokenIdRoute: typeof LocalTokenIdRoute
   MemoriesMemoryIdRoute: typeof MemoriesMemoryIdRoute
+  TasksTaskIdRoute: typeof TasksTaskIdRoute
+  TasksNewRoute: typeof TasksNewRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   BridgeIndexRoute: typeof BridgeIndexRoute
   ComputersIndexRoute: typeof ComputersIndexRoute
@@ -325,6 +363,7 @@ export interface RootRouteChildren {
   LocalIndexRoute: typeof LocalIndexRoute
   MemoriesIndexRoute: typeof MemoriesIndexRoute
   SkillsIndexRoute: typeof SkillsIndexRoute
+  TasksIndexRoute: typeof TasksIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
   IntegrationsOcAccountIdRoute: typeof IntegrationsOcAccountIdRoute
 }
@@ -378,6 +417,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/': {
+      id: '/tasks/'
+      path: '/tasks'
+      fullPath: '/tasks/'
+      preLoaderRoute: typeof TasksIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/skills/': {
@@ -434,6 +480,20 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents/'
       preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/new': {
+      id: '/tasks/new'
+      path: '/tasks/new'
+      fullPath: '/tasks/new'
+      preLoaderRoute: typeof TasksNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/$taskId': {
+      id: '/tasks/$taskId'
+      path: '/tasks/$taskId'
+      fullPath: '/tasks/$taskId'
+      preLoaderRoute: typeof TasksTaskIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memories/$memoryId': {
@@ -509,6 +569,8 @@ const rootRouteChildren: RootRouteChildren = {
   LocalAgentsTokenIdRoute: LocalAgentsTokenIdRoute,
   LocalTokenIdRoute: LocalTokenIdRoute,
   MemoriesMemoryIdRoute: MemoriesMemoryIdRoute,
+  TasksTaskIdRoute: TasksTaskIdRoute,
+  TasksNewRoute: TasksNewRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   BridgeIndexRoute: BridgeIndexRoute,
   ComputersIndexRoute: ComputersIndexRoute,
@@ -517,6 +579,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndexRoute: LocalIndexRoute,
   MemoriesIndexRoute: MemoriesIndexRoute,
   SkillsIndexRoute: SkillsIndexRoute,
+  TasksIndexRoute: TasksIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
   IntegrationsOcAccountIdRoute: IntegrationsOcAccountIdRoute,
 }

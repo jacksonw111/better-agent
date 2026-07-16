@@ -12,19 +12,13 @@ import { cn } from "@better-agent/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LaptopIcon } from "lucide-react";
 import { toast } from "sonner";
+import { AGENT_LABELS } from "@/components/computers/agent-labels";
+import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
 import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import type { ComputerListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { PairComputerDialog } from "./pair-computer-dialog";
-
-/** Display names for the supported Agent Runtime kinds (spec §6.1). */
-export const AGENT_LABELS = {
-	"claude-code": "Claude Code",
-	opencode: "OpenCode",
-	codex: "Codex",
-	pi: "Pi",
-} as const;
 
 /** Matches COMPUTER_HEARTBEAT_INTERVAL_MS: a freshly paired computer shows up
  * (and a stopped one goes Offline) within one poll of the server's view. */
@@ -32,23 +26,6 @@ const LIST_REFETCH_INTERVAL_MS = 10_000;
 
 type RuntimeItem = ComputerListItem["runtimeInventory"][number];
 type ToolItem = ComputerListItem["toolInventory"][number];
-
-/** Connected/Offline pill, styled after LocalAgentStatusChip so the two
- * lists read the same. Offline computers stay listed — this only recolors. */
-function ComputerStatusChip({ connected }: { connected: boolean }) {
-	return (
-		<Badge className="gap-1.5" variant={connected ? "outline" : "secondary"}>
-			<span
-				aria-hidden
-				className={cn(
-					"size-1.5 rounded-full",
-					connected ? "bg-emerald-500" : "bg-muted-foreground/30"
-				)}
-			/>
-			{connected ? "Connected" : "Offline"}
-		</Badge>
-	);
-}
 
 /** "Claude Code · 2 skills" for discoverable runtimes, bare label otherwise —
  * the skill count is part of the capability handshake, not decoration. */

@@ -1,4 +1,12 @@
-import { BookMarked, Bot, Gauge, Laptop, Plug, Wand2 } from "lucide-react";
+import {
+	BookMarked,
+	Bot,
+	Gauge,
+	Laptop,
+	ListTodo,
+	Plug,
+	Wand2,
+} from "lucide-react";
 
 // The authed app's top-level destinations — the single source both the
 // sidebar (components/sidebar.tsx) and the ⌘K palette's "Go to" group render
@@ -8,6 +16,7 @@ import { BookMarked, Bot, Gauge, Laptop, Plug, Wand2 } from "lucide-react";
 // `navigate({ to })` accepts it.
 export const WEB_NAV_ITEMS = [
 	{ icon: Gauge, label: "Dashboard", to: "/dashboard" },
+	{ icon: ListTodo, label: "Tasks", to: "/tasks" },
 	{ icon: Bot, label: "Agents", match: ["/chat"], to: "/agents" },
 	{ icon: Laptop, label: "Computers", to: "/computers" },
 	{ icon: Laptop, label: "Local Agents", to: "/local" },
