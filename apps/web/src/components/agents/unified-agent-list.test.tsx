@@ -9,17 +9,11 @@ import {
 } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type {
-	AgentRow,
-	BridgeSessionRow,
-	BridgeTokenRow,
-} from "@/utils/api-types";
-import { CloudAgentList, LocalAgentList } from "./unified-agent-list";
+import type { AgentRow } from "@/utils/api-types";
+import { CloudAgentList } from "./unified-agent-list";
 
 const store = vi.hoisted(() => ({
 	agents: [] as AgentRow[],
-	tokens: [] as BridgeTokenRow[],
-	sessions: [] as BridgeSessionRow[],
 	navigatedTo: [] as Record<string, unknown>[],
 }));
 
@@ -71,28 +65,9 @@ function agentsMock() {
 	};
 }
 
-function bridgeMock() {
-	return {
-		listTokens: query(["bridge", "listTokens"], () => store.tokens),
-		listSessions: query(["bridge", "listSessions"], () => ({
-			sessions: store.sessions,
-			nextCursor: null,
-		})),
-		deleteToken: { mutationOptions: stubMutation({ ok: true }) },
-		createToken: {
-			mutationOptions: stubMutation({
-				id: "new-token",
-				token: "bt_new",
-				last4: "_new",
-			}),
-		},
-	};
-}
-
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
 		agents: agentsMock(),
-		bridge: bridgeMock(),
 		memory: { listMemories: query(["memory", "listMemories"], () => []) },
 	},
 }));
@@ -117,21 +92,6 @@ function makeAgent(overrides: Partial<AgentRow> = {}): AgentRow {
 	} as AgentRow;
 }
 
-function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
-	return {
-		id: "token-1",
-		userId: "user-1",
-		name: "local beta",
-		agentKind: "claude-code",
-		token: "bt_beta",
-		last4: "1234",
-		config: null,
-		createdAt: new Date("2026-07-04T12:00:00Z"),
-		revokedAt: null,
-		...overrides,
-	};
-}
-
 function renderList(list: ReactElement) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
@@ -150,18 +110,15 @@ async function renderReadyTable(list: ReactElement) {
 
 beforeEach(() => {
 	store.agents = [makeAgent()];
-	store.tokens = [makeToken()];
-	store.sessions = [];
 	store.navigatedTo.length = 0;
 });
 
 afterEach(cleanup);
 
-it("cloud list renders only cloud rows, with the full row-action cluster", async () => {
+it("renders cloud rows with the full row-action cluster", async () => {
 	const { table } = await renderReadyTable(<CloudAgentList />);
 
 	expect(table.getByText("cloud alpha")).toBeDefined();
-	expect(table.queryByText("local beta")).toBeNull();
 	expect(table.getByRole("button", { name: "Edit agent" })).toBeDefined();
 	expect(table.getByRole("button", { name: "Regenerate token" })).toBeDefined();
 });
@@ -176,49 +133,24 @@ it("cloud name navigates to /chat with the agent id", async () => {
 	});
 });
 
-it("local list renders only local rows, with the status chip", async () => {
-	const { table } = await renderReadyTable(<LocalAgentList />);
-
-	expect(table.getByText("local beta")).toBeDefined();
-	expect(table.queryByText("cloud alpha")).toBeNull();
-	// The token-less local entry shows its status chip.
-	expect(table.getByText("Not connected")).toBeDefined();
-});
-
-it("local name navigates to the /local workspace with the token id", async () => {
-	const { table } = await renderReadyTable(<LocalAgentList />);
-
-	fireEvent.click(table.getByText("local beta"));
-	expect(store.navigatedTo[0]).toMatchObject({
-		to: "/local/$tokenId",
-		params: { tokenId: "token-1" },
-	});
-});
-
-it("filters local rows by name", async () => {
-	store.tokens = [
-		makeToken(),
-		makeToken({ id: "token-2", name: "gamma", last4: "5678" }),
+it("filters rows by name", async () => {
+	store.agents = [
+		makeAgent(),
+		makeAgent({ id: "agent-2", name: "cloud gamma" }),
 	];
-	const { view, table } = await renderReadyTable(<LocalAgentList />);
+	const { view, table } = await renderReadyTable(<CloudAgentList />);
 
 	fireEvent.change(view.getByPlaceholderText("Search agents…"), {
 		target: { value: "gamma" },
 	});
 
-	expect(table.getByText("gamma")).toBeDefined();
-	expect(table.queryByText("local beta")).toBeNull();
+	expect(table.getByText("cloud gamma")).toBeDefined();
+	expect(table.queryByText("cloud alpha")).toBeNull();
 });
 
-it("each page offers its own add entry point", async () => {
-	const cloud = await renderReadyTable(<CloudAgentList />);
+it("offers the add entry point", async () => {
+	const { view } = await renderReadyTable(<CloudAgentList />);
 	expect(
-		cloud.view.getAllByRole("button", { name: "Add agent" }).length
-	).toBeGreaterThan(0);
-	cleanup();
-
-	const local = await renderReadyTable(<LocalAgentList />);
-	expect(
-		local.view.getAllByRole("button", { name: "Connect agent" }).length
+		view.getAllByRole("button", { name: "Add agent" }).length
 	).toBeGreaterThan(0);
 });

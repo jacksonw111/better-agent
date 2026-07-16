@@ -5,7 +5,6 @@ import type { BridgeTokenRow } from "@/utils/api-types";
 import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
 
 const CLI_COMMAND_RE = /agent-cli/;
-const RECREATE_HINT_RE = /recreate it/i;
 
 function makeToken(overrides: Partial<BridgeTokenRow> = {}): BridgeTokenRow {
 	return {
@@ -27,22 +26,19 @@ function renderPanel(token: BridgeTokenRow) {
 	return within(container);
 }
 
-it("shows the raw token and a CLI command bound to its agent kind", () => {
+it("shows the agent's identity and settings entry point", () => {
 	const view = renderPanel(makeToken());
 
-	expect(view.getByText("bt_secret")).toBeDefined();
-	const command = view.getByText(CLI_COMMAND_RE);
-	expect(command.textContent).toContain("--agent codex");
-	expect(command.textContent).toContain("--token bt_secret");
-	expect(view.getByRole("button", { name: "Copy token" })).toBeDefined();
-	expect(view.getByRole("button", { name: "Copy command" })).toBeDefined();
-	// Deleting a local agent moved to the list page's Actions column.
-	expect(view.queryByRole("button", { name: "Delete" })).toBeNull();
+	expect(view.getByText("My laptop")).toBeDefined();
+	expect(view.getByText("Codex")).toBeDefined();
+	expect(view.getByRole("button", { name: "Settings" })).toBeDefined();
 });
 
-it("shows a recreate hint for a legacy hash-only token", () => {
-	const view = renderPanel(makeToken({ token: null }));
+it("no longer surfaces the raw token or a copyable CLI command (S3-T3)", () => {
+	const view = renderPanel(makeToken());
 
+	expect(view.queryByText("bt_secret")).toBeNull();
 	expect(view.queryByText(CLI_COMMAND_RE)).toBeNull();
-	expect(view.getByText(RECREATE_HINT_RE)).toBeDefined();
+	expect(view.queryByRole("button", { name: "Copy token" })).toBeNull();
+	expect(view.queryByRole("button", { name: "Copy command" })).toBeNull();
 });

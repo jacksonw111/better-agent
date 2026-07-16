@@ -23,17 +23,18 @@ import { LocalAgentStatusChip } from "./local-agent-status-chip";
 // and adds the bottom toggle into the archived view. Local to the
 // /local/$tokenId route; the global app sidebar is untouched.
 
-/** Agent identity block + the way back to the /local list. */
+/** Agent identity block + the way back into the app — /tasks, since the old
+ * /local list is retired (S3-T3) and this workspace is direct-link only. */
 function SidebarHeader({ entry }: { entry: LocalAgentEntry }) {
 	const { token } = entry;
 	return (
 		<div className="flex shrink-0 flex-col gap-3 px-3 pt-3">
 			<Link
 				className="flex w-fit items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-				to="/local"
+				to="/tasks"
 			>
 				<ArrowLeftIcon aria-hidden className="size-3.5" />
-				Local agents
+				Tasks
 			</Link>
 			<div className="flex items-center gap-2">
 				<AgentKindIcon

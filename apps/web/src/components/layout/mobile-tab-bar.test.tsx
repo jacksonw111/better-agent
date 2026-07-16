@@ -6,7 +6,7 @@ import { MobileTabBar } from "./mobile-tab-bar";
 
 const DASHBOARD_LABEL_PATTERN = /Dashboard/;
 const AGENTS_LABEL_PATTERN = /^Agents/;
-const LOCAL_LABEL_PATTERN = /Local/;
+const TASKS_LABEL_PATTERN = /Tasks/;
 const MEMORIES_LABEL_PATTERN = /Memories/;
 const MORE_LABEL_PATTERN = /More/;
 
@@ -64,7 +64,7 @@ it("renders a tab for each primary destination plus More", () => {
 		view.getByRole("link", { name: DASHBOARD_LABEL_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("link", { name: AGENTS_LABEL_PATTERN })).toBeDefined();
-	expect(view.getByRole("link", { name: LOCAL_LABEL_PATTERN })).toBeDefined();
+	expect(view.getByRole("link", { name: TASKS_LABEL_PATTERN })).toBeDefined();
 	expect(
 		view.getByRole("link", { name: MEMORIES_LABEL_PATTERN })
 	).toBeDefined();
@@ -92,23 +92,23 @@ it("treats /chat as part of the Agents tab's active match", () => {
 	).toContain("text-primary");
 });
 
-it("activates the Local tab on the /local list and a token workspace alike", () => {
-	store.pathname = "/local";
+it("activates the Tasks tab on the /tasks list and the new-task wizard alike", () => {
+	store.pathname = "/tasks";
 	let view = renderBar();
 	expect(
-		view.getByRole("link", { name: LOCAL_LABEL_PATTERN }).className
+		view.getByRole("link", { name: TASKS_LABEL_PATTERN }).className
 	).toContain("text-primary");
 	expect(
 		view.getByRole("link", { name: AGENTS_LABEL_PATTERN }).className
 	).not.toContain("text-primary");
 
 	cleanup();
-	store.pathname = "/local-agents";
+	store.pathname = "/tasks/new";
 	view = renderBar();
-	// Legacy /local-agents links share the /local prefix, so the Local tab
-	// (not Agents) lights up during their redirect.
+	// /tasks/new shares the /tasks prefix, so the Tasks tab stays lit on the
+	// wizard (which keeps the dock — it's not an immersive conversation).
 	expect(
-		view.getByRole("link", { name: LOCAL_LABEL_PATTERN }).className
+		view.getByRole("link", { name: TASKS_LABEL_PATTERN }).className
 	).toContain("text-primary");
 });
 
@@ -141,8 +141,8 @@ it("suppresses the dock when /chat has a selected cloud agent", () => {
 	expect(view.queryByRole("navigation")).toBeNull();
 });
 
-it("keeps the dock on the /local agent list", () => {
-	store.pathname = "/local";
+it("keeps the dock on the /tasks list", () => {
+	store.pathname = "/tasks";
 	const view = renderBar();
 
 	expect(view.getByRole("navigation", { name: "Primary" })).toBeDefined();

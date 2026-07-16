@@ -45,8 +45,7 @@ function TokenPopoverBody({
 	}
 	const token = tokenQuery.data;
 	if (!token) {
-		// Loaded, but the agent has no token — mirror LocalAgentTokenCell's
-		// muted missing-token treatment.
+		// Loaded, but the agent has no token — a quiet muted note.
 		return <p className="text-muted-foreground text-xs">No token</p>;
 	}
 	return (
@@ -57,11 +56,10 @@ function TokenPopoverBody({
 	);
 }
 
-/** The token cell for the cloud Agents table, restyled to match
- * `LocalAgentTokenCell`: a quiet `…<last4>` chip that opens a popover with
- * the full copyable token. Unlike the old `AgentTokenCell`, this fetches
- * `getToken` only once the popover opens (`enabled: open`), avoiding an
- * N+1 query per row on the merged agents list. */
+/** The token cell for the cloud Agents table: a quiet `…<last4>` chip that
+ * opens a popover with the full copyable token. Unlike the old
+ * `AgentTokenCell`, this fetches `getToken` only once the popover opens
+ * (`enabled: open`), avoiding an N+1 query per row on the agents list. */
 export function CloudAgentTokenCell({ agentId }: { agentId: string }) {
 	const [open, setOpen] = useState(false);
 	const tokenQuery = useQuery({

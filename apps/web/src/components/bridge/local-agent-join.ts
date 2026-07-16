@@ -13,13 +13,6 @@ type AgentKind = BridgeTokenRow["agentKind"];
  * instead of silently omitting it. */
 export const PLACEHOLDER_TOKEN = "<your-bridge-token>";
 
-/** The ready-to-run CLI command that connects a local agent with `token`,
- * bound to its own `agentKind`. Shared by the create flow and the bound
- * agent's detail page so the two never render a different command. */
-export function bridgeCliCommand(agentKind: AgentKind, token: string): string {
-	return `agent-cli --agent ${agentKind} --dir . --token ${token} --server ${env.VITE_SERVER_URL}`;
-}
-
 /** P4-T5: the kind-aware variant of `bridgeResumeCliCommand` — the ⌘K content
  * matches reference every provider's on-disk sessions, so the copied command
  * must name the workspace's actual agent, not assume claude. */

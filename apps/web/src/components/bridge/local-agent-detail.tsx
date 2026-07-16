@@ -27,11 +27,10 @@ function useEndSession() {
 	);
 }
 
-/** Friendly state for a token whose CLI has never connected: mounts the
- * connection guide panel (token + ready-to-run `agent-cli` command) right
- * above the status note, so "Run the command above" actually has a command
- * above it — R1-T1: `LocalAgentConnectionPanel` used to be built but never
- * rendered anywhere. */
+/** Friendly state for a token whose CLI has never connected: the identity
+ * panel above a status note. S3-T3 retired the connect flow (the panel no
+ * longer surfaces the token or a ready-to-run command) — this page survives
+ * only as a direct-link inspection surface; new work starts from Tasks. */
 export function WaitingForCli({ token }: { token: BridgeTokenRow }) {
 	return (
 		<div className="flex flex-col gap-4">
@@ -39,8 +38,8 @@ export function WaitingForCli({ token }: { token: BridgeTokenRow }) {
 			<div className="rounded-lg bg-muted/40 p-6">
 				<p className="font-medium text-sm">Waiting for the CLI to connect</p>
 				<p className="text-muted-foreground text-sm">
-					Run the command above from your project directory to connect this
-					local agent.
+					This local agent has no sessions yet. New local work now starts from
+					Tasks — this page stays available for the agent's existing sessions.
 				</p>
 			</div>
 		</div>

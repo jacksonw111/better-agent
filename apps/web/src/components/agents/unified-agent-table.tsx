@@ -12,52 +12,45 @@ import {
 	TableRow,
 } from "@better-agent/ui/components/table";
 import { useNavigate } from "@tanstack/react-router";
-import { localAgentDisplayName } from "@/components/bridge/local-agent-format";
-import { LocalAgentIdentity } from "@/components/bridge/local-agent-identity";
-import { LocalAgentStatusChip } from "@/components/bridge/local-agent-status-chip";
-import { LocalAgentTokenCell } from "@/components/bridge/local-agent-token-cell";
 import { EmptyState } from "@/components/layout/empty-state";
-import { DeleteConfirm } from "@/components/list/delete-confirm";
 import type { AgentRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import { AgentRowActions } from "./agent-row-actions";
 import { CloudAgentTokenCell } from "./cloud-agent-token-cell";
 import {
+	type AgentListRow,
 	rowCreatedAt,
-	rowId,
 	rowSubtitle,
-	type UnifiedAgentRow,
 } from "./unified-agent-row";
 
+// S3-T3: cloud-only — the /local list this table also served is retired, so
+// the local row branches (status chip, bridge-token cell, local delete) are
+// gone along with the Status column they filled.
+
 const AVATAR_INITIALS_LENGTH = 2;
-const COLUMN_COUNT = 5;
+const COLUMN_COUNT = 4;
 
 const createdFormatter = new Intl.DateTimeFormat(undefined, {
 	dateStyle: "medium",
 });
 
-/** The cloud/local action callbacks each row cell needs — grouped so the row
- * components stay under the param cap and the two views share one shape. */
-export interface UnifiedRowCallbacks {
-	onCloudDelete: (id: string) => void;
-	onCloudEdit: (row: AgentRow) => void;
-	onCloudTokenRotated: (token: string) => void;
-	onLocalDelete: (tokenId: string) => void;
+/** The action callbacks each row cell needs — grouped so the row components
+ * stay under the param cap and the two views share one shape. */
+export interface AgentRowCallbacks {
+	onDelete: (id: string) => void;
+	onEdit: (row: AgentRow) => void;
+	onTokenRotated: (token: string) => void;
 }
 
-type CloudRow = Extract<UnifiedAgentRow, { type: "cloud" }>;
-
-/** The empty-state copy each page passes in — /agents and /local render
- * single-type lists, so the generic "cloud or local" line no longer fits. */
+/** The empty-state copy the page passes in. */
 export interface AgentListEmptyCopy {
 	body: string;
 	title: string;
 }
 
 /** The cloud agent's identity block — avatar + a name button that navigates to
- * the chat, with the provider/model as the mono sub-line (the old Model column,
- * folded in to match `LocalAgentIdentity`'s layout). */
-function CloudAgentIdentity({ row }: { row: CloudRow }) {
+ * the chat, with the provider/model as the mono sub-line. */
+function AgentIdentity({ row }: { row: AgentListRow }) {
 	const { agent } = row;
 	const navigate = useNavigate();
 	return (
@@ -86,92 +79,45 @@ function CloudAgentIdentity({ row }: { row: CloudRow }) {
 	);
 }
 
-function AgentIdentity({ row }: { row: UnifiedAgentRow }) {
-	return row.type === "local" ? (
-		<LocalAgentIdentity entry={row.entry} />
-	) : (
-		<CloudAgentIdentity row={row} />
-	);
-}
-
-function StatusCell({ row }: { row: UnifiedAgentRow }) {
-	return row.type === "local" ? (
-		<LocalAgentStatusChip status={row.entry.status} />
-	) : (
-		<span className="text-muted-foreground text-xs">—</span>
-	);
-}
-
-function TokenCell({ row }: { row: UnifiedAgentRow }) {
-	return row.type === "local" ? (
-		<LocalAgentTokenCell token={row.entry.token} />
-	) : (
-		<CloudAgentTokenCell agentId={row.agent.id} />
-	);
-}
-
-function ActionsCell({
-	row,
-	callbacks,
-}: {
-	row: UnifiedAgentRow;
-	callbacks: UnifiedRowCallbacks;
-}) {
-	if (row.type === "local") {
-		return (
-			<DeleteConfirm
-				label={`Delete ${localAgentDisplayName(row.entry)}? Its token and all sessions are removed.`}
-				onConfirm={() => callbacks.onLocalDelete(row.entry.token.id)}
-			/>
-		);
-	}
-	return (
-		<AgentRowActions
-			onDelete={callbacks.onCloudDelete}
-			onEdit={callbacks.onCloudEdit}
-			onTokenRotated={callbacks.onCloudTokenRotated}
-			row={row.agent}
-		/>
-	);
-}
-
 function DesktopRow({
 	row,
 	callbacks,
 }: {
-	row: UnifiedAgentRow;
-	callbacks: UnifiedRowCallbacks;
+	row: AgentListRow;
+	callbacks: AgentRowCallbacks;
 }) {
 	return (
 		<TableRow>
 			<TableCell>
 				<AgentIdentity row={row} />
 			</TableCell>
-			<TableCell>
-				<StatusCell row={row} />
-			</TableCell>
 			<TableCell className="text-muted-foreground tabular-nums">
 				{createdFormatter.format(rowCreatedAt(row))}
 			</TableCell>
 			<TableCell>
-				<TokenCell row={row} />
+				<CloudAgentTokenCell agentId={row.agent.id} />
 			</TableCell>
 			<TableCell className="text-right">
-				<ActionsCell callbacks={callbacks} row={row} />
+				<AgentRowActions
+					onDelete={callbacks.onDelete}
+					onEdit={callbacks.onEdit}
+					onTokenRotated={callbacks.onTokenRotated}
+					row={row.agent}
+				/>
 			</TableCell>
 		</TableRow>
 	);
 }
 
 /** Desktop view: one row per agent across the fixed columns
- * Agent · Status · Created · Token · Actions. */
-export function UnifiedAgentTable({
+ * Agent · Created · Token · Actions. */
+export function AgentTable({
 	rows,
 	callbacks,
 	empty,
 }: {
-	rows: UnifiedAgentRow[];
-	callbacks: UnifiedRowCallbacks;
+	rows: AgentListRow[];
+	callbacks: AgentRowCallbacks;
 	empty: AgentListEmptyCopy;
 }) {
 	return (
@@ -179,7 +125,6 @@ export function UnifiedAgentTable({
 			<TableHeader>
 				<TableRow>
 					<TableHead>Agent</TableHead>
-					<TableHead>Status</TableHead>
 					<TableHead>Created</TableHead>
 					<TableHead>Token</TableHead>
 					<TableHead className="text-right">Actions</TableHead>
@@ -197,7 +142,7 @@ export function UnifiedAgentTable({
 					</TableRow>
 				) : (
 					rows.map((row) => (
-						<DesktopRow callbacks={callbacks} key={rowId(row)} row={row} />
+						<DesktopRow callbacks={callbacks} key={row.agent.id} row={row} />
 					))
 				)}
 			</TableBody>
@@ -209,35 +154,37 @@ function MobileItem({
 	row,
 	callbacks,
 }: {
-	row: UnifiedAgentRow;
-	callbacks: UnifiedRowCallbacks;
+	row: AgentListRow;
+	callbacks: AgentRowCallbacks;
 }) {
 	return (
 		<div className="flex flex-col gap-2 p-3">
 			<AgentIdentity row={row} />
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-xs">
-				{row.type === "local" ? (
-					<LocalAgentStatusChip status={row.entry.status} />
-				) : null}
 				<span>{createdFormatter.format(rowCreatedAt(row))}</span>
 			</div>
 			<div className="flex items-center justify-between">
-				<TokenCell row={row} />
-				<ActionsCell callbacks={callbacks} row={row} />
+				<CloudAgentTokenCell agentId={row.agent.id} />
+				<AgentRowActions
+					onDelete={callbacks.onDelete}
+					onEdit={callbacks.onEdit}
+					onTokenRotated={callbacks.onTokenRotated}
+					row={row.agent}
+				/>
 			</div>
 		</div>
 	);
 }
 
 /** Mobile view: a flat bordered, divided list (NOT shadcn Card) mirroring the
- * table's cell branching. */
-export function UnifiedAgentMobileList({
+ * table's cells. */
+export function AgentMobileList({
 	rows,
 	callbacks,
 	empty,
 }: {
-	rows: UnifiedAgentRow[];
-	callbacks: UnifiedRowCallbacks;
+	rows: AgentListRow[];
+	callbacks: AgentRowCallbacks;
 	empty: AgentListEmptyCopy;
 }) {
 	if (rows.length === 0) {
@@ -246,7 +193,7 @@ export function UnifiedAgentMobileList({
 	return (
 		<div className="flex flex-col divide-y rounded-md border">
 			{rows.map((row) => (
-				<MobileItem callbacks={callbacks} key={rowId(row)} row={row} />
+				<MobileItem callbacks={callbacks} key={row.agent.id} row={row} />
 			))}
 		</div>
 	);

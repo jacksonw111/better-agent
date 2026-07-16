@@ -7,7 +7,6 @@ import { Badge } from "@better-agent/ui/components/badge";
 import { Button } from "@better-agent/ui/components/button";
 import { Link } from "@tanstack/react-router";
 import { UsersIcon } from "lucide-react";
-import { TYPE_LABEL } from "@/components/agents/unified-agent-row";
 import { localAgentDisplayName } from "@/components/bridge/local-agent-format";
 import type { LocalAgentEntry } from "@/components/bridge/local-agent-join";
 import { AgentKindIcon } from "@/components/bridge/local-agent-kind-icon";
@@ -22,6 +21,13 @@ const CARD_CLASS =
 	"flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const GRID_CLASS = "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3";
+
+// Was unified-agent-row's TYPE_LABEL; lives here now that the agents list is
+// cloud-only (S3-T3) and this picker is the last cloud/local mixed surface.
+const TYPE_LABEL = {
+	cloud: "Cloud Agent",
+	local: "Local Agent",
+} as const;
 
 function TypeBadge({ type }: { type: keyof typeof TYPE_LABEL }) {
 	return (

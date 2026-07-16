@@ -1,16 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { LocalAgentList } from "@/components/agents/unified-agent-list";
-import { PageContainer } from "@/components/layout/page-container";
-
+// S3-T3: the /local list surface is retired — Tasks (and Computers) replaced
+// it. Existing bridge data isn't destroyed: a token's workspace stays
+// reachable by direct link at /local/$tokenId; only this list entry point
+// converges onto /tasks.
 export const Route = createFileRoute("/local/")({
-	component: LocalAgentsPage,
+	beforeLoad: () => {
+		throw redirect({ to: "/tasks" });
+	},
 });
-
-function LocalAgentsPage() {
-	return (
-		<PageContainer>
-			<LocalAgentList />
-		</PageContainer>
-	);
-}
