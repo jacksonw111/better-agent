@@ -23,6 +23,12 @@ const GREEN_STATUSES: ReadonlySet<RunStatus> = new Set([
 	"waiting_for_user",
 ]);
 
+/** Human label for one run status — shared with the conversation page's
+ * composer lock so the wording can't drift from the chip's. */
+export function runStatusLabel(status: RunStatus): string {
+	return STATUS_LABELS[status];
+}
+
 function dotClass(status: RunStatus | null): string {
 	if (status === "failed") {
 		return "bg-red-500";

@@ -39,6 +39,10 @@ export type ComputerListItem = Awaited<
 
 export type TaskListItem = Awaited<ReturnType<Client["tasks"]["list"]>>[number];
 
+export type TaskDetail = Awaited<ReturnType<Client["tasks"]["get"]>>;
+
+export type TaskRun = TaskDetail["runs"][number];
+
 export type BridgeSessionRow = Awaited<
 	ReturnType<Client["bridge"]["listSessions"]>
 >["sessions"][number];

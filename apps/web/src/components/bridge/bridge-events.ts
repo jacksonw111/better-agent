@@ -20,6 +20,10 @@ export interface MessageEvent extends TurnScoped {
 	 * replaced in place (last-write-wins) instead of a second bubble. */
 	id?: string;
 	kind: "message";
+	/** S3-T2: set by the CLI on the Task Start Context it injects as the run's
+	 * first user input (see apps/bridge-cli/src/task-launch/run-session.ts) —
+	 * the web folds these turns collapsed instead of as ordinary user bubbles. */
+	origin?: "task-start";
 	role: "user" | "assistant";
 	text: string;
 	thinking?: boolean;

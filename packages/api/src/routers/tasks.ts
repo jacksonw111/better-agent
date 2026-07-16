@@ -204,6 +204,16 @@ function toTaskRun(run: RunRow) {
 	};
 }
 
+/** S3-T2: the run projection plus its bound bridge session row (null until
+ * the client binds one at startSession) — the Conversation page renders the
+ * run's message stream straight off this session. */
+async function toTaskRunWithSession(services: Services, run: RunRow) {
+	const session = run.sessionId
+		? await services.stores.bridgeSession.get(run.sessionId)
+		: null;
+	return { ...toTaskRun(run), session };
+}
+
 const get = authorizedUserProcedure
 	.input(z.object({ taskId: z.uuid() }))
 	.handler(async ({ input, context }) => {
@@ -220,7 +230,9 @@ const get = authorizedUserProcedure
 		]);
 		return {
 			computerName: computer?.name ?? null,
-			runs: runs.map(toTaskRun),
+			runs: await Promise.all(
+				runs.map((run) => toTaskRunWithSession(context.services, run))
+			),
 			task,
 		};
 	});

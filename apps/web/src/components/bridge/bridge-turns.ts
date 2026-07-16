@@ -139,7 +139,11 @@ function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
 function foldMessage(state: FoldState, id: number, event: MessageEvent): void {
 	if (event.role === "user") {
 		state.current = null;
-		pushTurn(state, { kind: "user", id, text: event.text });
+		// S3-T2: the task-start tag rides along only when present, so ordinary
+		// user turns keep their exact prior shape (tests compare structurally).
+		const origin =
+			event.origin === "task-start" ? { origin: event.origin } : {};
+		pushTurn(state, { kind: "user", id, text: event.text, ...origin });
 		return;
 	}
 	finalizeAssistantMessage(state, id, event);

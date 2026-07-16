@@ -76,6 +76,32 @@ it("get returns the task, its runs and the computer name; not the credential", a
 	).rejects.toMatchObject({ code: "NOT_FOUND" });
 });
 
+it("get joins each run's bound bridge session; null before binding", async () => {
+	const rig = buildComputerRig();
+	const { runId, taskId } = await startTask(rig, "Session join");
+	const client = rig.userClientFor(ALICE);
+
+	const before = await client.tasks.get({ taskId });
+	expect(before.runs[0]?.session).toBeNull();
+
+	const session = await rig.bridgeSession.create({
+		agentKind: "claude-code",
+		runId,
+		tokenId: "tok-session-join",
+		userId: ALICE.id,
+	});
+	await rig.run.updateStatus(runId, {
+		sessionId: session.id,
+		status: "running",
+	});
+
+	const after = await client.tasks.get({ taskId });
+	expect(after.runs[0]?.session).toMatchObject({
+		id: session.id,
+		status: "active",
+	});
+});
+
 it("retry after a failed run appends a fresh sequential run", async () => {
 	const rig = buildComputerRig();
 	const { client, computerId, runId, taskId } = await startTask(rig, "Retry");

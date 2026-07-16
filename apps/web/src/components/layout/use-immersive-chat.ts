@@ -1,9 +1,10 @@
 import { useRouterState } from "@tanstack/react-router";
 
 /** True on <md when a specific conversation is open — a cloud agent on
- * `/chat?agentId=…` or a local agent's workspace at `/local/$tokenId`. The
- * agent-picker grid at bare `/chat` and the `/local` list are NOT immersive,
- * so they keep the dock.
+ * `/chat?agentId=…`, a local agent's workspace at `/local/$tokenId`, or a
+ * task conversation at `/tasks/$taskId` (S3-T2). The agent-picker grid at
+ * bare `/chat`, the `/local` and `/tasks` lists and the `/tasks/new` wizard
+ * are NOT immersive, so they keep the dock.
  *
  * Derived ONLY from pathname + search (static per route) — never from scroll or
  * the dock's hidden state — so nothing here can feed the dock-oscillation loop
@@ -14,6 +15,9 @@ export function useImmersiveChat(): boolean {
 		select: (state) => {
 			const { pathname } = state.location;
 			if (pathname.startsWith("/local/")) {
+				return true;
+			}
+			if (pathname.startsWith("/tasks/") && pathname !== "/tasks/new") {
 				return true;
 			}
 			if (pathname !== "/chat") {

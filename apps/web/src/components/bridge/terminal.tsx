@@ -1,5 +1,5 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
 import { agentAvatar } from "@/utils/avatar";
 import type { StreamEvent } from "./bridge-events";
@@ -22,9 +22,15 @@ export interface TerminalProps {
 	/** The bridge session id the terminal is currently showing — drives the
 	 * session picker's highlight when `sessions` is provided. */
 	activeSessionId?: string | null;
+	/** S3-T2: when set, the composer is disabled and this text explains why
+	 * (task runs lock input outside running/waiting_for_user). Never on /local. */
+	composerLock?: string;
 	/** Whether an end-session request is in flight — disables the End button.
 	 * Only meaningful alongside `onEnd`. */
 	ending?: boolean;
+	/** S3-T2: rendered inside the feed's scroller before the first turn — the
+	 * task page's Opening Message. Absent on /local. */
+	leading?: ReactNode;
 	/** Ends this session. Wired by the detail page; omitted (with the End
 	 * button then hidden) when there's no session to end, e.g. in unit tests. */
 	onEnd?: () => void;
@@ -146,7 +152,9 @@ function useTerminalView(
  */
 export function Terminal({
 	activeSessionId,
+	composerLock,
 	ending = false,
+	leading,
 	onEnd,
 	onSelectSession,
 	session,
@@ -183,6 +191,8 @@ export function Terminal({
 			/>
 			<BodyFromView
 				caps={caps}
+				composerLock={composerLock}
+				leading={leading}
 				showNextTurnHint={session.agentKind === "codex"}
 				view={view}
 			/>
@@ -223,10 +233,14 @@ function usePublishWorkspaceChannels(view: TerminalView): void {
  * the one place in the composer chain that actually has the session row. */
 function BodyFromView({
 	caps,
+	composerLock,
+	leading,
 	showNextTurnHint,
 	view,
 }: {
 	caps: ResolvedCapabilities;
+	composerLock?: string;
+	leading?: ReactNode;
 	showNextTurnHint: boolean;
 	view: TerminalView;
 }) {
@@ -239,11 +253,13 @@ function BodyFromView({
 			avatars={view.avatars}
 			caps={caps}
 			commandCatalog={view.commandCatalog}
+			composerLock={composerLock}
 			disabled={!view.canSend}
 			ended={view.status === "ended"}
 			getStatus={view.getStatus}
 			imageUpload={view.imageUpload}
 			interrupt={view.interrupt}
+			leading={leading}
 			onSend={view.sendInput}
 			queueUpdate={view.queueUpdate}
 			sending={view.sending}

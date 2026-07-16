@@ -24,6 +24,9 @@ export interface AssistantTurn {
 export interface UserTurn {
 	id: number;
 	kind: "user";
+	/** S3-T2: mirrors `MessageEvent.origin` — a CLI-injected Task Start Context
+	 * turn, rendered collapsed (one expandable line) instead of as a bubble. */
+	origin?: "task-start";
 	text: string;
 }
 

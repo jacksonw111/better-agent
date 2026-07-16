@@ -1,28 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeftIcon } from "lucide-react";
-import { PageContainer } from "@/components/layout/page-container";
+import { createFileRoute } from "@tanstack/react-router";
+import { TaskConversation } from "@/components/tasks/task-conversation";
 
 export const Route = createFileRoute("/tasks/$taskId")({
 	component: TaskConversationPage,
 });
 
-// Placeholder only — the Task Conversation page (opening message + run view)
-// lands with S3-T2. The route exists now so the task list and the wizard's
-// post-Start navigation have a stable target.
+/** S3-T2: the Task Conversation — opening message + the current run's session
+ * stream, with run status/errors outside the chat and the Files/Git/Shell
+ * inspection tabs alongside. Fills the shell like /local/$tokenId (immersive
+ * on <md — see use-immersive-chat.ts). */
 function TaskConversationPage() {
-	return (
-		<PageContainer>
-			<Link
-				className="flex w-fit items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
-				to="/tasks"
-			>
-				<ArrowLeftIcon className="size-4" />
-				Tasks
-			</Link>
-			<p className="text-muted-foreground text-sm">
-				The task conversation lands with S3-T2 — the task was created and its
-				run is on the way to your computer.
-			</p>
-		</PageContainer>
-	);
+	const { taskId } = Route.useParams();
+	return <TaskConversation taskId={taskId} />;
 }

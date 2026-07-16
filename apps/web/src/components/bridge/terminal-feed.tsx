@@ -8,7 +8,7 @@ import {
 	MessageScrollerProvider,
 	MessageScrollerViewport,
 } from "@better-agent/ui/components/message-scroller";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { formatElapsed } from "./activity-format";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type { BridgeTurn } from "./bridge-turns";
@@ -89,6 +89,11 @@ export interface TerminalFeedProps {
 	answerQuestion: (requestId: string, answers: string[][]) => Promise<void>;
 	avatars: ChatAvatars;
 	ended: boolean;
+	/** S3-T2: rendered INSIDE the scroller before the first turn — the Task
+	 * Conversation page mounts the Opening Message here so it scrolls with the
+	 * feed as its literal first message. Also suppresses the "No output yet"
+	 * empty state (a task run's feed is never conversationally empty). */
+	leading?: ReactNode;
 	/** True for the entire in-flight turn — keeps the working skeleton visible
 	 * throughout, not just before the first token. */
 	turnInFlight: boolean;
@@ -137,6 +142,7 @@ export function TerminalFeed({
 	answeredQuestions,
 	avatars,
 	ended,
+	leading,
 	turnInFlight,
 	turns,
 }: TerminalFeedProps) {
@@ -151,34 +157,33 @@ export function TerminalFeed({
 			<MessageScroller>
 				<MessageScrollerViewport>
 					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4">
-						{turns.length === 0 && !turnInFlight ? (
-							<EmptyTerminal />
-						) : (
-							turns.map((turn, index) => {
-								// A spine turn attaches up to the previous item, cancelling
-								// the feed's `gap-6`, so its `border-l` spine meets the
-								// preceding turn's spine instead of leaving a line-breaking
-								// gap. Skipped for the first item (nothing above to meet).
-								const attachUp =
-									index > 0 && SIDE_TURN_KINDS.has(turn.kind)
-										? "-mt-6"
-										: undefined;
-								return (
-									<MessageScrollerItem className={attachUp} key={turn.id}>
-										<BridgeChatRow
-											answered={answered}
-											answeredQuestions={answeredQuestions}
-											attachSkeleton={turnInFlight && turn.id === attachToId}
-											avatars={avatars}
-											ended={ended}
-											onAnswerApproval={answerApproval}
-											onAnswerQuestion={answerQuestion}
-											turn={turn}
-										/>
-									</MessageScrollerItem>
-								);
-							})
-						)}
+						{leading && <MessageScrollerItem>{leading}</MessageScrollerItem>}
+						{turns.length === 0 && !turnInFlight
+							? !leading && <EmptyTerminal />
+							: turns.map((turn, index) => {
+									// A spine turn attaches up to the previous item, cancelling
+									// the feed's `gap-6`, so its `border-l` spine meets the
+									// preceding turn's spine instead of leaving a line-breaking
+									// gap. Skipped for the first item (nothing above to meet).
+									const attachUp =
+										index > 0 && SIDE_TURN_KINDS.has(turn.kind)
+											? "-mt-6"
+											: undefined;
+									return (
+										<MessageScrollerItem className={attachUp} key={turn.id}>
+											<BridgeChatRow
+												answered={answered}
+												answeredQuestions={answeredQuestions}
+												attachSkeleton={turnInFlight && turn.id === attachToId}
+												avatars={avatars}
+												ended={ended}
+												onAnswerApproval={answerApproval}
+												onAnswerQuestion={answerQuestion}
+												turn={turn}
+											/>
+										</MessageScrollerItem>
+									);
+								})}
 						{showFloatingSkeleton && <WorkingSkeleton />}
 					</MessageScrollerContent>
 				</MessageScrollerViewport>

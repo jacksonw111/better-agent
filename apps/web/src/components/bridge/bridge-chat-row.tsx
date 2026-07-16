@@ -9,6 +9,7 @@ import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
 import { ErrorLine, FileLine } from "./event-line";
 import { StatusLine } from "./status-line";
 import { TaskCard } from "./task-card";
+import { TaskStartContextRow } from "./task-start-context-row";
 import { TodoList } from "./todo-list";
 
 /** The trailing open assistant turn streams a caret — but only while the
@@ -156,7 +157,13 @@ function BridgeChatRowImpl({
 }: BridgeChatRowProps) {
 	switch (turn.kind) {
 		case "user":
-			return <ChatRow avatars={avatars} message={userMessage(turn)} />;
+			// S3-T2: the CLI-injected Task Start Context folds to a collapsed
+			// one-liner — agent-facing detail, not something the user typed.
+			return turn.origin === "task-start" ? (
+				<TaskStartContextRow text={turn.text} />
+			) : (
+				<ChatRow avatars={avatars} message={userMessage(turn)} />
+			);
 		case "assistant":
 			return (
 				<AssistantWithSkeleton

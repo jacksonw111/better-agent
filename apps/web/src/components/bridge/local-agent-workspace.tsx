@@ -3,8 +3,6 @@ import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { PanelLeftIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { setCommandPaletteOpen } from "@/components/command-palette/command-palette-store";
-import { QuickSettings } from "@/components/quick-settings";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
@@ -15,14 +13,11 @@ import {
 	WaitingForCli,
 } from "./local-agent-detail";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
-import { LocalAgentFilesPane } from "./local-agent-files-pane";
-import { LocalAgentGitPane } from "./local-agent-git-pane";
 import {
 	deriveLocalAgentEntries,
 	type LocalAgentEntry,
 } from "./local-agent-join";
 import { sortSessionsByRecency } from "./local-agent-session-picker";
-import { LocalAgentShellPane } from "./local-agent-shell-pane";
 import { WorkspaceCommandBridge } from "./local-agent-workspace-command-bridge";
 import {
 	pickActiveSession,
@@ -32,16 +27,14 @@ import {
 	LocalAgentWorkspaceSidebar,
 	WorkspaceSidebarSkeleton,
 } from "./local-agent-workspace-sidebar";
-import {
-	LocalAgentWorkspaceTabs,
-	type WorkspaceTabId,
-} from "./local-agent-workspace-tabs";
+import { SessionWorkspacePane } from "./session-workspace-pane";
 
 // P2-T2 (docs/local-agent-workspace-plan.md): the /local/$tokenId two-pane
 // workspace — session sidebar (left, route-local) + multi-tab content pane
-// (right; chat live, files/git/shell placeholders until P4). Session
-// selection is URL-driven (`?session=`): the route passes it down and turns
-// sidebar clicks into `navigate({ search })`.
+// (right; S3-T2 extracted that pane into SessionWorkspacePane so the Task
+// Conversation page can reuse it). Session selection is URL-driven
+// (`?session=`): the route passes it down and turns sidebar clicks into
+// `navigate({ search })`.
 
 /** <md: the sidebar collapses into this overlay drawer, toggled from the
  * content pane's header. A plain fixed panel (the ui package has no Sheet);
@@ -76,32 +69,30 @@ function MobileSessionDrawer({
 	);
 }
 
-/** Chat pane, kept mounted regardless of the active tab (hidden/block, never
- * unmounted) so future P4 tabs can't remount the terminal mid-session. */
-function ChatPane({
+/** The chat tab's content: the selected session's terminal, or the
+ * waiting-for-CLI guide when this token has no session yet. Rendered into
+ * `SessionWorkspacePane`'s kept-alive chat slot. */
+function LocalChat({
 	activeSession,
 	entry,
-	hidden,
 	userAvatarUrl,
 }: {
 	activeSession: BridgeSessionRow | null;
 	entry: LocalAgentEntry;
-	hidden: boolean;
 	userAvatarUrl: string | undefined;
 }) {
+	if (activeSession) {
+		return (
+			<SessionView
+				activeSession={activeSession}
+				token={entry.token}
+				userAvatarUrl={userAvatarUrl}
+			/>
+		);
+	}
 	return (
-		<div className={hidden ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
-			{activeSession ? (
-				<SessionView
-					activeSession={activeSession}
-					token={entry.token}
-					userAvatarUrl={userAvatarUrl}
-				/>
-			) : (
-				<div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-					<WaitingForCli token={entry.token} />
-				</div>
-			)}
+		<div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+			<WaitingForCli token={entry.token} />
 		</div>
 	);
 }
@@ -122,39 +113,19 @@ function WorkspaceSkeleton() {
 	);
 }
 
-/** The content pane's top strip: the <md sidebar toggle beside the tab row. */
-function ContentPaneHeader({
-	onOpenDrawer,
-	onTabChange,
-	tab,
-}: {
-	onOpenDrawer: () => void;
-	onTabChange: (tab: WorkspaceTabId) => void;
-	tab: WorkspaceTabId;
-}) {
+/** The <md header button that opens the session drawer — the workspace's
+ * `headerStart` slot content, split out for the max-lines-per-function gate. */
+function DrawerToggle({ onOpen }: { onOpen: () => void }) {
 	return (
-		<div className="flex shrink-0 items-center gap-1 px-3 pt-2 sm:px-4">
-			<Button
-				aria-label="Show sessions"
-				className="md:hidden"
-				onClick={onOpenDrawer}
-				size="icon-sm"
-				variant="ghost"
-			>
-				<PanelLeftIcon className="size-4" />
-			</Button>
-			<LocalAgentWorkspaceTabs onChange={onTabChange} value={tab} />
-			<Button
-				aria-label="Open command palette"
-				className="ml-auto shrink-0 font-mono text-muted-foreground"
-				onClick={() => setCommandPaletteOpen(true)}
-				size="sm"
-				variant="ghost"
-			>
-				⌘K
-			</Button>
-			<QuickSettings />
-		</div>
+		<Button
+			aria-label="Show sessions"
+			className="md:hidden"
+			onClick={onOpen}
+			size="icon-sm"
+			variant="ghost"
+		>
+			<PanelLeftIcon className="size-4" />
+		</Button>
 	);
 }
 
@@ -173,8 +144,8 @@ function useDrawer(onSelectSession: (sessionId: string) => void) {
 	};
 }
 
-/** The assembled two-pane layout — split from `LocalAgentWorkspace` (which
- * owns the queries and guards) to stay under the max-lines-per-function gate. */
+/** The assembled two-pane layout — the token-bound parts (sidebar, drawer,
+ * settings command bridge) around the extracted session-level pane. */
 function WorkspaceLayout({
 	activeSession,
 	entry,
@@ -188,38 +159,33 @@ function WorkspaceLayout({
 	sidebar: (onSelect: (sessionId: string) => void) => ReactNode;
 	userAvatarUrl: string | undefined;
 }) {
-	const [tab, setTab] = useState<WorkspaceTabId>("chat");
 	const drawer = useDrawer(onSelectSession);
 	return (
 		<div className="flex min-h-0 flex-1">
 			<aside className="hidden w-64 shrink-0 flex-col bg-muted/30 md:flex">
 				{sidebar(onSelectSession)}
 			</aside>
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-				<ContentPaneHeader
-					onOpenDrawer={drawer.show}
-					onTabChange={setTab}
-					tab={tab}
-				/>
-				<ChatPane
-					activeSession={activeSession}
-					entry={entry}
-					hidden={tab !== "chat"}
-					userAvatarUrl={userAvatarUrl}
-				/>
-				<LocalAgentShellPane hidden={tab !== "shell"} />
-				<LocalAgentFilesPane hidden={tab !== "files"} />
-				<LocalAgentGitPane hidden={tab !== "git"} />
-			</div>
+			<SessionWorkspacePane
+				chat={
+					<LocalChat
+						activeSession={activeSession}
+						entry={entry}
+						userAvatarUrl={userAvatarUrl}
+					/>
+				}
+				companion={({ setTab, tab }) => (
+					<WorkspaceCommandBridge
+						activeSession={activeSession}
+						entry={entry}
+						setTab={setTab}
+						tab={tab}
+					/>
+				)}
+				headerStart={<DrawerToggle onOpen={drawer.show} />}
+			/>
 			<MobileSessionDrawer onClose={drawer.close} open={drawer.open}>
 				{sidebar(drawer.select)}
 			</MobileSessionDrawer>
-			<WorkspaceCommandBridge
-				activeSession={activeSession}
-				entry={entry}
-				setTab={setTab}
-				tab={tab}
-			/>
 		</div>
 	);
 }

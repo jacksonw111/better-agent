@@ -1,4 +1,5 @@
 import type { ChatAvatars } from "@better-agent/ui/components/chat/chat-row";
+import type { ReactNode } from "react";
 import type { ResolvedCapabilities, TextWhen } from "./agent-capabilities";
 import type { CommandCatalogDetail } from "./bridge-command-catalog";
 import type { QueueUpdateDetail } from "./bridge-queue-status";
@@ -31,6 +32,10 @@ export interface TerminalBodyProps {
 	 * "Commands" group; see `BodyComposer`'s fallback to
 	 * `sessionReady.slashCommands` for adapters that don't emit this yet. */
 	commandCatalog: CommandCatalogDetail | null;
+	/** S3-T2: when set, the composer is disabled and this text explains why —
+	 * the Task Conversation page locks input unless the current run is running
+	 * or waiting for the user (§11). Never set on /local. */
+	composerLock?: string;
 	disabled: boolean;
 	ended: boolean;
 	/** P3-T4: requests a fresh `status_snapshot` — fired when the usage modal
@@ -40,6 +45,9 @@ export interface TerminalBodyProps {
 	 * `TerminalComposerProps.imageUpload`); absent hides the attach surface. */
 	imageUpload?: UploadImage;
 	interrupt: () => void;
+	/** S3-T2: threads through to `TerminalFeed.leading` — the Opening Message
+	 * rendered inside the scroller as the conversation's first message. */
+	leading?: ReactNode;
 	onSend: (text: string, when?: TextWhen, images?: ImageRef[]) => Promise<void>;
 	/** R3-T1: pi's queued-message count, or `null` before one has arrived — see
 	 * bridge-queue-status.ts. */
@@ -163,6 +171,7 @@ export function TerminalBody(props: TerminalBodyProps) {
 				answerQuestion={props.answerQuestion}
 				avatars={props.avatars}
 				ended={props.ended}
+				leading={props.leading}
 				turnInFlight={props.turnInFlight}
 				turns={props.turns}
 			/>
@@ -174,10 +183,15 @@ export function TerminalBody(props: TerminalBodyProps) {
 					usageUpdate={props.usageUpdate}
 				/>
 			)}
+			{props.composerLock !== undefined && (
+				<p className="mx-auto w-full max-w-3xl px-3 pb-1 text-muted-foreground text-xs sm:px-4">
+					{props.composerLock}
+				</p>
+			)}
 			<BodyComposer
 				caps={props.caps}
 				commandCatalog={props.commandCatalog}
-				disabled={props.disabled}
+				disabled={props.disabled || props.composerLock !== undefined}
 				imageUpload={props.imageUpload}
 				interrupt={props.interrupt}
 				onSend={props.onSend}
