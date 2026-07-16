@@ -1,7 +1,7 @@
 {
   "name": "@jacksonw111/better-agent-bridge",
-  "version": "0.4.0",
-  "description": "Bridge CLI that connects a local coding agent (claude-code, opencode, codex, pi) to a Better Agent server — relays events and approvals over oRPC.",
+  "version": "0.5.0",
+  "description": "Better Agent client CLI — pairs a computer to a Better Agent server, reports runtime/skill/tool inventory, launches task runs in managed workspaces, and relays local coding agents (claude-code, opencode, codex, pi) over oRPC.",
   "license": "MIT",
   "type": "module",
   "repository": {
