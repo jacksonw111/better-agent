@@ -54,6 +54,23 @@ it("streams tool-call then tool-result into a tool block", async () => {
 	});
 });
 
+it("streams an orphan tool-result (no matching tool-call) into a tool block", async () => {
+	const last = await run([
+		{
+			type: "tool-result",
+			callId: "z1",
+			result: "no such tool",
+			isError: true,
+		},
+		{ type: "text-delta", delta: "recovering" },
+	]);
+	const tool = last?.blocks.find((b) => b.kind === "tool");
+	expect(tool).toMatchObject({
+		kind: "tool",
+		tool: { callId: "z1", status: "error", isError: true },
+	});
+});
+
 it("preserves the agent's output order across text and tool blocks", async () => {
 	const last = await run([
 		{ type: "text-delta", delta: "let me look" },
@@ -143,6 +160,33 @@ describe("toChatMessage", () => {
 		expect(toChatMessage(row).blocks[0]).toMatchObject({
 			kind: "tool",
 			tool: { callId: "c9", status: "running" },
+		});
+	});
+});
+
+describe("toChatMessage orphan tool-result", () => {
+	it("renders an orphan tool-result (no matching tool-call) instead of dropping it", () => {
+		// A tool-error with no preceding tool-call part (invalid-args / no-such-
+		// tool). Previously this produced 0 blocks → a fully blank streaming row.
+		const row = {
+			message: { id: "m3", role: "assistant", status: "streaming" },
+			parts: [
+				part({
+					type: "tool-result",
+					content: { callId: "orphan", result: "bad args", isError: true },
+				}),
+			],
+		} as unknown as Parameters<typeof toChatMessage>[0];
+		const msg = toChatMessage(row);
+		expect(msg.blocks).toHaveLength(1);
+		expect(msg.blocks[0]).toMatchObject({
+			kind: "tool",
+			tool: {
+				callId: "orphan",
+				status: "error",
+				isError: true,
+				result: "bad args",
+			},
 		});
 	});
 

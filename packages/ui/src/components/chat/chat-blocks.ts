@@ -116,6 +116,63 @@ interface BuiltParts {
 	blocks: ChatBlock[];
 }
 
+interface ToolCallContent {
+	args: unknown;
+	callId: string;
+	toolName: string;
+}
+interface ToolResultContent {
+	callId: string;
+	isError: boolean;
+	result: unknown;
+}
+
+function pushToolCall(
+	blocks: ChatBlock[],
+	toolByCallId: Map<string, ToolInvocation>,
+	content: ToolCallContent
+): void {
+	const tool: ToolInvocation = {
+		callId: content.callId,
+		toolName: content.toolName,
+		args: content.args,
+		isError: false,
+		status: "running",
+	};
+	blocks.push({ kind: "tool", tool });
+	toolByCallId.set(content.callId, tool);
+}
+
+function applyToolResultPart(
+	blocks: ChatBlock[],
+	toolByCallId: Map<string, ToolInvocation>,
+	content: ToolResultContent
+): void {
+	const tool = toolByCallId.get(content.callId);
+	const status = content.isError ? "error" : "complete";
+	if (tool) {
+		tool.result = content.result;
+		tool.isError = content.isError;
+		tool.status = status;
+		return;
+	}
+	// Orphan tool-result: a tool-error with no preceding tool-call part
+	// (invalid-args / no-such-tool / unrepairable call — the SDK emits tool-error
+	// carrying a callId but no tool-call chunk). Render it as its own block
+	// instead of dropping it — a dropped result can leave an otherwise-empty
+	// streaming message rendering fully blank.
+	const orphan: ToolInvocation = {
+		callId: content.callId,
+		toolName: "tool",
+		args: undefined,
+		result: content.result,
+		isError: content.isError,
+		status,
+	};
+	blocks.push({ kind: "tool", tool: orphan });
+	toolByCallId.set(content.callId, orphan);
+}
+
 /** Build the ordered blocks for a persisted message (parts are seq-ordered). */
 function buildBlocks(parts: SessionMessageRow["parts"]): BuiltParts {
 	const blocks: ChatBlock[] = [];
@@ -126,22 +183,9 @@ function buildBlocks(parts: SessionMessageRow["parts"]): BuiltParts {
 		} else if (part.type === "reasoning") {
 			appendText(blocks, "reasoning", part.content.text);
 		} else if (part.type === "tool-call") {
-			const tool: ToolInvocation = {
-				callId: part.content.callId,
-				toolName: part.content.toolName,
-				args: part.content.args,
-				isError: false,
-				status: "running",
-			};
-			blocks.push({ kind: "tool", tool });
-			toolByCallId.set(part.content.callId, tool);
+			pushToolCall(blocks, toolByCallId, part.content);
 		} else if (part.type === "tool-result") {
-			const tool = toolByCallId.get(part.content.callId);
-			if (tool) {
-				tool.result = part.content.result;
-				tool.isError = part.content.isError;
-				tool.status = part.content.isError ? "error" : "complete";
-			}
+			applyToolResultPart(blocks, toolByCallId, part.content);
 		} else if (part.type === "file") {
 			blocks.push({
 				kind: "file",

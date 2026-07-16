@@ -60,19 +60,41 @@ function applyToolResult(
 	state: StreamState,
 	event: Extract<RunEvent, { type: "tool-result" }>
 ) {
-	state.assistant.blocks = state.assistant.blocks.map((block) =>
-		block.kind === "tool" && block.tool.callId === event.callId
-			? {
-					kind: "tool",
-					tool: {
-						...block.tool,
-						result: event.result,
-						isError: event.isError,
-						status: event.isError ? "error" : "complete",
-					},
-				}
-			: block
-	);
+	let matched = false;
+	state.assistant.blocks = state.assistant.blocks.map((block) => {
+		if (block.kind === "tool" && block.tool.callId === event.callId) {
+			matched = true;
+			return {
+				kind: "tool",
+				tool: {
+					...block.tool,
+					result: event.result,
+					isError: event.isError,
+					status: event.isError ? "error" : "complete",
+				},
+			};
+		}
+		return block;
+	});
+	if (!matched) {
+		// Orphan tool-result (tool-error with no preceding tool-call event, e.g.
+		// invalid-args / no-such-tool): append a block so it renders instead of
+		// vanishing — a dropped result can leave an empty turn showing blank.
+		state.assistant.blocks = [
+			...state.assistant.blocks,
+			{
+				kind: "tool",
+				tool: {
+					callId: event.callId,
+					toolName: "tool",
+					args: undefined,
+					result: event.result,
+					isError: event.isError,
+					status: event.isError ? "error" : "complete",
+				},
+			},
+		];
+	}
 	emit(state);
 }
 
