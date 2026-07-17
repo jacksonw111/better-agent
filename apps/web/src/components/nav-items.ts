@@ -4,7 +4,6 @@ import {
 	Gauge,
 	Laptop,
 	Library,
-	ListTodo,
 	Plug,
 	Wand2,
 } from "lucide-react";
@@ -13,15 +12,15 @@ import {
 // sidebar (components/sidebar.tsx) and the ⌘K palette's "Go to" group render
 // from, so the two can't drift. Chat is deliberately absent: it's not a
 // top-level nav item (you open a chat from an agent row → /chat?agentId=…).
-// Nav order: Dashboard first, Computers second, Tasks third (supersedes the
-// S3-T3 Tasks-first order). The old Local Agents entry stays retired (/local
-// redirects to /tasks; /local/$tokenId stays direct-link only). `as const`
-// keeps each `to` a route-path literal so the palette's typed
-// `navigate({ to })` accepts it.
+// Tasks is deliberately absent too: a computer's tasks live on its detail
+// page, and the /tasks + /tasks/$taskId routes survive only for those links
+// and deep links. The old Local Agents entry stays retired (/local redirects
+// to /tasks; /local/$tokenId stays direct-link only). `as const` keeps each
+// `to` a route-path literal so the palette's typed `navigate({ to })`
+// accepts it.
 export const WEB_NAV_ITEMS = [
 	{ icon: Gauge, label: "Dashboard", to: "/dashboard" },
 	{ icon: Laptop, label: "Computers", to: "/computers" },
-	{ icon: ListTodo, label: "Tasks", to: "/tasks" },
 	{ icon: Bot, label: "Agents", match: ["/chat"], to: "/agents" },
 	{ icon: BookMarked, label: "Memories", to: "/memories" },
 	{ icon: Library, label: "Knowledge", to: "/knowledge" },

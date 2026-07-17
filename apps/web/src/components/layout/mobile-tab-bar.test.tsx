@@ -6,6 +6,7 @@ import { MobileTabBar } from "./mobile-tab-bar";
 
 const DASHBOARD_LABEL_PATTERN = /Dashboard/;
 const AGENTS_LABEL_PATTERN = /^Agents/;
+const COMPUTERS_LABEL_PATTERN = /Computers/;
 const TASKS_LABEL_PATTERN = /Tasks/;
 const MEMORIES_LABEL_PATTERN = /Memories/;
 const MORE_LABEL_PATTERN = /More/;
@@ -64,7 +65,11 @@ it("renders a tab for each primary destination plus More", () => {
 		view.getByRole("link", { name: DASHBOARD_LABEL_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("link", { name: AGENTS_LABEL_PATTERN })).toBeDefined();
-	expect(view.getByRole("link", { name: TASKS_LABEL_PATTERN })).toBeDefined();
+	expect(
+		view.getByRole("link", { name: COMPUTERS_LABEL_PATTERN })
+	).toBeDefined();
+	// Tasks left the dock along with the top nav — Computers took its slot.
+	expect(view.queryByRole("link", { name: TASKS_LABEL_PATTERN })).toBeNull();
 	expect(
 		view.getByRole("link", { name: MEMORIES_LABEL_PATTERN })
 	).toBeDefined();
@@ -92,23 +97,23 @@ it("treats /chat as part of the Agents tab's active match", () => {
 	).toContain("text-primary");
 });
 
-it("activates the Tasks tab on the /tasks list and the new-task wizard alike", () => {
-	store.pathname = "/tasks";
+it("activates the Computers tab on the list and a computer's detail alike", () => {
+	store.pathname = "/computers";
 	let view = renderBar();
 	expect(
-		view.getByRole("link", { name: TASKS_LABEL_PATTERN }).className
+		view.getByRole("link", { name: COMPUTERS_LABEL_PATTERN }).className
 	).toContain("text-primary");
 	expect(
 		view.getByRole("link", { name: AGENTS_LABEL_PATTERN }).className
 	).not.toContain("text-primary");
 
 	cleanup();
-	store.pathname = "/tasks/new";
+	store.pathname = "/computers/computer-1";
 	view = renderBar();
-	// /tasks/new shares the /tasks prefix, so the Tasks tab stays lit on the
-	// wizard (which keeps the dock — it's not an immersive conversation).
+	// /computers/$computerId shares the /computers prefix, so the tab stays
+	// lit on the detail page.
 	expect(
-		view.getByRole("link", { name: TASKS_LABEL_PATTERN }).className
+		view.getByRole("link", { name: COMPUTERS_LABEL_PATTERN }).className
 	).toContain("text-primary");
 });
 
@@ -141,7 +146,7 @@ it("suppresses the dock when /chat has a selected cloud agent", () => {
 	expect(view.queryByRole("navigation")).toBeNull();
 });
 
-it("keeps the dock on the /tasks list", () => {
+it("keeps the dock on the /tasks list even though Tasks has no tab", () => {
 	store.pathname = "/tasks";
 	const view = renderBar();
 

@@ -2,7 +2,7 @@ import { isActivePath } from "@better-agent/ui/components/app-shell-nav";
 import { useSidebar } from "@better-agent/ui/components/sidebar";
 import { cn } from "@better-agent/ui/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BookMarked, Bot, EllipsisIcon, Gauge, ListTodo } from "lucide-react";
+import { BookMarked, Bot, EllipsisIcon, Gauge, Laptop } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
@@ -20,9 +20,10 @@ interface TabItem {
 // thumb-reachable slot, plus "More" for everything else (Skills,
 // Integrations, theme, account) via the existing hamburger drawer.
 const TAB_ITEMS: readonly TabItem[] = [
-	// `to` prefix-matching covers /tasks/$taskId and /tasks/new, so no extra
-	// `match` needed. S3-T3: Tasks replaced the retired Local tab.
-	{ to: "/tasks", label: "Tasks", icon: ListTodo },
+	// `to` prefix-matching covers /computers/$computerId, so no extra `match`
+	// needed. Computers replaced Tasks here when Tasks left the top nav — a
+	// computer's tasks now live on its detail page.
+	{ to: "/computers", label: "Computers", icon: Laptop },
 	{ to: "/dashboard", label: "Dashboard", icon: Gauge },
 	{
 		to: "/agents",
@@ -128,7 +129,7 @@ function useHideOnScrollDown(): boolean {
 	return hidden;
 }
 
-/** The <md app-style floating dock: Tasks/Dashboard/Agents/Memories plus
+/** The <md app-style floating dock: Computers/Dashboard/Agents/Memories plus
  * a "More" tab that opens the existing hamburger drawer (Skills, Integrations,
  * theme, account). Mounted once in the authed shell; content needs matching
  * bottom padding (`pb-tab-bar`) so it doesn't sit underneath. Floats as a

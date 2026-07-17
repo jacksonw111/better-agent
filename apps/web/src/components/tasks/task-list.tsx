@@ -37,19 +37,16 @@ function taskMeta(task: TaskListItem, computerName: string | undefined) {
 	return `${computerName ?? "Unknown computer"} · ${AGENT_LABELS[task.agentKind]}`;
 }
 
-function TaskCard({
-	computerName,
-	task,
-}: {
-	computerName: string | undefined;
-	task: TaskListItem;
-}) {
+/** One task card — name, context line, latest-run status chip, age — linking
+ * into the conversation. Shared by /tasks (meta: "computer · runtime") and
+ * the computer detail page (meta: runtime only; the computer is the page). */
+export function TaskCard({ meta, task }: { meta: string; task: TaskListItem }) {
 	return (
 		<Link className="block" params={{ taskId: task.id }} to="/tasks/$taskId">
 			<Card className="transition-colors hover:bg-accent/40">
 				<CardHeader>
 					<CardTitle className="truncate">{task.name}</CardTitle>
-					<CardDescription>{taskMeta(task, computerName)}</CardDescription>
+					<CardDescription>{meta}</CardDescription>
 					<CardAction>
 						<RunStatusChip status={task.latestRun?.status ?? null} />
 					</CardAction>
@@ -112,8 +109,8 @@ function TaskListContent({ onNewTask }: { onNewTask: () => void }) {
 			<div className="flex flex-col gap-3">
 				{tasks.map((task) => (
 					<TaskCard
-						computerName={computerNames.get(task.computerId)}
 						key={task.id}
+						meta={taskMeta(task, computerNames.get(task.computerId))}
 						task={task}
 					/>
 				))}
