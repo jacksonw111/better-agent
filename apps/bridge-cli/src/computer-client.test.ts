@@ -13,7 +13,8 @@ import {
 // same register-once + heartbeat loop the identity-file path uses. Transient
 // heartbeat errors are reported but never end the loop; only the injected
 // wait (abort-driven in production) does. The S25-T1 launch-delivery specs
-// live in computer-client-launch.test.ts; shared fixtures in
+// live in computer-client-launch.test.ts, the idempotent-pair and
+// pair-failure UX specs in computer-client-pair.test.ts; shared fixtures in
 // computer-client-test-helpers.ts.
 
 const PAIR_HINT = /--pair/;

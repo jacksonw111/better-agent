@@ -29,7 +29,13 @@ export function pairingCommand(code: string): string {
 	return `agent-cli --client --pair ${code} --server ${env.VITE_SERVER_URL}`;
 }
 
-function PairingCommand({ code }: { code: string }) {
+function PairingCommand({
+	code,
+	onRegenerate,
+}: {
+	code: string;
+	onRegenerate: () => void;
+}) {
 	const command = pairingCommand(code);
 	return (
 		<div className="flex flex-col gap-3">
@@ -39,12 +45,21 @@ function PairingCommand({ code }: { code: string }) {
 			</div>
 			<p className="text-muted-foreground text-xs">
 				The code is shown only once and expires in {PAIRING_CODE_TTL_MINUTES}{" "}
-				minutes. Closing this dialog generates a new one next time.
+				minutes — each machine you pair needs its own one-time code.
 			</p>
 			<p className="text-muted-foreground text-xs">
 				Once the command finishes, the computer appears in the list within a few
-				seconds.
+				seconds. To pair another machine, generate a new code.
 			</p>
+			<Button
+				className="self-start"
+				onClick={onRegenerate}
+				size="sm"
+				type="button"
+				variant="outline"
+			>
+				Generate new code
+			</Button>
 		</div>
 	);
 }
@@ -59,7 +74,7 @@ function PairDialogBody({
 	onRetry: () => void;
 }) {
 	if (code !== undefined) {
-		return <PairingCommand code={code} />;
+		return <PairingCommand code={code} onRegenerate={onRetry} />;
 	}
 	if (failed) {
 		return (

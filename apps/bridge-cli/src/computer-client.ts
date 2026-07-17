@@ -85,21 +85,55 @@ function dispatchLaunches(
 	}
 }
 
-/** `--pair`: fresh keypair → pair (the server stores only the public key) →
- * persist the identity file. Otherwise the saved identity is required — a
- * missing file fails with the "--pair first" hint from `loadOrFail`. */
-async function resolveIdentity(
-	args: ClientCliArgs,
+/** The server deliberately answers every bad code — unknown, expired, or
+ * already consumed — with the same UNAUTHORIZED (no oracle), so the CLI is
+ * the only place that can tell the user what to actually DO about it. */
+function isUnauthorizedError(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code: unknown }).code === "UNAUTHORIZED"
+	);
+}
+
+/** Pair, turning the opaque UNAUTHORIZED into an actionable exit message:
+ * each code pairs exactly one computer, and a fresh one comes from the web.
+ * Anything else (network, 5xx) is a real transport failure — rethrown as-is. */
+async function pairOrExplain(
 	deps: ComputerClientDeps,
-	attributes: ComputerAttributes
-): Promise<ComputerIdentity> {
-	if (args.pairCode === undefined) {
-		return deps.identityFile.loadOrFail();
+	input: Parameters<ComputerClientDeps["transport"]["pair"]>[0]
+): Promise<{ computerId: string }> {
+	try {
+		return await deps.transport.pair(input);
+	} catch (error) {
+		if (!isUnauthorizedError(error)) {
+			throw error;
+		}
+		const note = error instanceof Error ? error.message : String(error);
+		throw new Error(
+			"Pairing failed: the code is invalid, expired, or already used " +
+				"(each code pairs exactly one computer). Generate a new code from " +
+				`the web: Computers → Pair new computer. (server said: ${note})`
+		);
 	}
+}
+
+/** Fresh keypair → pair → persist. `replaced` is a pre-existing identity for
+ * a DIFFERENT server that this pairing overwrites — called out in the output
+ * so losing the old (unrecoverable) credential is never silent. */
+async function pairNewIdentity(input: {
+	args: ClientCliArgs;
+	attributes: ComputerAttributes;
+	deps: ComputerClientDeps;
+	pairCode: string;
+	replaced: ComputerIdentity | null;
+}): Promise<ComputerIdentity> {
+	const { args, attributes, deps, pairCode, replaced } = input;
 	const keyPair = deps.generateKeyPair();
-	const { computerId } = await deps.transport.pair({
+	const { computerId } = await pairOrExplain(deps, {
 		...attributes,
-		code: args.pairCode,
+		code: pairCode,
 		publicKeyPem: keyPair.publicKeyPem,
 	});
 	const identity: ComputerIdentity = {
@@ -109,7 +143,48 @@ async function resolveIdentity(
 	};
 	await deps.identityFile.save(identity);
 	deps.log(`Paired — computerId: ${computerId}`);
+	if (replaced !== null) {
+		deps.log(
+			`Replaced the previous identity (computer ${replaced.computerId} for ${replaced.serverUrl}).`
+		);
+	}
+	deps.log(
+		`From now on just run: agent-cli --client --server ${args.serverUrl} (no --pair needed).`
+	);
 	return identity;
+}
+
+/** `--pair`: idempotent per machine+server. When an identity for the SAME
+ * server already exists — the usual case is rerunning the saved pair command
+ * after the one-time code was consumed — the flag is ignored and the client
+ * starts with the existing identity instead of failing on a spent code.
+ * Otherwise pair fresh (see `pairNewIdentity`). Without `--pair` the saved
+ * identity is required — a missing file fails with the "--pair first" hint
+ * from `loadOrFail`. */
+async function resolveIdentity(
+	args: ClientCliArgs,
+	deps: ComputerClientDeps,
+	attributes: ComputerAttributes
+): Promise<ComputerIdentity> {
+	if (args.pairCode === undefined) {
+		return deps.identityFile.loadOrFail();
+	}
+	const existing = await deps.identityFile.load();
+	if (existing !== null && existing.serverUrl === args.serverUrl) {
+		deps.log(
+			`This machine is already paired (computer ${existing.computerId}). ` +
+				"Ignoring --pair and starting with the existing identity — to pair " +
+				"as a new computer, delete ~/.better-agent/identity.json first."
+		);
+		return existing;
+	}
+	return pairNewIdentity({
+		args,
+		attributes,
+		deps,
+		pairCode: args.pairCode,
+		replaced: existing,
+	});
 }
 
 export async function runComputerClient(

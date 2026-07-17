@@ -13,12 +13,16 @@ import { PairComputerDialog } from "./pair-computer-dialog";
 const SHOWN_ONCE_PATTERN = /shown only once/i;
 const TTL_PATTERN = /10 minutes/;
 const APPEARS_IN_LIST_PATTERN = /appears in the list/i;
+const OWN_CODE_PER_MACHINE_PATTERN = /its own one-time code/i;
 const CODE_PATTERN = /pc_test123/;
+const FRESH_CODE_PATTERN = /pc_fresh456/;
 const CALLS_AFTER_REOPEN = 2;
+const CALLS_AFTER_REGENERATE = 2;
 
 const store = vi.hoisted(() => ({
 	createCalls: 0,
 	createError: null as Error | null,
+	nextCode: "pc_test123",
 	toastErrors: [] as string[],
 }));
 
@@ -44,7 +48,7 @@ vi.mock("@/utils/orpc", () => ({
 						return store.createError
 							? Promise.reject(store.createError)
 							: Promise.resolve({
-									code: "pc_test123",
+									code: store.nextCode,
 									expiresAt: new Date("2026-07-15T12:10:00.000Z"),
 								});
 					},
@@ -70,6 +74,7 @@ function renderDialog() {
 afterEach(() => {
 	store.createCalls = 0;
 	store.createError = null;
+	store.nextCode = "pc_test123";
 	store.toastErrors.length = 0;
 	cleanup();
 });
@@ -93,6 +98,26 @@ it("generates a code on open and shows the one-time pairing command", async () =
 	expect(body.getByText(SHOWN_ONCE_PATTERN)).toBeDefined();
 	expect(body.getByText(TTL_PATTERN)).toBeDefined();
 	expect(body.getByText(APPEARS_IN_LIST_PATTERN)).toBeDefined();
+	// Multi-computer guidance: every machine needs its own one-time code.
+	expect(body.getByText(OWN_CODE_PER_MACHINE_PATTERN)).toBeDefined();
+});
+
+it("regenerates a fresh code in place via the Generate new code button", async () => {
+	const body = renderDialog();
+
+	fireEvent.click(body.getByRole("button", { name: "Pair new computer" }));
+	await waitFor(() => {
+		expect(body.getByText(CODE_PATTERN)).toBeDefined();
+	});
+
+	store.nextCode = "pc_fresh456";
+	fireEvent.click(body.getByRole("button", { name: "Generate new code" }));
+
+	await waitFor(() => {
+		expect(body.getByText(FRESH_CODE_PATTERN)).toBeDefined();
+	});
+	expect(body.queryByText(CODE_PATTERN)).toBeNull();
+	expect(store.createCalls).toBe(CALLS_AFTER_REGENERATE);
 });
 
 it("generates a fresh code each time the dialog is opened", async () => {

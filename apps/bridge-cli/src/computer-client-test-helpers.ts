@@ -76,8 +76,10 @@ export function fakeDeps(
 			privateKeyPem: "generated-private-pem",
 			publicKeyPem: "generated-public-pem",
 		}),
+		// Fresh machine by default: no identity file yet (`load` → null), while
+		// the no-pair path (`loadOrFail`) still finds the stored identity.
 		identityFile: {
-			load: () => Promise.resolve(storedIdentity),
+			load: () => Promise.resolve(null),
 			loadOrFail: () => Promise.resolve(storedIdentity),
 			save: vi.fn(() => Promise.resolve()),
 		},
