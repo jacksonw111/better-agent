@@ -351,6 +351,13 @@
       "when": 1784209870481,
       "tag": "0049_mute_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1784278178391,
+      "tag": "0050_funny_nehzno",
+      "breakpoints": true
     }
   ]
 }

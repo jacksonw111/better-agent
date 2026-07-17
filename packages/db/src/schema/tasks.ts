@@ -83,6 +83,11 @@ export const runs = pgTable(
 			.notNull()
 			.default([]),
 		sessionId: uuid("session_id").references(() => bridgeSessions.id),
+		// P1 (session resume): the previous run's runtime conversation id (the
+		// bound bridge session's agent_session_id), captured at tasks.resume so
+		// the Launch payload tells the client to natively resume that exact
+		// conversation. Null for cold starts (create/retry).
+		resumeAgentSessionId: text("resume_agent_session_id"),
 		// S2-T2 (D4): the internal bridge token pre-issued at Run creation as the
 		// Launch payload's sessionCredential — named `task:<taskId>`, never shown
 		// in any user UI. Nullable: rows predating S2-T3's creation flow.

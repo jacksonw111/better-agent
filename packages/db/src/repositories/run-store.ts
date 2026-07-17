@@ -19,6 +19,7 @@ function toRow(row: typeof schema.runs.$inferSelect): RunRow {
 		workspacePath: row.workspacePath ?? null,
 		branch: row.branch ?? null,
 		issueSnapshots: row.issueSnapshots,
+		resumeAgentSessionId: row.resumeAgentSessionId ?? null,
 		sessionId: row.sessionId ?? null,
 		sessionTokenId: row.sessionTokenId ?? null,
 		errorMessage: row.errorMessage ?? null,

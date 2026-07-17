@@ -31,6 +31,7 @@ const RUN = {
 	id: "run-1",
 	agentKind: "claude-code" as const,
 	issueSnapshots: [] as IssueSnapshot[],
+	resumeAgentSessionId: null as string | null,
 	workspaceKind: "standalone" as const,
 };
 
@@ -71,6 +72,19 @@ it("carries the run's issue snapshots in order", () => {
 	];
 	const command = buildLaunchCommand(TASK, { ...RUN, issueSnapshots }, "bt_s");
 	expect(command.issueSnapshots).toEqual(issueSnapshots);
+});
+
+it("carries resumeAgentSessionId only when the run has one (P1 session resume)", () => {
+	const resumed = buildLaunchCommand(
+		TASK,
+		{ ...RUN, resumeAgentSessionId: "claude-abc" },
+		"bt_s"
+	);
+	expect(resumed.resumeAgentSessionId).toBe("claude-abc");
+	// A cold start omits the key entirely — the client never sees a null.
+	expect(buildLaunchCommand(TASK, RUN, "bt_s")).not.toHaveProperty(
+		"resumeAgentSessionId"
+	);
 });
 
 it("throws when a repository run's task has no repository identity", () => {

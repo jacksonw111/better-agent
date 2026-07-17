@@ -73,6 +73,11 @@ export interface RunInsert {
 	issueSnapshots: IssueSnapshot[];
 	/** Idempotency key for Launch delivery — equals the run id (D4). */
 	launchKey: string;
+	/** P1 (session resume): the previous run's runtime conversation id — the
+	 * bound bridge session's `agentSessionId` — captured at tasks.resume so the
+	 * Launch payload can tell the client to `--resume` that exact conversation.
+	 * Optional: cold starts (create/retry) never set it. */
+	resumeAgentSessionId?: string | null;
 	/** The pre-issued internal bridge token backing `sessionCredential` in the
 	 * Launch payload (S2-T2, design D4). Optional so pre-S2-T2 callers keep
 	 * compiling; S2-T3's run creation always sets it. */
@@ -85,6 +90,7 @@ export interface RunRow extends RunInsert {
 	createdAt: Date;
 	errorMessage: string | null;
 	id: string;
+	resumeAgentSessionId: string | null;
 	/** Relay binding — set once the client attaches the runtime to its
 	 * pre-issued bridge session (D4). */
 	sessionId: string | null;
@@ -136,6 +142,11 @@ export interface RunLaunchCommand {
 	 * renders it as the start context's `Repository:` line (§10.1); null for
 	 * stand-alone Tasks. */
 	repositoryUrl: string | null;
+	/** P1 (session resume): the previous run's runtime conversation id — the
+	 * client passes it to the runtime's native resume (e.g. `--resume`) so the
+	 * new Run continues the SAME conversation. Omitted entirely for cold
+	 * starts and when the runtime never reported a conversation id. */
+	resumeAgentSessionId?: string;
 	runId: string;
 	/** Raw pre-issued `bt_…` bridge token the client uses to attach the
 	 * launched runtime to the existing session relay (D4). */

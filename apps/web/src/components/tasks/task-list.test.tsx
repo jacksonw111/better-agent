@@ -88,6 +88,7 @@ function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 		latestRun: {
 			createdAt: new Date(Date.now() - MS_PER_MINUTE),
 			errorMessage: null,
+			hasAgentSessionId: false,
 			id: "run-1",
 			status: "running",
 		},
@@ -175,6 +176,7 @@ it("maps run statuses onto the chip semantics", async () => {
 			latestRun: {
 				createdAt: new Date(),
 				errorMessage: "git clone failed",
+				hasAgentSessionId: false,
 				id: "run-2",
 				status: "failed",
 			},

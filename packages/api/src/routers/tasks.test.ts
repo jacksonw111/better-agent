@@ -158,18 +158,17 @@ it("allows start with gh (and git) missing — tool auth is never a gate", async
 	).resolves.toMatchObject({ runId: expect.any(String) });
 });
 
-it("rejects a blank name, a blank description and an oversized name", async () => {
+it("rejects a blank provided name and an oversized name", async () => {
 	const rig = buildComputerRig();
 	const { computerId } = await pairClaudeComputer(rig);
 	const client = rig.userClientFor(ALICE);
 	const input = createInput(computerId);
 	const nameMax = 120;
 
+	// P1: a blank description is now a valid chat session (tasks-session
+	// .test.ts) — but a name, when PROVIDED, must still carry visible text.
 	await expect(
 		client.tasks.create({ ...input, name: "   " })
-	).rejects.toThrow();
-	await expect(
-		client.tasks.create({ ...input, description: "\n\t " })
 	).rejects.toThrow();
 	await expect(
 		client.tasks.create({ ...input, name: "x".repeat(nameMax + 1) })

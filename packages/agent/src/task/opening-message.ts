@@ -3,8 +3,9 @@
 // visible chat message of a Task Conversation: the user's description exactly
 // as written (with /skill references left as text), an optional GitHub
 // context block, and a short execution context. It never contains the Task
-// Name, expanded skill content, or lifecycle text — and the description is
-// never omitted, whatever else is.
+// Name, expanded skill content, or lifecycle text — and a non-empty
+// description is never omitted, whatever else is (an empty description means
+// an empty message: see assembleOpeningMessage).
 
 import type { BridgeAgentKind } from "../bridge-token-ports";
 import type { IssueSnapshot, WorkspaceKind } from "./task-ports";
@@ -49,8 +50,14 @@ function gitHubContextBlocks(
 
 /** Assembles the §10.1 template. Blocks are joined by blank lines; the GitHub
  * block (repository line + issue sections) is omitted entirely without a
- * repository, while the description and execution context always appear. */
+ * repository, while the description and execution context always appear.
+ * P1 exception: an EMPTY description means a chat-style session with no
+ * initial instruction — the whole Opening Message is the empty string (the
+ * web renders nothing), never a context block with no instruction above it. */
 export function assembleOpeningMessage(input: OpeningMessageInput): string {
+	if (input.description.trim().length === 0) {
+		return "";
+	}
 	const executionContext = [
 		"## Execution context",
 		`- Computer: ${input.computerName}`,

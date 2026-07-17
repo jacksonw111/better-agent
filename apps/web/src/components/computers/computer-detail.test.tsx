@@ -94,6 +94,7 @@ function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 		latestRun: {
 			createdAt: new Date(Date.now() - MS_PER_MINUTE),
 			errorMessage: null,
+			hasAgentSessionId: false,
 			id: "run-1",
 			status: "running",
 		},

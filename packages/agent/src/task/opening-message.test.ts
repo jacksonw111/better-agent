@@ -121,6 +121,20 @@ it("omits the whole GitHub block (issues included) when there is no repository",
 	expect(message).not.toContain("### Issue #1");
 });
 
+it("returns an empty message for an empty description — a chat session has no opening message (P1)", () => {
+	expect(assembleOpeningMessage({ ...BASE, description: "" })).toBe("");
+	// Whitespace-only counts as empty, and even a repository adds nothing:
+	// without an instruction there is no message to hang context blocks on.
+	expect(
+		assembleOpeningMessage({
+			...BASE,
+			description: " \n\t",
+			repositoryUrl: "https://github.com/acme/app",
+			workspaceKind: "repository",
+		})
+	).toBe("");
+});
+
 it("labels each supported runtime with its display name", () => {
 	const cases = [
 		["claude-code", "Claude Code"],

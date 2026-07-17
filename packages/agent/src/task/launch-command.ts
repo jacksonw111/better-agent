@@ -25,7 +25,11 @@ export type LaunchTaskSource = Pick<
 /** The Run fields a Launch Command derives from. */
 export type LaunchRunSource = Pick<
 	RunRow,
-	"agentKind" | "id" | "issueSnapshots" | "workspaceKind"
+	| "agentKind"
+	| "id"
+	| "issueSnapshots"
+	| "resumeAgentSessionId"
+	| "workspaceKind"
 >;
 
 /** S4-T2: the repository intent carries the GitHub-resolved metadata saved at
@@ -58,7 +62,7 @@ export function buildLaunchCommand(
 		run.workspaceKind === "repository"
 			? repositoryIntent(task)
 			: { kind: "standalone" };
-	return {
+	const command: RunLaunchCommand = {
 		kind: "launch",
 		taskId: task.id,
 		runId: run.id,
@@ -69,4 +73,10 @@ export function buildLaunchCommand(
 		repositoryUrl: task.repositoryUrl,
 		sessionCredential: sessionToken,
 	};
+	// P1 (session resume): present only when the Run was created by
+	// tasks.resume off a previous run that reported a conversation id — a cold
+	// start's payload omits the key entirely, never carries a null.
+	return run.resumeAgentSessionId
+		? { ...command, resumeAgentSessionId: run.resumeAgentSessionId }
+		: command;
 }

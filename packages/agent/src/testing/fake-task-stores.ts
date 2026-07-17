@@ -105,6 +105,7 @@ export function createFakeRunStore(
 				...input,
 				id: input.id ?? crypto.randomUUID(),
 				status: "created",
+				resumeAgentSessionId: input.resumeAgentSessionId ?? null,
 				sessionId: null,
 				sessionTokenId: input.sessionTokenId ?? null,
 				workspacePath: null,

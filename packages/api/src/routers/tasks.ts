@@ -1,7 +1,5 @@
 import { assembleOpeningMessage } from "@better-agent/agent/task/opening-message";
-import { createRunSessionCredential } from "@better-agent/agent/task/run-session-credential";
 import type {
-	IssueSnapshot,
 	RunRow,
 	TaskRow,
 	WorkspaceKind,
@@ -10,6 +8,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
+import { appendRun } from "./tasks-append-run";
 import {
 	refreshedIssueSnapshots,
 	repositoryTaskFields,
@@ -20,13 +19,17 @@ import {
 	requireOnlineOwnedComputer,
 	requireRuntimeInInventory,
 } from "./tasks-guards";
+import { resume } from "./tasks-resume";
 
 // Tasks router (S2-T3): atomic Start per master spec §8.5 — every validation
 // runs BEFORE the first write, so a rejected Start leaves no task/run rows;
 // once task + opening message + first Run are saved, a failed notify never
 // rolls them back (heartbeat pendingCommands delivers instead, D4). Retry
 // (§16) appends a NEW sequential Run to the same Task — the Task's verbatim
-// description and opening message are never copied or rewritten.
+// description and opening message are never copied or rewritten. P1 layers
+// the session product model on top: an empty description is a pure chat
+// session (empty opening message), an omitted name gets a server-generated
+// one, and tasks.resume (tasks-resume.ts) continues a settled conversation.
 
 const AGENT_KINDS = ["claude-code", "opencode", "codex", "pi"] as const;
 const TASK_NAME_MAX_LENGTH = 120;
@@ -39,31 +42,14 @@ const hasVisibleText = (value: string) => value.trim().length > 0;
 
 type Services = Context["services"];
 
-/** Appends the Task's next sequential Run: fresh session credential, fresh
- * pre-generated id so launchKey === run id (the D4 idempotency key), and the
- * issue snapshots fetched for THIS launch — snapshots belong to the Run
- * (§6.15), so every caller passes the ones it just resolved. */
-async function appendRun(
-	services: Services,
-	task: TaskRow,
-	workspaceKind: WorkspaceKind,
-	issueSnapshots: IssueSnapshot[]
-): Promise<RunRow> {
-	const credential = await createRunSessionCredential({
-		bridgeTokenStore: services.stores.bridgeToken,
-	})({ agentKind: task.agentKind, taskId: task.id, userId: task.userId });
-	const runId = crypto.randomUUID();
-	return await services.stores.run.insert({
-		agentKind: task.agentKind,
-		branch: null,
-		computerId: task.computerId,
-		id: runId,
-		issueSnapshots,
-		launchKey: runId,
-		sessionTokenId: credential.tokenId,
-		taskId: task.id,
-		workspaceKind,
-	});
+const TIME_PAD = 2;
+
+/** P1: server-side fallback name for a session started without one — short
+ * and creation-time based ("Session 7/17 14:05"), never sent to the agent. */
+function defaultSessionName(now: Date): string {
+	const pad = (value: number) => String(value).padStart(TIME_PAD, "0");
+	const date = `${now.getMonth() + 1}/${now.getDate()}`;
+	return `Session ${date} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 const create = authorizedUserProcedure
@@ -71,17 +57,20 @@ const create = authorizedUserProcedure
 		z.object({
 			agentKind: z.enum(AGENT_KINDS),
 			computerId: z.uuid(),
-			// Stored verbatim (§6.9) — validated for substance, never trimmed.
-			description: z
-				.string()
-				.refine(hasVisibleText, "Task description is required"),
+			// Stored verbatim (§6.9), never trimmed. P1: empty is allowed — a
+			// pure chat session with no initial instruction and an empty opening
+			// message (assembleOpeningMessage).
+			description: z.string(),
 			// Linked issues, in the user's order (§6.15) — only valid alongside
 			// a repository; the handler enforces that pairing.
 			issueNumbers: z.array(z.number().int().min(1)).optional(),
+			// P1: optional — omitted names are server-generated; a PROVIDED name
+			// must still carry visible text.
 			name: z
 				.string()
 				.max(TASK_NAME_MAX_LENGTH)
-				.refine(hasVisibleText, "Task name is required"),
+				.refine(hasVisibleText, "Task name is required")
+				.optional(),
 			// Optional GitHub repository (§6.14), as `owner/repo`.
 			repositoryFullName: z.string().min(1).optional(),
 		})
@@ -116,47 +105,77 @@ const create = authorizedUserProcedure
 			agentKind: input.agentKind,
 			computerId: computer.id,
 			description: input.description,
-			name: input.name,
+			name: input.name ?? defaultSessionName(new Date()),
 			openingMessage,
 			...repositoryTaskFields(repository),
 			userId: context.authedUser.id,
 		});
-		const run = await appendRun(services, task, workspaceKind, issueSnapshots);
+		const run = await appendRun(services, {
+			issueSnapshots,
+			task,
+			workspaceKind,
+		});
 		await notifyComputerBestEffort(services, computer.id);
 		return { runId: run.id, taskId: task.id };
 	});
 
-/** List projection of a Task's latest Run — enough for status badges. */
-function toLatestRun(run: RunRow | null) {
+/** List projection of a Task's latest Run — enough for status badges, plus
+ * (P1/P3) whether its runtime reported a conversation id, i.e. whether a
+ * resume would continue the conversation rather than cold-start. */
+async function toLatestRun(services: Services, run: RunRow | null) {
 	if (!run) {
 		return null;
 	}
+	const session = run.sessionId
+		? await services.stores.bridgeSession.get(run.sessionId)
+		: null;
 	return {
 		createdAt: run.createdAt,
 		errorMessage: run.errorMessage,
+		hasAgentSessionId: Boolean(session?.agentSessionId),
 		id: run.id,
 		status: run.status,
 	};
 }
 
-const list = authorizedUserProcedure.handler(async ({ context }) => {
-	const rows = await context.services.stores.task.listByUser(
-		context.authedUser.id
-	);
-	return await Promise.all(
-		rows.map(async (task) => ({
-			agentKind: task.agentKind,
-			computerId: task.computerId,
-			createdAt: task.createdAt,
-			id: task.id,
-			latestRun: toLatestRun(
-				await context.services.stores.run.latestByTask(task.id)
-			),
-			name: task.name,
-			status: task.status,
-		}))
-	);
-});
+/** P1: optional list narrowing for the agent-centric session lists (P3) —
+ * omitted entirely, the list is the user's full task set as before. */
+const LIST_FILTERS = z
+	.object({
+		agentKind: z.enum(AGENT_KINDS).optional(),
+		computerId: z.uuid().optional(),
+	})
+	.optional();
+
+type ListFilters = z.infer<typeof LIST_FILTERS>;
+
+const matchesListFilters = (task: TaskRow, filters: ListFilters) =>
+	(!filters?.computerId || task.computerId === filters.computerId) &&
+	(!filters?.agentKind || task.agentKind === filters.agentKind);
+
+const list = authorizedUserProcedure
+	.input(LIST_FILTERS)
+	.handler(async ({ input, context }) => {
+		const rows = await context.services.stores.task.listByUser(
+			context.authedUser.id
+		);
+		return await Promise.all(
+			rows
+				.filter((task) => matchesListFilters(task, input))
+				.map(async (task) => ({
+					agentKind: task.agentKind,
+					computerId: task.computerId,
+					createdAt: task.createdAt,
+					id: task.id,
+					latestRun: await toLatestRun(
+						context.services,
+						await context.services.stores.run.latestByTask(task.id)
+					),
+					name: task.name,
+					status: task.status,
+				}))
+		);
+	});
 
 // Explicit field list so the internal credential linkage (sessionTokenId) and
 // launchKey can never leak into the user-facing response by accident.
@@ -237,12 +256,11 @@ const retry = authorizedUserProcedure
 			task,
 			latest.issueSnapshots
 		);
-		const run = await appendRun(
-			services,
+		const run = await appendRun(services, {
+			issueSnapshots,
 			task,
-			latest.workspaceKind,
-			issueSnapshots
-		);
+			workspaceKind: latest.workspaceKind,
+		});
 		await notifyComputerBestEffort(services, task.computerId);
 		return { runId: run.id };
 	});
@@ -251,5 +269,6 @@ export const tasksRouter = {
 	create,
 	get,
 	list,
+	resume,
 	retry,
 };
