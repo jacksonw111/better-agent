@@ -67,16 +67,20 @@ function DiscardConfirmDialog({
  * New Task as a modal: Runtime → Request → GitHub inside a Dialog. Closing
  * (X, Esc, backdrop) with content in the draft asks before discarding; a
  * successful Start closes without asking and the wizard navigates on to the
- * new task's conversation.
+ * new task's conversation. `defaultComputerId` (the Computer detail page)
+ * pre-selects Step 1's Computer — still changeable, and a merely pre-selected
+ * draft closes silently like an untouched one.
  */
 export function NewTaskDialog({
+	defaultComputerId,
 	onOpenChange,
 	open,
 }: {
+	defaultComputerId?: string;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 }) {
-	const wizard = useWizardDraft();
+	const wizard = useWizardDraft(defaultComputerId);
 	const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
 	const closeAndReset = () => {
@@ -89,7 +93,7 @@ export function NewTaskDialog({
 			onOpenChange(true);
 			return;
 		}
-		if (draftHasContent(wizard.draft)) {
+		if (draftHasContent(wizard.draft, wizard.initialDraft)) {
 			setConfirmingDiscard(true);
 			return;
 		}

@@ -11,7 +11,7 @@ import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ComputerListItem } from "@/utils/api-types";
 import { NewTaskDialog } from "./new-task-dialog";
-import { studioMac } from "./wizard-test-fixtures";
+import { studioMac, travelLaptop } from "./wizard-test-fixtures";
 
 // The New Task modal shell: an untouched wizard closes silently, a draft
 // with content asks "Discard this task?" first, and a confirmed discard
@@ -19,6 +19,7 @@ import { studioMac } from "./wizard-test-fixtures";
 // themselves are covered by new-task-wizard*.test.tsx.
 
 const STUDIO_MAC = /Studio Mac/;
+const TRAVEL_LAPTOP = /Travel Laptop/;
 const DISCARD_TITLE = "Discard this task?";
 
 const store = vi.hoisted(() => ({
@@ -71,7 +72,7 @@ vi.mock("@/utils/orpc", () => ({
 /** Controlled host mirroring TaskList: onOpenChange drives the open prop,
  * and a Reopen button lets tests open the same (still-mounted) dialog again
  * to prove the draft was reset. */
-function Host() {
+function Host({ defaultComputerId }: { defaultComputerId?: string }) {
 	const [open, setOpen] = useState(true);
 	return (
 		<>
@@ -79,6 +80,7 @@ function Host() {
 				Reopen
 			</button>
 			<NewTaskDialog
+				defaultComputerId={defaultComputerId}
 				onOpenChange={(next) => {
 					store.openChanges.push(next);
 					setOpen(next);
@@ -89,14 +91,17 @@ function Host() {
 	);
 }
 
-function renderDialog(computers: ComputerListItem[] = [studioMac]) {
+function renderDialog(
+	computers: ComputerListItem[] = [studioMac],
+	defaultComputerId?: string
+) {
 	store.computers = computers;
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
-			<Host />
+			<Host defaultComputerId={defaultComputerId} />
 		</QueryClientProvider>
 	);
 	return within(container.ownerDocument.body);
@@ -149,6 +154,41 @@ it("asks before discarding a draft with content, and Keep editing returns", asyn
 	const radio = view.getByRole("radio", {
 		name: STUDIO_MAC,
 	}) as HTMLInputElement;
+	expect(radio.checked).toBe(true);
+});
+
+it("pre-selects the default computer yet still closes silently untouched", async () => {
+	const view = renderDialog([studioMac, travelLaptop], studioMac.id);
+
+	// Step 1 opens with the Computer detail page's machine already selected.
+	const radio = (await view.findByRole("radio", {
+		name: STUDIO_MAC,
+	})) as HTMLInputElement;
+	expect(radio.checked).toBe(true);
+
+	// A merely pre-selected draft is not "content" — closing never nags.
+	clickClose(view);
+	expect(view.queryByText(DISCARD_TITLE)).toBeNull();
+	expect(store.openChanges).toEqual([false]);
+});
+
+it("treats changing away from the default computer as discardable content", async () => {
+	const view = renderDialog([studioMac, travelLaptop], studioMac.id);
+	fireEvent.click(await view.findByRole("radio", { name: TRAVEL_LAPTOP }));
+
+	clickClose(view);
+
+	expect(view.getByText(DISCARD_TITLE)).toBeDefined();
+	fireEvent.click(view.getByRole("button", { name: "Discard" }));
+	await waitFor(() => {
+		expect(view.queryByText(DISCARD_TITLE)).toBeNull();
+	});
+
+	// A discard resets back to the pre-selected default, not an empty draft.
+	fireEvent.click(view.getByRole("button", { name: "Reopen" }));
+	const radio = (await view.findByRole("radio", {
+		name: STUDIO_MAC,
+	})) as HTMLInputElement;
 	expect(radio.checked).toBe(true);
 });
 

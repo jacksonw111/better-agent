@@ -50,6 +50,17 @@ export const EMPTY_WIZARD_DRAFT: WizardDraft = {
 	repository: null,
 };
 
+/** The draft a fresh wizard opens with. A `defaultComputerId` (the Computer
+ * detail page's New Task button) pre-fills Step 1's Computer — still
+ * changeable, and NOT "content" for the discard prompt (see draftHasContent's
+ * `initial` parameter). */
+export function initialWizardDraft(defaultComputerId?: string): WizardDraft {
+	if (defaultComputerId === undefined) {
+		return EMPTY_WIZARD_DRAFT;
+	}
+	return { ...EMPTY_WIZARD_DRAFT, computerId: defaultComputerId };
+}
+
 export const hasVisibleText = (value: string): boolean =>
 	value.trim().length > 0;
 
@@ -59,12 +70,16 @@ export function requestStepComplete(draft: WizardDraft): boolean {
 	return hasVisibleText(draft.name) && hasVisibleText(draft.description);
 }
 
-/** True once any field differs from the empty draft. The New Task modal only
- * asks "Discard this task?" on close when this is true — closing an untouched
- * wizard should never nag. */
-export function draftHasContent(draft: WizardDraft): boolean {
+/** True once any field differs from the draft the wizard opened with. The
+ * New Task modal only asks "Discard this task?" on close when this is true —
+ * closing an untouched wizard should never nag, including one whose Computer
+ * was merely pre-selected (`initial` from initialWizardDraft). */
+export function draftHasContent(
+	draft: WizardDraft,
+	initial: WizardDraft = EMPTY_WIZARD_DRAFT
+): boolean {
 	return (
-		draft.computerId !== null ||
+		draft.computerId !== initial.computerId ||
 		draft.agentKind !== null ||
 		hasVisibleText(draft.name) ||
 		hasVisibleText(draft.description) ||

@@ -29,6 +29,32 @@ vi.mock("sonner", () => ({
 	},
 }));
 
+vi.mock("@tanstack/react-router", () => ({
+	Link: ({
+		"aria-label": ariaLabel,
+		children,
+		className,
+		params,
+		to,
+	}: {
+		"aria-label"?: string;
+		children?: React.ReactNode;
+		className?: string;
+		params?: Record<string, string>;
+		to: string;
+	}) => {
+		let href = to;
+		for (const [key, value] of Object.entries(params ?? {})) {
+			href = href.replace(`$${key}`, value);
+		}
+		return (
+			<a aria-label={ariaLabel} className={className} href={href}>
+				{children}
+			</a>
+		);
+	},
+}));
+
 vi.mock("@better-agent/env/web", () => ({
 	env: { VITE_SERVER_URL: "https://server.example.com" },
 }));
@@ -163,6 +189,17 @@ it("shows an offline computer without hiding it", async () => {
 	});
 	expect(view.getByText("Offline")).toBeDefined();
 	expect(view.getByText("No supported runtimes detected")).toBeDefined();
+});
+
+it("links each card to the computer's detail page", async () => {
+	store.computers = [makeComputer()];
+	const { view } = renderList();
+
+	await waitFor(() => {
+		expect(view.getByText("Studio Mac")).toBeDefined();
+	});
+	const link = view.getByRole("link", { name: "Open Studio Mac" });
+	expect(link.getAttribute("href")).toBe("/computers/computer-1");
 });
 
 it("deletes a computer only after confirming", async () => {

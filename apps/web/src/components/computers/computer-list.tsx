@@ -8,11 +8,12 @@ import {
 	CardTitle,
 } from "@better-agent/ui/components/card";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
-import { cn } from "@better-agent/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { LaptopIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
+import { computerMeta, ToolFacts } from "@/components/computers/computer-facts";
 import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
 import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
@@ -25,7 +26,6 @@ import { PairComputerDialog } from "./pair-computer-dialog";
 const LIST_REFETCH_INTERVAL_MS = 10_000;
 
 type RuntimeItem = ComputerListItem["runtimeInventory"][number];
-type ToolItem = ComputerListItem["toolInventory"][number];
 
 /** "Claude Code · 2 skills" for discoverable runtimes, bare label otherwise —
  * the skill count is part of the capability handshake, not decoration. */
@@ -57,31 +57,10 @@ function RuntimeBadges({ runtimes }: { runtimes: RuntimeItem[] }) {
 	);
 }
 
-/** git/gh presence facts. Deliberately quiet copy — "installed"/"missing" is
- * a PATH observation, never an authentication or health promise. */
-function ToolFacts({ tools }: { tools: ToolItem[] }) {
-	if (tools.length === 0) {
-		return null;
-	}
-	return (
-		<div className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-xs">
-			{tools.map((tool) => (
-				<span className={cn(!tool.installed && "opacity-70")} key={tool.name}>
-					{tool.name} {tool.installed ? "installed" : "missing"}
-				</span>
-			))}
-		</div>
-	);
-}
-
-function computerMeta(computer: ComputerListItem): string {
-	const version =
-		computer.clientVersion === null ? null : `Client ${computer.clientVersion}`;
-	return [computer.platform, computer.arch, version]
-		.filter((part) => part !== null)
-		.join(" · ");
-}
-
+/** A card that navigates to the computer's detail page. The Link is a
+ * stretched overlay (not a wrapper) so the Delete action inside the card
+ * stays its own click target — CardAction sits above the overlay via
+ * `relative`. */
 function ComputerCard({
 	computer,
 	onDelete,
@@ -90,11 +69,17 @@ function ComputerCard({
 	onDelete: (id: string) => void;
 }) {
 	return (
-		<Card>
+		<Card className="relative transition-colors hover:bg-accent/40">
+			<Link
+				aria-label={`Open ${computer.name}`}
+				className="absolute inset-0 rounded-xl focus-visible:ring-2 focus-visible:ring-ring/50"
+				params={{ computerId: computer.id }}
+				to="/computers/$computerId"
+			/>
 			<CardHeader>
 				<CardTitle className="truncate">{computer.name}</CardTitle>
 				<CardDescription>{computerMeta(computer)}</CardDescription>
-				<CardAction className="flex items-center gap-1">
+				<CardAction className="relative flex items-center gap-1">
 					<ComputerStatusChip connected={computer.connected} />
 					<DeleteConfirm
 						label={`Delete ${computer.name}? It disappears from this list until it is paired again.`}

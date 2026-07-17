@@ -17,7 +17,7 @@ import type {
 	WizardStep,
 } from "./wizard-state";
 import {
-	EMPTY_WIZARD_DRAFT,
+	initialWizardDraft,
 	paletteSkills,
 	requestStepComplete,
 	selectedRuntime,
@@ -46,17 +46,23 @@ import { WizardStepRuntime } from "./wizard-step-runtime";
 const LIST_REFETCH_INTERVAL_MS = 10_000;
 
 /** One draft object + dependency-safe transition callbacks (wizard-state).
- * Hoisted into the modal shell so a confirmed close can reset it. */
-export function useWizardDraft() {
-	const [draft, setDraft] = useState<WizardDraft>(EMPTY_WIZARD_DRAFT);
+ * Hoisted into the modal shell so a confirmed close can reset it. An optional
+ * `defaultComputerId` (Computer detail's New Task button) pre-selects Step 1's
+ * Computer — reset() returns to that same pre-selected draft. */
+export function useWizardDraft(defaultComputerId?: string) {
+	const [initialDraft] = useState<WizardDraft>(() =>
+		initialWizardDraft(defaultComputerId)
+	);
+	const [draft, setDraft] = useState<WizardDraft>(initialDraft);
 	return {
 		addIssue: (issue: WizardIssue) =>
 			setDraft((current) => withIssueAdded(current, issue)),
 		clearRepository: () => setDraft(withRepositoryCleared),
 		draft,
+		initialDraft,
 		removeIssue: (issueNumber: number) =>
 			setDraft((current) => withIssueRemoved(current, issueNumber)),
-		reset: () => setDraft(EMPTY_WIZARD_DRAFT),
+		reset: () => setDraft(initialDraft),
 		selectComputer: (computer: ComputerListItem) =>
 			setDraft((current) => withComputerSelected(current, computer)),
 		selectRepository: (repository: WizardRepository) =>
