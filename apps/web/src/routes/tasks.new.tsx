@@ -1,17 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { NewTaskWizard } from "@/components/tasks/new-task-wizard";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// The New Task wizard moved from this standalone page into a modal on the
+// task list. The URL keeps working as a deep link: it lands on /tasks with
+// the modal already open (?new=1), starting at Step 1 as before.
 export const Route = createFileRoute("/tasks/new")({
-	component: NewTaskPage,
+	beforeLoad: () => {
+		throw redirect({ search: { new: true }, to: "/tasks" });
+	},
 });
-
-// A narrower column than PageContainer's default: the wizard is a single
-// focused flow, not a list. A direct URL visit always begins at Step 1 —
-// the draft lives in component state on purpose (spec §8.1).
-function NewTaskPage() {
-	return (
-		<div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-6">
-			<NewTaskWizard />
-		</div>
-	);
-}

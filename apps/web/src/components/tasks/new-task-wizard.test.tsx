@@ -9,11 +9,13 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ComputerListItem } from "@/utils/api-types";
-import { NewTaskWizard } from "./new-task-wizard";
+import { NewTaskDialog } from "./new-task-dialog";
 import { studioMac, travelLaptop } from "./wizard-test-fixtures";
 
 // §19.3 (part 1): the Step 1 dependency chain and the palette-only "/"
-// autocomplete. Start-path cases live in new-task-wizard-start.test.tsx.
+// autocomplete, asserted inside the New Task modal the wizard now lives in.
+// Start-path cases live in new-task-wizard-start.test.tsx; the modal shell's
+// open/close/discard behavior lives in new-task-dialog.test.tsx.
 
 const STUDIO_MAC = /Studio Mac/;
 const TRAVEL_LAPTOP = /Travel Laptop/;
@@ -80,12 +82,13 @@ function renderWizard(computers: ComputerListItem[] = [studioMac]) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
+	// The dialog renders through a portal, so queries scope to document.body.
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
-			<NewTaskWizard />
+			<NewTaskDialog onOpenChange={() => undefined} open />
 		</QueryClientProvider>
 	);
-	return within(container);
+	return within(container.ownerDocument.body);
 }
 
 type View = ReturnType<typeof renderWizard>;

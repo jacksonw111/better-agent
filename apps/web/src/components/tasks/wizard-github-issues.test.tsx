@@ -8,7 +8,7 @@ import {
 	within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { NewTaskWizard } from "./new-task-wizard";
+import { NewTaskDialog } from "./new-task-dialog";
 import { studioMac } from "./wizard-test-fixtures";
 
 // §19.3 (part 4, S4-T2): the linked-issue flows of the wizard's GitHub step —
@@ -141,12 +141,13 @@ function renderWizard() {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
+	// The wizard lives in the New Task modal; queries scope to the portal body.
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
-			<NewTaskWizard />
+			<NewTaskDialog onOpenChange={() => undefined} open />
 		</QueryClientProvider>
 	);
-	return within(container);
+	return within(container.ownerDocument.body);
 }
 
 type View = ReturnType<typeof renderWizard>;

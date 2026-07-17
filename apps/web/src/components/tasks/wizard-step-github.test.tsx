@@ -2,7 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { NewTaskWizard } from "./new-task-wizard";
+import { NewTaskDialog } from "./new-task-dialog";
 import { studioMac } from "./wizard-test-fixtures";
 
 // §19.3 (part 3, S4-T2): the connected GitHub step's repository control —
@@ -107,12 +107,13 @@ function renderWizard() {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
+	// The wizard lives in the New Task modal; queries scope to the portal body.
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
-			<NewTaskWizard />
+			<NewTaskDialog onOpenChange={() => undefined} open />
 		</QueryClientProvider>
 	);
-	return within(container);
+	return within(container.ownerDocument.body);
 }
 
 type View = ReturnType<typeof renderWizard>;

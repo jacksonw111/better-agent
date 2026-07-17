@@ -59,6 +59,21 @@ export function requestStepComplete(draft: WizardDraft): boolean {
 	return hasVisibleText(draft.name) && hasVisibleText(draft.description);
 }
 
+/** True once any field differs from the empty draft. The New Task modal only
+ * asks "Discard this task?" on close when this is true — closing an untouched
+ * wizard should never nag. */
+export function draftHasContent(draft: WizardDraft): boolean {
+	return (
+		draft.computerId !== null ||
+		draft.agentKind !== null ||
+		hasVisibleText(draft.name) ||
+		hasVisibleText(draft.description) ||
+		draft.paletteSkillNames.length > 0 ||
+		draft.repository !== null ||
+		draft.issues.length > 0
+	);
+}
+
 /**
  * Selecting a Computer clears an incompatible Runtime (spec §8.2) and always
  * resets the Palette — the Skill Inventory is per computer, so even a

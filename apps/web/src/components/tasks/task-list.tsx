@@ -11,20 +11,22 @@ import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ListTodoIcon, PlusIcon } from "lucide-react";
+import { useState } from "react";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import { EmptyState } from "@/components/layout/empty-state";
 import type { TaskListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { relativeTime } from "@/utils/relative-time";
+import { NewTaskDialog } from "./new-task-dialog";
 import { RunStatusChip } from "./task-status-chip";
 
 /** Matches the computers list's poll: run statuses move on their own, so the
  * list refreshes itself instead of waiting for a manual reload. */
 const LIST_REFETCH_INTERVAL_MS = 10_000;
 
-function NewTaskButton() {
+function NewTaskButton({ onOpen }: { onOpen: () => void }) {
 	return (
-		<Button render={<Link to="/tasks/new" />} size="sm">
+		<Button onClick={onOpen} size="sm" type="button">
 			<PlusIcon />
 			New Task
 		</Button>
@@ -74,13 +76,9 @@ function TasksSkeleton() {
 	);
 }
 
-/**
- * The /tasks list: every task with its computer, runtime, latest-run status
- * chip and age, each card linking into the task conversation. Computer names
- * come from a second query joined client-side — the tasks response carries
- * only the id.
- */
-export function TaskList() {
+/** The list itself — empty state and cards; both New Task buttons open the
+ * wizard modal owned by TaskList. */
+function TaskListContent({ onNewTask }: { onNewTask: () => void }) {
 	const tasksQuery = useQuery({
 		...orpc.tasks.list.queryOptions(),
 		refetchInterval: LIST_REFETCH_INTERVAL_MS,
@@ -95,7 +93,7 @@ export function TaskList() {
 	if (tasks.length === 0) {
 		return (
 			<EmptyState
-				action={<NewTaskButton />}
+				action={<NewTaskButton onOpen={onNewTask} />}
 				body="A task pairs your request with a computer and an agent runtime — start one and the agent works on your own machine."
 				icon={ListTodoIcon}
 				title="No tasks yet"
@@ -109,7 +107,7 @@ export function TaskList() {
 	return (
 		<div className="flex flex-col gap-4">
 			<div className="flex justify-end">
-				<NewTaskButton />
+				<NewTaskButton onOpen={onNewTask} />
 			</div>
 			<div className="flex flex-col gap-3">
 				{tasks.map((task) => (
@@ -121,5 +119,33 @@ export function TaskList() {
 				))}
 			</div>
 		</div>
+	);
+}
+
+/**
+ * The /tasks list: every task with its computer, runtime, latest-run status
+ * chip and age, each card linking into the task conversation. Computer names
+ * come from a second query joined client-side — the tasks response carries
+ * only the id. New Task opens the wizard as a modal (spec: New Task modal);
+ * `initialNewTaskOpen` backs the /tasks?new=1 deep link and
+ * `onNewTaskOpenChange` lets the route drop that param once the modal closes.
+ */
+export function TaskList({
+	initialNewTaskOpen = false,
+	onNewTaskOpenChange,
+}: {
+	initialNewTaskOpen?: boolean;
+	onNewTaskOpenChange?: (open: boolean) => void;
+}) {
+	const [newTaskOpen, setNewTaskOpen] = useState(initialNewTaskOpen);
+	const changeNewTaskOpen = (next: boolean) => {
+		setNewTaskOpen(next);
+		onNewTaskOpenChange?.(next);
+	};
+	return (
+		<>
+			<TaskListContent onNewTask={() => changeNewTaskOpen(true)} />
+			<NewTaskDialog onOpenChange={changeNewTaskOpen} open={newTaskOpen} />
+		</>
 	);
 }

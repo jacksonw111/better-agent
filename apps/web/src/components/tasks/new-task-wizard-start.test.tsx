@@ -9,13 +9,15 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ComputerListItem } from "@/utils/api-types";
-import { NewTaskWizard } from "./new-task-wizard";
+import { NewTaskDialog } from "./new-task-dialog";
 import { offlineBox, studioMac } from "./wizard-test-fixtures";
 
-// §19.3 (part 2): required-field interception on Request, the no-connection
-// GitHub step with a direct no-Review Start, and the Start success / failure
-// / offline paths. Step 1 chain cases live in new-task-wizard.test.tsx; the
-// connected Step 3 flows live in wizard-step-github.test.tsx.
+// §19.3 (part 2), asserted inside the New Task modal: required-field
+// interception on Request, the no-connection GitHub step with a direct
+// no-Review Start, and the Start success / failure / offline paths — a
+// successful Start closes the modal, a failed one leaves it open. Step 1
+// chain cases live in new-task-wizard.test.tsx; the connected Step 3 flows
+// live in wizard-step-github.test.tsx.
 
 const STUDIO_MAC = /Studio Mac/;
 const OFFLINE_BOX = /Offline Box/;
@@ -29,6 +31,7 @@ const store = vi.hoisted(() => ({
 	created: [] as Record<string, unknown>[],
 	githubConnected: false,
 	navigatedTo: [] as Record<string, unknown>[],
+	openChanges: [] as boolean[],
 	toastErrors: [] as string[],
 }));
 
@@ -115,12 +118,18 @@ function renderWizard(computers: ComputerListItem[] = [studioMac]) {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
 	});
+	// The dialog renders through a portal, so queries scope to document.body.
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
-			<NewTaskWizard />
+			<NewTaskDialog
+				onOpenChange={(next: boolean) => {
+					store.openChanges.push(next);
+				}}
+				open
+			/>
 		</QueryClientProvider>
 	);
-	return within(container);
+	return within(container.ownerDocument.body);
 }
 
 type View = ReturnType<typeof renderWizard>;
@@ -153,6 +162,7 @@ afterEach(() => {
 	store.created.length = 0;
 	store.githubConnected = false;
 	store.navigatedTo.length = 0;
+	store.openChanges.length = 0;
 	store.toastErrors.length = 0;
 	cleanup();
 });
@@ -201,7 +211,7 @@ it("without a GitHub connection: hint + disabled controls, Start still usable", 
 	expect(view.queryByText(REVIEW_PATTERN)).toBeNull();
 });
 
-it("creates the task on Start and navigates into its conversation", async () => {
+it("creates the task on Start, closes the modal and navigates into its conversation", async () => {
 	const view = renderWizard();
 	await driveToRequestStep(view, STUDIO_MAC);
 	fillRequest(view, "Fix login", "Make it pass. Use /research first.");
@@ -223,9 +233,12 @@ it("creates the task on Start and navigates into its conversation", async () => 
 			name: "Fix login",
 		},
 	]);
+	// A successful Start closes the modal — no discard confirmation.
+	expect(store.openChanges).toEqual([false]);
+	expect(view.queryByText("Discard this task?")).toBeNull();
 });
 
-it("stays on the wizard and shows the real error when Start fails", async () => {
+it("keeps the modal open and shows the real error when Start fails", async () => {
 	store.createError = new Error(
 		"Computer is offline — reconnect it or pick another one"
 	);
@@ -242,6 +255,8 @@ it("stays on the wizard and shows the real error when Start fails", async () => 
 		]);
 	});
 	expect(store.navigatedTo).toEqual([]);
+	// The modal never asked to close — the wizard stays exactly where it was.
+	expect(store.openChanges).toEqual([]);
 	expect(view.getByRole("button", { name: "Start" })).toBeDefined();
 	expect(await view.findByText(GITHUB_STEP)).toBeDefined();
 });

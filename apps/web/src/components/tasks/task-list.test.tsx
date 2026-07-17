@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, waitFor, within } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { TaskListItem } from "@/utils/api-types";
 import { TaskList } from "./task-list";
@@ -10,11 +16,14 @@ const MS_PER_MINUTE = 60_000;
 const NEW_TASK = /New Task/;
 const FIX_LOGIN = /Fix login/;
 const CREATED_PATTERN = /Created .*minute ago/;
+const STUDIO_MAC = /Studio Mac/;
 
 const store = vi.hoisted(() => ({
 	computers: [] as unknown[],
 	tasks: [] as unknown[],
 }));
+
+vi.mock("sonner", () => ({ toast: { error: () => undefined } }));
 
 vi.mock("@tanstack/react-router", () => ({
 	Link: ({
@@ -35,6 +44,7 @@ vi.mock("@tanstack/react-router", () => ({
 			{children}
 		</a>
 	),
+	useNavigate: () => () => undefined,
 }));
 
 vi.mock("@/utils/orpc", () => ({
@@ -49,6 +59,13 @@ vi.mock("@/utils/orpc", () => ({
 			},
 		},
 		tasks: {
+			create: {
+				mutationOptions: (opts: Record<string, unknown>) => ({
+					mutationFn: () =>
+						Promise.resolve({ runId: "run-1", taskId: "task-1" }),
+					...opts,
+				}),
+			},
 			list: {
 				key: () => ["tasks", "list"],
 				queryOptions: () => ({
@@ -82,12 +99,13 @@ function renderList() {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
+	// The New Task modal renders through a portal, so queries scope to body.
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
 			<TaskList />
 		</QueryClientProvider>
 	);
-	return within(container);
+	return within(container.ownerDocument.body);
 }
 
 afterEach(() => {
@@ -96,14 +114,21 @@ afterEach(() => {
 	cleanup();
 });
 
-it("shows an empty state that points at New Task", async () => {
+it("shows an empty state whose New Task button opens the wizard modal", async () => {
 	const view = renderList();
 
 	await waitFor(() => {
 		expect(view.getByText("No tasks yet")).toBeDefined();
 	});
-	const newTask = view.getByRole("link", { name: NEW_TASK });
-	expect(newTask.getAttribute("href")).toBe("/tasks/new");
+	// No modal until asked for.
+	expect(view.queryByRole("dialog")).toBeNull();
+
+	fireEvent.click(view.getByRole("button", { name: NEW_TASK }));
+
+	expect(await view.findByRole("dialog")).toBeDefined();
+	expect(view.getByText("New task")).toBeDefined();
+	// No computers paired: the wizard's own empty state shows inside the modal.
+	expect(await view.findByText("No computers to run on")).toBeDefined();
 });
 
 it("renders a task with computer name, runtime, status chip and relative time", async () => {
@@ -121,7 +146,24 @@ it("renders a task with computer name, runtime, status chip and relative time", 
 	const link = view.getByRole("link", { name: FIX_LOGIN });
 	expect(link.getAttribute("href")).toBe("/tasks/task-1");
 	// And the top toolbar offers New Task.
-	expect(view.getByRole("link", { name: NEW_TASK })).toBeDefined();
+	expect(view.getByRole("button", { name: NEW_TASK })).toBeDefined();
+});
+
+it("opens the New Task wizard modal at Step 1 from the toolbar", async () => {
+	store.tasks = [makeTask()];
+	store.computers = [makeComputer()];
+	const view = renderList();
+
+	await waitFor(() => {
+		expect(view.getByText("Fix login")).toBeDefined();
+	});
+	fireEvent.click(view.getByRole("button", { name: NEW_TASK }));
+
+	expect(await view.findByRole("dialog")).toBeDefined();
+	// Step 1 (Runtime) is live: the paired computer is offered for selection.
+	expect(await view.findByRole("radio", { name: STUDIO_MAC })).toBeDefined();
+	const runtimeStep = view.getByText("Runtime").closest("li");
+	expect(runtimeStep?.getAttribute("aria-current")).toBe("step");
 });
 
 it("maps run statuses onto the chip semantics", async () => {
