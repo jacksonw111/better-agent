@@ -59,6 +59,36 @@ it("leaves other open approval blocks alone when a differently-id'd cancel arriv
 	).toBe(true);
 });
 
+// fix-approval-replay: a resolution event (answeredOptionId set) is a
+// persistence marker for the answered map (use-bridge-feed.ts), not a fresh
+// request — folding it must neither append a second card nor remove the
+// original one.
+it("a resolution event neither appends a new card nor removes the original", () => {
+	const turns = foldEventsToTurns([
+		ev(1, {
+			kind: "approval",
+			options: [{ id: "allow", label: "Allow" }],
+			requestId: "req_1",
+			title: "Run `rm`",
+		}),
+		ev(2, {
+			kind: "approval",
+			answeredOptionId: "allow",
+			options: [],
+			requestId: "req_1",
+			title: "Answered",
+		}),
+	]);
+	expect(turns).toHaveLength(1);
+	const turn = turns[0];
+	expect(turn.kind).toBe("assistant");
+	expect(
+		turn.kind === "assistant"
+			? turn.blocks.filter((block) => block.kind === "approval").length
+			: 0
+	).toBe(1);
+});
+
 it("keeps an assistant turn's other content when retracting its approval block", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "I'll run it." }),

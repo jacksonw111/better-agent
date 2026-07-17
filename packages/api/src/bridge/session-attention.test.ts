@@ -64,6 +64,19 @@ it("a cancelled retraction clears the pending approval", () => {
 	).toBe(null);
 });
 
+it("a persisted resolution event clears the pending approval without a commands-tail answer", () => {
+	const resolution = {
+		kind: "approval",
+		answeredOptionId: "yes",
+		options: [],
+		requestId: "req-1",
+		title: "Answered",
+	};
+	expect(
+		deriveSessionAttention([ASSISTANT_MESSAGE, APPROVAL, resolution], [])
+	).toBe(null);
+});
+
 it("an answer for a DIFFERENT requestId leaves the approval pending", () => {
 	const answer = { type: "approval", requestId: "other", optionId: "yes" };
 	expect(deriveSessionAttention([APPROVAL], [answer])).toBe("approval");

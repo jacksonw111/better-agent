@@ -119,6 +119,16 @@ export interface ApprovalOption {
  * see `apps/bridge-cli/src/adapters/types.ts`.
  */
 export interface ApprovalEvent extends TurnScoped {
+	/** fix-approval-replay: set (instead of a fresh approval request) on the
+	 * RESOLUTION event `adapters/approvals.ts`'s `answerPending` pushes the
+	 * moment a user answer resolves `requestId` — the chosen optionId. The
+	 * user's answer itself only ever travels as a relay COMMAND (a TTL'd
+	 * rolling window, never persisted), so without this event a reload/replay
+	 * had no record the approval was answered and misreported it as timed out.
+	 * Pushed like any other event, it persists to bridge_messages; the web
+	 * folds it into its answered map instead of rendering a new card.
+	 * `options`/`title` are placeholders, same contract as `cancelled`. */
+	answeredOptionId?: string;
 	/** RC-T3: set (instead of a fresh approval request) when `interrupt()`/
 	 * `stop()` retracts a still-pending approval — the web removes the open
 	 * card for `requestId` instead of rendering a new one. `options`/`title`

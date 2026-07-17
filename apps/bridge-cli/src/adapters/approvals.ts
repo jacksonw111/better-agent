@@ -128,6 +128,19 @@ function answerPending(
 	// RC-fix3: belt-and-braces alongside presentApproval's own
 	// clearTimeout in its reply wrapper — harmless if already cleared.
 	clearTimeout(entry.timer);
+	// fix-approval-replay: persist the fact this approval WAS answered. The
+	// answer command itself only lives in the relay's TTL'd commands window,
+	// so this resolution event — pushed (and persisted to bridge_messages)
+	// like any other — is what lets a later reload/replay reconstruct the
+	// answered state instead of misreporting the card as timed out. Pushed
+	// BEFORE the reply so it always precedes the turn's continuation events.
+	events.push({
+		kind: "approval",
+		answeredOptionId: optionId,
+		options: [],
+		requestId,
+		title: "Answered",
+	});
 	entry.reply(optionId);
 }
 

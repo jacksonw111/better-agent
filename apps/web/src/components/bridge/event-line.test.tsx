@@ -56,12 +56,18 @@ it("renders no countdown bar when timeoutAt is absent", () => {
 	).toBeNull();
 });
 
-it("shows the expiry notice instead of the bar once timeoutAt has passed", () => {
+// fix-approval-replay: an unanswered card past its window can't tell "the CLI
+// declined it" (a genuine timeout pushes a cancelled event that REMOVES the
+// card) from "answered before resolution events were persisted" (legacy
+// history), so it must show a neutral processed notice — never claim a
+// decline that may not have happened.
+it("shows a neutral processed notice instead of the bar once timeoutAt has passed", () => {
 	const view = renderApproval({
 		...BASE_APPROVAL_EVENT,
 		timeoutAt: Date.now() - PAST_TIMEOUT_OFFSET_MS,
 	});
-	expect(view.getByText("已超时，按拒绝处理")).toBeDefined();
+	expect(view.getByText("已处理（结果未记录）")).toBeDefined();
+	expect(view.queryByText("已超时，按拒绝处理")).toBeNull();
 	expect(
 		view.container.querySelector('[data-slot="approval-countdown"]')
 	).toBeNull();

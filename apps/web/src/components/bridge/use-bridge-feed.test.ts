@@ -171,6 +171,48 @@ describe("feedReducer command_catalog folding", () => {
 	});
 });
 
+// fix-approval-replay: the CLI persists an approval RESOLUTION event (kind
+// "approval" + answeredOptionId) right after the user answers — the answer
+// command itself only lives in the relay's TTL'd commands window, so this
+// event is what lets a reload/replay reconstruct "answered with this option".
+describe("feedReducer approval resolution folding", () => {
+	const approvalReqRaw = (id: number, requestId: string) => ({
+		id,
+		data: {
+			kind: "approval",
+			requestId,
+			title: "Run command?",
+			options: [{ id: "allow", label: "Allow" }],
+		},
+	});
+	const resolutionRaw = (id: number, requestId: string, optionId: string) => ({
+		id,
+		data: {
+			kind: "approval",
+			answeredOptionId: optionId,
+			options: [],
+			requestId,
+			title: "Answered",
+		},
+	});
+
+	it("folds a replayed resolution event into the answered map", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [approvalReqRaw(1, "req-1"), resolutionRaw(2, "req-1", "allow")],
+		});
+		expect(state.answered).toEqual({ "req-1": "allow" });
+	});
+
+	it("leaves the answered map untouched for an ordinary approval request", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [approvalReqRaw(1, "req-1")],
+		});
+		expect(state.answered).toEqual({});
+	});
+});
+
 describe("feedReducer anti-leak (raw RPC envelope)", () => {
 	it("drops a wrapped oRPC {json:{ok:true}} envelope instead of rendering it", () => {
 		const state = feedReducer(initialFeedState, {

@@ -58,7 +58,13 @@ export function collectOpenRequestRows(
 		if (typeof event.requestId !== "string") {
 			continue;
 		}
-		if (event.cancelled === true) {
+		// fix-approval-replay: a persisted resolution event (answeredOptionId —
+		// see apps/bridge-cli/src/adapters/approvals.ts) closes the id exactly
+		// like a retraction: the answer COMMAND may be long gone from the
+		// relay's TTL'd window, but the resolution event survives in
+		// bridge_messages, so an already-answered card is never replayed as
+		// actionable.
+		if (event.cancelled === true || event.answeredOptionId !== undefined) {
 			open.delete(event.requestId);
 		} else if (!isExpired(event, nowMs)) {
 			open.set(event.requestId, { event, requestId: event.requestId, seq });

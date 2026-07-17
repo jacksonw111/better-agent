@@ -106,6 +106,14 @@ export interface ApprovalOption {
  * `apps/bridge-cli/src/commands.ts`.
  */
 export interface ApprovalEvent extends TurnScoped {
+	/** fix-approval-replay: set on the RESOLUTION event the CLI pushes (and
+	 * persists) the moment the user's answer resolves `requestId` — mirrors
+	 * the CLI's `ApprovalEvent.answeredOptionId`
+	 * (`apps/bridge-cli/src/adapters/approvals.ts`). The feed folds it into
+	 * the answered map (use-bridge-feed.ts) so a reload/replay renders the
+	 * original card as answered; the turns fold never renders it as a card of
+	 * its own (bridge-turns-approval.ts). */
+	answeredOptionId?: string;
 	/** RC-T3: set when this event retracts a still-open approval card (the
 	 * adapter interrupted/stopped the turn before the user answered) instead
 	 * of requesting a fresh decision — see `bridge-turns.ts`'s fold. */

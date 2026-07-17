@@ -14,6 +14,22 @@ vi.mock("./jsonrpc-io", () => ({ connectJsonRpc: vi.fn() }));
 type RequestHandler = (id: number, method: string, params: unknown) => void;
 type NotificationHandler = (method: string, params: unknown) => void;
 
+/** fix-approval-replay: consumes the next event off `iterator` and asserts it
+ * is the persisted resolution event the real answer pushes (full shape
+ * covered in approvals.test.ts). */
+async function expectResolutionEvent(
+	iterator: AsyncIterator<unknown>,
+	requestId: string,
+	optionId: string
+): Promise<void> {
+	const { value } = await iterator.next();
+	expect(value).toMatchObject({
+		kind: "approval",
+		answeredOptionId: optionId,
+		requestId,
+	});
+}
+
 /** A fake `JsonRpcIo` whose exit (and server-initiated requests/notifications)
  * can be triggered on demand by the test, standing in for the real `codex
  * app-server` process codex.ts spawns. */
@@ -229,6 +245,12 @@ describe("codexAdapter - approvals - repeated or post-exit answers", () => {
 		expect(rpc.respond).toHaveBeenCalledExactlyOnceWith(APPROVAL_REQUEST_ID, {
 			decision: "accept",
 		});
+		// fix-approval-replay: the resolution event precedes the warning.
+		await expectResolutionEvent(
+			iterator,
+			String(APPROVAL_REQUEST_ID),
+			"accept"
+		);
 		const { value: event } = await iterator.next();
 		expect(event).toEqual({
 			detail: { requestId: String(APPROVAL_REQUEST_ID) },

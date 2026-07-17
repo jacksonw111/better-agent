@@ -140,6 +140,53 @@ it("rolls back the answered mark and toasts when sendInput rejects, leaving butt
 	expect(denyButton.disabled).toBe(false);
 });
 
+it("renders a replayed approval as answered (never timed out) when history carries its resolution event", async () => {
+	const fake = makeControllableTransport();
+	// The bug's exact shape: the user answered long ago, the answer command has
+	// since expired from the relay window (pendingRequests reports nothing),
+	// and the page reloads — history is ALL the client has. The CLI's
+	// persisted resolution event must reconstruct the answered state.
+	fake.history.mockResolvedValue([
+		{
+			seq: 1,
+			event: {
+				...approvalRaw(1, "req-1").data,
+				timeoutAt: Date.now() - 60_000,
+				timeoutMs: 300_000,
+			},
+		},
+		{
+			seq: 2,
+			event: {
+				kind: "approval",
+				answeredOptionId: "allow",
+				options: [],
+				requestId: "req-1",
+				title: "Answered",
+			},
+		},
+	]);
+	const { container } = render(
+		<Terminal session={SESSION} transport={fake.transport} />
+	);
+
+	const view = within(container);
+	await waitFor(() => {
+		const allowButton = view.getByRole("button", {
+			name: ALLOW_CHOSEN_BUTTON_PATTERN,
+		}) as HTMLButtonElement;
+		expect(allowButton.disabled).toBe(true);
+	});
+	// The resolution event marks the ORIGINAL card — it never renders a second
+	// approval card of its own.
+	expect(
+		view.getAllByRole("button", { name: ALLOW_BUTTON_PATTERN })
+	).toHaveLength(1);
+	// And an answered card must never claim it timed out, even though its
+	// timeoutAt is long past.
+	expect(view.queryByText("已超时，按拒绝处理")).toBeNull();
+});
+
 it("clears the answered map when switching to a different session", async () => {
 	const fake = makeControllableTransport();
 	const { container, rerender } = render(

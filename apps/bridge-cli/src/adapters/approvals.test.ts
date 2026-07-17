@@ -9,6 +9,7 @@
 // repo's 300-line file cap.
 
 import { describe, expect, it, vi } from "vitest";
+import type { NormalizedEvent } from "../normalize/types";
 import { createApprovalRegistry, retractPendingApprovals } from "./approvals";
 import { APPROVAL_OPTIONS, createFakeEvents } from "./approvals-test-helpers";
 
@@ -25,11 +26,52 @@ describe("createApprovalRegistry - double answer", () => {
 		expect(reply).toHaveBeenCalledExactlyOnceWith("allow");
 		expect(pushed).toEqual([
 			{
+				kind: "approval",
+				answeredOptionId: "allow",
+				options: [],
+				requestId: "req_1",
+				title: "Answered",
+			},
+			{
 				kind: "status",
 				status: "approval_unknown",
 				detail: { requestId: "req_1" },
 			},
 		]);
+	});
+});
+
+describe("createApprovalRegistry - resolution event", () => {
+	it("pushes a persisted resolution event (answeredOptionId) before invoking the reply, so a replay can reconstruct the answered state", () => {
+		const order: string[] = [];
+		const pushed: NormalizedEvent[] = [];
+		const events = {
+			push(event: NormalizedEvent) {
+				order.push("event");
+				pushed.push(event);
+			},
+		};
+		const registry = createApprovalRegistry(events);
+		const reply = vi.fn(() => {
+			order.push("reply");
+		});
+		registry.register("req_1", APPROVAL_OPTIONS, reply);
+
+		registry.answer("req_1", "deny");
+
+		expect(reply).toHaveBeenCalledExactlyOnceWith("deny");
+		expect(pushed).toEqual([
+			{
+				kind: "approval",
+				answeredOptionId: "deny",
+				options: [],
+				requestId: "req_1",
+				title: "Answered",
+			},
+		]);
+		// The resolution event lands in the stream before the reply unblocks the
+		// agent, so it always precedes the turn's continuation events.
+		expect(order).toEqual(["event", "reply"]);
 	});
 });
 

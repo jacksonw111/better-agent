@@ -84,10 +84,17 @@ function countdownWidthPercent(remainingMs: number, totalMs: number): number {
 }
 
 /** A thin bar that visually shrinks from its current fill to empty between
- * mount and `timeoutAt`, or "已超时，按拒绝处理" once that time has passed.
- * `shrink` flips a frame after mount so the initial paint isn't itself
+ * mount and `timeoutAt`, or a neutral "已处理（结果未记录）" once that time has
+ * passed. `shrink` flips a frame after mount so the initial paint isn't itself
  * animated; duration/width are inline style since there's no Tailwind
  * arbitrary `transition-[width]` class.
+ *
+ * fix-approval-replay: the expired copy is deliberately NEUTRAL, not "timed
+ * out — declined". A genuine CLI timeout pushes a cancelled event that removes
+ * the card entirely, and a freshly-answered card is disabled via the answered
+ * map before this ever renders — so a card still showing this notice is
+ * almost always legacy history whose answer predates persisted resolution
+ * events. Claiming a decline there was a misreport (the original bug).
  *
  * R3-4 review finding 4: the initial (pre-shrink) width is the REMAINING
  * fraction of `timeoutMs` (falling back to `DEFAULT_APPROVAL_WINDOW_MS`), not
@@ -113,10 +120,10 @@ export function ApprovalCountdown({
 	if (expired) {
 		return (
 			<p
-				className="text-destructive text-xs"
+				className="text-muted-foreground text-xs"
 				data-slot="approval-countdown-expired"
 			>
-				已超时，按拒绝处理
+				已处理（结果未记录）
 			</p>
 		);
 	}

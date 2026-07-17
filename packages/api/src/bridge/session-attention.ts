@@ -33,7 +33,11 @@ function collectOpenRequests(events: unknown[]): Set<string> {
 		if (typeof event.requestId !== "string") {
 			continue;
 		}
-		if (event.cancelled === true) {
+		// fix-approval-replay: a persisted resolution event (answeredOptionId)
+		// closes the id like a retraction — the answer command may have expired
+		// from the relay's commands window, but the resolution event survives,
+		// so an answered approval never keeps flagging the session.
+		if (event.cancelled === true || event.answeredOptionId !== undefined) {
 			open.delete(event.requestId);
 		} else {
 			open.add(event.requestId);

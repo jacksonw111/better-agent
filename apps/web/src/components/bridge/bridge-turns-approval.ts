@@ -47,6 +47,13 @@ export function foldApproval(
 		removeRequestBlock(state, event.requestId);
 		return;
 	}
+	// fix-approval-replay: a resolution event (the CLI's persisted "this was
+	// answered with X" marker) is consumed by the feed's answered map
+	// (use-bridge-feed.ts), which the ORIGINAL card reads its answered state
+	// from — it must never render as a fresh card of its own.
+	if (event.answeredOptionId !== undefined) {
+		return;
+	}
 	appendRequestBlock(state, id, {
 		kind: "approval",
 		approval: toApprovalBlock(event),

@@ -84,6 +84,29 @@ it("an approval answered from any device leaves pending and lands in answered", 
 	]);
 });
 
+it("a persisted resolution event closes the request even when the answer command is gone from the relay window", async () => {
+	const { alice, cli, sessionId } = await setup();
+	// No sendInput here on purpose: the commands tail is empty, mimicking an
+	// answer whose relay command has expired (or lives in another isolate) —
+	// only the CLI's persisted resolution event can close the request.
+	await cli.bridge.pushEvents({
+		sessionId,
+		events: [
+			approvalEvent("req-1"),
+			{
+				kind: "approval",
+				answeredOptionId: "allow",
+				options: [],
+				requestId: "req-1",
+				title: "Answered",
+			},
+		],
+	});
+
+	const result = await alice.bridge.pendingRequests({ sessionId });
+	expect(result.pending).toEqual([]);
+});
+
 it("a question flows the same way: open until its answerQuestion command lands", async () => {
 	const { alice, cli, sessionId } = await setup();
 	const question = {

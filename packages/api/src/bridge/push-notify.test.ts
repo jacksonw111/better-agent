@@ -58,6 +58,15 @@ it("turn_usage and error events push their own moments; other events do not", as
 			{ kind: "error", message: "boom" },
 			// A cancelled approval is a retraction, not a new request.
 			{ kind: "approval", requestId: "r2", cancelled: true, options: [] },
+			// fix-approval-replay: a resolution event records an answer already
+			// given — it must never buzz the phone as a new approval.
+			{
+				kind: "approval",
+				answeredOptionId: "allow",
+				options: [],
+				requestId: "r3",
+				title: "Answered",
+			},
 		],
 	});
 	await vi.waitFor(() => expect(fixture.pushSends).toHaveLength(2));

@@ -88,6 +88,16 @@ describe("presentApproval (RC-T4 fail-closed + timeout contract) - on-time answe
 				timeoutAt: APPROVAL_TIMEOUT_MS,
 				timeoutMs: APPROVAL_TIMEOUT_MS,
 			},
+			// fix-approval-replay: the answer also persists a resolution event so
+			// a later replay reconstructs the answered state — see approvals.ts's
+			// `answerPending`. Crucially, NO timed-out event follows it.
+			{
+				kind: "approval",
+				answeredOptionId: "allow",
+				options: [],
+				requestId: "req_1",
+				title: "Answered",
+			},
 		]);
 	});
 });

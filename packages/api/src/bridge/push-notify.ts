@@ -40,14 +40,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Which notification-worthy moment (if any) one relayed event represents.
  * Mirrors session-attention.ts's read of the event union (bridge-events.ts):
- * a `cancelled` approval/question is a retraction, not a new request. */
+ * a `cancelled` approval/question is a retraction, not a new request, and a
+ * resolution event (`answeredOptionId` — fix-approval-replay) records an
+ * answer already given, so neither may buzz the phone. */
 function classify(event: unknown): PushMoment | null {
 	if (!isRecord(event)) {
 		return null;
 	}
 	if (
 		(event.kind === "approval" || event.kind === "question") &&
-		event.cancelled !== true
+		event.cancelled !== true &&
+		event.answeredOptionId === undefined
 	) {
 		return "approval";
 	}
