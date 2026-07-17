@@ -46,15 +46,18 @@ function fakeTransport(): RelayTransport {
 	};
 }
 
-function request(signal?: AbortSignal): RunSessionRequest {
+function request(
+	overrides: Partial<RunSessionRequest> = {}
+): RunSessionRequest {
 	return {
 		agentKind: "claude-code",
 		runId: RUN_ID,
 		sessionCredential: "bt_secret",
-		signal: signal ?? new AbortController().signal,
+		signal: new AbortController().signal,
 		startContext: "TASK START CONTEXT",
 		taskId: TASK_ID,
 		workspacePath: "/ws/task-1",
+		...overrides,
 	};
 }
 
@@ -138,6 +141,15 @@ describe("run session - start context injection", () => {
 		await session.done;
 	});
 
+	it("skips the injection when the start context is empty (empty description)", async () => {
+		const rig = fakeRig();
+		const session = await rig.supplier(request({ startContext: "" }));
+		expect(rig.handle.send).not.toHaveBeenCalled();
+		expect(rig.transport.pushEvents).not.toHaveBeenCalled();
+		rig.finishLoop();
+		await session.done;
+	});
+
 	it("a failed echo push never fails the launch", async () => {
 		const rig = fakeRig();
 		(
@@ -147,6 +159,85 @@ describe("run session - start context injection", () => {
 		expect(rig.handle.send).toHaveBeenCalledTimes(1);
 		rig.finishLoop();
 		await session.done;
+	});
+});
+
+describe("run session - resume (P2)", () => {
+	for (const agentKind of ["claude-code", "codex"] as const) {
+		it(`${agentKind}: passes the resume id to the adapter and skips the injection`, async () => {
+			const rig = fakeRig();
+			const session = await rig.supplier(
+				request({ agentKind, resumeAgentSessionId: "conv-42" })
+			);
+			expect(rig.adapter.start).toHaveBeenCalledExactlyOnceWith("/ws/task-1", {
+				config: { appendSystemPrompt: "sys" },
+				mcpServers: [],
+				resume: "conv-42",
+				skills: [],
+			});
+			// The resumed conversation already carries its history — no re-injected
+			// start context, even though the request's startContext is non-empty.
+			expect(rig.handle.send).not.toHaveBeenCalled();
+			expect(rig.transport.pushEvents).not.toHaveBeenCalled();
+			rig.finishLoop();
+			await session.done;
+		});
+	}
+
+	it("seeds the restart loop's resume with the same id", async () => {
+		const rig = fakeRig();
+		const session = await rig.supplier(
+			request({ resumeAgentSessionId: "conv-42" })
+		);
+		expect(rig.runLoop.mock.calls[0]?.[0]?.args).toMatchObject({
+			resume: "conv-42",
+		});
+		rig.finishLoop();
+		await session.done;
+	});
+});
+
+describe("run session - resume on a runtime that cannot resume (P2)", () => {
+	for (const agentKind of ["opencode", "pi"] as const) {
+		it(`${agentKind}: cold-starts with a resume_failed notice instead of failing`, async () => {
+			const rig = fakeRig();
+			const session = await rig.supplier(
+				request({ agentKind, resumeAgentSessionId: "conv-42" })
+			);
+			expect(rig.adapter.start).toHaveBeenCalledExactlyOnceWith("/ws/task-1", {
+				config: { appendSystemPrompt: "sys" },
+				mcpServers: [],
+				resume: undefined,
+				skills: [],
+			});
+			expect(rig.transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
+				events: [
+					{
+						detail: {
+							reason: `${agentKind} cannot resume a prior conversation; started a fresh session in the same workspace`,
+						},
+						kind: "status",
+						status: "resume_failed",
+					},
+				],
+				sessionId: "sess-1",
+			});
+			expect(rig.handle.send).not.toHaveBeenCalled();
+			rig.finishLoop();
+			await session.done;
+		});
+	}
+
+	it("a failed resume_failed push never fails the launch", async () => {
+		const rig = fakeRig();
+		(
+			rig.transport.pushEvents as ReturnType<typeof vi.fn>
+		).mockRejectedValueOnce(new Error("relay hiccup"));
+		const session = await rig.supplier(
+			request({ agentKind: "pi", resumeAgentSessionId: "conv-42" })
+		);
+		rig.finishLoop();
+		await expect(session.done).resolves.toBeUndefined();
 	});
 });
 

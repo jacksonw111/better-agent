@@ -104,6 +104,39 @@ describe("launch handler - success chain", () => {
 	});
 });
 
+describe("launch handler - start context assembly (P2)", () => {
+	it("a resume launch never assembles a start context and threads the resume id", async () => {
+		const { deps } = fakeDeps();
+		await createLaunchHandler(deps).handle(
+			launchCommand({ resumeAgentSessionId: "conv-42" })
+		);
+		expect(deps.buildStartContext).not.toHaveBeenCalled();
+		expect(deps.runSession).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				resumeAgentSessionId: "conv-42",
+				startContext: "",
+			})
+		);
+	});
+
+	it("a cold start with an empty description skips the start context", async () => {
+		const { deps } = fakeDeps();
+		await createLaunchHandler(deps).handle(launchCommand({ description: "" }));
+		expect(deps.buildStartContext).not.toHaveBeenCalled();
+		expect(deps.runSession).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ startContext: "" })
+		);
+	});
+
+	it("a whitespace-only description counts as empty", async () => {
+		const { deps } = fakeDeps();
+		await createLaunchHandler(deps).handle(
+			launchCommand({ description: "  \n\t " })
+		);
+		expect(deps.buildStartContext).not.toHaveBeenCalled();
+	});
+});
+
 describe("launch handler - idempotency", () => {
 	it("processes a runId arriving on both channels concurrently exactly once", async () => {
 		const { deps } = fakeDeps();

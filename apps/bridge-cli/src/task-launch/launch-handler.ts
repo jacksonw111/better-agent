@@ -28,9 +28,16 @@ export interface RunStatusReport {
 /** What `runSession` needs to start one Run's runtime + relay. */
 export interface RunSessionRequest {
 	agentKind: RunLaunchCommand["agentKind"];
+	/** P2: the previous Run's runtime conversation id — run-session threads it
+	 * to the adapter's native resume (`StartOptions.resume`). Absent for cold
+	 * starts. */
+	resumeAgentSessionId?: string;
 	runId: string;
 	sessionCredential: string;
 	signal: AbortSignal;
+	/** The assembled Task Start Context to inject as the first user input —
+	 * empty string means "inject nothing" (P2: resume launches and empty
+	 * descriptions). */
 	startContext: string;
 	taskId: string;
 	workspacePath: string;
@@ -74,6 +81,14 @@ function errorText(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+/** P2: the Task Start Context is only assembled (and later injected by
+ * run-session) for a COLD start with a real description — a resumed
+ * conversation already carries its history, and an empty description would
+ * only inject an empty message. */
+function needsStartContext(command: RunLaunchCommand): boolean {
+	return !command.resumeAgentSessionId && command.description.trim() !== "";
+}
+
 /** The launch execution sequence (design fix): preparing_workspace → prepare
  * → starting_runtime(workspacePath) → assemble context → start runtime +
  * relay → running → (session end) stopped. Any throw lands in `handle`'s
@@ -90,9 +105,12 @@ async function executeRun(
 		status: "starting_runtime",
 		workspacePath,
 	});
-	const startContext = await deps.buildStartContext(command, workspacePath);
+	const startContext = needsStartContext(command)
+		? await deps.buildStartContext(command, workspacePath)
+		: "";
 	const session = await deps.runSession({
 		agentKind: command.agentKind,
+		resumeAgentSessionId: command.resumeAgentSessionId,
 		runId,
 		sessionCredential: command.sessionCredential,
 		signal: deps.signal,
