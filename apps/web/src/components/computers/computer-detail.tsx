@@ -1,81 +1,16 @@
-import { Button } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { ListTodoIcon, PlusIcon } from "lucide-react";
-import { useState } from "react";
-import { AGENT_LABELS } from "@/components/computers/agent-labels";
+import {
+	AgentListSkeleton,
+	ComputerAgentList,
+} from "@/components/computers/computer-agent-list";
 import { computerMeta, ToolFacts } from "@/components/computers/computer-facts";
 import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
-import { EmptyState } from "@/components/layout/empty-state";
-import { NewTaskDialog } from "@/components/tasks/new-task-dialog";
-import { TaskCard } from "@/components/tasks/task-list";
-import type { TaskListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
 /** Matches COMPUTER_HEARTBEAT_INTERVAL_MS — Connected/Offline stays fresh
- * while the page is open, and run statuses move on their own, so both
- * queries poll at the same cadence as their list pages. */
+ * while the page is open. */
 const LIST_REFETCH_INTERVAL_MS = 10_000;
-
-function TasksSkeleton() {
-	return (
-		<div className="flex flex-col gap-3">
-			<Skeleton className="h-28 w-full rounded-xl" />
-			<Skeleton className="h-28 w-full rounded-xl" />
-		</div>
-	);
-}
-
-/** This computer's tasks — the same card shape as /tasks, filtered
- * client-side from the shared tasks.list query. The meta line drops the
- * computer name (the page IS the computer) and keeps the runtime. */
-function ComputerTasks({
-	computerId,
-	onNewTask,
-}: {
-	computerId: string;
-	onNewTask: () => void;
-}) {
-	const tasksQuery = useQuery({
-		...orpc.tasks.list.queryOptions(),
-		refetchInterval: LIST_REFETCH_INTERVAL_MS,
-	});
-
-	if (tasksQuery.isPending) {
-		return <TasksSkeleton />;
-	}
-
-	const tasks = (tasksQuery.data ?? []).filter(
-		(task: TaskListItem) => task.computerId === computerId
-	);
-	if (tasks.length === 0) {
-		return (
-			<EmptyState
-				action={
-					<Button onClick={onNewTask} size="sm" type="button" variant="outline">
-						<PlusIcon />
-						New Task
-					</Button>
-				}
-				body="Start one and the agent works on this machine — it'll show up here with its latest run."
-				icon={ListTodoIcon}
-				title="No tasks on this computer yet"
-			/>
-		);
-	}
-
-	return (
-		<div className="flex flex-col gap-3">
-			{tasks.map((task) => (
-				<TaskCard
-					key={task.id}
-					meta={AGENT_LABELS[task.agentKind]}
-					task={task}
-				/>
-			))}
-		</div>
-	);
-}
 
 function ComputerDetailSkeleton() {
 	return (
@@ -87,7 +22,7 @@ function ComputerDetailSkeleton() {
 				</div>
 				<Skeleton className="h-8 w-28" />
 			</div>
-			<TasksSkeleton />
+			<AgentListSkeleton />
 		</div>
 	);
 }
@@ -104,18 +39,17 @@ function NotFound() {
 /**
  * The /computers/$computerId body: the machine's read-only facts (name,
  * Connected/Offline, platform/arch/client version, git/gh) as the header,
- * then THIS computer's tasks as the main content, with a New Task button
- * that opens the wizard with this computer pre-selected (still changeable
- * in Step 1). Agent runtimes are deliberately not listed here — runtime
- * choice lives in the wizard. Reads from the same computers.list and
- * tasks.list queries the list pages use — no extra API.
+ * then the machine's AGENT RUNTIME list as the main content — each agent
+ * links into its session list (/computers/$computerId/agents/$agentKind),
+ * where sessions are started and reopened. P3: the task cards and the New
+ * Task wizard entry left this page; sessions replaced tasks as the product
+ * surface.
  */
 export function ComputerDetail({ computerId }: { computerId: string }) {
 	const query = useQuery({
 		...orpc.computers.list.queryOptions(),
 		refetchInterval: LIST_REFETCH_INTERVAL_MS,
 	});
-	const [newTaskOpen, setNewTaskOpen] = useState(false);
 
 	if (query.isPending) {
 		return <ComputerDetailSkeleton />;
@@ -139,23 +73,11 @@ export function ComputerDetail({ computerId }: { computerId: string }) {
 					</p>
 					<ToolFacts tools={computer.toolInventory} />
 				</div>
-				<Button onClick={() => setNewTaskOpen(true)} size="sm" type="button">
-					<PlusIcon />
-					New Task
-				</Button>
 			</div>
 			<section className="flex flex-col gap-2">
-				<h2 className="font-medium text-sm">Tasks</h2>
-				<ComputerTasks
-					computerId={computer.id}
-					onNewTask={() => setNewTaskOpen(true)}
-				/>
+				<h2 className="font-medium text-sm">Agents</h2>
+				<ComputerAgentList computer={computer} />
 			</section>
-			<NewTaskDialog
-				defaultComputerId={computer.id}
-				onOpenChange={setNewTaskOpen}
-				open={newTaskOpen}
-			/>
 		</div>
 	);
 }

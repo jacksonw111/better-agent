@@ -37,6 +37,7 @@ import { Route as ComputersComputerIdRouteImport } from './routes/computers.$com
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as IntegrationsOcAccountIdRouteImport } from './routes/integrations.oc.$accountId'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
+import { Route as ComputersComputerIdAgentsAgentKindRouteImport } from './routes/computers.$computerId_.agents.$agentKind'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -178,6 +179,12 @@ const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
   path: '/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComputersComputerIdAgentsAgentKindRoute =
+  ComputersComputerIdAgentsAgentKindRouteImport.update({
+    id: '/computers/$computerId_/agents/$agentKind',
+    path: '/computers/$computerId/agents/$agentKind',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -208,6 +215,7 @@ export interface FileRoutesByFullPath {
   '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
+  '/computers/$computerId/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -238,6 +246,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
+  '/computers/$computerId/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -269,6 +278,7 @@ export interface FileRoutesById {
   '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
+  '/computers/$computerId_/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -301,6 +311,7 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
+    | '/computers/$computerId/agents/$agentKind'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
+    | '/computers/$computerId/agents/$agentKind'
   id:
     | '__root__'
     | '/'
@@ -361,6 +373,7 @@ export interface FileRouteTypes {
     | '/tasks/'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
+    | '/computers/$computerId_/agents/$agentKind'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -392,6 +405,7 @@ export interface RootRouteChildren {
   TasksIndexRoute: typeof TasksIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
   IntegrationsOcAccountIdRoute: typeof IntegrationsOcAccountIdRoute
+  ComputersComputerIdAgentsAgentKindRoute: typeof ComputersComputerIdAgentsAgentKindRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -592,6 +606,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/computers/$computerId_/agents/$agentKind': {
+      id: '/computers/$computerId_/agents/$agentKind'
+      path: '/computers/$computerId/agents/$agentKind'
+      fullPath: '/computers/$computerId/agents/$agentKind'
+      preLoaderRoute: typeof ComputersComputerIdAgentsAgentKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -624,6 +645,8 @@ const rootRouteChildren: RootRouteChildren = {
   TasksIndexRoute: TasksIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
   IntegrationsOcAccountIdRoute: IntegrationsOcAccountIdRoute,
+  ComputersComputerIdAgentsAgentKindRoute:
+    ComputersComputerIdAgentsAgentKindRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

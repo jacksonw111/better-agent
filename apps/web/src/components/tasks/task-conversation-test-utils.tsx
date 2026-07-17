@@ -1,156 +1,50 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, within } from "@testing-library/react";
 import type { ComponentType } from "react";
+import type {
+	SessionListFixture,
+	TaskDetailFixture,
+} from "./task-conversation-fixtures";
 
 // Shared harness for the Task Conversation tests — mutable store + the
-// `@/utils/orpc` / bridge-transport mock builders, mirroring
-// local-agent-workspace-test-utils.tsx. Deliberately imports NO app modules
-// so the test files' `vi.mock` factories can `await import(...)` it without a
-// mock-resolution cycle. Not a `*.test.*` file, so vitest's include skips it.
-
-export interface TaskRunFixture {
-	agentKind: string;
-	branch: string | null;
-	createdAt: Date;
-	errorMessage: string | null;
-	id: string;
-	session: TaskSessionFixture | null;
-	sessionId: string | null;
-	status: string;
-	updatedAt: Date;
-	workspaceKind: string;
-	workspacePath: string | null;
-}
-
-export interface TaskSessionFixture {
-	agentKind: string;
-	agentSessionId: string | null;
-	archivedAt: Date | null;
-	createdAt: Date;
-	id: string;
-	label: string | null;
-	lastSeenAt: Date;
-	name: string | null;
-	runId: string | null;
-	starred: boolean;
-	status: string;
-	tokenId: string;
-	userId: string;
-	vncEndpoint: string | null;
-}
-
-export interface TaskDetailFixture {
-	computerName: string | null;
-	runs: TaskRunFixture[];
-	task: {
-		agentKind: string;
-		computerId: string;
-		createdAt: Date;
-		description: string;
-		id: string;
-		name: string;
-		openingMessage: string;
-		repositoryFullName: string | null;
-		repositoryUrl: string | null;
-		status: string;
-		updatedAt: Date;
-		userId: string;
-	};
-}
+// `@/utils/orpc` / bridge-transport / router mock builders, mirroring
+// local-agent-workspace-test-utils.tsx. The fixture factories live in
+// task-conversation-fixtures.ts (300-line file cap). Deliberately imports NO
+// app modules so the test files' `vi.mock` factories can `await import(...)`
+// it without a mock-resolution cycle. Not a `*.test.*` file, so vitest's
+// include skips it.
 
 /** One mutable store per test FILE, reset per test via `resetTaskStore`. */
 export const taskStore = {
 	connectedSessionIds: [] as string[],
 	detail: null as TaskDetailFixture | null,
+	/** sessionIds passed to bridge.endSession (the stop path). */
+	endSessionCalls: [] as string[],
 	/** Per-session persisted relay events served by the transport's history. */
 	historyBySession: {} as Record<string, { event: unknown; seq: number }[]>,
-	retryCalls: [] as string[],
-	retryResult: { runId: "run-next" },
+	/** tasks.list filter inputs, recorded per query mount/refetch. */
+	listInputs: [] as unknown[],
+	/** taskIds navigated to via useNavigate (the session switch target). */
+	navigations: [] as string[],
+	resumeCalls: [] as string[],
+	/** When set, tasks.resume rejects with this message instead. */
+	resumeError: null as string | null,
+	resumeResult: { runId: "run-next" },
+	/** The sibling sessions tasks.list serves to the sidebar. */
+	sessions: [] as SessionListFixture[],
 };
 
 export function resetTaskStore(): void {
 	taskStore.connectedSessionIds.length = 0;
 	taskStore.detail = null;
+	taskStore.endSessionCalls.length = 0;
 	taskStore.historyBySession = {};
-	taskStore.retryCalls.length = 0;
-	taskStore.retryResult = { runId: "run-next" };
-}
-
-export const OPENING_MESSAGE = [
-	"Fix the login redirect bug with /tdd and keep the tests green.",
-	"",
-	"## Execution context",
-	"- Computer: Studio Mac",
-	"- Agent Runtime: Claude Code",
-	"- Workspace: managed task directory",
-].join("\n");
-
-export function makeTaskSession(
-	overrides: Partial<TaskSessionFixture>
-): TaskSessionFixture {
-	const now = new Date();
-	return {
-		agentKind: "claude-code",
-		agentSessionId: null,
-		archivedAt: null,
-		createdAt: now,
-		id: "session-1",
-		label: "task:abc",
-		lastSeenAt: now,
-		name: null,
-		runId: "run-1",
-		starred: false,
-		status: "active",
-		tokenId: "token-run-1",
-		userId: "user-1",
-		vncEndpoint: null,
-		...overrides,
-	};
-}
-
-export function makeTaskRun(
-	overrides: Partial<TaskRunFixture>
-): TaskRunFixture {
-	const now = new Date();
-	return {
-		agentKind: "claude-code",
-		branch: null,
-		createdAt: now,
-		errorMessage: null,
-		id: "run-1",
-		session: null,
-		sessionId: null,
-		status: "created",
-		updatedAt: now,
-		workspaceKind: "standalone",
-		workspacePath: null,
-		...overrides,
-	};
-}
-
-export function makeTaskDetail(
-	overrides: Partial<TaskDetailFixture>
-): TaskDetailFixture {
-	const now = new Date();
-	return {
-		computerName: "Studio Mac",
-		runs: [makeTaskRun({})],
-		task: {
-			agentKind: "claude-code",
-			computerId: "computer-1",
-			createdAt: now,
-			description: "Fix the login redirect bug with /tdd",
-			id: "task-1",
-			name: "Fix login redirect",
-			openingMessage: OPENING_MESSAGE,
-			repositoryFullName: null,
-			repositoryUrl: null,
-			status: "active",
-			updatedAt: now,
-			userId: "user-1",
-		},
-		...overrides,
-	};
+	taskStore.listInputs.length = 0;
+	taskStore.navigations.length = 0;
+	taskStore.resumeCalls.length = 0;
+	taskStore.resumeError = null;
+	taskStore.resumeResult = { runId: "run-next" };
+	taskStore.sessions = [];
 }
 
 /** The `./bridge-transport`-shaped mock (task-chat re-exports the real one):
@@ -172,8 +66,83 @@ export function buildTaskTransportMock() {
 	};
 }
 
-/** The `@/utils/orpc` mock: tasks.get reads the live store (rejects when the
- * fixture is null), tasks.retry records and resolves the canned run id. */
+/** The `@tanstack/react-router` mock: an anchor-shaped Link (params
+ * substituted into the href) and a useNavigate that records the target
+ * session id. */
+export function buildTaskRouterMock() {
+	return {
+		Link: ({
+			children,
+			className,
+			params,
+			to,
+			...rest
+		}: {
+			children?: React.ReactNode;
+			className?: string;
+			params?: Record<string, string>;
+			to: string;
+		}) => (
+			<a
+				className={className}
+				href={Object.entries(params ?? {}).reduce(
+					(path, [key, value]) => path.replace(`$${key}`, value),
+					to
+				)}
+				{...rest}
+			>
+				{children}
+			</a>
+		),
+		useNavigate:
+			() => (options: { params?: { taskId?: string }; to: string }) => {
+				taskStore.navigations.push(options.params?.taskId ?? options.to);
+				return Promise.resolve();
+			},
+	};
+}
+
+/** The tasks.* slice of the orpc mock: get/list read the live store, resume
+ * records its calls, honoring the canned error/result. */
+function buildTasksMock() {
+	return {
+		get: {
+			key: () => ["tasks", "get"],
+			queryOptions: (opts?: { input?: { taskId?: string } }) => ({
+				queryKey: ["tasks", "get", opts?.input?.taskId],
+				queryFn: () =>
+					taskStore.detail
+						? Promise.resolve(taskStore.detail)
+						: Promise.reject(new Error("Task not found")),
+			}),
+		},
+		list: {
+			key: () => ["tasks", "list"],
+			queryOptions: (opts?: { input?: unknown }) => ({
+				queryKey: ["tasks", "list", opts?.input],
+				queryFn: () => {
+					taskStore.listInputs.push(opts?.input);
+					return Promise.resolve(taskStore.sessions);
+				},
+			}),
+		},
+		resume: {
+			mutationOptions: (opts: Record<string, unknown>) => ({
+				mutationFn: (input: { taskId: string }) => {
+					taskStore.resumeCalls.push(input.taskId);
+					return taskStore.resumeError
+						? Promise.reject(new Error(taskStore.resumeError))
+						: Promise.resolve(taskStore.resumeResult);
+				},
+				...opts,
+			}),
+		},
+	};
+}
+
+/** The `@/utils/orpc` mock: tasks.get/list read the live store, tasks.resume
+ * and bridge.endSession record their calls (resume honoring the canned
+ * error/result). */
 export function buildTaskOrpcMock() {
 	return {
 		orpc: {
@@ -186,27 +155,18 @@ export function buildTaskOrpcMock() {
 					}),
 				},
 			},
-			tasks: {
-				get: {
-					key: () => ["tasks", "get"],
-					queryOptions: (opts?: { input?: { taskId?: string } }) => ({
-						queryKey: ["tasks", "get", opts?.input?.taskId],
-						queryFn: () =>
-							taskStore.detail
-								? Promise.resolve(taskStore.detail)
-								: Promise.reject(new Error("Task not found")),
-					}),
-				},
-				retry: {
+			bridge: {
+				endSession: {
 					mutationOptions: (opts: Record<string, unknown>) => ({
-						mutationFn: (input: { taskId: string }) => {
-							taskStore.retryCalls.push(input.taskId);
-							return Promise.resolve(taskStore.retryResult);
+						mutationFn: (input: { sessionId: string }) => {
+							taskStore.endSessionCalls.push(input.sessionId);
+							return Promise.resolve({ ok: true });
 						},
 						...opts,
 					}),
 				},
 			},
+			tasks: buildTasksMock(),
 		},
 	};
 }

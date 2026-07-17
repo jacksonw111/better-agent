@@ -145,6 +145,27 @@
 	}
 }
 
+/* Session transition overlay (task-conversation.tsx): the stop/resume
+   loading veil fades in over the chat instead of popping. */
+@keyframes session-overlay-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.session-overlay-in {
+	animation: session-overlay-in 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-overlay-in {
+		animation: none;
+	}
+}
+
 /* Mobile app-ification (D4): safe-area/dvh values Tailwind's arbitrary-value
    syntax can't express here (the repo's pre-commit hook blocks arbitrary
    values), so they're hand-written utility classes instead. */

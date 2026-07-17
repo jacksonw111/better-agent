@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-// S3-T2 Conversation contract (master spec §18.4): the Opening Message is the
-// FIRST visible message and keeps /skill references verbatim; the CLI's
-// origin-tagged task-start injection folds collapsed; a run with no bound
-// session shows NO fabricated chat. Run/retry flows live in
-// task-conversation-runs.test.tsx (300-line file cap).
+// S3-T2/P3 Conversation contract: the Opening Message is the FIRST visible
+// message and keeps /skill references verbatim; the CLI's origin-tagged
+// task-start injection folds collapsed; a run with no bound session shows NO
+// fabricated chat. The session lifecycle (auto-resume, stop-then-switch,
+// history continuity) lives in task-conversation-sessions.test.tsx (300-line
+// file cap).
 
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -12,6 +13,8 @@ import {
 	makeTaskDetail,
 	makeTaskRun,
 	makeTaskSession,
+} from "./task-conversation-fixtures";
+import {
 	renderTaskConversation,
 	resetTaskStore,
 	taskStore as store,
@@ -27,11 +30,10 @@ vi.mock("@/components/bridge/bridge-transport", async () => {
 	return utils.buildTaskTransportMock();
 });
 
-vi.mock("@tanstack/react-router", () => ({
-	Link: ({ children, ...rest }: { children?: React.ReactNode; to: string }) => (
-		<a href={rest.to}>{children}</a>
-	),
-}));
+vi.mock("@tanstack/react-router", async () => {
+	const utils = await import("./task-conversation-test-utils");
+	return utils.buildTaskRouterMock();
+});
 
 const SKILL_REFERENCE = /\/tdd/;
 const FOLLOW_UP = "Also add a regression test.";
@@ -115,8 +117,8 @@ it("shows only the opening message while the run has no session — no fabricate
 	await waitFor(() => {
 		expect(view.getByText(OPENING_PATTERN)).toBeDefined();
 	});
-	// The run status appears as chips OUTSIDE the chat area (header + run
-	// sidebar), never inside it.
+	// The run status appears as a chip OUTSIDE the chat area (the header),
+	// never inside it.
 	const chat = container.querySelector('[data-testid="task-chat"]');
 	expect(chat).not.toBeNull();
 	expect(view.getAllByText("Launching").length).toBeGreaterThan(0);
@@ -127,29 +129,26 @@ it("shows only the opening message while the run has no session — no fabricate
 	expect(view.queryByText(SEND_TO_BEGIN_PATTERN)).toBeNull();
 });
 
-it("shows no workspace strip in the header — path context stays in the Files/Shell/Git panes", async () => {
-	store.detail = makeTaskDetail({
-		runs: [
-			makeTaskRun({
-				id: "run-1",
-				status: "running",
-				workspacePath: "/home/u/.better-agent/tasks/task-1",
-			}),
-		],
-	});
+it("renders no opening bubble for a pure chat session (empty opening message)", async () => {
+	const detail = detailWithBoundSession();
+	detail.task.openingMessage = "";
+	detail.task.description = "";
+	store.detail = detail;
 	const { view } = renderTaskConversation(TaskConversation);
 
 	await waitFor(() => {
-		expect(view.getByText(OPENING_PATTERN)).toBeDefined();
+		expect(store.connectedSessionIds).toContain("session-1");
 	});
-	expect(view.queryByText("Managed task directory")).toBeNull();
-	expect(view.queryByText("/home/u/.better-agent/tasks/task-1")).toBeNull();
-	expect(
-		view.queryByRole("button", { name: "Copy workspace path" })
-	).toBeNull();
+	// No empty user bubble mounts as `leading`: with no output yet the feed
+	// falls back to its own empty state, which a leading element would have
+	// suppressed.
+	await waitFor(() => {
+		expect(view.getByText(NO_OUTPUT_PATTERN)).toBeDefined();
+	});
+	expect(view.getByText(SEND_TO_BEGIN_PATTERN)).toBeDefined();
 });
 
-it("keeps Past conversations and Status out of the task page's session header", async () => {
+it("keeps Past conversations and Status out of the session header", async () => {
 	store.detail = detailWithBoundSession();
 	const { view } = renderTaskConversation(TaskConversation);
 

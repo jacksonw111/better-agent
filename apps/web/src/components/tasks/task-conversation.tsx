@@ -1,49 +1,42 @@
 import { Skeleton } from "@better-agent/ui/components/skeleton";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { toast } from "sonner";
+import { cn } from "@better-agent/ui/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2Icon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { SessionWorkspacePane } from "@/components/bridge/session-workspace-pane";
 import {
 	MobileSidebarDrawer,
 	SidebarDrawerToggle,
 	useSidebarDrawer,
 } from "@/components/bridge/workspace-drawer";
-import type { TaskDetail, TaskRun } from "@/utils/api-types";
+import type { TaskDetail } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
+import { priorRunsOf } from "./past-run-history";
+import {
+	SessionSidebar,
+	type SessionSidebarProps,
+	SessionSidebarRail,
+} from "./session-sidebar";
 import { TaskChat } from "./task-chat";
 import { TaskConversationHeader } from "./task-conversation-header";
-import { TaskRunSidebar } from "./task-run-sidebar";
+import {
+	type SessionLifecycle,
+	useSessionLifecycle,
+} from "./use-session-lifecycle";
 
-// S3-T2 (master spec §11/§17.3/§18.4): the /tasks/$taskId body. The
-// conversation's first message is the stored Opening Message; the rest is the
-// current run's bridge session, rendered through the SAME session workspace
-// pane (chat + Files/Git/Shell inspection tabs) the /local workspace uses —
-// with the run history in a left sidebar mirroring /local's session sidebar.
-// Run status and startup errors live in the header strip — never as chat.
+// P3: the /tasks/$taskId body — one SESSION's chat. The left pane lists the
+// sibling sessions (same computer + agent); the conversation always follows
+// the session's LATEST run. Entering a settled session auto-resumes it and
+// switching away from a live one stops its process first — both transitions
+// veiled by the loading overlay (see use-session-lifecycle.ts). Earlier runs'
+// history replays read-only above the live feed (past-run-history.tsx), so
+// the thread never loses what came before.
 
 /** Poll cadence for tasks.get — run status moves server-side (launch, client
- * status reports, session binding), so the page follows on its own. Matches
- * the session-list cadence so the two surfaces feel equally live. */
+ * status reports, session binding), so the page follows on its own. */
 const TASK_POLL_INTERVAL_MS = 5000;
-
-/** The run the conversation shows: the explicitly selected one when it still
- * exists, otherwise the LATEST (runs come createdAt-ascending) — so a fresh
- * retry run takes over automatically and a stale selection can't strand the
- * page. */
-export function pickCurrentRun(
-	runs: TaskRun[],
-	selectedRunId: string | null
-): TaskRun | null {
-	if (selectedRunId) {
-		const match = runs.find((run) => run.id === selectedRunId);
-		if (match) {
-			return match;
-		}
-	}
-	return runs.at(-1) ?? null;
-}
 
 function ConversationSkeleton() {
 	return (
@@ -55,48 +48,70 @@ function ConversationSkeleton() {
 	);
 }
 
-function TaskNotFound() {
+function SessionNotFound() {
 	return (
 		<div className="p-4 sm:p-6">
 			<p className="rounded-lg bg-muted/40 p-6 text-center text-muted-foreground text-sm">
-				This task wasn't found — it may have been removed, or the link is wrong.
+				This session wasn't found — it may have been removed, or the link is
+				wrong.
 			</p>
 		</div>
 	);
 }
 
-/** The right column: header strip (status/error/retry — outside the chat)
- * over the reused session workspace pane. The pane's `headerStart` slot takes
- * the <md drawer toggle, same placement as /local's. Split from
- * `ConversationBody` for the max-lines-per-function gate. */
+/** The stop/resume transition veil: fades in over the chat column, blocking
+ * input until the target run is live again. */
+function TransitionOverlay({ label }: { label: string }) {
+	return (
+		<div
+			className="session-overlay-in absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/70 backdrop-blur-xs"
+			data-testid="session-transition-overlay"
+			role="status"
+		>
+			<Loader2Icon
+				aria-hidden
+				className="size-5 animate-spin text-muted-foreground"
+			/>
+			<span className="text-muted-foreground text-sm">{label}</span>
+		</div>
+	);
+}
+
+/** The right column: header strip (status/errors — outside the chat) over the
+ * reused session workspace pane, with the transition overlay veiling both
+ * while a stop/resume is in flight. */
 function ConversationMain({
-	currentRun,
 	detail,
 	drawerToggle,
-	onRetry,
-	retryPending,
+	lifecycle,
 }: {
-	currentRun: TaskRun | null;
 	detail: TaskDetail;
 	drawerToggle: React.ReactNode;
-	onRetry: () => void;
-	retryPending: boolean;
+	lifecycle: SessionLifecycle;
 }) {
 	const { email } = useCurrentUser();
+	const currentRun = detail.runs.at(-1) ?? null;
+	const priorRuns = useMemo(
+		() => priorRunsOf(detail.runs, currentRun?.id),
+		[detail.runs, currentRun?.id]
+	);
 	return (
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+		<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
 			<TaskConversationHeader
 				computerName={detail.computerName}
 				currentRun={currentRun}
-				onRetry={onRetry}
-				retryPending={retryPending}
-				runs={detail.runs}
+				onRetryResume={lifecycle.retryResume}
+				onStop={lifecycle.stop}
+				resumeError={lifecycle.resumeError}
+				resumePending={lifecycle.resumePending}
+				stopPending={lifecycle.stopPending}
 				task={detail.task}
 			/>
 			<SessionWorkspacePane
 				chat={
 					<TaskChat
 						openingMessage={detail.task.openingMessage}
+						priorRuns={priorRuns}
 						run={currentRun}
 						userAvatarUrl={email ? userAvatar(email) : undefined}
 					/>
@@ -104,95 +119,102 @@ function ConversationMain({
 				headerStart={drawerToggle}
 				workspacePath={currentRun?.workspacePath ?? null}
 			/>
+			{lifecycle.switching && <TransitionOverlay label="正在结束当前会话…" />}
+			{!lifecycle.switching && lifecycle.resuming && (
+				<TransitionOverlay label="正在恢复会话…" />
+			)}
 		</div>
 	);
 }
 
-/** The loaded page: the run sidebar (md+ aside; <md the shared overlay
- * drawer, mirroring /local's session sidebar) beside the conversation
- * column. Split from `TaskConversation` (which owns the queries and guards)
- * for the max-lines-per-function gate. */
+/** The md+ aside: the full session column, collapsible into a slim icon rail
+ * (the width transition carries the collapse). Split out of
+ * `ConversationBody` for the max-lines-per-function gate. */
+function DesktopSidebar({
+	sidebarProps,
+}: {
+	sidebarProps: SessionSidebarProps;
+}) {
+	const [collapsed, setCollapsed] = useState(false);
+	return (
+		<aside
+			className={cn(
+				"hidden shrink-0 flex-col bg-muted/30 transition-all duration-200 md:flex",
+				collapsed ? "w-12" : "w-64"
+			)}
+		>
+			{collapsed ? (
+				<SessionSidebarRail
+					{...sidebarProps}
+					onExpand={() => setCollapsed(false)}
+				/>
+			) : (
+				<SessionSidebar
+					{...sidebarProps}
+					onCollapse={() => setCollapsed(true)}
+				/>
+			)}
+		</aside>
+	);
+}
+
+/** The loaded page: the sibling-session sidebar (md+ aside, collapsible to an
+ * icon rail; <md the shared overlay drawer) beside the conversation column. */
 function ConversationBody({
 	detail,
-	onRetry,
-	onSelectRun,
-	retryPending,
-	selectedRunId,
+	lifecycle,
+	taskId,
 }: {
 	detail: TaskDetail;
-	onRetry: () => void;
-	onSelectRun: (runId: string) => void;
-	retryPending: boolean;
-	selectedRunId: string | null;
+	lifecycle: SessionLifecycle;
+	taskId: string;
 }) {
-	const currentRun = pickCurrentRun(detail.runs, selectedRunId);
-	const drawer = useSidebarDrawer(onSelectRun);
-	const sidebar = (onSelect: (runId: string) => void) => (
-		<TaskRunSidebar
-			activeRunId={currentRun?.id ?? null}
-			onSelectRun={onSelect}
-			runs={detail.runs}
-		/>
-	);
+	const drawer = useSidebarDrawer(lifecycle.selectSession);
+	const sidebarProps: SessionSidebarProps = {
+		activeTaskId: taskId,
+		agentKind: detail.task.agentKind,
+		computerId: detail.task.computerId,
+		onSelectSession: lifecycle.selectSession,
+	};
 	return (
 		<div className="flex min-h-0 flex-1">
-			<aside className="hidden w-64 shrink-0 flex-col bg-muted/30 md:flex">
-				{sidebar(onSelectRun)}
-			</aside>
+			<DesktopSidebar sidebarProps={sidebarProps} />
 			<ConversationMain
-				currentRun={currentRun}
 				detail={detail}
 				drawerToggle={
-					<SidebarDrawerToggle label="Show runs" onOpen={drawer.show} />
+					<SidebarDrawerToggle label="Show sessions" onOpen={drawer.show} />
 				}
-				onRetry={onRetry}
-				retryPending={retryPending}
+				lifecycle={lifecycle}
 			/>
 			<MobileSidebarDrawer
-				closeLabel="Close run list"
+				closeLabel="Close session list"
 				onClose={drawer.close}
 				open={drawer.open}
 			>
-				{sidebar(drawer.select)}
+				<SessionSidebar {...sidebarProps} onSelectSession={drawer.select} />
 			</MobileSidebarDrawer>
 		</div>
 	);
 }
 
-/** The `/tasks/$taskId` body: polls tasks.get, follows the latest run (or an
- * explicit pick from the run switcher), and wires retry to a NEW sequential
- * run (§16) the page then follows. */
+/** The `/tasks/$taskId` body: polls tasks.get and always follows the
+ * session's latest run. The route keys this component by taskId, so every
+ * session entry starts the lifecycle (auto-resume guard included) fresh. */
 export function TaskConversation({ taskId }: { taskId: string }) {
-	const queryClient = useQueryClient();
 	const detailQuery = useQuery({
 		...orpc.tasks.get.queryOptions({ input: { taskId } }),
 		refetchInterval: TASK_POLL_INTERVAL_MS,
 	});
-	const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-	const retry = useMutation(
-		orpc.tasks.retry.mutationOptions({
-			onSuccess: ({ runId }: { runId: string }) => {
-				setSelectedRunId(runId);
-				queryClient.invalidateQueries({ queryKey: orpc.tasks.get.key() });
-			},
-			onError: (error: Error) => toast.error(error.message),
-		})
-	);
+	const lifecycle = useSessionLifecycle(taskId, detailQuery.data);
 
 	if (detailQuery.isPending) {
 		return <ConversationSkeleton />;
 	}
 	const detail = detailQuery.data;
 	if (!detail) {
-		return <TaskNotFound />;
+		return <SessionNotFound />;
 	}
 	return (
-		<ConversationBody
-			detail={detail}
-			onRetry={() => retry.mutate({ taskId })}
-			onSelectRun={setSelectedRunId}
-			retryPending={retry.isPending}
-			selectedRunId={selectedRunId}
-		/>
+		<ConversationBody detail={detail} lifecycle={lifecycle} taskId={taskId} />
 	);
 }
