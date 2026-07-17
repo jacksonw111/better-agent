@@ -5,6 +5,7 @@ import type {
 } from "@better-agent/ui/components/chat/chat-blocks";
 import { CheckIcon, ChevronLeftIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { ApprovalCountdown } from "./event-line";
 
 // P1-T4: QuestionCard's presentational halves — the pending multi-question
 // wizard and the stacked single/replay layout — split out of question-card.tsx
@@ -115,6 +116,25 @@ function CardHeader({ right, title }: { right?: ReactNode; title: string }) {
 	);
 }
 
+/** fix-question-replay: the same countdown bar / neutral expired notice
+ * `ApprovalLine` shows, for a still-pending question card. A legacy expired
+ * card whose answer predates persisted resolution events renders the neutral
+ * 已处理（结果未记录） copy instead of staying silently actionable forever —
+ * see `ApprovalCountdown`'s doc comment for why the copy is neutral. */
+function QuestionCountdown({ event }: { event: QuestionBlockData }) {
+	if (event.timeoutAt === undefined) {
+		return null;
+	}
+	return (
+		<div className="px-3 pt-1.5">
+			<ApprovalCountdown
+				timeoutAt={event.timeoutAt}
+				timeoutMs={event.timeoutMs}
+			/>
+		</div>
+	);
+}
+
 interface WizardCardProps {
 	allPicked: boolean;
 	event: QuestionBlockData;
@@ -147,6 +167,7 @@ export function WizardCard({
 				right={<ProgressDots current={step} total={event.questions.length} />}
 				title={event.title}
 			/>
+			<QuestionCountdown event={event} />
 			<div className="flex flex-col gap-2 px-3 py-2">
 				<QuestionRow
 					disabled={false}
@@ -203,6 +224,7 @@ export function StackedCard({
 	return (
 		<div className="overflow-hidden rounded-md bg-muted/40 font-sans">
 			<CardHeader title={event.title} />
+			{!disabled && <QuestionCountdown event={event} />}
 			<div className="flex flex-col gap-2 px-3 py-2">
 				{event.questions.map((question, questionIndex) => (
 					<QuestionRow

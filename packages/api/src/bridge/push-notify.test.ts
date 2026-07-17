@@ -67,6 +67,14 @@ it("turn_usage and error events push their own moments; other events do not", as
 				requestId: "r3",
 				title: "Answered",
 			},
+			// fix-question-replay: same for a question resolution event.
+			{
+				kind: "question",
+				answeredAnswers: [["a"]],
+				questions: [],
+				requestId: "r4",
+				title: "Answered",
+			},
 		],
 	});
 	await vi.waitFor(() => expect(fixture.pushSends).toHaveLength(2));

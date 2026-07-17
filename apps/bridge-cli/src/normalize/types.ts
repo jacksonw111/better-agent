@@ -176,6 +176,19 @@ export interface QuestionItem {
  * through `answerApproval`.
  */
 export interface QuestionEvent extends TurnScoped {
+	/** fix-question-replay: mirrors `ApprovalEvent.answeredOptionId` — set
+	 * (instead of a fresh question request) on the RESOLUTION event
+	 * `adapters/questions.ts`'s `answer` pushes the moment a user answer
+	 * resolves `requestId` — the submitted answers (`string[][]`, one array of
+	 * chosen labels per question, same shape as
+	 * `ControlAnswerQuestionCommand.answers`). The answer itself only ever
+	 * travels as a relay COMMAND (a TTL'd rolling window, never persisted), so
+	 * without this event a reload/replay had no record the question was
+	 * answered. Pushed like any other event, it persists to bridge_messages;
+	 * the web folds it into its answeredQuestions map instead of rendering a
+	 * new card. `questions`/`title` are placeholders, same contract as
+	 * `cancelled`. */
+	answeredAnswers?: string[][];
 	/** Mirrors `ApprovalEvent.cancelled` — set when a still-pending question is
 	 * retracted (interrupt/stop, or the shared fail-closed timeout) instead of
 	 * requesting a fresh answer. */

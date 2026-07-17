@@ -71,6 +71,8 @@ function toQuestionBlock(event: QuestionEvent): QuestionBlockData {
 		requestId: event.requestId,
 		title: event.title,
 		questions: event.questions,
+		timeoutAt: event.timeoutAt,
+		timeoutMs: event.timeoutMs,
 	};
 }
 
@@ -81,6 +83,13 @@ export function foldQuestion(
 ): void {
 	if (event.cancelled) {
 		removeRequestBlock(state, event.requestId);
+		return;
+	}
+	// fix-question-replay: a resolution event (the CLI's persisted "this was
+	// answered with X" marker) is consumed by the feed's answeredQuestions map
+	// (use-bridge-feed.ts), which the ORIGINAL card reads its answered state
+	// from — it must never render as a fresh card of its own.
+	if (event.answeredAnswers !== undefined) {
 		return;
 	}
 	appendRequestBlock(state, id, {

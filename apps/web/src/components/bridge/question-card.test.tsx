@@ -118,6 +118,54 @@ it("does not hijack digits typed into a text input", () => {
 	).toBe("false");
 });
 
+// fix-question-replay: a legacy expired card (its answer predates persisted
+// resolution events, so nothing marks it answered) shows the same NEUTRAL
+// notice as ApprovalCountdown — never a false "timed out" claim.
+it("shows the neutral processed notice once a pending card's timeout has passed", () => {
+	const { container } = render(
+		<QuestionCard
+			event={{
+				...SINGLE_EVENT,
+				timeoutAt: Date.now() - 60_000,
+				timeoutMs: 300_000,
+			}}
+		/>
+	);
+	expect(within(container).getByText("已处理（结果未记录）")).toBeDefined();
+});
+
+it("shows a countdown bar while pending, and neither bar nor notice once answered", () => {
+	const pending = render(
+		<QuestionCard
+			event={{
+				...SINGLE_EVENT,
+				timeoutAt: Date.now() + 60_000,
+				timeoutMs: 300_000,
+			}}
+		/>
+	);
+	expect(
+		pending.container.querySelector('[data-slot="approval-countdown"]')
+	).not.toBeNull();
+
+	const answered = render(
+		<QuestionCard
+			answered={[["staging"]]}
+			event={{
+				...SINGLE_EVENT,
+				timeoutAt: Date.now() - 60_000,
+				timeoutMs: 300_000,
+			}}
+		/>
+	);
+	expect(
+		answered.container.querySelector('[data-slot="approval-countdown"]')
+	).toBeNull();
+	expect(
+		within(answered.container).queryByText("已处理（结果未记录）")
+	).toBeNull();
+});
+
 // R3-4 review finding 5: `key={option}`/`key={question.text}` collide when
 // two options (within one question) or two questions share a label/text —
 // React warns "Encountered two children with the same key" and reconciliation

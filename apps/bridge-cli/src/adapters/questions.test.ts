@@ -3,7 +3,7 @@
 // question machinery.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { QuestionEvent } from "../normalize/types";
+import type { NormalizedEvent, QuestionEvent } from "../normalize/types";
 import { APPROVAL_TIMEOUT_MS } from "./approvals";
 import { createFakeEvents } from "./approvals-test-helpers";
 import {
@@ -32,11 +32,55 @@ describe("createQuestionRegistry - double answer", () => {
 		expect(reply).toHaveBeenCalledExactlyOnceWith([["staging"]]);
 		expect(pushed).toEqual([
 			{
+				kind: "question",
+				answeredAnswers: [["staging"]],
+				questions: [],
+				requestId: "q_1",
+				title: "Answered",
+			},
+			{
 				kind: "status",
 				status: "question_unknown",
 				detail: { requestId: "q_1" },
 			},
 		]);
+	});
+});
+
+// fix-question-replay: mirrors approvals.test.ts's resolution-event coverage —
+// the answer command only lives in the relay's TTL'd commands window, so this
+// persisted event is what lets a reload/replay reconstruct the answered state.
+describe("createQuestionRegistry - resolution event", () => {
+	it("pushes a persisted resolution event (answeredAnswers) before invoking the reply, so a replay can reconstruct the answered state", () => {
+		const order: string[] = [];
+		const pushed: NormalizedEvent[] = [];
+		const events = {
+			push(event: NormalizedEvent) {
+				order.push("event");
+				pushed.push(event);
+			},
+		};
+		const registry = createQuestionRegistry(events);
+		const reply = vi.fn(() => {
+			order.push("reply");
+		});
+		registry.register("q_1", reply);
+
+		registry.answer("q_1", [["staging"], ["prod"]]);
+
+		expect(reply).toHaveBeenCalledExactlyOnceWith([["staging"], ["prod"]]);
+		expect(pushed).toEqual([
+			{
+				kind: "question",
+				answeredAnswers: [["staging"], ["prod"]],
+				questions: [],
+				requestId: "q_1",
+				title: "Answered",
+			},
+		]);
+		// The resolution event lands in the stream before the reply unblocks the
+		// agent, so it always precedes the turn's continuation events.
+		expect(order).toEqual(["event", "reply"]);
 	});
 });
 
@@ -143,6 +187,22 @@ describe("presentQuestion - answered on time (fail-closed + timeout contract)", 
 
 		expect(onAnswer).toHaveBeenCalledExactlyOnceWith([["staging"]]);
 		expect(onTimeout).not.toHaveBeenCalled();
+		// fix-question-replay: the on-time answer also persists a resolution
+		// event so a later replay reconstructs the answered state.
+		expect(pushed).toEqual([
+			{
+				...QUESTION_EVENT,
+				timeoutAt: APPROVAL_TIMEOUT_MS,
+				timeoutMs: APPROVAL_TIMEOUT_MS,
+			},
+			{
+				kind: "question",
+				answeredAnswers: [["staging"]],
+				questions: [],
+				requestId: "q_1",
+				title: "Answered",
+			},
+		]);
 	});
 });
 

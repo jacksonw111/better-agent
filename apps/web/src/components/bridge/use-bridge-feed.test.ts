@@ -213,6 +213,55 @@ describe("feedReducer approval resolution folding", () => {
 	});
 });
 
+// fix-question-replay: mirrors the approval resolution folding above — the
+// CLI persists a question RESOLUTION event (kind "question" + answeredAnswers)
+// right after the user answers, so a reload/replay reconstructs "answered with
+// these picks" without the relay's TTL'd commands window.
+describe("feedReducer question resolution folding", () => {
+	const questionReqRaw = (id: number, requestId: string) => ({
+		id,
+		data: {
+			kind: "question",
+			requestId,
+			title: "Need more info",
+			questions: [{ text: "Which env?", options: ["staging", "prod"] }],
+		},
+	});
+	const questionResolutionRaw = (
+		id: number,
+		requestId: string,
+		answers: string[][]
+	) => ({
+		id,
+		data: {
+			kind: "question",
+			answeredAnswers: answers,
+			questions: [],
+			requestId,
+			title: "Answered",
+		},
+	});
+
+	it("folds a replayed resolution event into the answeredQuestions map", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [
+				questionReqRaw(1, "q-1"),
+				questionResolutionRaw(2, "q-1", [["staging"]]),
+			],
+		});
+		expect(state.answeredQuestions).toEqual({ "q-1": [["staging"]] });
+	});
+
+	it("leaves the answeredQuestions map untouched for an ordinary question request", () => {
+		const state = feedReducer(initialFeedState, {
+			type: "events",
+			events: [questionReqRaw(1, "q-1")],
+		});
+		expect(state.answeredQuestions).toEqual({});
+	});
+});
+
 describe("feedReducer anti-leak (raw RPC envelope)", () => {
 	it("drops a wrapped oRPC {json:{ok:true}} envelope instead of rendering it", () => {
 		const state = feedReducer(initialFeedState, {

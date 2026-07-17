@@ -59,6 +59,10 @@ export interface QuestionBlockItem {
 export interface QuestionBlockData {
 	questions: QuestionBlockItem[];
 	requestId: string;
+	/** fix-question-replay: mirrors `ApprovalBlockData.timeoutAt` — drives the
+	 * question card's countdown bar and its neutral expired notice. */
+	timeoutAt?: number;
+	timeoutMs?: number;
 	title: string;
 }
 

@@ -42,6 +42,43 @@ export interface QuestionRegistry {
 	retractAll(): string[];
 }
 
+/** `answer()`'s implementation, pulled out of `createQuestionRegistry`'s
+ * returned object literal so that function stays under this file's
+ * max-lines-per-function lint gate — mirrors approvals.ts's `answerPending`. */
+function answerPendingQuestion(
+	pending: Map<string, PendingQuestion>,
+	events: { push(event: NormalizedEvent): void },
+	requestId: string,
+	answers: string[][]
+): void {
+	const entry = pending.get(requestId);
+	if (!entry) {
+		events.push({
+			kind: "status",
+			status: QUESTION_UNKNOWN_STATUS,
+			detail: { requestId },
+		});
+		return;
+	}
+	pending.delete(requestId);
+	clearTimeout(entry.timer);
+	// fix-question-replay: persist the fact this question WAS answered —
+	// mirrors approvals.ts's `answerPending`. The answer command itself
+	// only lives in the relay's TTL'd commands window, so this resolution
+	// event — pushed (and persisted to bridge_messages) like any other —
+	// is what lets a later reload/replay reconstruct the answered state.
+	// Pushed BEFORE the reply so it always precedes the turn's
+	// continuation events.
+	events.push({
+		kind: "question",
+		answeredAnswers: answers,
+		questions: [],
+		requestId,
+		title: "Answered",
+	});
+	entry.reply(answers);
+}
+
 export function createQuestionRegistry(events: {
 	push(event: NormalizedEvent): void;
 }): QuestionRegistry {
@@ -51,18 +88,7 @@ export function createQuestionRegistry(events: {
 			pending.set(requestId, { reply, timer });
 		},
 		answer(requestId, answers) {
-			const entry = pending.get(requestId);
-			if (!entry) {
-				events.push({
-					kind: "status",
-					status: QUESTION_UNKNOWN_STATUS,
-					detail: { requestId },
-				});
-				return;
-			}
-			pending.delete(requestId);
-			clearTimeout(entry.timer);
-			entry.reply(answers);
+			answerPendingQuestion(pending, events, requestId, answers);
 		},
 		clear() {
 			pending.clear();

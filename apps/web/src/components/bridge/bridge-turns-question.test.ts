@@ -78,6 +78,36 @@ it("leaves other open question blocks alone when a differently-id'd cancel arriv
 	).toBe(true);
 });
 
+// fix-question-replay: a resolution event (answeredAnswers set) is a
+// persistence marker for the answeredQuestions map (use-bridge-feed.ts), not a
+// fresh request — folding it must neither append a second card nor remove the
+// original one.
+it("a resolution event neither appends a new card nor removes the original", () => {
+	const turns = foldEventsToTurns([
+		ev(1, {
+			kind: "question",
+			questions: [{ text: "Which env?", options: ["staging", "prod"] }],
+			requestId: "q_1",
+			title: "Need more info",
+		}),
+		ev(2, {
+			kind: "question",
+			answeredAnswers: [["staging"]],
+			questions: [],
+			requestId: "q_1",
+			title: "Answered",
+		}),
+	]);
+	expect(turns).toHaveLength(1);
+	const turn = turns[0];
+	expect(turn.kind).toBe("assistant");
+	expect(
+		turn.kind === "assistant"
+			? turn.blocks.filter((block) => block.kind === "question").length
+			: 0
+	).toBe(1);
+});
+
 it("folds a question into the SAME assistant turn, not as a boundary", () => {
 	const turns = foldEventsToTurns([
 		ev(1, { kind: "output", text: "partial" }),

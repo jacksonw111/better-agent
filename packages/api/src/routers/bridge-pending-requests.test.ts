@@ -137,6 +137,35 @@ it("a question flows the same way: open until its answerQuestion command lands",
 	]);
 });
 
+it("a persisted question resolution event closes the request even when the answer command is gone from the relay window", async () => {
+	const { alice, cli, sessionId } = await setup();
+	// fix-question-replay: mirrors the approval resolution test above — no
+	// sendInput on purpose, only the CLI's persisted resolution event (kind
+	// "question" + answeredAnswers) can close the request.
+	await cli.bridge.pushEvents({
+		sessionId,
+		events: [
+			{
+				kind: "question",
+				requestId: "q-1",
+				title: "Pick one",
+				questions: [{ question: "which?", options: [{ label: "a" }] }],
+				timeoutAt: Date.now() + FIVE_MINUTES_MS,
+			},
+			{
+				kind: "question",
+				answeredAnswers: [["a"]],
+				questions: [],
+				requestId: "q-1",
+				title: "Answered",
+			},
+		],
+	});
+
+	const result = await alice.bridge.pendingRequests({ sessionId });
+	expect(result.pending).toEqual([]);
+});
+
 it("a request whose fail-closed timeout has passed is never replayed", async () => {
 	const { alice, cli, sessionId } = await setup();
 	await cli.bridge.pushEvents({

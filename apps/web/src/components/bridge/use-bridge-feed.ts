@@ -31,6 +31,10 @@ import {
 	type StatusSnapshotDetail,
 } from "./bridge-status-snapshot";
 import { mergeEvents } from "./event-feed";
+import {
+	nextAnsweredApprovals,
+	nextAnsweredQuestions,
+} from "./use-bridge-feed-answers";
 import { stripAckedEchoes } from "./use-bridge-feed-echoes";
 import {
 	applyPendingReplay,
@@ -167,29 +171,6 @@ function nextStatusDetails(
 	};
 }
 
-/** fix-approval-replay: folds approval RESOLUTION events (kind "approval" +
- * `answeredOptionId` — the CLI's persisted "this was answered with X" marker,
- * see apps/bridge-cli/src/adapters/approvals.ts) from the newly-merged tail
- * into the answered map, so a reload/replay reconstructs the answered state
- * without relying on the relay's TTL'd commands window. Returns the SAME
- * object when the batch carries none (the common case, allocation-free). */
-function nextAnsweredApprovals(
-	prev: Record<string, string>,
-	parsed: StreamEvent[]
-): Record<string, string> {
-	let answered = prev;
-	for (const { event } of parsed) {
-		if (event.kind !== "approval" || event.answeredOptionId === undefined) {
-			continue;
-		}
-		if (answered === prev) {
-			answered = { ...prev };
-		}
-		answered[event.requestId] = event.answeredOptionId;
-	}
-	return answered;
-}
-
 export type FeedAction =
 	| { type: "events"; events: RawBridgeEvent[] }
 	| { text: string; type: "localEcho" }
@@ -270,12 +251,19 @@ function mergeFeedEvents(
 	const result = mergeEvents(state.events, state.maxSeenId, rows);
 	const maxSeenId = Math.max(result.maxSeenId, droppedMaxId);
 	const details = nextStatusDetails(state, result.parsed);
+	// fix-approval-replay / fix-question-replay: fold the CLI's persisted
+	// resolution events into the answered maps — see use-bridge-feed-answers.ts.
 	const answered = nextAnsweredApprovals(state.answered, result.parsed);
+	const answeredQuestions = nextAnsweredQuestions(
+		state.answeredQuestions,
+		result.parsed
+	);
 	if (state.pendingEchoes === 0) {
 		return {
 			...state,
 			...details,
 			answered,
+			answeredQuestions,
 			events: result.events,
 			maxSeenId,
 			replayedPendingIds,
@@ -286,6 +274,7 @@ function mergeFeedEvents(
 		...state,
 		...details,
 		answered,
+		answeredQuestions,
 		events,
 		maxSeenId,
 		pendingEchoes: state.pendingEchoes - stripped,

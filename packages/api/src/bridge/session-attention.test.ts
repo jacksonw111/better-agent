@@ -77,6 +77,20 @@ it("a persisted resolution event clears the pending approval without a commands-
 	).toBe(null);
 });
 
+it("a persisted question resolution event clears the pending question without a commands-tail answer", () => {
+	// fix-question-replay: mirrors the approval resolution case above.
+	const resolution = {
+		kind: "question",
+		answeredAnswers: [["a"]],
+		questions: [],
+		requestId: "q-1",
+		title: "Answered",
+	};
+	expect(
+		deriveSessionAttention([ASSISTANT_MESSAGE, QUESTION, resolution], [])
+	).toBe(null);
+});
+
 it("an answer for a DIFFERENT requestId leaves the approval pending", () => {
 	const answer = { type: "approval", requestId: "other", optionId: "yes" };
 	expect(deriveSessionAttention([APPROVAL], [answer])).toBe("approval");

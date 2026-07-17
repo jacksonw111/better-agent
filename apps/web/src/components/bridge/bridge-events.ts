@@ -156,6 +156,14 @@ export interface QuestionItem {
  * `onAnswerApproval`. Mirrors the CLI's `QuestionEvent`.
  */
 export interface QuestionEvent extends TurnScoped {
+	/** fix-question-replay: set on the RESOLUTION event the CLI pushes (and
+	 * persists) the moment the user's answer resolves `requestId` — mirrors
+	 * the CLI's `QuestionEvent.answeredAnswers`
+	 * (`apps/bridge-cli/src/adapters/questions.ts`). The feed folds it into
+	 * the answeredQuestions map (use-bridge-feed.ts) so a reload/replay
+	 * renders the original card as answered; the turns fold never renders it
+	 * as a card of its own (bridge-turns-approval.ts). */
+	answeredAnswers?: string[][];
 	/** Mirrors `ApprovalEvent.cancelled` — set when a still-pending question is
 	 * retracted (interrupt/stop, or the CLI's fail-closed timeout) instead of
 	 * requesting a fresh answer. */
