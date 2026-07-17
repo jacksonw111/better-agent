@@ -135,7 +135,7 @@ it("degrade -> 30s tick -> exactly one connect attempt on recovery success, live
 		})
 	);
 
-	degradeToPolling(fake);
+	await degradeToPolling(fake);
 	expect(result.current.status).toBe("polling");
 
 	fake.connectCalls.length = 0;

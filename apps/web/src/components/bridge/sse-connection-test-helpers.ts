@@ -1,6 +1,7 @@
 import { act } from "@testing-library/react";
 import { vi } from "vitest";
 import type { BridgeTransport, ConnectStreamArgs } from "./bridge-transport";
+import { SSE_BACKOFF_MAX_MS } from "./use-sse-connection";
 
 /** Shared fixtures for use-sse-connection.test.ts and
  * use-bridge-connection-effects.test.ts — split out so neither trips the
@@ -29,14 +30,20 @@ export function makeConnectTransport() {
 
 /** Degrades a fresh `useSseConnection` instance to polling by failing
  * MAX_SSE_FAILURES (3) connect attempts in a row — the same path a real
- * dropped connection takes. Leaves exactly 3 connect calls behind. */
-export function degradeToPolling(
+ * dropped connection takes. Each failure's exponential-backoff reconnect is
+ * flushed by advancing fake timers past the backoff cap, so this leaves
+ * exactly 3 connect calls behind (the initial one + 2 backoff reconnects).
+ * Requires `vi.useFakeTimers()` to be active. */
+export async function degradeToPolling(
 	fake: ReturnType<typeof makeConnectTransport>
-) {
+): Promise<void> {
 	const failuresToDegrade = 3;
 	for (let i = 0; i < failuresToDegrade; i++) {
 		act(() => {
 			fake.current()?.onError();
+		});
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(SSE_BACKOFF_MAX_MS);
 		});
 	}
 }

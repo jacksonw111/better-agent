@@ -21,7 +21,17 @@ export const initialConnectionState: ConnectionState = {
 
 export type ConnectionAction =
 	| { type: "open" }
-	| { type: "error" }
+	| {
+			type: "error";
+			/** True when the connection that just dropped had been alive past the
+			 * caller's stability window (SSE_STABLE_RESET_MS, use-sse-connection.ts)
+			 * — only then does the failure streak restart at 1. An `open` alone no
+			 * longer clears the count: a server that accepts the connection and
+			 * drops it a moment later used to reset the streak on every flap,
+			 * keeping the client in a tight open-then-close reconnect loop forever
+			 * instead of ever degrading to polling. */
+			wasStable?: boolean;
+	  }
 	| { type: "polled" }
 	| { type: "reset" };
 
@@ -31,11 +41,12 @@ export function connectionReducer(
 ): ConnectionState {
 	switch (action.type) {
 		case "open":
-			return { status: "live", failureCount: 0, everConnected: true };
+			return { ...state, status: "live", everConnected: true };
 		case "polled":
 			return { ...state, everConnected: true };
 		case "error": {
-			const failureCount = state.failureCount + 1;
+			const previousFailures = action.wasStable ? 0 : state.failureCount;
+			const failureCount = previousFailures + 1;
 			const status =
 				failureCount >= MAX_SSE_FAILURES ? "polling" : "connecting";
 			return { ...state, status, failureCount };

@@ -134,18 +134,81 @@ function attachSkeletonTurnId(turns: BridgeTurn[]): number | null {
  * assistant turn as blocks (see bridge-turns-approval.ts). */
 const SIDE_TURN_KINDS = new Set(["status", "error", "file", "task", "plan"]);
 
-/** The scrolling conversation: bridge turns rendered as chat bubbles/lines. */
-export function TerminalFeed({
-	answerApproval,
-	answered,
-	answerQuestion,
-	answeredQuestions,
-	avatars,
-	ended,
-	leading,
-	turnInFlight,
-	turns,
-}: TerminalFeedProps) {
+/** How many trailing turns stay mounted (windowing): an agent can produce
+ * thousands of turns in one session, and mounting every one is what made the
+ * /tasks chat tab's memory grow linearly with agent output until the browser
+ * killed it ("Aw, Snap"). Earlier turns hide behind `ShowEarlierItem`, which
+ * reveals one more window per click. */
+export const FEED_WINDOW_SIZE = 60;
+
+/** The expand control for the turns hidden above the window — rendered as the
+ * feed's first item so the scroller's anchoring observers see it like any
+ * other row. */
+function ShowEarlierItem({
+	hiddenCount,
+	onExpand,
+}: {
+	hiddenCount: number;
+	onExpand: () => void;
+}) {
+	return (
+		<MessageScrollerItem>
+			<div className="flex justify-center py-1">
+				<button
+					className="rounded-full bg-muted px-4 py-1.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/80 hover:text-foreground"
+					onClick={onExpand}
+					type="button"
+				>
+					Show earlier messages（还有 {hiddenCount} 条）
+				</button>
+			</div>
+		</MessageScrollerItem>
+	);
+}
+
+/** The windowed turn list (everything between the expand control and the
+ * skeleton) — split out of `TerminalFeed` to keep it under the repo's
+ * max-lines-per-function gate. */
+function FeedTurnItems({
+	attachToId,
+	visibleTurns,
+	...props
+}: Omit<TerminalFeedProps, "leading" | "turns"> & {
+	attachToId: number | null;
+	visibleTurns: BridgeTurn[];
+}) {
+	return visibleTurns.map((turn, index) => {
+		// A spine turn attaches up to the previous item, cancelling the feed's
+		// `gap-6`, so its `border-l` spine meets the preceding turn's spine
+		// instead of leaving a line-breaking gap. Skipped for the first VISIBLE
+		// item (nothing above to meet — or only the expand control, which it
+		// must not overlap).
+		const attachUp =
+			index > 0 && SIDE_TURN_KINDS.has(turn.kind) ? "-mt-6" : undefined;
+		return (
+			<MessageScrollerItem className={attachUp} key={turn.id}>
+				<BridgeChatRow
+					answered={props.answered}
+					answeredQuestions={props.answeredQuestions}
+					attachSkeleton={props.turnInFlight && turn.id === attachToId}
+					avatars={props.avatars}
+					ended={props.ended}
+					onAnswerApproval={props.answerApproval}
+					onAnswerQuestion={props.answerQuestion}
+					turn={turn}
+				/>
+			</MessageScrollerItem>
+		);
+	});
+}
+
+/** The scrolling conversation: bridge turns rendered as chat bubbles/lines.
+ * Only the trailing `FEED_WINDOW_SIZE` turns mount — see `ShowEarlierItem`. */
+export function TerminalFeed(props: TerminalFeedProps) {
+	const { leading, turnInFlight, turns } = props;
+	const [windowSize, setWindowSize] = useState(FEED_WINDOW_SIZE);
+	const hiddenCount = Math.max(turns.length - windowSize, 0);
+	const visibleTurns = hiddenCount > 0 ? turns.slice(hiddenCount) : turns;
 	// The floating avatar skeleton covers pure waiting (before any assistant
 	// message exists) and a turn that's only a running tool; see
 	// `attachSkeletonTurnId` for when it attaches to a message instead.
@@ -158,32 +221,23 @@ export function TerminalFeed({
 				<MessageScrollerViewport>
 					<MessageScrollerContent className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-4">
 						{leading && <MessageScrollerItem>{leading}</MessageScrollerItem>}
-						{turns.length === 0 && !turnInFlight
-							? !leading && <EmptyTerminal />
-							: turns.map((turn, index) => {
-									// A spine turn attaches up to the previous item, cancelling
-									// the feed's `gap-6`, so its `border-l` spine meets the
-									// preceding turn's spine instead of leaving a line-breaking
-									// gap. Skipped for the first item (nothing above to meet).
-									const attachUp =
-										index > 0 && SIDE_TURN_KINDS.has(turn.kind)
-											? "-mt-6"
-											: undefined;
-									return (
-										<MessageScrollerItem className={attachUp} key={turn.id}>
-											<BridgeChatRow
-												answered={answered}
-												answeredQuestions={answeredQuestions}
-												attachSkeleton={turnInFlight && turn.id === attachToId}
-												avatars={avatars}
-												ended={ended}
-												onAnswerApproval={answerApproval}
-												onAnswerQuestion={answerQuestion}
-												turn={turn}
-											/>
-										</MessageScrollerItem>
-									);
-								})}
+						{hiddenCount > 0 && (
+							<ShowEarlierItem
+								hiddenCount={hiddenCount}
+								onExpand={() =>
+									setWindowSize((size) => size + FEED_WINDOW_SIZE)
+								}
+							/>
+						)}
+						{turns.length === 0 && !turnInFlight ? (
+							!leading && <EmptyTerminal />
+						) : (
+							<FeedTurnItems
+								{...props}
+								attachToId={attachToId}
+								visibleTurns={visibleTurns}
+							/>
+						)}
 						{showFloatingSkeleton && <WorkingSkeleton />}
 					</MessageScrollerContent>
 				</MessageScrollerViewport>

@@ -53,21 +53,28 @@ export function TaskChat({
 	userAvatarUrl: string | undefined;
 }) {
 	const transport = useMemo(() => createBridgeTransport(), []);
-	const opening = (
-		<OpeningMessageRow avatarUrl={userAvatarUrl} text={openingMessage} />
+	// Memoized identities: this component re-renders on every poll of the task
+	// query, and a fresh element/row object per render would churn the
+	// terminal's scroll observers and memoized subtree for nothing.
+	const opening = useMemo(
+		() => <OpeningMessageRow avatarUrl={userAvatarUrl} text={openingMessage} />,
+		[openingMessage, userAvatarUrl]
 	);
 	const session = run?.session ?? null;
-	if (!(run && session)) {
+	// tasks.get returns the stored session row; the terminal's row type also
+	// carries listSessions' derived attention hint, which the task page doesn't
+	// compute — null means "no signal", the same as an ineligible session.
+	const sessionRow: BridgeSessionRow | null = useMemo(
+		() => (session ? { ...session, attention: null } : null),
+		[session]
+	);
+	if (!(run && sessionRow)) {
 		return (
 			<div className="flex min-h-0 flex-1 flex-col" data-testid="task-chat">
 				<OpeningOnly>{opening}</OpeningOnly>
 			</div>
 		);
 	}
-	// tasks.get returns the stored session row; the terminal's row type also
-	// carries listSessions' derived attention hint, which the task page doesn't
-	// compute — null means "no signal", the same as an ineligible session.
-	const sessionRow: BridgeSessionRow = { ...session, attention: null };
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="task-chat">
 			<Terminal

@@ -14,6 +14,18 @@ import type { FeedAction } from "./use-bridge-feed";
 // polling (see `runConnectionLoop`) — failures here never accumulate toward
 // MAX_SSE_FAILURES (terminal-connection.ts), so it just retries forever.
 const SSE_RECOVERY_INTERVAL_MS = 30_000;
+// Exponential backoff between reconnect attempts while still below
+// MAX_SSE_FAILURES: base × 2^(failures-1), capped. Reconnecting with zero
+// delay hammered an unreachable/flapping server in a tight loop — one of the
+// feedback loops behind the /tasks chat tab's OOM crash.
+export const SSE_BACKOFF_BASE_MS = 250;
+export const SSE_BACKOFF_MAX_MS = 5000;
+// A connection must stay alive this long before its eventual drop resets the
+// failure streak (`wasStable` on the error action, terminal-connection.ts).
+// Resetting on `open` alone meant an open-then-instant-close flap never
+// accumulated failures, so the degrade-to-polling path was unreachable.
+export const SSE_STABLE_RESET_MS = 3000;
+const BACKOFF_FACTOR = 2;
 // Stable sonner id: a recovery attempt succeeding on a later render updates
 // the existing toast in place instead of stacking a duplicate.
 const RECOVERED_TOAST_ID = "bridge-connection-recovered";
@@ -48,6 +60,13 @@ type SseLoopArgs = Omit<SseConnectionArgs, "enabled">;
 interface SseLoopState {
 	cancelled: boolean;
 	conn: ConnectionState;
+	/** When the current connection opened (ms epoch) — undefined while down.
+	 * Read on error to decide whether the drop ends a STABLE connection (uptime
+	 * past SSE_STABLE_RESET_MS ⇒ the failure streak restarts) or is one more
+	 * flap in a streak. */
+	openedAt: number | undefined;
+	/** Pending backoff reconnect (below the degrade threshold). */
+	reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	recoveryTimer: ReturnType<typeof setInterval> | undefined;
 	unsubscribe: (() => void) | undefined;
 }
@@ -56,6 +75,13 @@ function stopRecoveryTimer(loop: SseLoopState): void {
 	if (loop.recoveryTimer !== undefined) {
 		clearInterval(loop.recoveryTimer);
 		loop.recoveryTimer = undefined;
+	}
+}
+
+function stopReconnectTimer(loop: SseLoopState): void {
+	if (loop.reconnectTimer !== undefined) {
+		clearTimeout(loop.reconnectTimer);
+		loop.reconnectTimer = undefined;
 	}
 }
 
@@ -81,6 +107,7 @@ function handleOpen(
 	}
 	const wasDegraded = loop.conn.status === "polling";
 	loop.conn = connectionReducer(loop.conn, { type: "open" });
+	loop.openedAt = Date.now();
 	stopRecoveryTimer(loop);
 	if (wasDegraded) {
 		toast.success(RECOVERED_TOAST_MESSAGE, { id: RECOVERED_TOAST_ID });
@@ -88,13 +115,29 @@ function handleOpen(
 	dispatchConn({ type: "open" });
 }
 
+/** Schedules the next reconnect after an exponential backoff sized by the
+ * CURRENT failure streak: base × 2^(failures-1), capped at the max. */
+function scheduleReconnect(loop: SseLoopState, args: SseLoopArgs): void {
+	const exponent = Math.max(loop.conn.failureCount - 1, 0);
+	const delayMs = Math.min(
+		SSE_BACKOFF_BASE_MS * BACKOFF_FACTOR ** exponent,
+		SSE_BACKOFF_MAX_MS
+	);
+	loop.reconnectTimer = setTimeout(() => {
+		loop.reconnectTimer = undefined;
+		attemptConnect(loop, args);
+	}, delayMs);
+}
+
 /** A failed `connectStream` attempt: while still above the degrade threshold
- * this reconnects immediately (matching the pre-R0-T3 behavior for a normal
- * drop/retry); once it crosses MAX_SSE_FAILURES it switches to the
- * `SSE_RECOVERY_INTERVAL_MS` cadence instead. A failure that happens WHILE
- * already degraded is a recovery attempt, not a fresh failure — it must not
- * dispatch `error` (no failure-count accumulation, see terminal-connection.ts)
- * and just waits for the next timer tick. */
+ * this reconnects after an exponential backoff (`scheduleReconnect`); once it
+ * crosses MAX_SSE_FAILURES it switches to the `SSE_RECOVERY_INTERVAL_MS`
+ * cadence instead. A failure that happens WHILE already degraded is a
+ * recovery attempt, not a fresh failure — it must not dispatch `error` (no
+ * failure-count accumulation, see terminal-connection.ts) and just waits for
+ * the next timer tick. `wasStable` (uptime past SSE_STABLE_RESET_MS) is what
+ * restarts the streak — an `open` alone no longer does, so open-then-close
+ * flapping accumulates to the polling degrade instead of looping forever. */
 function handleError(loop: SseLoopState, args: SseLoopArgs): void {
 	if (loop.cancelled) {
 		return;
@@ -102,13 +145,23 @@ function handleError(loop: SseLoopState, args: SseLoopArgs): void {
 	if (loop.conn.status === "polling") {
 		return;
 	}
-	loop.conn = connectionReducer(loop.conn, { type: "error" });
-	args.dispatchConn({ type: "error" });
+	if (loop.reconnectTimer !== undefined) {
+		// Late noise from a connection already given up on — the pending
+		// reconnect (and its streak accounting) already covers it.
+		return;
+	}
+	const wasStable =
+		loop.openedAt !== undefined &&
+		Date.now() - loop.openedAt >= SSE_STABLE_RESET_MS;
+	loop.openedAt = undefined;
+	const action = { type: "error", wasStable } as const;
+	loop.conn = connectionReducer(loop.conn, action);
+	args.dispatchConn(action);
 	if (loop.conn.status === "polling") {
 		startRecoveryTimer(loop, args);
 		return;
 	}
-	attemptConnect(loop, args);
+	scheduleReconnect(loop, args);
 }
 
 /** One `connectStream` call, wired to fold its outcome into the loop's local
@@ -133,7 +186,7 @@ function attemptConnect(loop: SseLoopState, args: SseLoopArgs): void {
 }
 
 /** Owns one full connection lifecycle for a given (session, enabled) pair:
- * connects immediately, reconnects immediately on failure below
+ * connects immediately, reconnects on an exponential backoff below
  * MAX_SSE_FAILURES, then — once degraded — keeps retrying the exact same
  * connect every `SSE_RECOVERY_INTERVAL_MS` until one succeeds, all from a
  * single owner. State is tracked in a local `SseLoopState` shadow rather than
@@ -148,6 +201,8 @@ function runConnectionLoop(args: SseLoopArgs): () => void {
 	const loop: SseLoopState = {
 		cancelled: false,
 		conn: initialConnectionState,
+		openedAt: undefined,
+		reconnectTimer: undefined,
 		recoveryTimer: undefined,
 		unsubscribe: undefined,
 	};
@@ -155,6 +210,7 @@ function runConnectionLoop(args: SseLoopArgs): () => void {
 	return () => {
 		loop.cancelled = true;
 		loop.unsubscribe?.();
+		stopReconnectTimer(loop);
 		stopRecoveryTimer(loop);
 	};
 }

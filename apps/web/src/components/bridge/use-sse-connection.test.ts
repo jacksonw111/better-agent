@@ -6,7 +6,13 @@ import {
 	makeConnectTransport,
 	RECOVERY_INTERVAL_MS,
 } from "./sse-connection-test-helpers";
-import { type SseConnectionArgs, useSseConnection } from "./use-sse-connection";
+import {
+	SSE_BACKOFF_BASE_MS,
+	SSE_BACKOFF_MAX_MS,
+	SSE_STABLE_RESET_MS,
+	type SseConnectionArgs,
+	useSseConnection,
+} from "./use-sse-connection";
 
 // R0-T3: `useSseConnection` now owns its own recovery — while degraded to
 // polling it retries its normal connect every 30s itself, and a successful
@@ -53,17 +59,49 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-it("reconnects immediately below MAX_SSE_FAILURES, then switches to a 30s recovery cadence once degraded", async () => {
-	const { fake, maxSeenIdRef } = renderSseConnection();
+it("waits an exponential backoff before each reconnect below MAX_SSE_FAILURES", async () => {
+	const { fake } = renderSseConnection();
 	expect(fake.connectCalls.length).toBe(1);
 
-	degradeToPolling(fake);
-	// 3 immediate reconnects (initial + 2 retries) land exactly at the
-	// degrade threshold — no 4th attempt fires until the recovery timer ticks.
+	// First failure: no immediate reconnect — only after the base backoff.
+	act(() => {
+		fake.current()?.onError();
+	});
+	expect(fake.connectCalls.length).toBe(1);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(SSE_BACKOFF_BASE_MS - 1);
+	});
+	expect(fake.connectCalls.length).toBe(1);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(1);
+	});
+	expect(fake.connectCalls.length).toBe(2);
+
+	// Second consecutive failure: the wait doubles.
+	act(() => {
+		fake.current()?.onError();
+	});
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(SSE_BACKOFF_BASE_MS);
+	});
+	expect(fake.connectCalls.length).toBe(2);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(SSE_BACKOFF_BASE_MS);
+	});
+	expect(fake.connectCalls.length).toBe(3);
+});
+
+it("switches from backoff reconnects to the 30s recovery cadence once degraded", async () => {
+	const { fake, maxSeenIdRef } = renderSseConnection();
+	await degradeToPolling(fake);
+	// 3 attempts (initial + 2 backoff retries) land exactly at the degrade
+	// threshold — no 4th attempt fires until the recovery timer ticks.
 	expect(fake.connectCalls.length).toBe(3);
 
 	await act(async () => {
-		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS - 1);
+		await vi.advanceTimersByTimeAsync(
+			RECOVERY_INTERVAL_MS - SSE_BACKOFF_MAX_MS - 1
+		);
 	});
 	expect(fake.connectCalls.length).toBe(3);
 
@@ -72,6 +110,74 @@ it("reconnects immediately below MAX_SSE_FAILURES, then switches to a 30s recove
 	});
 	expect(fake.connectCalls.length).toBe(4);
 	expect(fake.connectCalls[3].afterId).toBe(maxSeenIdRef.current);
+});
+
+it("still degrades when every open dies within the stability window (open-then-close flapping)", async () => {
+	const { fake } = renderSseConnection();
+	for (let i = 0; i < 3; i++) {
+		act(() => {
+			fake.current()?.onOpen();
+		});
+		act(() => {
+			fake.current()?.onError();
+		});
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(SSE_BACKOFF_MAX_MS);
+		});
+	}
+	// The flapping opens never reset the failure streak, so the third quick
+	// drop degrades: no backoff reconnect, only the 30s recovery cadence.
+	expect(fake.connectCalls.length).toBe(3);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
+	});
+	expect(fake.connectCalls.length).toBe(4);
+});
+
+it("resets the failure streak only after a connection survives the stability window", async () => {
+	const { dispatchConn, fake } = renderSseConnection();
+	// Two quick failures put the streak one short of degrading.
+	for (let i = 0; i < 2; i++) {
+		act(() => {
+			fake.current()?.onError();
+		});
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(SSE_BACKOFF_MAX_MS);
+		});
+	}
+	expect(fake.connectCalls.length).toBe(3);
+
+	// This attempt opens and stays alive past the stability window, THEN drops.
+	act(() => {
+		fake.current()?.onOpen();
+	});
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(SSE_STABLE_RESET_MS);
+	});
+	act(() => {
+		fake.current()?.onError();
+	});
+	expect(dispatchConn).toHaveBeenCalledWith({ type: "error", wasStable: true });
+
+	// A degraded loop would sit silent until the 30s recovery tick; the reset
+	// streak reconnects on the base backoff instead.
+	expect(fake.connectCalls.length).toBe(3);
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(SSE_BACKOFF_BASE_MS);
+	});
+	expect(fake.connectCalls.length).toBe(4);
+});
+
+it("clears a pending backoff reconnect on unmount", async () => {
+	const { fake, unmount } = renderSseConnection();
+	act(() => {
+		fake.current()?.onError();
+	});
+	unmount();
+	await act(async () => {
+		await vi.advanceTimersByTimeAsync(SSE_BACKOFF_MAX_MS);
+	});
+	expect(fake.connectCalls.length).toBe(1);
 });
 
 it("shows the recovery toast only once actually degraded, never on the initial connect", async () => {
@@ -86,7 +192,7 @@ it("shows the recovery toast only once actually degraded, never on the initial c
 
 	// Degrading again (3 more failures from live) reaches polling, then a
 	// successful recovery retry is the only time the toast should fire.
-	degradeToPolling(fake);
+	await degradeToPolling(fake);
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
 	});
@@ -103,7 +209,7 @@ it("shows the recovery toast only once actually degraded, never on the initial c
 
 it("a failed recovery attempt keeps retrying every 30s, without dispatching a failure", async () => {
 	const { dispatchConn, fake } = renderSseConnection();
-	degradeToPolling(fake);
+	await degradeToPolling(fake);
 	dispatchConn.mockClear();
 
 	await act(async () => {
@@ -114,7 +220,7 @@ it("a failed recovery attempt keeps retrying every 30s, without dispatching a fa
 	act(() => {
 		fake.current()?.onError();
 	});
-	expect(dispatchConn).not.toHaveBeenCalledWith({ type: "error" });
+	expect(dispatchConn).not.toHaveBeenCalled();
 
 	await act(async () => {
 		await vi.advanceTimersByTimeAsync(RECOVERY_INTERVAL_MS);
@@ -124,7 +230,7 @@ it("a failed recovery attempt keeps retrying every 30s, without dispatching a fa
 
 it("resumes the recovered connection from the cursor advanced since degrading", async () => {
 	const { fake, maxSeenIdRef } = renderSseConnection();
-	degradeToPolling(fake);
+	await degradeToPolling(fake);
 
 	maxSeenIdRef.current = 42;
 	await act(async () => {
@@ -142,7 +248,7 @@ it("never attempts to connect once disabled, e.g. an ended session", () => {
 
 it("tears down the in-flight connection and clears the recovery timer on unmount", async () => {
 	const { fake, unmount } = renderSseConnection();
-	degradeToPolling(fake);
+	await degradeToPolling(fake);
 	fake.connectCalls.length = 0;
 
 	unmount();

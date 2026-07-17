@@ -193,9 +193,18 @@ it("degrades to polling after MAX_SSE_FAILURES consecutive stream errors", async
 	await waitForConnect(fake);
 
 	for (let i = 0; i < MAX_SSE_FAILURES; i++) {
+		const attemptsBefore = fake.connectCalls.length;
 		await act(() => {
 			fake.current()?.onError();
 		});
+		if (i < MAX_SSE_FAILURES - 1) {
+			// Reconnects are no longer immediate — each failure waits out an
+			// exponential backoff (real timers here, so just wait for it).
+			await waitFor(
+				() => expect(fake.connectCalls.length).toBe(attemptsBefore + 1),
+				{ timeout: 3000 }
+			);
+		}
 	}
 
 	await waitFor(() => {
