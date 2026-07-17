@@ -1,8 +1,6 @@
-import { Button } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { PanelLeftIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
@@ -28,6 +26,11 @@ import {
 	WorkspaceSidebarSkeleton,
 } from "./local-agent-workspace-sidebar";
 import { SessionWorkspacePane } from "./session-workspace-pane";
+import {
+	MobileSidebarDrawer,
+	SidebarDrawerToggle,
+	useSidebarDrawer,
+} from "./workspace-drawer";
 
 // P2-T2 (docs/local-agent-workspace-plan.md): the /local/$tokenId two-pane
 // workspace — session sidebar (left, route-local) + multi-tab content pane
@@ -35,39 +38,6 @@ import { SessionWorkspacePane } from "./session-workspace-pane";
 // Conversation page can reuse it). Session selection is URL-driven
 // (`?session=`): the route passes it down and turns sidebar clicks into
 // `navigate({ search })`.
-
-/** <md: the sidebar collapses into this overlay drawer, toggled from the
- * content pane's header. A plain fixed panel (the ui package has no Sheet);
- * the backdrop is a real button so it closes by tap or keyboard. `w-4/5
- * max-w-72` keeps a tappable backdrop sliver even at 320px, and
- * `pb-safe-bottom` clears the home indicator under the sidebar's bottom
- * toggle (the workspace route is immersive, so no dock reserves that space). */
-function MobileSessionDrawer({
-	children,
-	onClose,
-	open,
-}: {
-	children: ReactNode;
-	onClose: () => void;
-	open: boolean;
-}) {
-	if (!open) {
-		return null;
-	}
-	return (
-		<div className="fixed inset-0 z-50 md:hidden">
-			<button
-				aria-label="Close session list"
-				className="absolute inset-0 bg-black/40"
-				onClick={onClose}
-				type="button"
-			/>
-			<div className="absolute inset-y-0 left-0 flex w-4/5 max-w-72 flex-col bg-background pb-safe-bottom shadow-lg">
-				{children}
-			</div>
-		</div>
-	);
-}
 
 /** The chat tab's content: the selected session's terminal, or the
  * waiting-for-CLI guide when this token has no session yet. Rendered into
@@ -113,39 +83,10 @@ function WorkspaceSkeleton() {
 	);
 }
 
-/** The <md header button that opens the session drawer — the workspace's
- * `headerStart` slot content, split out for the max-lines-per-function gate. */
-function DrawerToggle({ onOpen }: { onOpen: () => void }) {
-	return (
-		<Button
-			aria-label="Show sessions"
-			className="md:hidden"
-			onClick={onOpen}
-			size="icon-sm"
-			variant="ghost"
-		>
-			<PanelLeftIcon className="size-4" />
-		</Button>
-	);
-}
-
-/** The <md drawer's open/close/select-and-close trio, packaged to keep
- * `WorkspaceLayout` under the max-lines-per-function gate. */
-function useDrawer(onSelectSession: (sessionId: string) => void) {
-	const [open, setOpen] = useState(false);
-	return {
-		close: () => setOpen(false),
-		open,
-		select: (sessionId: string) => {
-			onSelectSession(sessionId);
-			setOpen(false);
-		},
-		show: () => setOpen(true),
-	};
-}
-
 /** The assembled two-pane layout — the token-bound parts (sidebar, drawer,
- * settings command bridge) around the extracted session-level pane. */
+ * settings command bridge) around the extracted session-level pane. The <md
+ * drawer pattern (overlay + toggle + state trio) is shared with the task
+ * page's run sidebar — see workspace-drawer.tsx. */
 function WorkspaceLayout({
 	activeSession,
 	entry,
@@ -159,7 +100,7 @@ function WorkspaceLayout({
 	sidebar: (onSelect: (sessionId: string) => void) => ReactNode;
 	userAvatarUrl: string | undefined;
 }) {
-	const drawer = useDrawer(onSelectSession);
+	const drawer = useSidebarDrawer(onSelectSession);
 	return (
 		<div className="flex min-h-0 flex-1">
 			<aside className="hidden w-64 shrink-0 flex-col bg-muted/30 md:flex">
@@ -181,11 +122,17 @@ function WorkspaceLayout({
 						tab={tab}
 					/>
 				)}
-				headerStart={<DrawerToggle onOpen={drawer.show} />}
+				headerStart={
+					<SidebarDrawerToggle label="Show sessions" onOpen={drawer.show} />
+				}
 			/>
-			<MobileSessionDrawer onClose={drawer.close} open={drawer.open}>
+			<MobileSidebarDrawer
+				closeLabel="Close session list"
+				onClose={drawer.close}
+				open={drawer.open}
+			>
 				{sidebar(drawer.select)}
-			</MobileSessionDrawer>
+			</MobileSidebarDrawer>
 		</div>
 	);
 }

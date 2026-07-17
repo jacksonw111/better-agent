@@ -79,6 +79,8 @@ export function TaskChat({
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="task-chat">
 			<Terminal
 				composerLock={composerLockFor(run.status)}
+				hidePastConversations
+				hideStatusButton
 				key={sessionRow.id}
 				leading={opening}
 				session={sessionRow}

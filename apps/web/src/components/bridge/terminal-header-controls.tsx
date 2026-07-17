@@ -26,6 +26,13 @@ export interface TerminalHeaderActionsProps {
 	ending: boolean;
 	/** Requests a fresh `status_snapshot` — wired to the Status button. */
 	getStatus: () => Promise<void>;
+	/** S3 task page: hides the Past conversations trigger even when the agent's
+	 * capability matrix supports it (the run sidebar covers history there).
+	 * Never set on /local. */
+	hidePastConversations?: boolean;
+	/** S3 task page: hides the Status popover trigger (same gating shape as
+	 * `hidePastConversations`). Never set on /local. */
+	hideStatusButton?: boolean;
 	listSessions: () => void;
 	onEnd?: () => void;
 	onSelectSession?: (sessionId: string) => void;
@@ -169,11 +176,15 @@ export function SessionControls({
 	);
 }
 
-/** The two on-demand data popovers, each gated on its own capability. */
+/** The two on-demand data popovers, each gated on its own capability — and,
+ * for the task page, on the host's `hide*` props (see
+ * `TerminalHeaderActionsProps`); the context mini-bar stays either way. */
 export function SessionDataActions({
 	canSend,
 	caps,
 	getStatus,
+	hidePastConversations,
+	hideStatusButton,
 	listSessions,
 	sessionList,
 	statusSnapshot,
@@ -182,6 +193,8 @@ export function SessionDataActions({
 	canSend: boolean;
 	caps: AgentCapabilities;
 	getStatus: () => Promise<void>;
+	hidePastConversations?: boolean;
+	hideStatusButton?: boolean;
 	listSessions: () => void;
 	sessionList: SessionListDetail | null;
 	statusSnapshot: StatusSnapshotDetail | null;
@@ -190,7 +203,7 @@ export function SessionDataActions({
 	const contextPct = deriveContextPct(usageUpdate, statusSnapshot);
 	return (
 		<>
-			{caps.sessionList && (
+			{caps.sessionList && !hidePastConversations && (
 				<PastConversations
 					disabled={!canSend}
 					onRequestList={listSessions}
@@ -200,10 +213,12 @@ export function SessionDataActions({
 			{caps.contextUsage && (
 				<>
 					{contextPct !== null && <ContextMiniBar pct={contextPct} />}
-					<StatusSnapshotPanel
-						detail={statusSnapshot}
-						onRequestStatus={getStatus}
-					/>
+					{!hideStatusButton && (
+						<StatusSnapshotPanel
+							detail={statusSnapshot}
+							onRequestStatus={getStatus}
+						/>
+					)}
 				</>
 			)}
 		</>

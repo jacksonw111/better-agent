@@ -115,10 +115,11 @@ it("shows only the opening message while the run has no session — no fabricate
 	await waitFor(() => {
 		expect(view.getByText(OPENING_PATTERN)).toBeDefined();
 	});
-	// The run status appears as a chip OUTSIDE the chat area, never inside it.
+	// The run status appears as chips OUTSIDE the chat area (header + run
+	// sidebar), never inside it.
 	const chat = container.querySelector('[data-testid="task-chat"]');
 	expect(chat).not.toBeNull();
-	expect(view.getByText("Launching")).toBeDefined();
+	expect(view.getAllByText("Launching").length).toBeGreaterThan(0);
 	expect(chat?.textContent).not.toContain("Launching");
 	// No terminal mounted, no working skeleton, no empty-state prompt.
 	expect(store.connectedSessionIds).toEqual([]);
@@ -126,7 +127,7 @@ it("shows only the opening message while the run has no session — no fabricate
 	expect(view.queryByText(SEND_TO_BEGIN_PATTERN)).toBeNull();
 });
 
-it("names the run's workspace in the header — kind, path and a copy affordance", async () => {
+it("shows no workspace strip in the header — path context stays in the Files/Shell/Git panes", async () => {
 	store.detail = makeTaskDetail({
 		runs: [
 			makeTaskRun({
@@ -139,12 +140,26 @@ it("names the run's workspace in the header — kind, path and a copy affordance
 	const { view } = renderTaskConversation(TaskConversation);
 
 	await waitFor(() => {
-		expect(view.getByText("Managed task directory")).toBeDefined();
+		expect(view.getByText(OPENING_PATTERN)).toBeDefined();
 	});
-	expect(view.getByText("/home/u/.better-agent/tasks/task-1")).toBeDefined();
+	expect(view.queryByText("Managed task directory")).toBeNull();
+	expect(view.queryByText("/home/u/.better-agent/tasks/task-1")).toBeNull();
 	expect(
-		view.getByRole("button", { name: "Copy workspace path" })
-	).toBeDefined();
+		view.queryByRole("button", { name: "Copy workspace path" })
+	).toBeNull();
+});
+
+it("keeps Past conversations and Status out of the task page's session header", async () => {
+	store.detail = detailWithBoundSession();
+	const { view } = renderTaskConversation(TaskConversation);
+
+	// The terminal is mounted on the run's session (claude-code's capability
+	// matrix would show BOTH triggers on /local) — the task page gates them off.
+	await waitFor(() => {
+		expect(store.connectedSessionIds).toContain("session-1");
+	});
+	expect(view.queryByRole("button", { name: "Past conversations" })).toBeNull();
+	expect(view.queryByRole("button", { name: "Status" })).toBeNull();
 });
 
 it("locks the composer with an explanation when the run is not running or waiting", async () => {

@@ -1,6 +1,6 @@
 import { Badge } from "@better-agent/ui/components/badge";
 import { cn } from "@better-agent/ui/lib/utils";
-import { BotIcon, FolderIcon, ServerIcon, ShieldIcon } from "lucide-react";
+import { FolderIcon, ServerIcon } from "lucide-react";
 import type { SessionReadyDetail } from "./bridge-session-status";
 import { truncateCwd } from "./bridge-usage-format";
 
@@ -69,12 +69,14 @@ export interface SessionStatusHeaderProps {
 }
 
 /**
- * Compact capability header for a Local Agent session: model, permission
- * mode, cwd, tool/command/skill counts, and one status-dotted badge per MCP
- * server. Sourced from the curated `session_ready` status event (see
- * bridge-session-status.ts) — never rendered as a chat row, this is the
- * dedicated metadata surface for it. Wraps freely so it stays readable on
- * narrow viewports.
+ * Compact capability header for a Local Agent session: cwd, tool/command/
+ * skill counts, and one status-dotted badge per MCP server. Model and
+ * permission mode deliberately do NOT render here — the composer's control
+ * menus (terminal-controls.tsx) are their one home, so the header can't show
+ * a stale duplicate of what the selectors already display. Sourced from the
+ * curated `session_ready` status event (see bridge-session-status.ts) —
+ * never rendered as a chat row, this is the dedicated metadata surface for
+ * it. Wraps freely so it stays readable on narrow viewports.
  */
 export function SessionStatusHeader({ detail }: SessionStatusHeaderProps) {
 	if (!detail) {
@@ -83,18 +85,6 @@ export function SessionStatusHeader({ detail }: SessionStatusHeaderProps) {
 	const summary = capabilitySummary(detail);
 	return (
 		<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-muted-foreground text-xs">
-			{detail.model && (
-				<span className="flex items-center gap-1">
-					<BotIcon className="size-3.5 shrink-0" />
-					{detail.model}
-				</span>
-			)}
-			{detail.permissionMode && (
-				<span className="flex items-center gap-1">
-					<ShieldIcon className="size-3.5 shrink-0" />
-					{detail.permissionMode}
-				</span>
-			)}
 			{detail.cwd && (
 				<span className="flex min-w-0 items-center gap-1" title={detail.cwd}>
 					<FolderIcon className="size-3.5 shrink-0" />

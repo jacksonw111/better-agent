@@ -110,6 +110,45 @@ it("keeps the claude session's turn-usage chip rendering (usageMode is stream)",
 	});
 });
 
+// The Task Conversation page reuses this same Terminal but declutters the
+// header: Past conversations (the run sidebar covers history there) and the
+// Status popover are prop-gated OFF. /local never sets these props, so the
+// claude coverage above (and terminal-header.test.tsx's Status assertions)
+// pins the default-on behavior.
+it("hides Past conversations when hidePastConversations is set, even for a claude session", async () => {
+	const fake = makeControllableTransport();
+	const { container } = render(
+		<Terminal
+			hidePastConversations
+			session={SESSION}
+			transport={fake.transport}
+		/>
+	);
+	await waitForConnect(fake);
+	await act(() => {
+		fake.current()?.onOpen();
+	});
+
+	expect(
+		within(container).queryByRole("button", { name: "Past conversations" })
+	).toBeNull();
+});
+
+it("hides the Status button when hideStatusButton is set, even for a claude session", async () => {
+	const fake = makeControllableTransport();
+	const { container } = render(
+		<Terminal hideStatusButton session={SESSION} transport={fake.transport} />
+	);
+	await waitForConnect(fake);
+	await act(() => {
+		fake.current()?.onOpen();
+	});
+
+	expect(
+		within(container).queryByRole("button", { name: "Status" })
+	).toBeNull();
+});
+
 it("hides Past conversations but shows the permission-mode dropdown (R2-T2) and keeps a disabled Model affordance for a codex session with no live session_ready", async () => {
 	const fake = makeControllableTransport();
 	const { container } = render(

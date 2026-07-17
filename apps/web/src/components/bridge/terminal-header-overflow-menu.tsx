@@ -23,6 +23,8 @@ export function ActionControls({
 	caps,
 	ending,
 	getStatus,
+	hidePastConversations,
+	hideStatusButton,
 	listSessions,
 	onEnd,
 	onSelectSession,
@@ -50,6 +52,8 @@ export function ActionControls({
 				canSend={canSend}
 				caps={caps}
 				getStatus={getStatus}
+				hidePastConversations={hidePastConversations}
+				hideStatusButton={hideStatusButton}
 				listSessions={listSessions}
 				sessionList={sessionList}
 				statusSnapshot={statusSnapshot}

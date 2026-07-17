@@ -1,15 +1,6 @@
 import { Button } from "@better-agent/ui/components/button";
-import { cn } from "@better-agent/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import {
-	ArrowLeftIcon,
-	CheckIcon,
-	CopyIcon,
-	FolderIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { ArrowLeftIcon, TriangleAlertIcon } from "lucide-react";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import type { TaskDetail, TaskRun } from "@/utils/api-types";
 import { RunStatusChip } from "./task-status-chip";
@@ -17,44 +8,10 @@ import { RunStatusChip } from "./task-status-chip";
 // S3-T2 (master spec §17.3/§11.3): the Conversation's first-screen strip —
 // which task, on which computer/runtime, the CURRENT run's status — plus the
 // failed run's REAL error and its Retry. All of it lives here, above and
-// outside the message history: run lifecycle is state, not chat.
-
-/** Sequential run history as a compact segmented switcher — rendered only
- * once a retry has produced a second run. Runs come createdAt-ascending from
- * tasks.get, so "Run N" is the Nth attempt. */
-function RunSwitcher({
-	currentRunId,
-	onSelectRun,
-	runs,
-}: {
-	currentRunId: string | null;
-	onSelectRun: (runId: string) => void;
-	runs: TaskRun[];
-}) {
-	if (runs.length <= 1) {
-		return null;
-	}
-	return (
-		<div className="flex items-center gap-0.5 rounded-lg bg-muted/60 p-0.5">
-			{runs.map((run, index) => (
-				<button
-					aria-pressed={run.id === currentRunId}
-					className={cn(
-						"rounded-md px-2 py-0.5 text-xs transition-colors",
-						run.id === currentRunId
-							? "bg-background font-medium shadow-sm"
-							: "text-muted-foreground hover:text-foreground"
-					)}
-					key={run.id}
-					onClick={() => onSelectRun(run.id)}
-					type="button"
-				>
-					Run {index + 1}
-				</button>
-			))}
-		</div>
-	);
-}
+// outside the message history: run lifecycle is state, not chat. Run
+// SWITCHING moved out to the left run sidebar (task-run-sidebar.tsx), and the
+// workspace strip is gone — path context lives with the Files/Shell/Git
+// panes' empty states instead.
 
 /** The failed run's actionable error, OUTSIDE the chat (§11.3). Retry only
  * offers itself on the LATEST run — the server would reject retrying past a
@@ -96,88 +53,6 @@ function FailedRunBanner({
 	);
 }
 
-/** How long the copy button shows its ✓ before reverting. */
-const COPY_RESET_MS = 2000;
-
-/** What each WorkspaceKind means, in user words (mirrors the Opening
- * Message's labels in packages/agent/src/task/opening-message.ts). */
-const WORKSPACE_KIND_LABELS: Record<TaskRun["workspaceKind"], string> = {
-	repository: "Repository workspace",
-	standalone: "Managed task directory",
-};
-
-/** Copy-to-clipboard with a transient ✓ — mirrors the file preview's copy
- * button; the timer is cleared on unmount. */
-function CopyWorkspacePathButton({ path }: { path: string }) {
-	const [copied, setCopied] = useState(false);
-	const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-	useEffect(
-		() => () => {
-			if (timerRef.current !== undefined) {
-				clearTimeout(timerRef.current);
-			}
-		},
-		[]
-	);
-	const copy = () => {
-		navigator.clipboard.writeText(path).then(
-			() => {
-				setCopied(true);
-				timerRef.current = setTimeout(() => setCopied(false), COPY_RESET_MS);
-			},
-			() => toast.error("Couldn't copy the workspace path.")
-		);
-	};
-	return (
-		<Button
-			aria-label="Copy workspace path"
-			onClick={copy}
-			size="icon-sm"
-			type="button"
-			variant="ghost"
-		>
-			{copied ? (
-				<CheckIcon className="size-3.5 text-emerald-500" />
-			) : (
-				<CopyIcon className="size-3.5" />
-			)}
-		</Button>
-	);
-}
-
-/** WHERE the current run works: workspace kind + its absolute path (with a
- * copy affordance). A stand-alone task starts in an EMPTY managed directory
- * by design (§13) — naming that here is what keeps the Files/Git/Shell tabs'
- * empty states legible rather than looking broken. Path shows once the run
- * has been launched (it's assigned by the CLI at launch time). */
-function WorkspaceStrip({ run }: { run: TaskRun | null }) {
-	if (!run) {
-		return null;
-	}
-	return (
-		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
-			<FolderIcon aria-hidden className="size-3.5 shrink-0" />
-			<span className="shrink-0">
-				{WORKSPACE_KIND_LABELS[run.workspaceKind]}
-			</span>
-			{run.workspacePath ? (
-				<>
-					<span aria-hidden className="shrink-0">
-						·
-					</span>
-					<span
-						className="min-w-0 truncate font-mono"
-						title={run.workspacePath}
-					>
-						{run.workspacePath}
-					</span>
-					<CopyWorkspacePathButton path={run.workspacePath} />
-				</>
-			) : null}
-		</div>
-	);
-}
-
 /** Back link + task name + computer · runtime — the "which task is this"
  * cluster (§17.3), split out for the max-lines-per-function gate. */
 function TaskIdentity({
@@ -205,12 +80,11 @@ function TaskIdentity({
 }
 
 /** The lightweight header strip above the workspace pane: back link, task
- * name, computer · runtime, run switcher and the current run's status chip. */
+ * name, computer · runtime, and the current run's status chip. */
 export function TaskConversationHeader({
 	computerName,
 	currentRun,
 	onRetry,
-	onSelectRun,
 	retryPending,
 	runs,
 	task,
@@ -218,7 +92,6 @@ export function TaskConversationHeader({
 	computerName: string | null;
 	currentRun: TaskRun | null;
 	onRetry: () => void;
-	onSelectRun: (runId: string) => void;
 	retryPending: boolean;
 	runs: TaskRun[];
 	task: TaskDetail["task"];
@@ -229,15 +102,9 @@ export function TaskConversationHeader({
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
 				<TaskIdentity computerName={computerName} task={task} />
 				<div className="ml-auto flex items-center gap-2">
-					<RunSwitcher
-						currentRunId={currentRun?.id ?? null}
-						onSelectRun={onSelectRun}
-						runs={runs}
-					/>
 					<RunStatusChip status={currentRun?.status ?? null} />
 				</div>
 			</div>
-			<WorkspaceStrip run={currentRun} />
 			{currentRun?.status === "failed" && (
 				<FailedRunBanner
 					isLatest={isLatest}

@@ -28,6 +28,12 @@ export interface TerminalProps {
 	/** Whether an end-session request is in flight — disables the End button.
 	 * Only meaningful alongside `onEnd`. */
 	ending?: boolean;
+	/** S3 task page: hides the header's Past conversations trigger (the task
+	 * page's run sidebar covers history). Never set on /local. */
+	hidePastConversations?: boolean;
+	/** S3 task page: hides the header's Status popover trigger. Never set on
+	 * /local. */
+	hideStatusButton?: boolean;
 	/** S3-T2: rendered inside the feed's scroller before the first turn — the
 	 * task page's Opening Message. Absent on /local. */
 	leading?: ReactNode;
@@ -150,47 +156,16 @@ function useTerminalView(
  * (real one from bridge-transport.ts in the route, a fake in tests) —
  * mirrors `Conversation`'s injected `AgentClient`.
  */
-export function Terminal({
-	activeSessionId,
-	composerLock,
-	ending = false,
-	leading,
-	onEnd,
-	onSelectSession,
-	session,
-	sessions,
-	token,
-	transport,
-	userAvatarUrl,
-}: TerminalProps) {
+export function Terminal(props: TerminalProps) {
+	const { composerLock, leading, session, transport, userAvatarUrl } = props;
 	const view = useTerminalView(session, transport, userAvatarUrl);
-	const { caps, sessionId } = view;
 	usePublishWorkspaceChannels(view);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<TerminalHeader
-				activeSessionId={activeSessionId ?? session.id}
-				agentKind={session.agentKind}
-				canSend={view.canSend}
-				caps={caps}
-				ending={ending}
-				getStatus={view.getStatus}
-				listSessions={view.listSessions}
-				onEnd={onEnd}
-				onSelectSession={onSelectSession}
-				restart={view.restart}
-				sessionId={sessionId}
-				sessionList={view.sessionList}
-				sessionReady={view.sessionReady}
-				sessions={sessions}
-				status={view.status}
-				statusSnapshot={view.statusSnapshot}
-				token={token}
-				usageUpdate={view.usageUpdate}
-			/>
+			<HeaderFromView props={props} view={view} />
 			<BodyFromView
-				caps={caps}
+				caps={view.caps}
 				composerLock={composerLock}
 				leading={leading}
 				showNextTurnHint={session.agentKind === "codex"}
@@ -201,6 +176,43 @@ export function Terminal({
 }
 
 type TerminalView = ReturnType<typeof useTerminalView>;
+
+/** The session header, built from the terminal's own props plus the live
+ * hook `view` — split out of `Terminal` purely to keep that component under
+ * the max-lines-per-function gate (mirrors `BodyFromView` below). */
+function HeaderFromView({
+	props,
+	view,
+}: {
+	props: TerminalProps;
+	view: TerminalView;
+}) {
+	const { session } = props;
+	return (
+		<TerminalHeader
+			activeSessionId={props.activeSessionId ?? session.id}
+			agentKind={session.agentKind}
+			canSend={view.canSend}
+			caps={view.caps}
+			ending={props.ending ?? false}
+			getStatus={view.getStatus}
+			hidePastConversations={props.hidePastConversations}
+			hideStatusButton={props.hideStatusButton}
+			listSessions={view.listSessions}
+			onEnd={props.onEnd}
+			onSelectSession={props.onSelectSession}
+			restart={view.restart}
+			sessionId={view.sessionId}
+			sessionList={view.sessionList}
+			sessionReady={view.sessionReady}
+			sessions={props.sessions}
+			status={view.status}
+			statusSnapshot={view.statusSnapshot}
+			token={props.token}
+			usageUpdate={view.usageUpdate}
+		/>
+	);
+}
 
 /** Publishes this session's workspace-tab channels to their module stores —
  * shell (P4-T2), fs (P4-T3: Files tab + composer @file picker) and git

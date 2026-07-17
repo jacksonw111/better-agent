@@ -59,14 +59,16 @@ it("renders session_ready as the status header, not a chat row", async () => {
 	const view = within(container);
 
 	await waitFor(() => {
-		// Reported model now also shows as the composer's read-only model label,
-		// so it appears in more than one place — assert presence, not uniqueness.
-		expect(view.getAllByText("claude-opus-4-6").length).toBeGreaterThan(0);
+		expect(view.getByText("3 tools · 2 commands · 1 skills")).toBeDefined();
 	});
-	expect(view.getByText("acceptEdits")).toBeDefined();
-	expect(view.getByText("3 tools · 2 commands · 1 skills")).toBeDefined();
 	expect(view.getByTitle("docs: connected")).toBeDefined();
 	expect(view.getByTitle("search: failed")).toBeDefined();
+	// Model and permission mode live ONLY in the composer's control menus now —
+	// the header shows neither the raw model id nor the raw permissionMode.
+	const model = view.getByRole("combobox", { name: "Model" });
+	expect(model.textContent).toContain("claude-opus-4-6");
+	expect(view.getAllByText("claude-opus-4-6")).toHaveLength(1);
+	expect(view.queryByText("acceptEdits")).toBeNull();
 	// This is metadata, not a message: the raw status name must never appear
 	// anywhere on the page (it used to, via the generic StatusLine).
 	expect(view.queryByText("session_ready")).toBeNull();

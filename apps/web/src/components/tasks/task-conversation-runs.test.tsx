@@ -5,7 +5,7 @@
 // switcher. The pure conversation-content contract lives in
 // task-conversation.test.tsx (300-line file cap).
 
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { TaskConversation } from "./task-conversation";
 import {
@@ -36,6 +36,7 @@ vi.mock("@tanstack/react-router", () => ({
 const REAL_ERROR = "git clone failed: repository not found";
 const HOUR_MS = 3_600_000;
 const OPENING_PATTERN = /Fix the login redirect bug/;
+const RUN_ONE_ROW_PATTERN = /Run 1/;
 
 afterEach(cleanup);
 beforeEach(resetTaskStore);
@@ -103,7 +104,8 @@ it("retry calls tasks.retry and the page follows the NEW run", async () => {
 		expect(store.connectedSessionIds).toContain("session-2");
 	});
 	expect(view.queryByRole("alert")).toBeNull();
-	expect(view.getByText("Running")).toBeDefined();
+	// The new run's status shows in the header chip AND its sidebar row.
+	expect(view.getAllByText("Running").length).toBeGreaterThan(0);
 });
 
 it("defaults to the latest run and switches to an older run's conversation on demand", async () => {
@@ -139,9 +141,12 @@ it("defaults to the latest run and switches to an older run's conversation on de
 	});
 	expect(store.connectedSessionIds).not.toContain("session-1");
 
-	// The switcher exposes the sequential history; picking Run 1 remounts the
+	// The run sidebar lists the sequential history; picking Run 1 remounts the
 	// terminal onto ITS session and surfaces its real error.
-	fireEvent.click(view.getByRole("button", { name: "Run 1" }));
+	const sidebar = view.getByRole("navigation", { name: "Runs" });
+	fireEvent.click(
+		within(sidebar).getByRole("button", { name: RUN_ONE_ROW_PATTERN })
+	);
 	await waitFor(() => {
 		expect(store.connectedSessionIds).toContain("session-1");
 	});
@@ -149,12 +154,19 @@ it("defaults to the latest run and switches to an older run's conversation on de
 	expect(alert.textContent).toContain(REAL_ERROR);
 });
 
-it("hides the run switcher while the task has a single run", async () => {
+it("lists every run in the sidebar with its status — even a single run", async () => {
 	store.detail = failedDetail();
 	const { view } = renderTaskConversation(TaskConversation);
 
 	await waitFor(() => {
 		expect(view.getByText(OPENING_PATTERN)).toBeDefined();
 	});
-	expect(view.queryByRole("button", { name: "Run 1" })).toBeNull();
+	// The sidebar IS the run history now — one row per run, status included.
+	const sidebar = view.getByRole("navigation", { name: "Runs" });
+	const row = within(sidebar).getByRole("button", {
+		name: RUN_ONE_ROW_PATTERN,
+	});
+	expect(row.textContent).toContain("Failed");
+	// <md the sidebar collapses behind the pane header's drawer toggle.
+	expect(view.getByRole("button", { name: "Show runs" })).toBeDefined();
 });

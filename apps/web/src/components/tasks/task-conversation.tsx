@@ -3,17 +3,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SessionWorkspacePane } from "@/components/bridge/session-workspace-pane";
+import {
+	MobileSidebarDrawer,
+	SidebarDrawerToggle,
+	useSidebarDrawer,
+} from "@/components/bridge/workspace-drawer";
 import type { TaskDetail, TaskRun } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
 import { useCurrentUser } from "@/utils/use-current-user";
 import { TaskChat } from "./task-chat";
 import { TaskConversationHeader } from "./task-conversation-header";
+import { TaskRunSidebar } from "./task-run-sidebar";
 
 // S3-T2 (master spec §11/§17.3/§18.4): the /tasks/$taskId body. The
 // conversation's first message is the stored Opening Message; the rest is the
 // current run's bridge session, rendered through the SAME session workspace
-// pane (chat + Files/Git/Shell inspection tabs) the /local workspace uses.
+// pane (chat + Files/Git/Shell inspection tabs) the /local workspace uses —
+// with the run history in a left sidebar mirroring /local's session sidebar.
 // Run status and startup errors live in the header strip — never as chat.
 
 /** Poll cadence for tasks.get — run status moves server-side (launch, client
@@ -58,9 +65,53 @@ function TaskNotFound() {
 	);
 }
 
-/** The loaded page: header strip (status/error/retry — outside the chat) over
- * the reused session workspace pane. Split from `TaskConversation` (which
- * owns the queries and guards) for the max-lines-per-function gate. */
+/** The right column: header strip (status/error/retry — outside the chat)
+ * over the reused session workspace pane. The pane's `headerStart` slot takes
+ * the <md drawer toggle, same placement as /local's. Split from
+ * `ConversationBody` for the max-lines-per-function gate. */
+function ConversationMain({
+	currentRun,
+	detail,
+	drawerToggle,
+	onRetry,
+	retryPending,
+}: {
+	currentRun: TaskRun | null;
+	detail: TaskDetail;
+	drawerToggle: React.ReactNode;
+	onRetry: () => void;
+	retryPending: boolean;
+}) {
+	const { email } = useCurrentUser();
+	return (
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+			<TaskConversationHeader
+				computerName={detail.computerName}
+				currentRun={currentRun}
+				onRetry={onRetry}
+				retryPending={retryPending}
+				runs={detail.runs}
+				task={detail.task}
+			/>
+			<SessionWorkspacePane
+				chat={
+					<TaskChat
+						openingMessage={detail.task.openingMessage}
+						run={currentRun}
+						userAvatarUrl={email ? userAvatar(email) : undefined}
+					/>
+				}
+				headerStart={drawerToggle}
+				workspacePath={currentRun?.workspacePath ?? null}
+			/>
+		</div>
+	);
+}
+
+/** The loaded page: the run sidebar (md+ aside; <md the shared overlay
+ * drawer, mirroring /local's session sidebar) beside the conversation
+ * column. Split from `TaskConversation` (which owns the queries and guards)
+ * for the max-lines-per-function gate. */
 function ConversationBody({
 	detail,
 	onRetry,
@@ -74,29 +125,36 @@ function ConversationBody({
 	retryPending: boolean;
 	selectedRunId: string | null;
 }) {
-	const { email } = useCurrentUser();
 	const currentRun = pickCurrentRun(detail.runs, selectedRunId);
+	const drawer = useSidebarDrawer(onSelectRun);
+	const sidebar = (onSelect: (runId: string) => void) => (
+		<TaskRunSidebar
+			activeRunId={currentRun?.id ?? null}
+			onSelectRun={onSelect}
+			runs={detail.runs}
+		/>
+	);
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
-			<TaskConversationHeader
-				computerName={detail.computerName}
+		<div className="flex min-h-0 flex-1">
+			<aside className="hidden w-64 shrink-0 flex-col bg-muted/30 md:flex">
+				{sidebar(onSelectRun)}
+			</aside>
+			<ConversationMain
 				currentRun={currentRun}
-				onRetry={onRetry}
-				onSelectRun={onSelectRun}
-				retryPending={retryPending}
-				runs={detail.runs}
-				task={detail.task}
-			/>
-			<SessionWorkspacePane
-				chat={
-					<TaskChat
-						openingMessage={detail.task.openingMessage}
-						run={currentRun}
-						userAvatarUrl={email ? userAvatar(email) : undefined}
-					/>
+				detail={detail}
+				drawerToggle={
+					<SidebarDrawerToggle label="Show runs" onOpen={drawer.show} />
 				}
-				workspacePath={currentRun?.workspacePath ?? null}
+				onRetry={onRetry}
+				retryPending={retryPending}
 			/>
+			<MobileSidebarDrawer
+				closeLabel="Close run list"
+				onClose={drawer.close}
+				open={drawer.open}
+			>
+				{sidebar(drawer.select)}
+			</MobileSidebarDrawer>
 		</div>
 	);
 }
