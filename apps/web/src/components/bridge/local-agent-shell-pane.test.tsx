@@ -86,3 +86,16 @@ it("shows a run-a-command hint once connected with no history yet", () => {
 	const { container } = render(<LocalAgentShellPane hidden={false} />);
 	expect(within(container).getByText(EMPTY_HINT_RE)).toBeDefined();
 });
+
+it("names the workspace path in the empty hint when the host knows it", () => {
+	publish({ enabled: true, events: [] });
+	const { container } = render(
+		<LocalAgentShellPane
+			hidden={false}
+			workspacePath="/home/u/.better-agent/tasks/task-1"
+		/>
+	);
+	expect(
+		within(container).getByText("/home/u/.better-agent/tasks/task-1")
+	).toBeDefined();
+});

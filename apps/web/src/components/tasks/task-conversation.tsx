@@ -95,6 +95,7 @@ function ConversationBody({
 						userAvatarUrl={email ? userAvatar(email) : undefined}
 					/>
 				}
+				workspacePath={currentRun?.workspacePath ?? null}
 			/>
 		</div>
 	);

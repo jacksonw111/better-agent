@@ -65,6 +65,7 @@ export function SessionWorkspacePane({
 	chat,
 	companion,
 	headerStart,
+	workspacePath,
 }: {
 	/** The chat tab's content — /local renders its SessionView/WaitingForCli
 	 * pair here, the task page its opening-message-led terminal. */
@@ -74,6 +75,10 @@ export function SessionWorkspacePane({
 	companion?: (context: SessionWorkspaceTabContext) => ReactNode;
 	/** Leading header slot before the tab row — /local's <md drawer toggle. */
 	headerStart?: ReactNode;
+	/** The workspace's absolute path when the host knows it (the task page's
+	 * run.workspacePath) — the panes' empty states name it so an empty
+	 * workspace reads as a place, not a blank. Omit when unknown (/local). */
+	workspacePath?: string | null;
 }) {
 	const [tab, setTab] = useState<WorkspaceTabId>("chat");
 	return (
@@ -84,9 +89,15 @@ export function SessionWorkspacePane({
 			>
 				{chat}
 			</div>
-			<LocalAgentShellPane hidden={tab !== "shell"} />
-			<LocalAgentFilesPane hidden={tab !== "files"} />
-			<LocalAgentGitPane hidden={tab !== "git"} />
+			<LocalAgentShellPane
+				hidden={tab !== "shell"}
+				workspacePath={workspacePath}
+			/>
+			<LocalAgentFilesPane
+				hidden={tab !== "files"}
+				workspacePath={workspacePath}
+			/>
+			<LocalAgentGitPane hidden={tab !== "git"} workspacePath={workspacePath} />
 			{companion?.({ setTab, tab })}
 		</div>
 	);

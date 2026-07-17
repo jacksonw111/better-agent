@@ -1,10 +1,12 @@
+import { Button } from "@better-agent/ui/components/button";
 import { cn } from "@better-agent/ui/lib/utils";
-import { FolderTreeIcon } from "lucide-react";
+import { FolderTreeIcon, RefreshCwIcon } from "lucide-react";
 import { useState } from "react";
 import { FilePreview, type FilePreviewState } from "./file-preview";
 import { FileTree } from "./file-tree";
 import { type FsChannel, useFsChannel } from "./fs-channel-store";
 import { useFileTree } from "./use-file-tree";
+import { WorkspacePathNote } from "./workspace-path-note";
 
 // P4-T3 (docs/local-agent-workspace-plan.md): the workspace Files tab — a
 // READ-ONLY tree + preview over the agent's workspace, fed by the mounted
@@ -25,6 +27,32 @@ function FilesHint({ children }: { children: string }) {
 
 function errorText(error: unknown): string {
 	return error instanceof Error ? error.message : "请重试";
+}
+
+/** The whole-pane state for a workspace whose ROOT listing came back empty —
+ * an empty workspace is a normal starting point (e.g. a fresh managed task
+ * directory), so it gets an explanation + the path + a refresh, not a bare
+ * tree. Subdirectory-level emptiness keeps the inline tree note. */
+function FilesEmptyWorkspace({
+	onRefresh,
+	workspacePath,
+}: {
+	onRefresh: () => void;
+	workspacePath?: string | null;
+}) {
+	return (
+		<div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
+			<FolderTreeIcon aria-hidden className="size-5 opacity-60" />
+			<p className="max-w-xs text-xs leading-relaxed">
+				工作区目前是空的 — agent 创建的文件会出现在这里。
+			</p>
+			<WorkspacePathNote path={workspacePath} />
+			<Button onClick={onRefresh} size="sm" type="button" variant="ghost">
+				<RefreshCwIcon aria-hidden className="size-3.5" />
+				刷新
+			</Button>
+		</div>
+	);
 }
 
 /** Preview state + the stale-response-safe file opener. */
@@ -57,13 +85,24 @@ function usePreview(channel: FsChannel | null) {
 function FilesColumns({
 	channel,
 	hidden,
+	workspacePath,
 }: {
 	channel: FsChannel;
 	hidden: boolean;
+	workspacePath?: string | null;
 }) {
 	const tree = useFileTree(channel, !hidden);
 	const { clear, openFile, preview } = usePreview(channel);
 	const selectedPath = preview.kind === "idle" ? null : preview.path;
+	const root = tree.dirs[""];
+	if (root?.status === "ready" && root.entries.length === 0) {
+		return (
+			<FilesEmptyWorkspace
+				onRefresh={tree.refreshRoot}
+				workspacePath={workspacePath}
+			/>
+		);
+	}
 	return (
 		<>
 			<div
@@ -95,12 +134,22 @@ function FilesColumns({
 }
 
 /** The Files tab pane — a keep-alive hidden/flex sibling of the chat pane. */
-export function LocalAgentFilesPane({ hidden }: { hidden: boolean }) {
+export function LocalAgentFilesPane({
+	hidden,
+	workspacePath,
+}: {
+	hidden: boolean;
+	workspacePath?: string | null;
+}) {
 	const channel = useFsChannel();
 	return (
 		<div className={hidden ? "hidden" : "flex min-h-0 flex-1"}>
 			{channel?.enabled ? (
-				<FilesColumns channel={channel} hidden={hidden} />
+				<FilesColumns
+					channel={channel}
+					hidden={hidden}
+					workspacePath={workspacePath}
+				/>
 			) : (
 				<FilesHint>
 					{channel

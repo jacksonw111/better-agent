@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { BashCommandCard } from "./bash-command-card";
 import { type ShellChannel, useShellChannel } from "./shell-channel-store";
 import { foldShellEvents } from "./shell-events";
+import { WorkspacePathNote } from "./workspace-path-note";
 
 // P4-T2 (docs/local-agent-workspace-plan.md): the workspace Shell tab's pane —
 // a one-shot command runner over the agent's workspace. It reads the mounted
@@ -16,19 +17,33 @@ import { foldShellEvents } from "./shell-events";
 const RUN_FAILURE_MESSAGE = "Couldn't run that command — try again.";
 
 /** Centered hint shown in place of the command history — used for every
- * "nothing to show yet" state (no session, old CLI, no commands run). */
-function ShellHint({ children }: { children: string }) {
+ * "nothing to show yet" state (no session, old CLI, no commands run). The
+ * optional `path` line names the workspace commands would run in. */
+function ShellHint({
+	children,
+	path,
+}: {
+	children: string;
+	path?: string | null;
+}) {
 	return (
 		<div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
 			<TerminalIcon aria-hidden className="size-5 opacity-60" />
 			<p className="max-w-xs text-xs leading-relaxed">{children}</p>
+			<WorkspacePathNote path={path} />
 		</div>
 	);
 }
 
 /** The scrollable command history, auto-scrolled to the newest card. Falls
  * back to a hint while empty (or the CLI can't answer runShell). */
-function ShellHistory({ channel }: { channel: ShellChannel | null }) {
+function ShellHistory({
+	channel,
+	workspacePath,
+}: {
+	channel: ShellChannel | null;
+	workspacePath?: string | null;
+}) {
 	const bottomRef = useRef<HTMLDivElement>(null);
 	const commands = channel ? foldShellEvents(channel.events) : [];
 	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new card
@@ -46,7 +61,11 @@ function ShellHistory({ channel }: { channel: ShellChannel | null }) {
 		);
 	}
 	if (commands.length === 0) {
-		return <ShellHint>在下方输入命令，在 agent 工作区中执行。</ShellHint>;
+		return (
+			<ShellHint path={workspacePath}>
+				在下方输入命令，在 agent 工作区中执行。
+			</ShellHint>
+		);
 	}
 	return (
 		<div className="flex flex-col gap-2 p-3 sm:p-4">
@@ -114,7 +133,13 @@ function ShellInputRow({
 
 /** The Shell tab pane. Mounted as a hidden/flex sibling of the chat pane
  * (keep-alive), so switching tabs never remounts the terminal. */
-export function LocalAgentShellPane({ hidden }: { hidden: boolean }) {
+export function LocalAgentShellPane({
+	hidden,
+	workspacePath,
+}: {
+	hidden: boolean;
+	workspacePath?: string | null;
+}) {
 	const channel = useShellChannel();
 	const disabled = !channel?.enabled;
 	const run = (command: string) => {
@@ -123,7 +148,7 @@ export function LocalAgentShellPane({ hidden }: { hidden: boolean }) {
 	return (
 		<div className={hidden ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
 			<div className="min-h-0 flex-1 overflow-y-auto">
-				<ShellHistory channel={channel} />
+				<ShellHistory channel={channel} workspacePath={workspacePath} />
 			</div>
 			<ShellInputRow disabled={disabled} onRun={run} />
 		</div>

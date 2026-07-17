@@ -21,6 +21,9 @@ export type DirState =
 export interface FileTreeState {
 	dirs: Record<string, DirState>;
 	expanded: ReadonlySet<string>;
+	/** Re-lists the workspace root — the empty-workspace state's refresh
+	 * affordance (a root cached as empty never reloads on its own). */
+	refreshRoot: () => void;
 	toggleDir: (path: string) => void;
 }
 
@@ -98,5 +101,5 @@ export function useFileTree(
 		}
 	};
 
-	return { dirs, expanded, toggleDir };
+	return { dirs, expanded, refreshRoot: () => load(""), toggleDir };
 }

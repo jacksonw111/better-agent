@@ -16,6 +16,8 @@ import { LocalAgentFilesPane } from "./local-agent-files-pane";
 
 const CONNECT_HINT_RE = /连接会话/;
 const UPGRADE_HINT_RE = /CLI 版本过旧/;
+const EMPTY_WORKSPACE_RE = /工作区目前是空的/;
+const REFRESH_RE = /刷新/;
 const SRC_RE = /src/;
 const README_RE = /readme\.md/;
 const APP_TS_RE = /app\.ts/;
@@ -63,6 +65,26 @@ it("shows the connect hint without a channel, the upgrade hint when disabled", (
 	publish({ enabled: false });
 	const second = render(<LocalAgentFilesPane hidden={false} />);
 	expect(within(second.container).getByText(UPGRADE_HINT_RE)).toBeDefined();
+});
+
+it("explains an empty workspace with its path and reloads on refresh", async () => {
+	const channel = publish({
+		list: vi.fn(() => Promise.resolve({ entries: [], truncated: false })),
+	});
+	const { container } = render(
+		<LocalAgentFilesPane
+			hidden={false}
+			workspacePath="/home/u/.better-agent/tasks/task-1"
+		/>
+	);
+	const view = within(container);
+	await waitFor(() => {
+		expect(view.getByText(EMPTY_WORKSPACE_RE)).toBeDefined();
+	});
+	expect(view.getByText("/home/u/.better-agent/tasks/task-1")).toBeDefined();
+
+	fireEvent.click(view.getByRole("button", { name: REFRESH_RE }));
+	expect(channel.list).toHaveBeenCalledTimes(2);
 });
 
 it("loads the root when visible and lazily lists a dir on expand", async () => {

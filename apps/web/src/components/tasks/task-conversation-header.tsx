@@ -1,7 +1,15 @@
 import { Button } from "@better-agent/ui/components/button";
 import { cn } from "@better-agent/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	CheckIcon,
+	CopyIcon,
+	FolderIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import type { TaskDetail, TaskRun } from "@/utils/api-types";
 import { RunStatusChip } from "./task-status-chip";
@@ -88,6 +96,88 @@ function FailedRunBanner({
 	);
 }
 
+/** How long the copy button shows its ✓ before reverting. */
+const COPY_RESET_MS = 2000;
+
+/** What each WorkspaceKind means, in user words (mirrors the Opening
+ * Message's labels in packages/agent/src/task/opening-message.ts). */
+const WORKSPACE_KIND_LABELS: Record<TaskRun["workspaceKind"], string> = {
+	repository: "Repository workspace",
+	standalone: "Managed task directory",
+};
+
+/** Copy-to-clipboard with a transient ✓ — mirrors the file preview's copy
+ * button; the timer is cleared on unmount. */
+function CopyWorkspacePathButton({ path }: { path: string }) {
+	const [copied, setCopied] = useState(false);
+	const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	useEffect(
+		() => () => {
+			if (timerRef.current !== undefined) {
+				clearTimeout(timerRef.current);
+			}
+		},
+		[]
+	);
+	const copy = () => {
+		navigator.clipboard.writeText(path).then(
+			() => {
+				setCopied(true);
+				timerRef.current = setTimeout(() => setCopied(false), COPY_RESET_MS);
+			},
+			() => toast.error("Couldn't copy the workspace path.")
+		);
+	};
+	return (
+		<Button
+			aria-label="Copy workspace path"
+			onClick={copy}
+			size="icon-sm"
+			type="button"
+			variant="ghost"
+		>
+			{copied ? (
+				<CheckIcon className="size-3.5 text-emerald-500" />
+			) : (
+				<CopyIcon className="size-3.5" />
+			)}
+		</Button>
+	);
+}
+
+/** WHERE the current run works: workspace kind + its absolute path (with a
+ * copy affordance). A stand-alone task starts in an EMPTY managed directory
+ * by design (§13) — naming that here is what keeps the Files/Git/Shell tabs'
+ * empty states legible rather than looking broken. Path shows once the run
+ * has been launched (it's assigned by the CLI at launch time). */
+function WorkspaceStrip({ run }: { run: TaskRun | null }) {
+	if (!run) {
+		return null;
+	}
+	return (
+		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+			<FolderIcon aria-hidden className="size-3.5 shrink-0" />
+			<span className="shrink-0">
+				{WORKSPACE_KIND_LABELS[run.workspaceKind]}
+			</span>
+			{run.workspacePath ? (
+				<>
+					<span aria-hidden className="shrink-0">
+						·
+					</span>
+					<span
+						className="min-w-0 truncate font-mono"
+						title={run.workspacePath}
+					>
+						{run.workspacePath}
+					</span>
+					<CopyWorkspacePathButton path={run.workspacePath} />
+				</>
+			) : null}
+		</div>
+	);
+}
+
 /** Back link + task name + computer · runtime — the "which task is this"
  * cluster (§17.3), split out for the max-lines-per-function gate. */
 function TaskIdentity({
@@ -147,6 +237,7 @@ export function TaskConversationHeader({
 					<RunStatusChip status={currentRun?.status ?? null} />
 				</div>
 			</div>
+			<WorkspaceStrip run={currentRun} />
 			{currentRun?.status === "failed" && (
 				<FailedRunBanner
 					isLatest={isLatest}

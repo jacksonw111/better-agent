@@ -1,16 +1,17 @@
 import { Button } from "@better-agent/ui/components/button";
 import { cn } from "@better-agent/ui/lib/utils";
-import { ArrowLeftIcon, GitBranchIcon, RefreshCwIcon } from "lucide-react";
+import { GitBranchIcon, RefreshCwIcon } from "lucide-react";
 import { type GitChannel, useGitChannel } from "./git-channel-store";
 import { GitCommitBox } from "./git-commit-box";
-import { GitDiffView } from "./git-diff-view";
+import { GitDiffPanel } from "./git-diff-panel";
+import type { GitStatusResult } from "./git-events";
 import { GitStatusList, groupStatusEntries } from "./git-status-list";
 import {
-	type GitDiffState,
 	type GitStatusState,
 	useGitDiff,
 	useGitStatus,
 } from "./use-git-status";
+import { WorkspacePathNote } from "./workspace-path-note";
 
 // P4-T4 (docs/local-agent-workspace-plan.md): the workspace Git tab — a
 // minimal status/diff/commit panel over the agent's workspace, fed by the
@@ -20,13 +21,39 @@ import {
 // chat pane, like the Files/Shell panes; on <md the columns stack — status
 // list until a diff is opened, then the diff with a back affordance.
 
-/** Centered hint for every "nothing to show" state — mirrors FilesHint. */
-function GitHint({ children }: { children: string }) {
+/** Centered hint for every "nothing to show" state — mirrors FilesHint. The
+ * optional `path` line names the workspace the hint is about. */
+function GitHint({
+	children,
+	path,
+}: {
+	children: string;
+	path?: string | null;
+}) {
 	return (
 		<div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
 			<GitBranchIcon aria-hidden className="size-5 opacity-60" />
 			<p className="max-w-xs text-xs leading-relaxed">{children}</p>
+			<WorkspacePathNote path={path} />
 		</div>
+	);
+}
+
+/** The header's leading label: a muted "非 Git 仓库" once notARepo is known
+ * (a forever-"…" branch would read as broken), else the branch name. */
+function GitBranchLabel({ state }: { state: GitStatusState }) {
+	if (state.kind === "notARepo") {
+		return (
+			<span className="truncate text-muted-foreground text-sm">
+				非 Git 仓库
+			</span>
+		);
+	}
+	const branch = state.kind === "ready" ? state.summary.branch : null;
+	return (
+		<span className="truncate font-medium font-mono text-sm">
+			{branch ?? "…"}
+		</span>
 	);
 }
 
@@ -44,9 +71,7 @@ function GitHeader({
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-3 py-2 sm:px-4">
 			<GitBranchIcon aria-hidden className="size-4 text-muted-foreground" />
-			<span className="truncate font-medium font-mono text-sm">
-				{summary?.branch ?? "…"}
-			</span>
+			<GitBranchLabel state={state} />
 			{summary?.ahead ? (
 				<span className="shrink-0 text-muted-foreground text-xs">
 					↑{summary.ahead}
@@ -79,95 +104,15 @@ function GitHeader({
 	);
 }
 
-/** The right column: the opened diff (path header + tinted body), or the
- * md+ placeholder while nothing is selected. */
-function GitDiffPanel({
-	onBack,
-	view,
-}: {
-	onBack: () => void;
-	view: GitDiffState;
-}) {
-	if (view.kind === "idle") {
-		return (
-			<div className="hidden flex-1 items-center justify-center p-6 text-muted-foreground text-xs md:flex">
-				点击左侧文件查看差异
-			</div>
-		);
-	}
-	return (
-		<div className="flex min-h-0 flex-1 flex-col px-3 pb-2 sm:px-4">
-			<div className="flex shrink-0 items-center gap-1 py-1">
-				<Button
-					aria-label="Back to changed files"
-					className="md:hidden"
-					onClick={onBack}
-					size="icon-sm"
-					variant="ghost"
-				>
-					<ArrowLeftIcon className="size-4" />
-				</Button>
-				<span className="truncate font-mono text-muted-foreground text-xs">
-					{view.path ?? "全部差异"}
-				</span>
-				{view.kind === "ready" && view.truncated ? (
-					<span className="shrink-0 text-muted-foreground text-xs italic">
-						（超过 512KB，已截断）
-					</span>
-				) : null}
-			</div>
-			<GitDiffBody view={view} />
-		</div>
-	);
-}
-
-/** The diff panel's loading/error/empty/ready body — split from
- * `GitDiffPanel` for the max-lines-per-function and complexity gates. */
-function GitDiffBody({ view }: { view: GitDiffState }) {
-	if (view.kind === "loading") {
-		return <p className="p-4 text-muted-foreground text-xs">正在加载差异…</p>;
-	}
-	if (view.kind === "error") {
-		return (
-			<p className="p-4 text-destructive text-xs">
-				无法加载差异：{view.message}
-			</p>
-		);
-	}
-	if (view.kind !== "ready") {
-		return null;
-	}
-	if (view.text === "") {
-		return (
-			<p className="p-4 text-muted-foreground text-xs">
-				没有差异内容（新文件或无变化）。
-			</p>
-		);
-	}
-	return <GitDiffView text={view.text} />;
-}
-
-/** The status/diff two-column body, or the centered hint states. */
-function GitBody({
+/** The ready state's two columns: the grouped status list beside the diff
+ * panel (stacked on <md) — split from `GitBody` for the max-lines gate. */
+function GitColumns({
 	diff,
-	state,
+	summary,
 }: {
 	diff: ReturnType<typeof useGitDiff>;
-	state: GitStatusState;
+	summary: GitStatusResult;
 }) {
-	if (state.kind === "idle" || state.kind === "loading") {
-		return <GitHint>正在读取 Git 状态…</GitHint>;
-	}
-	if (state.kind === "error") {
-		return <GitHint>{`无法读取 Git 状态：${state.message}`}</GitHint>;
-	}
-	if (state.kind === "notARepo") {
-		return <GitHint>当前工作区不是 Git 仓库。</GitHint>;
-	}
-	const { summary } = state;
-	if (summary.entries.length === 0) {
-		return <GitHint>工作区干净，没有未提交的变更。</GitHint>;
-	}
 	const diffOpen = diff.view.kind !== "idle";
 	const selectedPath = diff.view.kind === "idle" ? null : diff.view.path;
 	return (
@@ -197,12 +142,43 @@ function GitBody({
 	);
 }
 
+/** The status/diff two-column body, or the centered hint states. */
+function GitBody({
+	diff,
+	state,
+	workspacePath,
+}: {
+	diff: ReturnType<typeof useGitDiff>;
+	state: GitStatusState;
+	workspacePath?: string | null;
+}) {
+	if (state.kind === "idle" || state.kind === "loading") {
+		return <GitHint>正在读取 Git 状态…</GitHint>;
+	}
+	if (state.kind === "error") {
+		return <GitHint>{`无法读取 Git 状态：${state.message}`}</GitHint>;
+	}
+	if (state.kind === "notARepo") {
+		return (
+			<GitHint path={workspacePath}>
+				当前工作区不是 Git 仓库 — 在其中初始化仓库后，这里会显示分支与变更。
+			</GitHint>
+		);
+	}
+	if (state.summary.entries.length === 0) {
+		return <GitHint>工作区干净，没有未提交的变更。</GitHint>;
+	}
+	return <GitColumns diff={diff} summary={state.summary} />;
+}
+
 function GitPanel({
 	channel,
 	hidden,
+	workspacePath,
 }: {
 	channel: GitChannel;
 	hidden: boolean;
+	workspacePath?: string | null;
 }) {
 	const { refresh, state } = useGitStatus(channel, !hidden);
 	const diff = useGitDiff(channel);
@@ -217,23 +193,39 @@ function GitPanel({
 				onShowAll={() => diff.open(null)}
 				state={state}
 			/>
-			<GitBody diff={diff} state={state} />
-			<GitCommitBox
-				channel={channel}
-				disabled={state.kind !== "ready" || state.summary.entries.length === 0}
-				onCommitted={onCommitted}
-			/>
+			<GitBody diff={diff} state={state} workspacePath={workspacePath} />
+			{/* No repo → no commit affordance: a disabled-forever commit box would
+			 * read as "broken", not "not applicable". */}
+			{state.kind !== "notARepo" && (
+				<GitCommitBox
+					channel={channel}
+					disabled={
+						state.kind !== "ready" || state.summary.entries.length === 0
+					}
+					onCommitted={onCommitted}
+				/>
+			)}
 		</>
 	);
 }
 
 /** The Git tab pane — a keep-alive hidden/flex sibling of the chat pane. */
-export function LocalAgentGitPane({ hidden }: { hidden: boolean }) {
+export function LocalAgentGitPane({
+	hidden,
+	workspacePath,
+}: {
+	hidden: boolean;
+	workspacePath?: string | null;
+}) {
 	const channel = useGitChannel();
 	return (
 		<div className={hidden ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
 			{channel?.enabled ? (
-				<GitPanel channel={channel} hidden={hidden} />
+				<GitPanel
+					channel={channel}
+					hidden={hidden}
+					workspacePath={workspacePath}
+				/>
 			) : (
 				<GitHint>
 					{channel

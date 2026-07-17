@@ -94,10 +94,23 @@ it("renders the not-a-repo and clean-tree states", async () => {
 			Promise.resolve({ ...SUMMARY, entries: [], notARepo: true })
 		),
 	});
-	const first = render(<LocalAgentGitPane hidden={false} />);
+	const first = render(
+		<LocalAgentGitPane
+			hidden={false}
+			workspacePath="/home/u/.better-agent/tasks/task-1"
+		/>
+	);
+	const firstView = within(first.container);
 	await waitFor(() => {
-		expect(within(first.container).getByText(NOT_A_REPO_RE)).toBeDefined();
+		expect(firstView.getByText(NOT_A_REPO_RE)).toBeDefined();
 	});
+	// The explanation names the workspace, the header drops the "…" branch,
+	// and the never-applicable commit box is gone rather than disabled.
+	expect(
+		firstView.getByText("/home/u/.better-agent/tasks/task-1")
+	).toBeDefined();
+	expect(firstView.getByText("非 Git 仓库")).toBeDefined();
+	expect(firstView.queryByLabelText("Commit message")).toBeNull();
 	first.unmount();
 	unregister?.();
 

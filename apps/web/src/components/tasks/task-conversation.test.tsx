@@ -126,6 +126,27 @@ it("shows only the opening message while the run has no session — no fabricate
 	expect(view.queryByText(SEND_TO_BEGIN_PATTERN)).toBeNull();
 });
 
+it("names the run's workspace in the header — kind, path and a copy affordance", async () => {
+	store.detail = makeTaskDetail({
+		runs: [
+			makeTaskRun({
+				id: "run-1",
+				status: "running",
+				workspacePath: "/home/u/.better-agent/tasks/task-1",
+			}),
+		],
+	});
+	const { view } = renderTaskConversation(TaskConversation);
+
+	await waitFor(() => {
+		expect(view.getByText("Managed task directory")).toBeDefined();
+	});
+	expect(view.getByText("/home/u/.better-agent/tasks/task-1")).toBeDefined();
+	expect(
+		view.getByRole("button", { name: "Copy workspace path" })
+	).toBeDefined();
+});
+
 it("locks the composer with an explanation when the run is not running or waiting", async () => {
 	const session = makeTaskSession({ id: "session-1", runId: "run-1" });
 	store.detail = makeTaskDetail({
