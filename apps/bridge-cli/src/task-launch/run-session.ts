@@ -3,6 +3,7 @@ import type { Adapter, AgentHandle, AgentKind } from "../adapters/types";
 import type { BridgeCliArgs } from "../args";
 import { dispatchTextCommand } from "../command-dispatch";
 import type { MessageEvent, StatusEvent } from "../normalize/types";
+import { createOobSender, type OobSender } from "../oob-push";
 import type { RelayTransport } from "../relay-client";
 import { createRelayTransport } from "../relay-transport";
 import { type RunRestartLoopOptions, runRestartLoop } from "../restart-loop";
@@ -86,12 +87,28 @@ function toSessionArgs(
 	};
 }
 
-/** First input injection: echo an origin-tagged user message to the relay
- * (best-effort — cosmetic history, never a launch failure) and dispatch the
- * context to the agent exactly like a relayed web text command. */
-function injectStartContext(
+/** A1: ONE reliable out-of-band sender for the whole Run session — used for
+ * the launch-time pushes (start-context echo, resume_failed notice), then
+ * handed to the restart loop so every later out-of-band site shares the same
+ * epoch/sequence and the loop's final close() flushes these too. */
+function sessionOobSender(
 	transport: RelayTransport,
-	sessionId: string,
+	sessionId: string
+): OobSender {
+	return createOobSender({
+		pushEvents: (input) => transport.pushEvents(input),
+		sessionId,
+	});
+}
+
+/** First input injection: echo an origin-tagged user message to the relay
+ * (A1: through the session's reliable out-of-band channel — this echo IS the
+ * Run's first user message in history, so losing it to a relay hiccup left a
+ * hole at the very top of the feed; delivery failure still never fails the
+ * launch, the sender just retries and warns) and dispatch the context to the
+ * agent exactly like a relayed web text command. */
+function injectStartContext(
+	oob: OobSender,
 	handle: AgentHandle,
 	startContext: string
 ): void {
@@ -101,7 +118,7 @@ function injectStartContext(
 		role: "user",
 		text: startContext,
 	};
-	transport.pushEvents({ events: [echo], sessionId }).catch(() => undefined);
+	oob.push("taskstart", echo);
 	// The narrow CommandSink view of the raw handle: the injected context is
 	// text-only, so the image layer's ImageRef→AgentImage download never
 	// applies — a plain `send(text)` is exactly what the web path dispatches.
@@ -120,11 +137,7 @@ function injectStartContext(
  * (the SAME `resume_failed` status the web already renders as its
  * lost-context warning, see status-line.tsx) tells the user honestly that the
  * prior conversation's context is gone. */
-function pushResumeUnsupported(
-	transport: RelayTransport,
-	sessionId: string,
-	agentKind: AgentKind
-): void {
+function pushResumeUnsupported(oob: OobSender, agentKind: AgentKind): void {
 	const notice: StatusEvent = {
 		detail: {
 			reason: `${agentKind} cannot resume a prior conversation; started a fresh session in the same workspace`,
@@ -132,7 +145,7 @@ function pushResumeUnsupported(
 		kind: "status",
 		status: "resume_failed",
 	};
-	transport.pushEvents({ events: [notice], sessionId }).catch(() => undefined);
+	oob.push("taskstart", notice);
 }
 
 /**
@@ -173,19 +186,21 @@ export function createRunSessionSupplier(
 			resume,
 			skills,
 		});
+		const oob = sessionOobSender(transport, sessionId);
 		if (request.resumeAgentSessionId && !resume) {
-			pushResumeUnsupported(transport, sessionId, request.agentKind);
+			pushResumeUnsupported(oob, request.agentKind);
 		}
 		// P2: only a cold start with a real context injects it — a resumed
 		// conversation already has its history, and an empty context (empty
 		// description) must never become an empty first message.
 		if (!request.resumeAgentSessionId && request.startContext !== "") {
-			injectStartContext(transport, sessionId, handle, request.startContext);
+			injectStartContext(oob, handle, request.startContext);
 		}
 		const done = deps.runLoop({
 			adapter,
 			args: toSessionArgs(request, config.serverUrl, label, resume),
 			handle,
+			oobSender: oob,
 			sessionId,
 			signal: request.signal,
 			transport,

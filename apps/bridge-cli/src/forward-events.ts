@@ -4,6 +4,7 @@
 // uses this) under the repo's max-lines-per-file gate — fully generic over
 // `T`, with no `RelayTransport` dependency of its own.
 
+import { buildQueuedEventShedPolicy } from "./forward-events-shed";
 import { createPushQueue, type PushQueue } from "./push-queue";
 import { isStaleTurnEvent } from "./turn-stale";
 
@@ -12,10 +13,13 @@ export type Sleep = (ms: number) => Promise<void>;
 const DEFAULT_MAX_BATCH_SIZE = 25;
 const DEFAULT_FLUSH_INTERVAL_MS = 50;
 // How many events `forwardEvents` will hold in `pushEvents` retry backlog
-// before dropping the oldest ones (see push-queue.ts) — generously above
-// DEFAULT_MAX_BATCH_SIZE so a handful of consecutive push failures don't
-// start shedding events, while still bounding memory during a real outage.
-const DEFAULT_MAX_BUFFERED_EVENTS = 1000;
+// before shedding streamed deltas (see forward-events-shed.ts; protected
+// event classes are never dropped at all). A2: raised from 1000 to 5000 —
+// normalized events are small objects (a delta is one truncated text chunk),
+// so even a full backlog is a trivial amount of memory, and the old cap was
+// demonstrably reachable during a real outage ("dropped 5 buffered
+// event(s)" in the field) while a session's terminal events were in it.
+const DEFAULT_MAX_BUFFERED_EVENTS = 5000;
 const FLUSH_TICK = Symbol("flush-tick");
 
 function defaultSleep(ms: number): Promise<void> {
@@ -48,6 +52,12 @@ export interface ForwardEventsOptions {
 	 * `leadingFlushArmed` bookkeeping. Defaults to true; callers can set false
 	 * when they deliberately prefer a fully batched first event. */
 	leadingEdgeFlush?: boolean;
+	/** A4 (event-loss audit): always-on instrumentation sink. Every flush logs
+	 * `cli.emit gen=<generationId> emitted=<cumulative count>` through this, so
+	 * the CLI's stderr alone shows exactly how many events each generation
+	 * handed to the push queue — comparable 1:1 against the server's own
+	 * receive counters when hunting a lossy hop. Absent = silent (tests). */
+	log?: (line: string) => void;
 	maxBatchSize?: number;
 	maxBufferedEvents?: number;
 	/** Debug hook: called for every event drained from the agent, before it's
@@ -77,18 +87,6 @@ export interface QueuedEvent<T> {
 	idempotencyKey: string;
 }
 
-/** Enqueues `buffer` on `queue` if non-empty, returning the (now-empty) next buffer. */
-function flushToQueue<T>(
-	buffer: T[],
-	queue: { enqueue(batch: T[]): void }
-): T[] {
-	if (buffer.length === 0) {
-		return buffer;
-	}
-	queue.enqueue(buffer);
-	return [];
-}
-
 function resolveLeadingEdgeFlush(options: ForwardEventsOptions): boolean {
 	return options.leadingEdgeFlush ?? true;
 }
@@ -100,7 +98,28 @@ function resolveLeadingEdgeFlush(options: ForwardEventsOptions): boolean {
  * over the repo's gate once `leadingEdgeFlush` added its own branching. */
 interface ForwardState<T> {
 	buffer: QueuedEvent<T>[];
+	/** A4: cumulative count of events this `forwardEvents` call has buffered —
+	 * reported on every flush via `ForwardEventsOptions.log`. */
+	emitted: number;
 	leadingFlushArmed: boolean;
+}
+
+/** Enqueues the buffered batch (if non-empty) and logs the A4 `cli.emit`
+ * instrumentation line — the single flush choke point every flush path
+ * (leading-edge, batch-size, timer tick, trailing) goes through. */
+function flushBuffer<T>(
+	state: ForwardState<T>,
+	queue: { enqueue(batch: QueuedEvent<T>[]): void },
+	options: ForwardEventsOptions
+): void {
+	if (state.buffer.length === 0) {
+		return;
+	}
+	queue.enqueue(state.buffer);
+	state.buffer = [];
+	options.log?.(
+		`cli.emit gen=${options.generationId ?? 0} emitted=${state.emitted}`
+	);
 }
 
 /** The flush-interval timer fired: flush whatever's buffered and re-arm (or
@@ -110,7 +129,7 @@ function applyFlushTick<T>(
 	queue: { enqueue(batch: QueuedEvent<T>[]): void },
 	options: ForwardEventsOptions
 ): void {
-	state.buffer = flushToQueue(state.buffer, queue);
+	flushBuffer(state, queue, options);
 	state.leadingFlushArmed = resolveLeadingEdgeFlush(options);
 }
 
@@ -120,15 +139,16 @@ function applyFlushTick<T>(
 function flushAfterBuffering<T>(
 	state: ForwardState<T>,
 	queue: { enqueue(batch: QueuedEvent<T>[]): void },
+	options: ForwardEventsOptions,
 	maxBatchSize: number
 ): void {
 	if (state.leadingFlushArmed && state.buffer.length === 1) {
-		state.buffer = flushToQueue(state.buffer, queue);
+		flushBuffer(state, queue, options);
 		state.leadingFlushArmed = false;
 		return;
 	}
 	if (state.buffer.length >= maxBatchSize) {
-		state.buffer = flushToQueue(state.buffer, queue);
+		flushBuffer(state, queue, options);
 	}
 }
 
@@ -138,11 +158,11 @@ function flushAfterBuffering<T>(
  * branching of its own. */
 function resolveForwardEventsConfig<T>(
 	options: ForwardEventsOptions,
-	push: (batch: T[]) => Promise<void>
+	push: (batch: QueuedEvent<T>[]) => Promise<void>
 ): {
 	flushIntervalMs: number;
 	maxBatchSize: number;
-	queue: PushQueue<T>;
+	queue: PushQueue<QueuedEvent<T>>;
 	sleep: Sleep;
 } {
 	const maxBatchSize = options.maxBatchSize ?? DEFAULT_MAX_BATCH_SIZE;
@@ -151,10 +171,13 @@ function resolveForwardEventsConfig<T>(
 		options.maxBufferedEvents ?? DEFAULT_MAX_BUFFERED_EVENTS;
 	const sleep = options.sleep ?? defaultSleep;
 	const pushRetrySleep = options.pushRetrySleep ?? sleep;
-	const queue = createPushQueue<T>({
+	const queue = createPushQueue<QueuedEvent<T>>({
 		maxBufferedEvents,
 		onWarning: options.onWarning,
 		push,
+		// A2: overflow sheds only streamed deltas (never approvals/messages/
+		// statuses) and leaves a visible marker — see forward-events-shed.ts.
+		shedPolicy: buildQueuedEventShedPolicy(options.generationId),
 		signal: options.signal,
 		sleep: pushRetrySleep,
 	});
@@ -194,6 +217,7 @@ export async function forwardEvents<T>(
 	const iterator = events[Symbol.asyncIterator]();
 	const state: ForwardState<T> = {
 		buffer: [],
+		emitted: 0,
 		// R0-T2: true whenever the NEXT event to land is the first one after a
 		// confirmed-idle quiet period (armed initially, and re-armed every time
 		// the flush timer actually fires) — see `leadingEdgeFlush`'s doc comment.
@@ -237,8 +261,9 @@ export async function forwardEvents<T>(
 				? String(nextEventId++)
 				: `${options.generationId}:${nextEventId++}`;
 		state.buffer.push({ event: result.value, idempotencyKey });
-		flushAfterBuffering(state, queue, maxBatchSize);
+		state.emitted += 1;
+		flushAfterBuffering(state, queue, options, maxBatchSize);
 	}
-	flushToQueue(state.buffer, queue);
+	flushBuffer(state, queue, options);
 	await queue.close();
 }

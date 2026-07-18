@@ -4,23 +4,28 @@
 
 import type { CommandSink } from "./commands";
 import type { ImageRef } from "./commands-text-when";
+import type { OobPush } from "./oob-push";
 import type { PollOutcome } from "./poll-loop";
 import type { RelayTransport } from "./relay-client";
-import { type SessionWatchdog, STALLED_STATUS } from "./session-watchdog";
+import {
+	createSessionWatchdog,
+	type SessionWatchdog,
+	STALLED_STATUS,
+} from "./session-watchdog";
 
-/** Best-effort: pushes the RC-T5 "stalled" marker straight to the server —
- * same fire-and-forget contract as poll-loop.ts's `pushBestEffortStatus`
- * (not reused directly: that helper is private to poll-loop.ts and this one
- * doesn't need its restart/stop status vocabulary). */
-function pushStalledStatus(
-	transport: RelayTransport,
-	sessionId: string
-): Promise<void> {
-	return transport
-		.pushEvents({
-			sessionId,
-			events: [{ kind: "status", status: STALLED_STATUS }],
-		})
+/** Pushes the RC-T5 "stalled" marker to the server. A1: with an `oobPush`
+ * wired in (production always passes one — see restart-loop.ts), the marker
+ * rides the reliable out-of-band channel (retry + idempotency key + warning
+ * on final failure); the legacy single fire-and-forget push only remains as
+ * the no-`oobPush` fallback for older callers/tests. */
+function pushStalledStatus(args: MakeOnStallArgs): void {
+	const event = { kind: "status", status: STALLED_STATUS };
+	if (args.oobPush) {
+		args.oobPush("watchdog", event);
+		return;
+	}
+	args.transport
+		.pushEvents({ sessionId: args.sessionId, events: [event] })
 		.catch(() => undefined);
 }
 
@@ -35,6 +40,9 @@ export interface WatchdogOutcomeRef {
 
 export interface MakeOnStallArgs {
 	handle: { interrupt?(): void; stop(): void };
+	/** A1: reliable out-of-band channel for the stalled marker — see
+	 * `pushStalledStatus`. */
+	oobPush?: OobPush;
 	outcomeRef: WatchdogOutcomeRef;
 	sessionId: string;
 	stopPolling: () => void;
@@ -48,14 +56,27 @@ export interface MakeOnStallArgs {
  * produced the turn's terminal event — the outer restart loop then relaunches
  * a fresh one under the SAME bridge sessionId, entirely unmodified. */
 export function makeOnStall(args: MakeOnStallArgs): () => void {
-	const { transport, sessionId, handle, outcomeRef, stopPolling } = args;
+	const { handle, outcomeRef, stopPolling } = args;
 	return () => {
-		pushStalledStatus(transport, sessionId);
+		pushStalledStatus(args);
 		handle.interrupt?.();
 		outcomeRef.current = "restart";
 		handle.stop();
 		stopPolling();
 	};
+}
+
+/** RC-T5: builds the watchdog for one `runBridgeSession` call, wired to push
+ * a "stalled" marker, interrupt the wedged turn, and mark the session for
+ * retire the moment it fires (see `makeOnStall`). Moved here from
+ * run-bridge-session.ts purely for that file's max-lines gate. */
+export function buildWatchdog(
+	args: MakeOnStallArgs & { stallMs?: number }
+): SessionWatchdog {
+	return createSessionWatchdog({
+		stallMs: args.stallMs,
+		onStall: makeOnStall(args),
+	});
 }
 
 /** Wraps `handle` so the watchdog observes exactly the signals the forwarded

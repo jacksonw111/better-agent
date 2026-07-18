@@ -39,8 +39,10 @@ const MAX_EVENT_BYTES = 32_768;
 
 /** `status` value an oversized event degrades to once truncating its own
  * fields still isn't enough — see `truncateEvent`. Never applied to
- * `ApprovalEvent`s: see `MAX_APPROVAL_FIELD_CHARS`/`MAX_APPROVAL_OPTIONS`. */
-const EVENT_TRUNCATED_STATUS = "event_truncated";
+ * `ApprovalEvent`s: see `MAX_APPROVAL_FIELD_CHARS`/`MAX_APPROVAL_OPTIONS`.
+ * Exported (A2) so forward-events-shed.ts's backlog-overflow marker reuses
+ * the exact status the web already knows how to render. */
+export const EVENT_TRUNCATED_STATUS = "event_truncated";
 
 /** Max length (characters) of an `ApprovalEvent`'s `title`/`detail`/each
  * option's `label`. Deliberately far more aggressive than

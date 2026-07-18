@@ -3,6 +3,7 @@
 
 import { type ControlOutcome, resolveControlOutcome } from "./command-outcome";
 import type { AfterIdRef, CommandSink, RelayEvent } from "./commands";
+import type { OobPush } from "./oob-push";
 import type { RelayTransport, Sleep } from "./relay-client";
 
 const DEFAULT_MIN_INTERVAL_MS = 500;
@@ -36,6 +37,9 @@ export interface PollLoopOptions {
 	 * server, so `--debug` can show that input actually reached the agent. */
 	onCommands?: (commands: RelayEvent[]) => void;
 	onError?: (error: unknown) => void;
+	/** A1: reliable out-of-band channel for the stop/restart status pushed by
+	 * `resolveControlOutcome` — see command-outcome.ts. */
+	oobPush?: OobPush;
 	signal: AbortSignal;
 	sleep?: Sleep;
 }
@@ -69,6 +73,7 @@ async function pollOnce(args: PollOnceArgs): Promise<ControlOutcome> {
 		sink,
 		afterIdRef,
 		commands,
+		oobPush: options.oobPush,
 	});
 }
 

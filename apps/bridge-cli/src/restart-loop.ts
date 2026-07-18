@@ -4,7 +4,6 @@
 // of exiting. Split out of index.ts's `main` to keep both files under the
 // line cap; see `runBridgeSession`'s doc comment in relay-client.ts for why
 // it returns a `PollOutcome` instead of just ending the process itself.
-import { agentSupportsImages } from "./adapters/session-capabilities";
 import type { Adapter, AgentHandle } from "./adapters/types";
 import type { BridgeCliArgs } from "./args";
 import type { AfterIdRef } from "./commands";
@@ -12,12 +11,18 @@ import type { CuaController } from "./cua/cua-controller";
 import { withFsReader } from "./fs-reader";
 import { withGitRunner } from "./git-runner";
 import { type ImageInputDeps, withImageInput } from "./image-input";
+import type { OobSender } from "./oob-push";
 import type {
 	AgentSessionIdRef,
 	PollOutcome,
 	RelayTransport,
 } from "./relay-client";
 import { runBridgeSession } from "./relay-client";
+import {
+	buildImageInputDeps,
+	buildShellRunnerDeps,
+	resolveOobSender,
+} from "./session-oob-wiring";
 import { type ShellRunnerDeps, withShellRunner } from "./shell-runner";
 
 export interface RunRestartLoopOptions {
@@ -28,6 +33,10 @@ export interface RunRestartLoopOptions {
 	 * kill the desktop. */
 	cua?: CuaController;
 	handle: AgentHandle;
+	/** A1: the session's reliable out-of-band channel. Optional — the loop
+	 * builds its own when absent; task-launch passes the sender it already
+	 * used at launch. Either way the loop owns the final `close()` flush. */
+	oobSender?: OobSender;
 	sessionId: string;
 	/** S25-T1: an EXTERNAL abort that ends this loop like SIGINT would —
 	 * task-launch sessions share the computer client's shutdown signal so a
@@ -60,48 +69,6 @@ function withCua<H extends object>(
 		cua.stopVm().catch(() => undefined);
 	};
 	return wrapped;
-}
-
-/** P3-T2: builds the image layer's deps for this session — download via the
- * transport's bridge-token-authed `getAttachment`, capability from the
- * adapter's own constant, failure notes pushed best-effort straight to the
- * server (same contract as session-watchdog-wiring.ts's `pushStalledStatus`). */
-function buildImageInputDeps(
-	args: BridgeCliArgs,
-	transport: RelayTransport,
-	sessionId: string
-): ImageInputDeps {
-	const { getAttachment } = transport;
-	return {
-		fetchImage: getAttachment
-			? (attachmentId) => getAttachment({ attachmentId })
-			: undefined,
-		pushStatus: (event) => {
-			transport
-				.pushEvents({ sessionId, events: [event] })
-				.catch(() => undefined);
-		},
-		supportsImages: agentSupportsImages(args.agentKind),
-	};
-}
-
-/** P4-T2: the shell runner's deps for this session — commands run in the CLI's
- * validated workspace dir, and each event is pushed straight to the relay
- * (best-effort, same fire-and-forget contract as `buildImageInputDeps`'s
- * `pushStatus`) since these are out-of-band, not part of the agent's stream. */
-function buildShellRunnerDeps(
-	args: BridgeCliArgs,
-	transport: RelayTransport,
-	sessionId: string
-): ShellRunnerDeps {
-	return {
-		dir: args.dir,
-		pushEvent: (event) => {
-			transport
-				.pushEvents({ sessionId, events: [event] })
-				.catch(() => undefined);
-		},
-	};
 }
 
 /** Builds the full CommandSink wrapper stack around a freshly-started handle:
@@ -196,6 +163,8 @@ function buildPollOptions(args: BridgeCliArgs) {
 function buildForwardOptions(args: BridgeCliArgs, generationId: number) {
 	return {
 		generationId,
+		// A4: always-on `cli.emit` instrumentation — see ForwardEventsOptions.log.
+		log: (line: string) => process.stderr.write(`${line}\n`),
 		onWarning: (message: string) => process.stderr.write(`${message}\n`),
 		onEvent: args.debug
 			? (event: unknown) =>
@@ -236,11 +205,14 @@ export async function runRestartLoop(
 ): Promise<void> {
 	const { adapter, args, sessionId, transport, cua } = options;
 	const controller = new AbortController();
+	// A1: ONE reliable out-of-band channel for the whole session — shell
+	// runner, image layer, watchdog, and stop/restart statuses all share it.
+	const oob = resolveOobSender(options);
 	// P3-T2: the image layer wraps the raw adapter handle (innermost) so a
 	// text command's image refs are downloaded before the adapter's send sees
 	// them; withCua stays outermost, exactly as before.
-	const imageDeps = buildImageInputDeps(args, transport, sessionId);
-	const shellDeps = buildShellRunnerDeps(args, transport, sessionId);
+	const imageDeps = buildImageInputDeps(args, transport, oob);
+	const shellDeps = buildShellRunnerDeps(args, oob);
 	const handleRef = {
 		current: wrapHandle(options.handle, imageDeps, shellDeps, cua),
 	};
@@ -260,32 +232,39 @@ export async function runRestartLoop(
 	// RC-fix1: bumped once per launch and threaded into forwardEvents as its
 	// idempotency-key salt — see `buildForwardOptions`.
 	let generation = 0;
-	do {
-		// Each iteration must finish (and, on "restart", relaunch) before the
-		// next one can begin — sequential by design, not an oversight.
-		const result = await runBridgeSession({
-			transport,
-			handle: handleRef.current,
-			sessionId,
-			signal: controller.signal,
-			agentSessionIdRef,
-			afterIdRef,
-			onStart,
-			pollOptions: buildPollOptions(args),
-			forwardOptions: buildForwardOptions(args, generation),
-		});
-		generation += 1;
-		outcome = result.outcome;
-		if (outcome === "restart") {
-			handleRef.current = wrapHandle(
-				await relaunch(adapter, args, transport, agentSessionIdRef),
-				imageDeps,
-				shellDeps,
-				cua
-			);
-			onStart = printRestarted;
-		}
-	} while (outcome === "restart");
+	try {
+		do {
+			// Each iteration must finish (and, on "restart", relaunch) before the
+			// next one can begin — sequential by design, not an oversight.
+			const result = await runBridgeSession({
+				transport,
+				handle: handleRef.current,
+				sessionId,
+				signal: controller.signal,
+				agentSessionIdRef,
+				afterIdRef,
+				onStart,
+				oobPush: (source, event) => oob.push(source, event),
+				pollOptions: buildPollOptions(args),
+				forwardOptions: buildForwardOptions(args, generation),
+			});
+			generation += 1;
+			outcome = result.outcome;
+			if (outcome === "restart") {
+				handleRef.current = wrapHandle(
+					await relaunch(adapter, args, transport, agentSessionIdRef),
+					imageDeps,
+					shellDeps,
+					cua
+				);
+				onStart = printRestarted;
+			}
+		} while (outcome === "restart");
+	} finally {
+		// A1/A3: one bounded best-effort flush of anything still queued on the
+		// out-of-band channel (close() never throws; a failed flush warns).
+		await oob.close();
+	}
 
 	process.stdout.write(`Bridge session ended: ${sessionId}\n`);
 }

@@ -15,6 +15,7 @@ import {
 	type RelayEvent,
 } from "./commands";
 import type { StatusEvent } from "./normalize/types";
+import type { OobPush } from "./oob-push";
 import type { RelayTransport } from "./relay-client";
 
 const STOPPED_BY_SERVER_STATUS = "stopped_by_server";
@@ -23,19 +24,25 @@ const STOPPED_BY_SERVER_STATUS = "stopped_by_server";
 // agent is reconfiguring, not gone for good" marker.
 const RESTARTING_STATUS = "restarting";
 
-/** Best-effort: pushes a status event straight to the server (bypassing the
- * agent's own event queue, which `forwardEvents` drains separately) so the
- * web UI's feed gets an explicit last word before the loop ends. Swallows
- * failure — the session is winding down (or about to relaunch) either way,
- * and there's no one left to retry for. */
+/** Pushes the session's last-word status event. A1: with an `oobPush` wired
+ * in (production always passes one — see restart-loop.ts), it rides the
+ * reliable out-of-band channel (retry + idempotency key + warning on final
+ * failure) instead of a single swallowed attempt; the legacy direct
+ * best-effort push only remains as the no-`oobPush` fallback. */
 async function pushBestEffortStatus(
-	transport: RelayTransport,
-	sessionId: string,
+	args: ResolveControlOutcomeArgs,
 	status: string
 ): Promise<void> {
+	const event: StatusEvent = { kind: "status", status };
+	if (args.oobPush) {
+		args.oobPush("outcome", event);
+		return;
+	}
 	try {
-		const event: StatusEvent = { kind: "status", status };
-		await transport.pushEvents({ sessionId, events: [event] });
+		await args.transport.pushEvents({
+			sessionId: args.sessionId,
+			events: [event],
+		});
 	} catch {
 		// best-effort — nothing else to do here.
 	}
@@ -53,6 +60,9 @@ export interface ControlOutcome {
 export interface ResolveControlOutcomeArgs {
 	afterIdRef: AfterIdRef;
 	commands: RelayEvent[];
+	/** A1: the reliable out-of-band channel for the stop/restart status —
+	 * see `pushBestEffortStatus`. Optional purely for the legacy fallback. */
+	oobPush?: OobPush;
 	sessionId: string;
 	sink: CommandSink;
 	transport: RelayTransport;
@@ -73,18 +83,18 @@ export interface ResolveControlOutcomeArgs {
 export async function resolveControlOutcome(
 	args: ResolveControlOutcomeArgs
 ): Promise<ControlOutcome> {
-	const { transport, sessionId, sink, afterIdRef, commands } = args;
+	const { sink, afterIdRef, commands } = args;
 	const { wasActive, stopRequested, restartRequested } = dispatchCommands(
 		commands,
 		sink,
 		afterIdRef
 	);
 	if (stopRequested) {
-		await pushBestEffortStatus(transport, sessionId, STOPPED_BY_SERVER_STATUS);
+		await pushBestEffortStatus(args, STOPPED_BY_SERVER_STATUS);
 		return { control: "stop", wasActive };
 	}
 	if (restartRequested) {
-		await pushBestEffortStatus(transport, sessionId, RESTARTING_STATUS);
+		await pushBestEffortStatus(args, RESTARTING_STATUS);
 		sink.stop?.();
 		return { control: "restart", wasActive };
 	}

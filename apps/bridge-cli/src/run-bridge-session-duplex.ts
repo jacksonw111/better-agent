@@ -113,6 +113,9 @@ function handleDuplexCommand(
 	return resolveControlOutcome({
 		afterIdRef: args.afterIdRef,
 		commands: [cmd],
+		// A1: same reliable out-of-band status channel as the polling path —
+		// threaded through `pollOptions` so both transports share one wiring.
+		oobPush: args.pollOptions?.oobPush,
 		sessionId: args.sessionId,
 		sink: args.sink,
 		transport: args.transport,

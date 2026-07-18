@@ -10,15 +10,13 @@ import {
 } from "./capture-agent-session-id";
 import type { AfterIdRef, CommandSink } from "./commands";
 import { type ForwardEventsOptions, forwardEvents } from "./forward-events";
+import type { OobPush } from "./oob-push";
 import { type PollLoopOptions, type PollOutcome, pollLoop } from "./poll-loop";
 import type { RelayTransport } from "./relay-client";
 import { runDuplexPhase } from "./run-bridge-session-duplex";
+import type { SessionWatchdog } from "./session-watchdog";
 import {
-	createSessionWatchdog,
-	type SessionWatchdog,
-} from "./session-watchdog";
-import {
-	makeOnStall,
+	buildWatchdog,
 	type WatchdogOutcomeRef,
 	watchdogSink,
 } from "./session-watchdog-wiring";
@@ -48,6 +46,10 @@ export interface RunBridgeSessionOptions {
 	/** Fired once the session is registered, before the loops start — lets the
 	 * CLI print the session id so the operator sees it connected. */
 	onStart?: (sessionId: string) => void;
+	/** A1: the session's reliable out-of-band channel (oob-push.ts), threaded
+	 * to the watchdog marker and the loops' stop/restart status pushes;
+	 * without it those sites fall back to their legacy fire-and-forget push. */
+	oobPush?: OobPush;
 	pollOptions?: Omit<PollLoopOptions, "signal">;
 	/** The already-registered session id — registered BEFORE the adapter starts
 	 * so the server can return the token's persisted startup `config` (Phase 4)
@@ -60,29 +62,6 @@ export interface RunBridgeSessionOptions {
 	 * (`session-watchdog.ts`'s `STALL_MS`) — tests only; production always
 	 * takes the default. */
 	watchdogStallMs?: number;
-}
-
-/** RC-T5: builds the watchdog for one `runBridgeSession` call, wired to push
- * a "stalled" marker, interrupt the wedged turn, and mark the session for
- * retire the moment it fires (see `session-watchdog-wiring.ts`'s
- * `makeOnStall`). Split out purely to keep `runBridgeSession` under the line
- * gate. */
-function buildWatchdog(
-	options: RunBridgeSessionOptions,
-	sessionId: string,
-	outcomeRef: WatchdogOutcomeRef,
-	stopPolling: () => void
-): SessionWatchdog {
-	return createSessionWatchdog({
-		stallMs: options.watchdogStallMs,
-		onStall: makeOnStall({
-			handle: options.handle,
-			outcomeRef,
-			sessionId,
-			stopPolling,
-			transport: options.transport,
-		}),
-	});
 }
 
 interface RunLoopsArgs {
@@ -145,7 +124,13 @@ async function runLoopsOverPoll(args: RunLoopsArgs): Promise<PollOutcome> {
 			sessionId,
 			watchdogSink(options.handle, watchdog),
 			afterIdRef,
-			{ ...options.pollOptions, signal: pollController.signal }
+			// A1: `oobPush` rides inside the poll options (same on the duplex
+			// path below) so both transports share one status-channel wiring.
+			{
+				...options.pollOptions,
+				oobPush: options.oobPush,
+				signal: pollController.signal,
+			}
 		),
 	]);
 	return outcome;
@@ -171,7 +156,7 @@ async function runLoopsOverDuplex(
 		afterIdRef,
 		channel,
 		pollController: args.pollController,
-		pollOptions: options.pollOptions,
+		pollOptions: { ...options.pollOptions, oobPush: options.oobPush },
 		sessionId,
 		sink,
 		transport: options.transport,
@@ -265,12 +250,15 @@ export async function runBridgeSession(
 		}
 
 		const watchdogOutcome: WatchdogOutcomeRef = {};
-		const watchdog = buildWatchdog(
-			options,
+		const watchdog = buildWatchdog({
+			handle: options.handle,
+			oobPush: options.oobPush,
+			outcomeRef: watchdogOutcome,
 			sessionId,
-			watchdogOutcome,
-			stopPolling
-		);
+			stallMs: options.watchdogStallMs,
+			stopPolling,
+			transport: options.transport,
+		});
 
 		let events: AsyncIterable<unknown> = truncateEvents(options.handle.events);
 		if (options.agentSessionIdRef) {

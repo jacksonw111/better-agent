@@ -18,6 +18,8 @@ import {
 
 const TASK_ID = "5b2c1d00-aaaa-4000-8000-000000000001";
 const RUN_ID = "9a1f0e00-bbbb-4000-8000-000000000002";
+// A1: the reliable oob sender's first minted idempotency key for a session.
+const OOB_FIRST_KEY = /^oob:\d+:1$/;
 
 function fakeHandle(): AgentHandle {
 	const events = createAsyncQueue<NormalizedEvent>();
@@ -126,16 +128,19 @@ describe("run session - start context injection", () => {
 		expect(rig.handle.send).toHaveBeenCalledExactlyOnceWith(
 			"TASK START CONTEXT"
 		);
-		expect(rig.transport.pushEvents).toHaveBeenCalledWith({
-			events: [
-				{
-					kind: "message",
-					origin: "task-start",
-					role: "user",
-					text: "TASK START CONTEXT",
-				},
-			],
-			sessionId: "sess-1",
+		await vi.waitFor(() => {
+			expect(rig.transport.pushEvents).toHaveBeenCalledWith({
+				events: [
+					{
+						kind: "message",
+						origin: "task-start",
+						role: "user",
+						text: "TASK START CONTEXT",
+					},
+				],
+				idempotencyKeys: [expect.stringMatching(OOB_FIRST_KEY)],
+				sessionId: "sess-1",
+			});
 		});
 		rig.finishLoop();
 		await session.done;
@@ -210,17 +215,20 @@ describe("run session - resume on a runtime that cannot resume (P2)", () => {
 				resume: undefined,
 				skills: [],
 			});
-			expect(rig.transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
-				events: [
-					{
-						detail: {
-							reason: `${agentKind} cannot resume a prior conversation; started a fresh session in the same workspace`,
+			await vi.waitFor(() => {
+				expect(rig.transport.pushEvents).toHaveBeenCalledExactlyOnceWith({
+					events: [
+						{
+							detail: {
+								reason: `${agentKind} cannot resume a prior conversation; started a fresh session in the same workspace`,
+							},
+							kind: "status",
+							status: "resume_failed",
 						},
-						kind: "status",
-						status: "resume_failed",
-					},
-				],
-				sessionId: "sess-1",
+					],
+					idempotencyKeys: [expect.stringMatching(OOB_FIRST_KEY)],
+					sessionId: "sess-1",
+				});
 			});
 			expect(rig.handle.send).not.toHaveBeenCalled();
 			rig.finishLoop();

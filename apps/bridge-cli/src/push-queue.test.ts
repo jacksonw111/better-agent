@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPushQueue, MAX_PUSH_RETRIES, type Sleep } from "./push-queue";
+import {
+	ABORT_FLUSH_MAX_RETRIES,
+	createPushQueue,
+	MAX_PUSH_RETRIES,
+	type Sleep,
+} from "./push-queue";
 
 /** A `sleep` double that resolves immediately — the tests care about retry
  * *ordering* and *counts*, not real backoff timing. */
@@ -129,7 +134,7 @@ async function givesUpAfterMaxRetriesAndRejects(): Promise<void> {
 	expect(attempts).toBe(MAX_PUSH_RETRIES);
 }
 
-async function abortMidRetryStopsPromptlyWithoutRejecting(): Promise<void> {
+async function abortGrantsABoundedFlushGraceThenStopsWithoutRejecting(): Promise<void> {
 	const controller = new AbortController();
 	let attempts = 0;
 	const push = vi.fn((): Promise<void> => {
@@ -139,8 +144,10 @@ async function abortMidRetryStopsPromptlyWithoutRejecting(): Promise<void> {
 		controller.abort();
 		return Promise.reject(new Error("still down"));
 	});
+	const onWarning = vi.fn();
 	const queue = createPushQueue<number>({
 		maxBufferedEvents: 100,
+		onWarning,
 		push,
 		signal: controller.signal,
 		sleep: instantSleep,
@@ -149,7 +156,63 @@ async function abortMidRetryStopsPromptlyWithoutRejecting(): Promise<void> {
 	queue.enqueue([1]);
 	await queue.close(); // resolves — an aborted session isn't a fatal error
 
-	expect(attempts).toBe(1);
+	// A3: abort no longer abandons the batch after its first failed attempt —
+	// it gets a short best-effort flush grace before the queue gives up, and
+	// the abandonment is warned about instead of being silent.
+	expect(attempts).toBe(1 + ABORT_FLUSH_MAX_RETRIES);
+	expect(onWarning).toHaveBeenCalledWith(expect.stringContaining("abandoned"));
+}
+
+async function abortStillDeliversABatchThatRecoversWithinTheGrace(): Promise<void> {
+	const controller = new AbortController();
+	let attempts = 0;
+	const push = vi.fn((): Promise<void> => {
+		attempts += 1;
+		if (attempts === 1) {
+			controller.abort();
+			return Promise.reject(new Error("blip during teardown"));
+		}
+		return Promise.resolve();
+	});
+	const queue = createPushQueue<number>({
+		maxBufferedEvents: 100,
+		push,
+		signal: controller.signal,
+		sleep: instantSleep,
+	});
+
+	queue.enqueue([1]);
+	await queue.close();
+
+	// The abort-grace retry delivered the batch instead of dropping it.
+	expect(attempts).toBe(2);
+}
+
+async function abortGraceIsSharedAcrossTheWholeRemainingBacklog(): Promise<void> {
+	const controller = new AbortController();
+	let attempts = 0;
+	const push = vi.fn((): Promise<void> => {
+		attempts += 1;
+		controller.abort();
+		return Promise.reject(new Error("still down"));
+	});
+	const queue = createPushQueue<number>({
+		maxBufferedEvents: 100,
+		onWarning: vi.fn(),
+		push,
+		signal: controller.signal,
+		sleep: instantSleep,
+	});
+
+	queue.enqueue([1]);
+	queue.enqueue([2]);
+	await queue.close();
+
+	// The grace budget bounds the WHOLE post-abort drain (≈3s wall clock), not
+	// each batch separately: batch 1 spends the entire budget (1 attempt +
+	// ABORT_FLUSH_MAX_RETRIES), batch 2 still gets its guaranteed first
+	// attempt but no further grace retries.
+	expect(attempts).toBe(1 + ABORT_FLUSH_MAX_RETRIES + 1);
 }
 
 async function abortBeforeFinalAttemptFailsResolvesWithoutFatalRejection(): Promise<void> {
@@ -202,8 +265,18 @@ describe("createPushQueue", () => {
 	);
 
 	it(
-		"stops retrying promptly once aborted, without treating it as a fatal error",
-		abortMidRetryStopsPromptlyWithoutRejecting
+		"grants a bounded best-effort flush grace once aborted, then stops without treating it as a fatal error",
+		abortGrantsABoundedFlushGraceThenStopsWithoutRejecting
+	);
+
+	it(
+		"still delivers a batch whose push recovers within the abort grace",
+		abortStillDeliversABatchThatRecoversWithinTheGrace
+	);
+
+	it(
+		"shares the abort grace budget across the whole remaining backlog",
+		abortGraceIsSharedAcrossTheWholeRemainingBacklog
 	);
 
 	it(
