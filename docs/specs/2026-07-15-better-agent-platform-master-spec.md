@@ -3,6 +3,18 @@
 日期：2026-07-15  
 状态：已根据产品讨论整理，等待最终确认
 
+> **2026-07-17 修订说明（产品方向调整，已实现上线）**
+>
+> 用户真机测试后拍板：UI 层去掉 Task 概念，改为 Session-centric 的入口结构 —— Computers → 该电脑的 agent（Runtime）→ 该 agent 的 Session 列表 → 聊天窗（左侧为可收起的兄弟 Session 侧栏）。产品概念「Session」映射内部的 task 实体（一个聊天线程）；Run 仍是进程一次生命周期，launch 幂等、Workspace、session relay 等机制原样保留。
+>
+> 具体变化：
+> - New session 无向导：直接创建，Description 允许空串，Name 由服务端自动生成（`Session M/D HH:mm`）；空 Description 不注入 Start Context。
+> - 重开/切换 Session：先结束当前活动 Run（bridge endSession），对目标 task 调 `tasks.resume` 建新 Run，Launch 带 `resumeAgentSessionId`（上一 Run 捕获的 Runtime 会话 id）恢复对话。claude-code/codex 原生恢复；opencode/pi 不支持时在同 Workspace 冷启动并以 `resume_failed` 明示。UI 有恢复中的 loading 过渡；旧 Run 历史（最多 3 个）只读渲染在当前 feed 上方。
+> - 三步 New Task Wizard、Task List 页与 GitHub Step 无 UI 入口（代码保留）。GitHub context / Repository task（Slice 4 的服务端与 CLI 能力：PAT Connection、Issue 快照、Repository Cache/worktree）全部保留且可用，只是暂无创建入口，未来以「Session 选项」形式回归。
+> - 导航：Dashboard、Computers、Agents、Memories、Skills、Integrations（无 Tasks）。
+>
+> 下文中受影响的章节已就地修订；仅涉及被搁置 UI 的章节（Wizard、Task List）保留为历史设计并加注，机制性内容（GitHub、Workspace、安全边界、测试策略）不变。
+
 ## 1. 文档目的
 
 本文定义 Better Agent 的整体产品方向、第一版边界、核心领域模型、Computer-first 架构、Task 创建与启动流程、GitHub 开发流程，以及未来 Agent 协作的演进方式。
@@ -15,22 +27,23 @@ Better Agent 是一个个人使用的本地 Agent 协作与远程执行平台。
 
 用户在自己的多台 Computer 上安装 Better Agent Client。Client 发现本机已经安装的 Agent Runtime，例如 Claude Code、Codex、OpenCode 和 Pi，并让这些 Runtime 可以从 Better Agent Web 中被选择和启动。
 
-用户创建的最小工作单元是 Task：
+用户创建的最小工作单元是 Session（2026-07-17 起的产品措辞；内部实体仍是 task）：
 
-- Task 可以是 GitHub 仓库开发任务，例如根据 GitHub Issue 修改代码并交付 Pull Request。
-- Task 也可以是普通 Computer 任务，例如整理照片、处理文件或完成不依赖 GitHub 的本地工作。
-- Task 不需要先属于 Project。
-- 第一版中，一个 Task 只有一个用户与一个 Agent Runtime 的对话。
+- Session 是用户与某台 Computer 上某个 Agent Runtime 的一个聊天线程。
+- Session 可以承载 GitHub 仓库开发工作，例如根据 GitHub Issue 修改代码并交付 Pull Request（服务端能力保留，暂无 UI 创建入口，见修订说明）。
+- Session 也可以是普通 Computer 工作，例如整理照片、处理文件或完成不依赖 GitHub 的本地工作。
+- Session 不需要先属于 Project。
+- 第一版中，一个 Session 只有一个用户与一个 Agent Runtime 的对话。
 
-Better Agent 负责连接 Computer、组装 Task 上下文、选择执行位置、启动 Runtime、传递消息并记录执行状态。Agent Runtime 继续负责自己的工具、命令策略、审批机制、浏览器或桌面能力以及原生权限行为。
+Better Agent 负责连接 Computer、组装 Session 上下文、选择执行位置、启动 Runtime、传递消息并记录执行状态。Agent Runtime 继续负责自己的工具、命令策略、审批机制、浏览器或桌面能力以及原生权限行为。
 
 ## 3. 第一性原则
 
-### 3.1 Task 是产品的最小单位
+### 3.1 Session 是产品的最小单位
 
-用户从 New Task 开始工作，而不是先创建 Project、团队、Squad 或 Agent 工作流。
+用户从 New session 开始工作，而不是先创建 Project、团队、Squad 或 Agent 工作流。
 
-一个 Task 必须可以独立创建、启动、对话、失败、重试和完成。
+「Session」是产品概念，内部模型仍是 task（一个 task 即一个聊天线程）加顺序 Run。一个 Session 必须可以独立创建、启动、对话、失败、重试/恢复和完成。
 
 ### 3.2 Computer 必须先于 Agent Run 存在
 
@@ -72,7 +85,7 @@ Better Agent 不复制一套 Issue Tracker 或 Code Review 系统。
 - 每台 Computer 运行一个持续连接的 Better Agent Client。
 - Client 发现支持的 Agent Runtime 和它们的 Skill Inventory。
 - Client 报告 Better Agent 管理的默认 CLI 工具，例如 `git` 和 `gh`。
-- 用户通过三步 New Task Wizard 创建并启动 Task。
+- 用户通过三步 New Task Wizard 创建并启动 Task。（2026-07-17：Wizard 无 UI 入口，改为在 agent 的 Session 列表直接 New session，见 §8。）
 - Task 可以有或没有 GitHub Repository。
 - Repository 存在时可以关联多个 GitHub Issue。
 - 每个 Task 选择一台在线 Computer 和一个 Agent Runtime。
@@ -97,7 +110,7 @@ Better Agent 不复制一套 Issue Tracker 或 Code Review 系统。
 ### 4.3 后续演进
 
 - Repository Task 的完整 Issue → Draft PR → Review → Merge 生命周期。
-- Task 的顺序 Run、失败重试和跨 Runtime 接续。
+- Task 的顺序 Run、失败重试和跨 Runtime 接续。（2026-07-17：顺序 Run 与 Resume 已上线，见 §8.2、§16；跨 Runtime 接续仍为后续。）
 - 可选 Project 作为相关 Task 的分组视图，而不是 Task 的前置条件。
 - 通过文档、Issue 和结构化结果进行 Agent handoff。
 - 在共享 Task timeline 和独立 Run Workbench 基础上的多 Agent 协作。
@@ -195,7 +208,7 @@ Client 是 Computer 上的平台进程，不是 Agent Runtime，也不是某个 
 
 Agent Runtime 是 Computer 上可以执行 Task 的 Agent 产品。
 
-Runtime 必须来自该 Computer 当前上报的 Runtime Inventory。用户切换 Computer 后，如果原 Runtime 不存在，Wizard 必须清除该选择。
+Runtime 必须来自该 Computer 当前上报的 Runtime Inventory。用户切换 Computer 后，如果原 Runtime 不存在，选择界面必须清除该选择（原为 Wizard 规则；Session-centric UI 中 Runtime 由所在 agent 页面确定）。
 
 ### 6.4 Skill Inventory
 
@@ -203,9 +216,11 @@ Skill Inventory 是选定 Runtime 在选定 Computer 上可用的 Skill 列表�
 
 它不是全局 Skill Marketplace，也不是自动注入列表。
 
-Skill 是 Runtime 能力握手的一部分。Runtime Adapter 上报 skill 能力（`none` 或 `discoverable`）；报 `none` 的 Runtime 在 Wizard 中完全隐藏 Skill 区块，不显示空列表，也不伪造统一体验。
+Skill 是 Runtime 能力握手的一部分。Runtime Adapter 上报 skill 能力（`none` 或 `discoverable`）；报 `none` 的 Runtime 在 UI 中完全隐藏 Skill 区块（原为 Wizard 规则，握手语义不变），不显示空列表，也不伪造统一体验。
 
 ### 6.5 Skill Palette
+
+（2026-07-17：随 Wizard 搁置，无 UI 入口，语义保留。）
 
 Skill Palette 是用户在当前 New Task Wizard 中勾选的 Skill 子集。
 
@@ -226,7 +241,7 @@ Skill Reference 是用户明确插入 Description 的文本，例如 `/research`
 
 ### 6.7 Task
 
-Task 是用户创建的持久工作单元。
+Task 是用户创建的持久工作单元。2026-07-17 起在产品 UI 中以「Session」呈现（一个聊天线程），内部实体与字段不变。
 
 Task 记录：
 
@@ -243,23 +258,25 @@ Task 记录：
 
 第一版创建 Task 时立即创建并尝试启动第一个 Run。
 
-Task 具有显式 status 字段，并保留 `draft` 值。第一版 Wizard 保持原子 Start，不提供保存草稿入口；启动失败的 Task 停留在带失败 Run 的可重试状态。status 字段为未来的保存草稿和离线排队预留模型位置，届时无需迁移。
+Task 具有显式 status 字段，并保留 `draft` 值。第一版保持原子 Start（New session 直接创建），不提供保存草稿入口；启动失败的 Task 停留在带失败 Run 的可重试状态。status 字段为未来的保存草稿和离线排队预留模型位置，届时无需迁移。
 
 ### 6.8 Task Name
 
 Task Name 是人类界面标签，用于：
 
-- Task 列表。
+- Session 列表。
 - 导航和搜索。
 - Task Conversation 标题。
 
 Task Name 不重复进入 Agent 的初始指令。
 
+2026-07-17 修订：Name 不再由用户必填。New session 时服务端自动生成 `Session M/D HH:mm` 形式的名称。
+
 ### 6.9 Task Description
 
-Task Description 是用户要求 Agent 完成什么的主要指令，不能为空。
+Task Description 是用户要求 Agent 完成什么的主要指令。
 
-它必须原样保存。Better Agent 生成的上下文只能围绕它增加信息，不能替换它。
+2026-07-17 修订：Description 允许为空串。New session 直接创建时用户可以不填任何内容，先进入聊天再逐条输入；空 Description 不注入 Start Context（不生成 Opening Message 指令部分）。非空时它必须原样保存，Better Agent 生成的上下文只能围绕它增加信息，不能替换它。
 
 ### 6.10 Run
 
@@ -276,7 +293,7 @@ Run 记录：
 - 生命周期状态。
 - 真实启动或执行错误。
 
-Task 与 Run 必须分离。未来同一 Task 可以在不同时间有多个顺序 Run，但任何时刻最多只有一个 Run 对同一个 Task Workspace 持有写入权。
+Task 与 Run 必须分离。同一 Task 可以在不同时间有多个顺序 Run（Retry 或 Resume，见 §16；2026-07-17 起 Resume 已上线，Launch 可携带 `resumeAgentSessionId`），但任何时刻最多只有一个 Run 对同一个 Task Workspace 持有写入权。
 
 ### 6.11 Task Conversation
 
@@ -338,7 +355,7 @@ Linked Issue 只有在已选 Repository 后才能添加，并且必须属于该 
 
 快照归属规则：Task Opening Message 属于 Task，创建时组装且不可变；Issue 快照属于 Run，每次 Run 启动时重新获取最新 title、body 和 URL。重试产生的新 Run 使用启动那一刻的最新快照，Issue 在两次 Run 之间被编辑时，新 Run 不会拿着过期需求工作。Run 记录上的快照同时说明该次执行时 Agent 看到的需求是什么。
 
-Wizard 允许添加多个 Linked Issue。对于代码交付，推荐一个独立可交付 Issue 对应一个 Task 和一个 Pull Request；额外 Linked Issue 默认是参考上下文，Better Agent 不擅自为它们生成关闭语义。
+创建界面允许添加多个 Linked Issue（原 Wizard GitHub Step，已搁置；服务端能力保留，见修订说明）。对于代码交付，推荐一个独立可交付 Issue 对应一个 Task 和一个 Pull Request；额外 Linked Issue 默认是参考上下文，Better Agent 不擅自为它们生成关闭语义。
 
 ### 6.16 Repository Cache
 
@@ -408,11 +425,35 @@ Client 启动后：
 
 Server 根据最近心跳或连接状态计算 Connected/Offline。离线 Computer 仍在 UI 中可见。
 
-## 8. New Task 用户流程
+## 8. New Session 用户流程（2026-07-17 修订）
 
-### 8.1 入口
+### 8.1 当前流程：New session
 
-用户点击全局 `New Task`，打开三步 Wizard。
+入口不再是全局 `New Task`，而是：Computers → 选择该电脑上的 agent（Runtime）→ 该 agent 的 Session 列表 → `New session`。
+
+行为：
+
+1. 无向导，点击即直接创建：Computer 和 Runtime 已由所在页面确定。
+2. Description 允许空串；Name 由服务端自动生成 `Session M/D HH:mm`。
+3. Server 创建 task 与第一个 Run，幂等发送 Launch Command（机制同 §9），打开聊天窗。
+4. 空 Description 不注入 Start Context；用户直接在聊天中发出第一条指令。
+5. 聊天窗左侧是可收起的兄弟 Session 侧栏，用于在同一 agent 的 Session 间切换。
+
+### 8.2 当前流程：重开/切换 Session（resume）
+
+切换到一个没有活动 Run 的 Session，或重开已结束的 Session 时：
+
+1. 先结束当前活动 Run（bridge endSession）。
+2. 对目标 task 调 `tasks.resume` 创建新的顺序 Run。
+3. Launch Command 携带 `resumeAgentSessionId`（上一 Run 捕获的 Runtime 会话 id），在同一 Task Workspace 恢复对话。
+4. claude-code 和 codex 原生支持会话恢复；opencode 和 pi 不支持时，在同一 Workspace 冷启动新会话，并以 `resume_failed` 明确告知用户，不伪装成恢复成功。
+5. UI 显示恢复中的 loading 过渡；旧 Run 的历史消息（最多 3 个 Run）只读渲染在当前 feed 上方。
+
+### 8.3 已搁置的历史设计：三步 New Task Wizard
+
+> 以下 Wizard 设计于 2026-07-17 搁置：无 UI 入口，代码保留。GitHub Step 对应的服务端与 CLI 能力（见 §5.5、§6.14-6.17）保留且可用，未来以「Session 选项」形式回归。Skill Palette 与 `/` autocomplete 同随 Wizard 搁置。
+
+原入口：用户点击全局 `New Task`，打开三步 Wizard。
 
 固定顺序：
 
@@ -422,7 +463,7 @@ Server 根据最近心跳或连接状态计算 Connected/Offline。离线 Comput
 
 没有 Review 页面。
 
-### 8.2 Step 1：Runtime
+#### Step 1：Runtime
 
 字段和行为：
 
@@ -442,12 +483,12 @@ Server 根据最近心跳或连接状态计算 Connected/Offline。离线 Comput
 - Offline Computer 可以查看，但不能启动新 Run。
 - 工具认证状态不是 Start 门禁。
 
-### 8.3 Step 2：Request
+#### Step 2：Request
 
 字段：
 
-- Task Name，必填。
-- Task Description，必填。
+- Task Name，必填。（现行为：自动生成，见 6.8）
+- Task Description，必填。（现行为：允许空串，见 6.9）
 
 Description 编辑器支持 `/` 自动补全：
 
@@ -456,7 +497,7 @@ Description 编辑器支持 `/` 自动补全：
 - 可以插入多个 Skill Reference。
 - 勾选 Skill 本身不会修改 Description。
 
-### 8.4 Step 3：GitHub
+#### Step 3：GitHub
 
 字段：
 
@@ -473,11 +514,11 @@ Description 编辑器支持 `/` 自动补全：
 
 最终操作是 `Start`，不再增加 Review 或确认步骤。
 
-### 8.5 Start 的原子行为
+#### Start 的原子行为
 
-点击 Start 后，Server：
+Start 的原子机制在 Session-centric 流程中原样保留，仅第 1 步的 Name/Description 必填验证放宽（见 6.8、6.9）。点击 Start 后，Server：
 
-1. 验证 Task Name 和 Description。
+1. 验证 Task Name 和 Description。（现行为：Name 自动生成，Description 允许空串）
 2. 验证 Computer 所有权和在线状态。
 3. 验证 Runtime 来自该 Computer 的 Inventory。
 4. 验证 Repository 和 Issue 的所属关系。
@@ -507,6 +548,7 @@ Launch Command 至少包含：
 - Linked Issue 快照。
 - 原始 Description。
 - 生成 Task Start Context 所需的标准信息。
+- Resume 时可选的 `resumeAgentSessionId`（2026-07-17 新增，见 §8.2、§16）。
 
 同一个 Run ID 即使因重连重复投递，也只能启动一个 Runtime 进程。
 
@@ -565,6 +607,8 @@ Repository: {repository URL；没有则省略整个区块}
 多个 Issue 按用户添加顺序重复 Issue 区块。
 
 模板允许根据无 Repository、无 Issue 的情况省略空区块，但不能省略原始 Description。
+
+2026-07-17 修订：Description 为空串时（New session 直接创建的默认情形），不组装 Opening Message，也不注入任何 Start Context 指令；Conversation 从用户的第一条聊天消息开始。仅当用户提供了非空 Description 时才按本节模板组装。
 
 ### 10.2 Agent-facing Task Start Context
 
@@ -638,7 +682,7 @@ Better Agent 不能用推测性健康检查替代真实错误。
 
 ## 12. GitHub Issue → Task → Pull Request 目标流程
 
-这一节定义 Repository 开发 Task 的目标最佳实践。第一版 Task 创建可以先完成 Issue 上下文和本地执行，Pull Request 生命周期可作为后续切片逐步上线。
+这一节定义 Repository 开发 Task 的目标最佳实践。第一版 Task 创建可以先完成 Issue 上下文和本地执行，Pull Request 生命周期可作为后续切片逐步上线。（2026-07-17：Repository task 的创建入口随 Wizard 搁置，服务端与 CLI 能力保留且可用；本节流程在入口以「Session 选项」回归后继续成立。）
 
 ### 12.1 权威边界
 
@@ -709,11 +753,10 @@ Stand-alone Task 不需要 Repository、Issue 或 Project。
 - 调查 Computer 上的环境问题。
 - 运行不属于某个 Repository 的自动化任务。
 
-流程仍然使用同一个 New Task Wizard：
+流程（2026-07-17：Wizard 已搁置，现为 New session 直接创建，Stand-alone 是当前唯一有 UI 入口的 Session 类型）：
 
-- 选择 Computer 和 Runtime。
-- 输入 Name 和 Description。
-- GitHub Step 留空并 Start。
+- 在 Computer 下的 agent Session 列表点击 New session。
+- Description 可留空，Name 自动生成。
 
 Client 创建干净托管 Task 目录作为起始目录。第一版不提供远程目录浏览或 Working Location 选择器；目标资源（例如 `~/Pictures`）由用户直接写在 Description 里。Runtime 是否能够访问资源、是否需要用户批准以及如何执行，由 Runtime 的原生能力决定。
 
@@ -782,31 +825,36 @@ Better Agent 不声称 Task Workspace 限制 Runtime 只能访问该目录。
 - Control reconnect：按 Run ID 恢复或忽略重复 Launch。
 - Session reconnect：使用现有 cursor、idempotency 和 relay 恢复机制。
 - Retry：同一 Task 创建新的顺序 Run，而不是复制 Task 需求记录。新 Run 启动时重新获取 Linked Issue 快照（见 6.15）。
+- Resume（2026-07-17 新增，与 Retry 并列的另一种语义）：重开或切换 Session 时，先结束当前活动 Run（bridge endSession），再对目标 task 调 `tasks.resume` 创建新 Run，Launch 携带 `resumeAgentSessionId` 在同一 Workspace 恢复上一 Run 的 Runtime 会话。Retry 是失败后重新执行，Resume 是延续既有对话。Runtime 不支持恢复（opencode/pi）时降级为同 Workspace 冷启动并上报 `resume_failed`，不静默伪装。
 
-## 17. UI 信息架构
+## 17. UI 信息架构（2026-07-17 修订）
 
-### 17.1 主要页面
+### 17.1 层级与导航
 
-- Task List：查看和进入 Task。
-- Task Conversation：一对一用户/Agent 交互。
-- Computers：查看 Pairing、Connected 状态、Runtime 和默认工具事实。
+入口层级：Computers → 该电脑的 agent（Runtime）→ 该 agent 的 Session 列表 → 聊天窗。聊天窗左侧是可收起的兄弟 Session 侧栏。
+
+主导航：Dashboard、Computers、Agents、Memories、Skills、Integrations。没有 Tasks 入口；Task List 页已搁置（代码保留）。
+
+- Computers：查看 Pairing、Connected 状态、Runtime 和默认工具事实，并进入各 agent 的 Session 列表。
+- Session Conversation：一对一用户/Agent 交互。
 - Skills：管理或查看可用 Skill。
 - Integrations：管理 Server-side GitHub Connection 等服务。
-- Local Agent/Run inspection：保留现有 session 观察与控制能力，并逐步成为 Task 下的 Run inspection。
+- Local Agent/Run inspection：保留现有 session 观察与控制能力，并逐步成为 Session 下的 Run inspection。
 
-### 17.2 New Task
+### 17.2 New session
 
-New Task 是全局主要动作。Wizard 只收集启动 Task 真正需要的上下文，不显示重复 Review，不显示无意义的 startup message，也不把 Runtime 原生配置全部搬进表单。
+New session 是 Session 列表内的主要动作：无向导，直接创建并进入聊天（见 §8.1）。三步 Wizard 已搁置（见 §8.3）。
 
-### 17.3 Task Conversation
+### 17.3 Session Conversation
 
 Conversation 首屏应让用户立即看懂：
 
-- 这是哪个 Task。
-- 用户要求 Agent 做什么。
-- 关联了哪些 Repository/Issue。
-- 当前选择了哪个 Computer 和 Runtime。
+- 这是哪个 Session。
+- 用户要求 Agent 做什么（Description 为空时从第一条聊天消息开始）。
+- 关联了哪些 Repository/Issue（如有）。
+- 当前是哪个 Computer 和 Runtime。
 - Agent 的真实回复和需要用户处理的交互。
+- Resume 后，旧 Run 历史（最多 3 个）只读渲染在当前 feed 上方；恢复过程有 loading 过渡。
 
 ## 18. 可观察产品契约
 
@@ -819,6 +867,8 @@ Conversation 首屏应让用户立即看懂：
 - `git`/`gh` 显示为只读事实，不显示认证承诺。
 
 ### 18.2 Wizard 契约
+
+（2026-07-17：Wizard 已搁置，本契约描述保留的历史设计；现行创建契约见 §8.1-8.2。）
 
 - 固定 Runtime → Request → GitHub 三步。
 - Computer 先于 Runtime。
@@ -841,7 +891,7 @@ Conversation 首屏应让用户立即看懂：
 
 ### 18.4 Conversation 契约
 
-- 第一条可见消息是 Task Opening Message。
+- Description 非空时，第一条可见消息是 Task Opening Message；Description 为空串时无 Opening Message，从用户第一条聊天消息开始（见 §10.1）。
 - 不显示 preparing/starting 等生命周期噪声。
 - 启动错误显示在聊天之外。
 - 第一版只有用户与一个 Agent Runtime。
@@ -885,6 +935,8 @@ Conversation 首屏应让用户立即看懂：
 - 未验证 `gh` 登录仍允许启动。
 
 ### 19.3 Web Wizard 测试
+
+（2026-07-17：Wizard 无 UI 入口但代码保留，这些测试继续守护保留代码。）
 
 使用 Testing Library 驱动完整三步流程，断言：
 
@@ -956,12 +1008,16 @@ Conversation 首屏应让用户立即看懂：
 
 ### Slice 3：New Task Wizard 与 Stand-alone Task
 
+（2026-07-17：Wizard UI 已交付后搁置；Stand-alone Workspace 与 Conversation 由 Session-centric UI 承接。）
+
 - 三步 Wizard。
 - Skill Palette 和 Description autocomplete。
 - Stand-alone Workspace。
 - Task Opening Message 和 Conversation。
 
 ### Slice 4：GitHub Context 与 Repository Workspace
+
+（2026-07-17：本 Slice 的服务端与 CLI 能力全部保留且可用，仅暂无 UI 创建入口，未来以「Session 选项」回归。）
 
 - Server-side GitHub Connection。
 - Repository/Issue 选择。
@@ -1008,18 +1064,19 @@ Better Agent 不应：
 
 1. 用户在至少一台 Computer 安装并 Pair Better Agent Client。
 2. Web 在没有运行 Agent 的情况下显示 Connected Computer。
-3. 用户点击 New Task。
-4. 用户选择 Computer 和该 Computer 上的 Agent Runtime。
-5. 用户可以看到 `git`、`gh` 和 Skill Inventory。
-6. 用户填写 Name 和 Description，并可通过 `/` 插入 Skill Reference。
-7. 用户可以选择 Repository 和多个 Issue，也可以全部留空。
-8. 用户点击 Start 后创建 Task 和 Run。
+3. 用户进入 Computer 下某个 agent 的 Session 列表并点击 New session（2026-07-17 修订：原「点击 New Task 打开 Wizard」）。
+4. Session 所属的 Computer 和 Agent Runtime 由所在页面确定。
+5. 用户可以在 Computers 页看到 `git`、`gh` 和 Skill Inventory。
+6. Session 直接创建：Name 自动生成，Description 可留空（原「填写 Name 和 Description 并通过 `/` 插入 Skill Reference」随 Wizard 搁置）。
+7. Repository 和 Issue 选择暂无 UI 入口（服务端能力保留，未来以 Session 选项回归）。
+8. 创建 Session 后即创建 Task 和 Run。
 9. Client 准备正确类型的 Workspace 并启动 Runtime。
-10. Conversation 第一条消息是组装后的 Task Opening Message。
+10. Description 非空时，Conversation 第一条消息是组装后的 Task Opening Message；为空时从用户第一条聊天消息开始。
 11. 用户继续与 Agent 一对一交流。
 12. 工具或启动失败时显示真实错误，而不是被预检查阻止。
-13. 同一 Repository 的后续 Task 复用 Cache，但获得独立 Workspace。
-14. Offline Computer 不会在未来重连时未经用户确认自动启动 Task。
+13. 同一 Repository 的后续 Session 复用 Cache，但获得独立 Workspace。
+14. Offline Computer 不会在未来重连时未经用户确认自动启动 Session。
+15. Resume 闭环（2026-07-17 新增）：用户切换或重开 Session 时，当前活动 Run 被结束，目标 Session 通过 `tasks.resume` 建新 Run 并以 `resumeAgentSessionId` 恢复对话；支持恢复的 Runtime（claude-code/codex）延续上下文，不支持的（opencode/pi）冷启动并明示 `resume_failed`；旧 Run 历史只读可见。
 
 完成这个闭环后，Better Agent 才从“远程连接单个 local agent session”变成真正的“个人本地 Agent 执行与协作平台”。
 
