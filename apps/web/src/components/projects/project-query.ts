@@ -1,56 +1,45 @@
+import type { AppRouter } from "@better-agent/api/routers/index";
+import type { RouterClient } from "@orpc/server";
 import { client } from "@/utils/orpc";
 
-// Q3: the `projects.query` out-of-band read contract — the bridge relays it
-// to the project's computer, which answers from the live checkout. The
-// endpoint is being implemented alongside this UI (bridge/api side), so the
-// call goes through a locally-typed caller instead of the generated router
-// client; once `projects.query` lands in AppRouter this cast disappears.
+// Q3 wrap-up: `projects.query` (Q2) is real now, so these options call the
+// generated router client directly — the interim locally-typed caller (and
+// its cast) is gone. The endpoint's output type is a union of the two op
+// results (fs_list | git_status), so each option narrows to its own half
+// with a runtime guard before handing the data to the cards.
 // Failure modes surfaced by the server: PRECONDITION_FAILED while the
-// computer is offline, and a timeout error when it never answers.
+// computer is offline or the project isn't ready, TIMEOUT when the computer
+// never answers, and BAD_REQUEST carrying the CLI's execution error verbatim.
 
-export interface ProjectFsEntry {
-	kind: "dir" | "file";
-	name: string;
-	size?: number;
-}
+type ProjectQueryResult = Awaited<
+	ReturnType<RouterClient<AppRouter>["projects"]["query"]>
+>;
 
-export interface ProjectFsList {
-	entries: ProjectFsEntry[];
-}
+export type ProjectFsList = Extract<ProjectQueryResult, { entries: unknown }>;
+export type ProjectFsEntry = ProjectFsList["entries"][number];
+export type ProjectGitStatus = Extract<ProjectQueryResult, { branch: unknown }>;
+export type ProjectGitChange = ProjectGitStatus["changes"][number];
 
-export interface ProjectGitChange {
-	path: string;
-	status: string;
-}
-
-export interface ProjectGitStatus {
-	branch: string;
-	changes: ProjectGitChange[];
-	dirty: boolean;
-	lastCommit: { hash: string; subject: string } | null;
-}
-
-interface ProjectQueryCaller {
-	query: ((input: {
-		op: "fs_list";
-		path?: string;
-		projectId: string;
-	}) => Promise<ProjectFsList>) &
-		((input: {
-			op: "git_status";
-			projectId: string;
-		}) => Promise<ProjectGitStatus>);
-}
-
-function caller(): ProjectQueryCaller {
-	return client.projects as unknown as ProjectQueryCaller;
+function isGitStatus(result: ProjectQueryResult): result is ProjectGitStatus {
+	return "branch" in result;
 }
 
 /** git_status for one project — branch, dirty, changed files, last commit. */
 export function projectGitStatusOptions(projectId: string) {
 	return {
 		queryKey: ["projects", "query", projectId, "git_status"] as const,
-		queryFn: () => caller().query({ op: "git_status", projectId }),
+		queryFn: async (): Promise<ProjectGitStatus> => {
+			const result = await client.projects.query({
+				op: "git_status",
+				projectId,
+			});
+			if (!isGitStatus(result)) {
+				throw new Error(
+					"projects.query answered a git_status request with an fs_list result"
+				);
+			}
+			return result;
+		},
 	};
 }
 
@@ -58,11 +47,18 @@ export function projectGitStatusOptions(projectId: string) {
 export function projectFsListOptions(projectId: string, path: string) {
 	return {
 		queryKey: ["projects", "query", projectId, "fs_list", path] as const,
-		queryFn: () =>
-			caller().query({
+		queryFn: async (): Promise<ProjectFsList> => {
+			const result = await client.projects.query({
 				op: "fs_list",
 				path: path === "" ? undefined : path,
 				projectId,
-			}),
+			});
+			if (isGitStatus(result)) {
+				throw new Error(
+					"projects.query answered an fs_list request with a git_status result"
+				);
+			}
+			return result;
+		},
 	};
 }

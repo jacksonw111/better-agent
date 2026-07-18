@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+
+import { ORPCError } from "@orpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
 	cleanup,
@@ -18,9 +20,12 @@ import type { ProjectFsEntry } from "./project-query";
 const SRC_PATTERN = /src/;
 const CLONING_PATTERN = /still being cloned/;
 const OFFLINE_PATTERN = /offline/;
+const RECONNECT_PATTERN = /reconnect it and retry/;
+const TIMEOUT_PATTERN = /did not answer in time/;
 
 const store = vi.hoisted(() => ({
 	entriesByPath: {} as Record<string, unknown[]>,
+	error: null as unknown,
 	paths: [] as string[],
 }));
 
@@ -29,6 +34,9 @@ vi.mock("./project-query", () => ({
 		queryKey: ["projects", "query", projectId, "fs_list", path],
 		queryFn: () => {
 			store.paths.push(path);
+			if (store.error) {
+				return Promise.reject(store.error);
+			}
 			return Promise.resolve({ entries: store.entriesByPath[path] ?? [] });
 		},
 	}),
@@ -62,6 +70,7 @@ function renderCard(overrides: { online?: boolean; status?: string } = {}) {
 
 afterEach(() => {
 	store.entriesByPath = {};
+	store.error = null;
 	store.paths.length = 0;
 	cleanup();
 });
@@ -107,6 +116,30 @@ it("explains an empty directory instead of a blank", async () => {
 	await waitFor(() => {
 		expect(view.getByText("This directory is empty.")).toBeDefined();
 	});
+});
+
+it("renders PRECONDITION_FAILED as an explanation without a retry", async () => {
+	store.error = new ORPCError("PRECONDITION_FAILED", {
+		message: "Computer is not connected — reconnect it and retry",
+	});
+	const { view } = renderCard();
+
+	await waitFor(() => {
+		expect(view.getByText(RECONNECT_PATTERN)).toBeDefined();
+	});
+	expect(view.queryByRole("button", { name: "Retry" })).toBeNull();
+});
+
+it("renders TIMEOUT as a timeout with a retry", async () => {
+	store.error = new ORPCError("TIMEOUT", {
+		message: "project query timed out after 10s",
+	});
+	const { view } = renderCard();
+
+	await waitFor(() => {
+		expect(view.getByText(TIMEOUT_PATTERN)).toBeDefined();
+	});
+	expect(view.getByRole("button", { name: "Retry" })).toBeDefined();
 });
 
 it("explains a not-ready project or offline computer instead of querying", () => {

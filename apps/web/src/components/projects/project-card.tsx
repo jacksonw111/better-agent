@@ -1,5 +1,6 @@
 import { Button } from "@better-agent/ui/components/button";
 import { cn } from "@better-agent/ui/lib/utils";
+import { ORPCError } from "@orpc/client";
 import { RefreshCwIcon } from "lucide-react";
 import type { ProjectStatus } from "./project-status-chip";
 
@@ -28,6 +29,37 @@ export function unavailableReason(
 
 export function CardNotice({ text }: { text: string }) {
 	return <p className="text-muted-foreground text-sm">{text}</p>;
+}
+
+const TIMEOUT_TEXT = "The computer did not answer in time.";
+
+/** A failed `projects.query`, by the server's actual (Q2) failure taxonomy:
+ * PRECONDITION_FAILED (computer offline / project not ready — usually a race
+ * the unavailableReason gate just missed) reads as an explanation, not an
+ * error; TIMEOUT gets a friendly line instead of the server's terse one; any
+ * other failure (BAD_REQUEST = the CLI's execution error) shows its message
+ * verbatim. Everything but the precondition notice offers a retry. */
+export function QueryErrorNotice({
+	error,
+	onRetry,
+}: {
+	error: Error;
+	onRetry: () => void;
+}) {
+	const isOrpcError = error instanceof ORPCError;
+	if (isOrpcError && error.code === "PRECONDITION_FAILED") {
+		return <CardNotice text={error.message} />;
+	}
+	const message =
+		isOrpcError && error.code === "TIMEOUT" ? TIMEOUT_TEXT : error.message;
+	return (
+		<div className="flex flex-col items-start gap-2">
+			<p className="text-destructive text-sm">{message}</p>
+			<Button onClick={onRetry} size="sm" type="button" variant="outline">
+				Retry
+			</Button>
+		</div>
+	);
 }
 
 export function ProjectCard({

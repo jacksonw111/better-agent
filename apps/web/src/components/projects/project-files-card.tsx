@@ -1,9 +1,13 @@
-import { Button } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRightIcon, FileIcon, FolderIcon } from "lucide-react";
 import { Fragment, useState } from "react";
-import { CardNotice, ProjectCard, unavailableReason } from "./project-card";
+import {
+	CardNotice,
+	ProjectCard,
+	QueryErrorNotice,
+	unavailableReason,
+} from "./project-card";
 import { type ProjectFsEntry, projectFsListOptions } from "./project-query";
 import type { ProjectStatus } from "./project-status-chip";
 
@@ -129,14 +133,7 @@ function FilesCardBody({
 	pending: boolean;
 }) {
 	if (error) {
-		return (
-			<div className="flex flex-col items-start gap-2">
-				<p className="text-destructive text-sm">{error.message}</p>
-				<Button onClick={onRetry} size="sm" type="button" variant="outline">
-					Retry
-				</Button>
-			</div>
-		);
+		return <QueryErrorNotice error={error} onRetry={onRetry} />;
 	}
 	if (pending || !entries) {
 		return <Skeleton className="h-24 w-full rounded-lg" />;
