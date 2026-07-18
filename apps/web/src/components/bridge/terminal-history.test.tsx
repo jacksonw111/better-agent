@@ -34,7 +34,11 @@ it("seeds the feed from persisted history on mount, before any live event arrive
 			view.getAllByText(EVENT_TEXT_PATTERN).map((el) => el.textContent)
 		).toEqual(["正在重启 agent…", "agent 已重启"]);
 	});
-	expect(fake.history).toHaveBeenCalledWith({ sessionId: SESSION.id });
+	expect(fake.history).toHaveBeenCalledWith({
+		sessionId: SESSION.id,
+		afterSeq: 0,
+		limit: 500,
+	});
 });
 
 it("opens the live connection only after history has been seeded", async () => {

@@ -1,3 +1,4 @@
+import { log } from "evlog";
 import type { Context } from "../context";
 import { maybePersistAgentSessionId } from "./bridge-agent-session-id";
 import { maybeRecordBridgeUsage } from "./bridge-record-usage";
@@ -36,6 +37,9 @@ export async function appendPushedEvents(
 			event,
 			idempotencyKeys?.[index]
 		);
+		// Loss-audit instrumentation: pairs with the web's `web.gap`/`web.drop`
+		// traces (event-feed.ts) to localize where a seq went missing.
+		log.debug({ action: "server.assign", sessionId, seq, isNew });
 		if (!isNew) {
 			continue;
 		}

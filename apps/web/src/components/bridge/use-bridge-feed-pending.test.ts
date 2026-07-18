@@ -61,9 +61,17 @@ it("dedupes a live redelivery of a replayed id and advances the watermark past i
 			{ id: 42, data: approvalData("req-1") },
 		],
 	});
-	expect(afterLive.events.map((entry) => entry.id)).toEqual([4, 5, 42, 41]);
+	// 41 lands in id order BEFORE the replayed 42 card (out-of-order backfill).
+	expect(afterLive.events.map((entry) => entry.id)).toEqual([4, 5, 41, 42]);
 	expect(afterLive.maxSeenId).toBe(42);
 	expect(afterLive.replayedPendingIds).toEqual({});
+	// The retired replayed id joins the seen ring, so a SECOND redelivery of
+	// 42 can't backfill a duplicate through the out-of-order path.
+	const redelivered = feedReducer(afterLive, {
+		type: "events",
+		events: [{ id: 42, data: approvalData("req-1") }],
+	});
+	expect(redelivered.events.map((entry) => entry.id)).toEqual([4, 5, 41, 42]);
 });
 
 it("keeps merging genuinely new live events after a replay", () => {

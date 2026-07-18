@@ -1,7 +1,7 @@
-import { log } from "evlog";
 import type { Context } from "../context";
 import { appendPushedEvents } from "../routers/bridge-push-events";
 import { assertEventsWithinSizeLimit } from "../routers/bridge-size-limits";
+import { persistEventsWithRetry } from "./persist-retry";
 import { notifyPushForBatch } from "./push-notify";
 
 // Shared event-ingest core, used by BOTH the oRPC `pushEvents` handler
@@ -28,20 +28,6 @@ export interface IngestEventsInput {
 	idempotencyKeys?: string[];
 	sessionId: string;
 	userId: string;
-}
-
-/** Best-effort persistence of an ingested batch as one multi-row insert —
- * logged and swallowed, since a failure must never break the live relay. */
-async function persistEventsBestEffort(
-	context: Context,
-	sessionId: string,
-	rows: { seq: number; event: unknown }[]
-): Promise<void> {
-	try {
-		await context.services.stores.bridgeMessage.appendMany(sessionId, rows);
-	} catch (err) {
-		log.error({ action: "bridge ingestEvents persist", error: String(err) });
-	}
 }
 
 /** Throws when `input`'s shape violates the ingest contract — mirrors what
@@ -76,7 +62,13 @@ export async function ingestEvents(
 		input.events,
 		input.idempotencyKeys
 	);
-	await persistEventsBestEffort(context, input.sessionId, persisted);
+	// B3 loss fix: one multi-row insert, retried with backoff and parked in a
+	// compensation queue when the DB stays down — never throws, so a
+	// persistence problem can't break the live relay (see persist-retry.ts).
+	await persistEventsWithRetry(context.services.stores.bridgeMessage, {
+		rows: persisted,
+		sessionId: input.sessionId,
+	});
 	await context.services.stores.bridgeSession.touch(input.sessionId);
 	// P3-T3: Web Push on approval/turn-complete/error moments in the batch —
 	// fire-and-forget (notifyPushForBatch never throws), so a slow or failing

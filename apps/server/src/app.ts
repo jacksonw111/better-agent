@@ -15,6 +15,7 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
+import { runBridgeEventStream } from "./bridge-stream-run";
 import { applyKnowledgeContentRoute } from "./knowledge-content";
 import { buildMemoryMcpApp } from "./memory-mcp";
 import { createPdfProxyHandler } from "./pdf-proxy";
@@ -192,31 +193,32 @@ function applyBridgeStreamRoute(
 		const afterId = parseAfterId(
 			c.req.query("afterId") ?? c.req.header("last-event-id")
 		);
-		return streamSSE(c, async (stream) => {
-			const unsubscribe = observeBridgeEvents({
-				relayStore: services.relayStore,
-				sessionId,
-				afterId,
-				onEvent: (event) => {
-					stream
-						.writeSSE({
+		// C3 loss fix: a failed SSE write now tears the stream down instead of
+		// being swallowed, so the client reconnects and replays the gap — see
+		// bridge-stream-run.ts.
+		return streamSSE(c, (stream) =>
+			runBridgeEventStream({
+				heartbeatMs: HEARTBEAT_MS,
+				io: {
+					onAbort: (handler) => stream.onAbort(handler),
+					writeEvent: (event) =>
+						stream.writeSSE({
 							data: JSON.stringify(event.data),
 							id: String(event.id),
-						})
-						.catch(() => undefined);
+						}),
+					writePing: async () => {
+						await stream.write(":ping\n\n");
+					},
 				},
-			});
-			const heartbeat = setInterval(() => {
-				stream.write(":ping\n\n").catch(() => undefined);
-			}, HEARTBEAT_MS);
-			await new Promise<void>((resolve) => {
-				stream.onAbort(() => {
-					clearInterval(heartbeat);
-					unsubscribe();
-					resolve();
-				});
-			});
-		});
+				subscribe: (onEvent) =>
+					observeBridgeEvents({
+						relayStore: services.relayStore,
+						sessionId,
+						afterId,
+						onEvent,
+					}),
+			})
+		);
 	});
 }
 

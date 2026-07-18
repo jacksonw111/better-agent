@@ -46,10 +46,11 @@ export function applyPendingReplay(
 }
 
 export interface ExtractReplayedResult {
-	/** Highest incoming id that was dropped as an already-replayed duplicate
-	 * (0 when none) — the merge still advances `maxSeenId` past it so a poll
-	 * doesn't refetch the same row forever. */
-	droppedMaxId: number;
+	/** Ids dropped as already-replayed duplicates (empty when none) — the
+	 * merge still advances `maxSeenId` past them so a poll doesn't refetch the
+	 * same row forever, and folds them into the seen-ids ring so a SECOND
+	 * redelivery doesn't backfill a copy via the out-of-order path. */
+	droppedIds: number[];
 	/** The remaining replayed-id set once this batch's duplicates are spent —
 	 * the SAME object when nothing matched, so the common path stays
 	 * allocation-free. */
@@ -67,16 +68,16 @@ export function extractReplayedRows(
 ): ExtractReplayedResult {
 	const duplicates = incoming.filter((raw) => raw.id in replayedPendingIds);
 	if (duplicates.length === 0) {
-		return { droppedMaxId: 0, replayedPendingIds, rows: incoming };
+		return { droppedIds: [], replayedPendingIds, rows: incoming };
 	}
 	const remaining = { ...replayedPendingIds };
-	let droppedMaxId = 0;
+	const droppedIds: number[] = [];
 	for (const raw of duplicates) {
 		delete remaining[raw.id];
-		droppedMaxId = Math.max(droppedMaxId, raw.id);
+		droppedIds.push(raw.id);
 	}
 	return {
-		droppedMaxId,
+		droppedIds,
 		replayedPendingIds: remaining,
 		rows: incoming.filter((raw) => !(raw.id in replayedPendingIds)),
 	};

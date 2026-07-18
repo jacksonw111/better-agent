@@ -30,7 +30,7 @@ import {
 	STATUS_SNAPSHOT_STATUS,
 	type StatusSnapshotDetail,
 } from "./bridge-status-snapshot";
-import { mergeEvents } from "./event-feed";
+import { mergeEvents, pushSeenIds } from "./event-feed";
 import {
 	nextAnsweredApprovals,
 	nextAnsweredQuestions,
@@ -81,6 +81,10 @@ export interface FeedState {
 	 * deduping the eventual live redelivery instead. See
 	 * use-bridge-feed-pending.ts. */
 	replayedPendingIds: Record<number, true>;
+	/** Recently-accepted server ids (sorted ring, see RECENT_SEEN_IDS_LIMIT in
+	 * event-feed.ts) — lets `mergeEvents` backfill an out-of-order delivery
+	 * instead of swallowing it against the `maxSeenId` high-water mark. */
+	seenIds: number[];
 	/** The latest curated status details, folded incrementally off each merge's
 	 * new tail instead of rescanning the whole `events` array per render.
 	 * `null` before an event of that kind has arrived (or its latest one was
@@ -105,6 +109,7 @@ export const initialFeedState: FeedState = {
 	pendingEchoes: 0,
 	queueUpdate: null,
 	replayedPendingIds: {},
+	seenIds: [],
 	sessionList: null,
 	sessionReady: null,
 	statusSnapshot: null,
@@ -243,13 +248,20 @@ function mergeFeedEvents(
 	incoming: RawBridgeEvent[]
 ): FeedState {
 	// P5-1: rows already rendered via pending replay are dropped here (their
-	// ids still advance the mark) — see use-bridge-feed-pending.ts.
-	const { droppedMaxId, replayedPendingIds, rows } = extractReplayedRows(
+	// ids still advance the mark AND the seen ring) — see use-bridge-feed-pending.ts.
+	const { droppedIds, replayedPendingIds, rows } = extractReplayedRows(
 		state.replayedPendingIds,
 		incoming
 	);
-	const result = mergeEvents(state.events, state.maxSeenId, rows);
+	const result = mergeEvents(
+		state.events,
+		state.maxSeenId,
+		rows,
+		state.seenIds
+	);
+	const droppedMaxId = droppedIds.length > 0 ? Math.max(...droppedIds) : 0;
 	const maxSeenId = Math.max(result.maxSeenId, droppedMaxId);
+	const seenIds = pushSeenIds(result.seenIds, droppedIds);
 	const details = nextStatusDetails(state, result.parsed);
 	// fix-approval-replay / fix-question-replay: fold the CLI's persisted
 	// resolution events into the answered maps — see use-bridge-feed-answers.ts.
@@ -267,6 +279,7 @@ function mergeFeedEvents(
 			events: result.events,
 			maxSeenId,
 			replayedPendingIds,
+			seenIds,
 		};
 	}
 	const { events, stripped } = stripAckedEchoes(result.events);
@@ -279,5 +292,6 @@ function mergeFeedEvents(
 		maxSeenId,
 		pendingEchoes: state.pendingEchoes - stripped,
 		replayedPendingIds,
+		seenIds,
 	};
 }

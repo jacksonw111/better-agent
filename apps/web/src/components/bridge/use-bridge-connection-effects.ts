@@ -6,6 +6,9 @@ import type { ConnectionAction, ConnectionState } from "./terminal-connection";
 import type { FeedAction } from "./use-bridge-feed";
 
 const POLL_INTERVAL_MS = 2000;
+/** Page size for the history seed's cursor pagination — matches the server's
+ * per-call cap (MAX_HISTORY_LIMIT in packages/api/src/routers/bridge.ts). */
+export const HISTORY_PAGE_LIMIT = 500;
 // Stable sonner id: a rerun of the degrade effect updates the existing toast
 // in place instead of stacking a duplicate.
 const DEGRADED_TOAST_ID = "bridge-connection-degraded";
@@ -105,20 +108,59 @@ async function replayPendingRequests(
 	}
 }
 
+/** B4 loss fix: the seed pulls the WHOLE persisted backlog via `afterSeq`
+ * cursor pagination. A single `history()` call returns only the OLDEST
+ * `HISTORY_PAGE_LIMIT` rows (the endpoint lists ascending), while the live
+ * relay window only holds the newest 500 — so on a long session everything
+ * between those two windows used to vanish permanently, with `maxSeenId`
+ * stuck at the old page's tail. Paginating until a short page guarantees
+ * `maxSeenId` ends as the highest contiguously-covered seq. Each page is
+ * dispatched as it lands (pages are seq-ascending, so merges stay append-only). */
+async function seedHistoryPages(
+	args: HistorySeedArgs,
+	isCancelled: () => boolean
+): Promise<void> {
+	const { sessionId, transport, dispatchFeed } = args;
+	let afterSeq = 0;
+	for (;;) {
+		const rows = await transport.history({
+			sessionId,
+			afterSeq,
+			limit: HISTORY_PAGE_LIMIT,
+		});
+		if (isCancelled()) {
+			return;
+		}
+		if (rows.length > 0) {
+			dispatchFeed({
+				type: "events",
+				events: rows.map((row) => ({ id: row.seq, data: row.event })),
+			});
+		}
+		const lastSeq = rows.at(-1)?.seq;
+		const exhausted =
+			rows.length < HISTORY_PAGE_LIMIT ||
+			lastSeq === undefined ||
+			lastSeq <= afterSeq;
+		if (exhausted) {
+			return;
+		}
+		afterSeq = lastSeq;
+	}
+}
+
 /**
  * Seeds the feed with persisted history (once per session) BEFORE the live
  * SSE/poll connection is allowed to open — see the `enabled` gate the caller
  * (useBridgeTerminal) builds from the returned flag. This ordering isn't
- * just cosmetic: `mergeEvents` tracks a single running high-water mark, not
- * an id set, so if live/poll bumped `maxSeenId` past some id BEFORE history
- * for that same range was merged in, the history rows at or under that mark
- * would be filtered out as "already seen" and silently lost rather than
- * rendered. Loading history first — and waiting for it to land — keeps
- * `maxSeenId` monotonic from the persisted backlog forward, so live only
- * ever adds NEW events on top of it. A history fetch failure is swallowed
- * (logged nowhere, surfaced nowhere): the terminal still works going
- * forward, just without the pre-reload backlog, and the live connection is
- * still allowed to open afterward.
+ * just cosmetic: `mergeEvents`' high-water mark must be seeded from the
+ * persisted backlog before live/poll can bump it, so the backlog is never
+ * misfiled as "already seen" (the out-of-order ring in event-feed.ts only
+ * covers the recent window, not a whole reloaded session). The seed itself
+ * paginates the full backlog — see seedHistoryPages. A history fetch failure
+ * is swallowed (logged nowhere, surfaced nowhere): the terminal still works
+ * going forward, just without the pre-reload backlog, and the live
+ * connection is still allowed to open afterward.
  */
 export function useHistorySeed(args: HistorySeedArgs): boolean {
 	const { sessionId, transport, dispatchFeed } = args;
@@ -128,22 +170,13 @@ export function useHistorySeed(args: HistorySeedArgs): boolean {
 		setLoaded(false);
 		const seed = async () => {
 			try {
-				const rows = await transport.history({ sessionId });
-				if (cancelled) {
-					return;
-				}
-				dispatchFeed({
-					type: "events",
-					events: rows.map((row) => ({ id: row.seq, data: row.event })),
-				});
-				// P5-1: replay still-open/answered-elsewhere requests before the
-				// live connection is allowed to open — see replayPendingRequests.
 				// (Rebuilt from the destructured deps rather than passing `args`,
 				// so the effect's dependency list stays exactly those three.)
-				await replayPendingRequests(
-					{ dispatchFeed, sessionId, transport },
-					() => cancelled
-				);
+				const seedArgs = { dispatchFeed, sessionId, transport };
+				await seedHistoryPages(seedArgs, () => cancelled);
+				// P5-1: replay still-open/answered-elsewhere requests before the
+				// live connection is allowed to open — see replayPendingRequests.
+				await replayPendingRequests(seedArgs, () => cancelled);
 			} catch {
 				// swallowed: the live SSE/poll paths still deliver going forward
 			} finally {
