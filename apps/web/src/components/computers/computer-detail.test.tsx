@@ -15,6 +15,7 @@ const NOT_FOUND_PATTERN = /wasn't found/;
 const NO_AGENTS_PATTERN = /No agents on this computer/;
 const CLAUDE_CODE_PATTERN = /Claude Code/;
 const NEW_TASK_PATTERN = /New Task/;
+const NEW_PROJECT_PATTERN = /New project/;
 
 const store = vi.hoisted(() => ({
 	computers: [] as unknown[],
@@ -52,6 +53,21 @@ vi.mock("@/utils/orpc", () => ({
 				queryOptions: () => ({
 					queryKey: ["computers", "list"],
 					queryFn: () => Promise.resolve(store.computers),
+				}),
+			},
+		},
+		projects: {
+			create: {
+				mutationOptions: (opts: Record<string, unknown>) => ({
+					mutationFn: () => Promise.resolve({ id: "project-1" }),
+					...opts,
+				}),
+			},
+			list: {
+				key: () => ["projects", "list"],
+				queryOptions: (opts?: { input?: unknown }) => ({
+					queryKey: ["projects", "list", opts?.input],
+					queryFn: () => Promise.resolve([]),
 				}),
 			},
 		},
@@ -106,6 +122,19 @@ it("lists the machine's agent runtimes, each linking into its session list", asy
 	expect(view.queryByText("New Task")).toBeNull();
 	expect(view.queryByRole("button", { name: NEW_TASK_PATTERN })).toBeNull();
 	expect(view.queryByText("Tasks")).toBeNull();
+});
+
+it("shows the Projects block with its New project entry", async () => {
+	store.computers = [makeComputer()];
+	const { view } = renderDetail("computer-1");
+
+	await waitFor(() => {
+		expect(view.getByText("Projects")).toBeDefined();
+	});
+	expect(view.getByRole("button", { name: NEW_PROJECT_PATTERN })).toBeDefined();
+	await waitFor(() => {
+		expect(view.getByText("No projects yet")).toBeDefined();
+	});
 });
 
 it("explains an empty runtime inventory instead of a blank list", async () => {

@@ -31,6 +31,18 @@ function newestFirst(sessions: TaskListItem[]): TaskListItem[] {
 	);
 }
 
+/** Q3: a project session's siblings are the sessions of the SAME project; a
+ * plain session keeps the full computer+agent list as before. */
+export function siblingSessionsOf(
+	sessions: TaskListItem[],
+	projectId: string | null
+): TaskListItem[] {
+	if (projectId === null) {
+		return sessions;
+	}
+	return sessions.filter((session) => session.projectId === projectId);
+}
+
 /** One session row: the whole row switches sessions (tint + radius, no
  * borders — same active/hover treatment as the /local session rows). */
 function SessionRow({
@@ -82,15 +94,27 @@ export interface SessionSidebarProps {
 	/** Switches to a sibling session — the conversation page stops the current
 	 * run first when it's still live (the stop -> resume transition). */
 	onSelectSession: (taskId: string) => void;
+	/** Q3: the viewed session's project — non-null narrows the sibling list to
+	 * that project's sessions. */
+	projectId: string | null;
 }
 
 /** The sibling-session query, shared by the expanded list and the collapsed
- * rail so collapsing never refetches. */
-function useSiblingSessions(computerId: string, agentKind: SessionAgentKind) {
-	return useQuery({
+ * rail so collapsing never refetches. Narrowed client-side to the viewed
+ * session's project when it has one. */
+function useSiblingSessions(
+	computerId: string,
+	agentKind: SessionAgentKind,
+	projectId: string | null
+) {
+	const query = useQuery({
 		...orpc.tasks.list.queryOptions({ input: { agentKind, computerId } }),
 		refetchInterval: SESSIONS_REFETCH_INTERVAL_MS,
 	});
+	return {
+		...query,
+		data: query.data ? siblingSessionsOf(query.data, projectId) : query.data,
+	};
 }
 
 /** The expanded sidebar column — mounted in the md+ aside or the <md drawer
@@ -102,8 +126,9 @@ export function SessionSidebar({
 	computerId,
 	onCollapse,
 	onSelectSession,
+	projectId,
 }: SessionSidebarProps & { onCollapse?: () => void }) {
-	const sessionsQuery = useSiblingSessions(computerId, agentKind);
+	const sessionsQuery = useSiblingSessions(computerId, agentKind, projectId);
 	const sessions = sessionsQuery.data;
 	return (
 		<nav
@@ -191,8 +216,9 @@ export function SessionSidebarRail({
 	computerId,
 	onExpand,
 	onSelectSession,
+	projectId,
 }: SessionSidebarProps & { onExpand: () => void }) {
-	const sessionsQuery = useSiblingSessions(computerId, agentKind);
+	const sessionsQuery = useSiblingSessions(computerId, agentKind, projectId);
 	const sessions = sessionsQuery.data ?? [];
 	return (
 		<nav

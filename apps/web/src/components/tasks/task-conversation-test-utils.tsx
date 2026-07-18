@@ -26,6 +26,8 @@ export const taskStore = {
 	listInputs: [] as unknown[],
 	/** taskIds navigated to via useNavigate (the session switch target). */
 	navigations: [] as string[],
+	/** projects.get's row (Q3: the header's project chip), or null = not found. */
+	project: null as { id: string; name: string } | null,
 	resumeCalls: [] as string[],
 	/** When set, tasks.resume rejects with this message instead. */
 	resumeError: null as string | null,
@@ -41,6 +43,7 @@ export function resetTaskStore(): void {
 	taskStore.historyBySession = {};
 	taskStore.listInputs.length = 0;
 	taskStore.navigations.length = 0;
+	taskStore.project = null;
 	taskStore.resumeCalls.length = 0;
 	taskStore.resumeError = null;
 	taskStore.resumeResult = { runId: "run-next" };
@@ -163,6 +166,18 @@ export function buildTaskOrpcMock() {
 							return Promise.resolve({ ok: true });
 						},
 						...opts,
+					}),
+				},
+			},
+			projects: {
+				get: {
+					key: () => ["projects", "get"],
+					queryOptions: (opts?: { input?: { projectId?: string } }) => ({
+						queryKey: ["projects", "get", opts?.input?.projectId],
+						queryFn: () =>
+							taskStore.project
+								? Promise.resolve(taskStore.project)
+								: Promise.reject(new Error("Project not found")),
 					}),
 				},
 			},

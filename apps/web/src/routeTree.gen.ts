@@ -37,6 +37,7 @@ import { Route as ComputersComputerIdRouteImport } from './routes/computers.$com
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as IntegrationsOcAccountIdRouteImport } from './routes/integrations.oc.$accountId'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
+import { Route as ComputersComputerIdProjectsProjectIdRouteImport } from './routes/computers.$computerId_.projects.$projectId'
 import { Route as ComputersComputerIdAgentsAgentKindRouteImport } from './routes/computers.$computerId_.agents.$agentKind'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -179,6 +180,12 @@ const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
   path: '/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComputersComputerIdProjectsProjectIdRoute =
+  ComputersComputerIdProjectsProjectIdRouteImport.update({
+    id: '/computers/$computerId_/projects/$projectId',
+    path: '/computers/$computerId/projects/$projectId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ComputersComputerIdAgentsAgentKindRoute =
   ComputersComputerIdAgentsAgentKindRouteImport.update({
     id: '/computers/$computerId_/agents/$agentKind',
@@ -216,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
   '/computers/$computerId/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
+  '/computers/$computerId/projects/$projectId': typeof ComputersComputerIdProjectsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -247,6 +255,7 @@ export interface FileRoutesByTo {
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
   '/computers/$computerId/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
+  '/computers/$computerId/projects/$projectId': typeof ComputersComputerIdProjectsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -279,6 +288,7 @@ export interface FileRoutesById {
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
   '/computers/$computerId_/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
+  '/computers/$computerId_/projects/$projectId': typeof ComputersComputerIdProjectsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
     | '/computers/$computerId/agents/$agentKind'
+    | '/computers/$computerId/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -343,6 +354,7 @@ export interface FileRouteTypes {
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
     | '/computers/$computerId/agents/$agentKind'
+    | '/computers/$computerId/projects/$projectId'
   id:
     | '__root__'
     | '/'
@@ -374,6 +386,7 @@ export interface FileRouteTypes {
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
     | '/computers/$computerId_/agents/$agentKind'
+    | '/computers/$computerId_/projects/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -406,6 +419,7 @@ export interface RootRouteChildren {
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
   IntegrationsOcAccountIdRoute: typeof IntegrationsOcAccountIdRoute
   ComputersComputerIdAgentsAgentKindRoute: typeof ComputersComputerIdAgentsAgentKindRoute
+  ComputersComputerIdProjectsProjectIdRoute: typeof ComputersComputerIdProjectsProjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -606,6 +620,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/computers/$computerId_/projects/$projectId': {
+      id: '/computers/$computerId_/projects/$projectId'
+      path: '/computers/$computerId/projects/$projectId'
+      fullPath: '/computers/$computerId/projects/$projectId'
+      preLoaderRoute: typeof ComputersComputerIdProjectsProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/computers/$computerId_/agents/$agentKind': {
       id: '/computers/$computerId_/agents/$agentKind'
       path: '/computers/$computerId/agents/$agentKind'
@@ -647,6 +668,8 @@ const rootRouteChildren: RootRouteChildren = {
   IntegrationsOcAccountIdRoute: IntegrationsOcAccountIdRoute,
   ComputersComputerIdAgentsAgentKindRoute:
     ComputersComputerIdAgentsAgentKindRoute,
+  ComputersComputerIdProjectsProjectIdRoute:
+    ComputersComputerIdProjectsProjectIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -181,6 +181,9 @@ const list = authorizedUserProcedure
 						await context.services.stores.run.latestByTask(task.id)
 					),
 					name: task.name,
+					// Q3: read-only projection — lets the web client narrow session
+					// lists to one Project (project detail page, sibling sidebar).
+					projectId: task.projectId,
 					status: task.status,
 				}))
 		);

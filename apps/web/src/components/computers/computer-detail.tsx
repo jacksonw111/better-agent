@@ -6,6 +6,8 @@ import {
 } from "@/components/computers/computer-agent-list";
 import { computerMeta, ToolFacts } from "@/components/computers/computer-facts";
 import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
+import { NewProjectDialog } from "@/components/projects/new-project-dialog";
+import { ComputerProjectList } from "@/components/projects/project-list";
 import { orpc } from "@/utils/orpc";
 
 /** Matches COMPUTER_HEARTBEAT_INTERVAL_MS — Connected/Offline stays fresh
@@ -77,6 +79,13 @@ export function ComputerDetail({ computerId }: { computerId: string }) {
 			<section className="flex flex-col gap-2">
 				<h2 className="font-medium text-sm">Agents</h2>
 				<ComputerAgentList computer={computer} />
+			</section>
+			<section className="flex flex-col gap-2">
+				<div className="flex items-center justify-between gap-2">
+					<h2 className="font-medium text-sm">Projects</h2>
+					<NewProjectDialog computerId={computer.id} />
+				</div>
+				<ComputerProjectList computerId={computer.id} />
 			</section>
 		</div>
 	);

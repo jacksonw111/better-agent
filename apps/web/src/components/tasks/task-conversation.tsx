@@ -175,6 +175,8 @@ function ConversationBody({
 		agentKind: detail.task.agentKind,
 		computerId: detail.task.computerId,
 		onSelectSession: lifecycle.selectSession,
+		// Q3: a project session's sidebar lists only that project's sessions.
+		projectId: detail.task.projectId ?? null,
 	};
 	return (
 		<div className="flex min-h-0 flex-1">

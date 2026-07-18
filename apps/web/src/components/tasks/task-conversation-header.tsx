@@ -1,8 +1,15 @@
 import { Button } from "@better-agent/ui/components/button";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftIcon, SquareIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	FolderGit2Icon,
+	SquareIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import type { TaskDetail, TaskRun } from "@/utils/api-types";
+import { orpc } from "@/utils/orpc";
 import { RunStatusChip } from "./task-status-chip";
 
 // P3: the session chat's first-screen strip — which session, on which
@@ -71,9 +78,39 @@ function ResumeErrorBanner({
 	);
 }
 
-/** Back link + session name + computer · runtime — the "which session is
- * this" cluster, split out for the max-lines-per-function gate. The back link
- * returns to this agent's session list. */
+/** Q3: a project session's header names its project, linking back to the
+ * project detail page. Plain sessions render nothing here. */
+function ProjectChip({ task }: { task: TaskDetail["task"] }) {
+	const projectId = task.projectId ?? null;
+	const query = useQuery({
+		...orpc.projects.get.queryOptions({
+			input: { projectId: projectId ?? "" },
+		}),
+		enabled: projectId !== null,
+		// A vanished project just drops the chip — never a toast over the chat.
+		meta: { silent: true },
+		retry: false,
+	});
+	const project = query.data;
+	if (!(projectId && project)) {
+		return null;
+	}
+	return (
+		<Link
+			className="flex min-w-0 items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+			params={{ computerId: task.computerId, projectId }}
+			to="/computers/$computerId/projects/$projectId"
+		>
+			<FolderGit2Icon aria-hidden className="size-3.5 shrink-0" />
+			<span className="truncate">{project.name}</span>
+		</Link>
+	);
+}
+
+/** Back link + session name + computer · runtime (+ the project chip for a
+ * project session) — the "which session is this" cluster, split out for the
+ * max-lines-per-function gate. The back link returns to this agent's session
+ * list. */
 function SessionIdentity({
 	computerName,
 	task,
@@ -95,6 +132,7 @@ function SessionIdentity({
 			<span className="text-muted-foreground text-xs">
 				{computerName ?? "Unknown computer"} · {AGENT_LABELS[task.agentKind]}
 			</span>
+			<ProjectChip task={task} />
 		</>
 	);
 }

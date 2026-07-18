@@ -84,6 +84,7 @@ function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
 		agentKind: "claude-code",
 		computerId: "computer-1",
 		createdAt: new Date(Date.now() - MS_PER_MINUTE),
+		projectId: null,
 		status: "active",
 		latestRun: {
 			createdAt: new Date(Date.now() - MS_PER_MINUTE),

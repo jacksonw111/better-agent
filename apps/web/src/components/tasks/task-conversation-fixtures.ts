@@ -45,6 +45,7 @@ export interface TaskDetailFixture {
 		id: string;
 		name: string;
 		openingMessage: string;
+		projectId: string | null;
 		repositoryFullName: string | null;
 		repositoryUrl: string | null;
 		status: string;
@@ -67,6 +68,7 @@ export interface SessionListFixture {
 		status: string;
 	} | null;
 	name: string;
+	projectId: string | null;
 	status: string;
 }
 
@@ -137,6 +139,7 @@ export function makeTaskDetail(
 			id: "task-1",
 			name: "Fix login redirect",
 			openingMessage: OPENING_MESSAGE,
+			projectId: null,
 			repositoryFullName: null,
 			repositoryUrl: null,
 			status: "active",
@@ -164,6 +167,7 @@ export function makeSessionListItem(
 			status: "running",
 		},
 		name: "Fix login redirect",
+		projectId: null,
 		status: "active",
 		...overrides,
 	};
