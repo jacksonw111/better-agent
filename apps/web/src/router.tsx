@@ -17,6 +17,26 @@ function RouterErrorComponent({ error }: { error: unknown }) {
 	return <ErrorPage />;
 }
 
+// A deploy swaps the hashed chunk graph; an already-open tab then fails its
+// next lazy import (the old chunk 404s). Vite surfaces that as
+// `vite:preloadError` — reload once to pick up the new build instead of
+// stranding the tab on a dead chunk graph. Guarded so a reload loop is
+// impossible within one pageload.
+const RELOADED_FLAG = "ba-chunk-reload";
+if (typeof window !== "undefined") {
+	window.addEventListener("vite:preloadError", (event) => {
+		if (sessionStorage.getItem(RELOADED_FLAG) === "1") {
+			return; // Second failure on the fresh build — let the error surface.
+		}
+		sessionStorage.setItem(RELOADED_FLAG, "1");
+		event.preventDefault();
+		window.location.reload();
+	});
+	window.addEventListener("load", () =>
+		sessionStorage.removeItem(RELOADED_FLAG)
+	);
+}
+
 export const getRouter = () => {
 	const queryClient = createQueryClient();
 

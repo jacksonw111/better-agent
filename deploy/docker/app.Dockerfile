@@ -19,6 +19,9 @@ FROM caddy:2.8-alpine
 ARG APP=web
 COPY --from=build /repo/apps/${APP}/.output/public /srv
 # Static file server with SPA fallback on :3000 (the outer Caddy reverse-proxies
-# to this container).
-RUN printf ':3000 {\n\troot * /srv\n\ttry_files {path} /index.html\n\tfile_server\n}\n' > /etc/caddy/Caddyfile
+# to this container). Hashed /assets get immutable caching and NO SPA fallback —
+# a missing chunk must 404, not come back as index.html with a text/html MIME
+# (which breaks module loading after a deploy swaps the chunk graph). Everything
+# else falls back to the shell with no-cache so clients pick up new builds.
+RUN printf ':3000 {\n\troot * /srv\n\t@assets path /assets/*\n\thandle @assets {\n\t\theader Cache-Control "public, max-age=31536000, immutable"\n\t\tfile_server\n\t}\n\thandle {\n\t\theader Cache-Control "no-cache"\n\t\ttry_files {path} /index.html\n\t\tfile_server\n\t}\n}\n' > /etc/caddy/Caddyfile
 EXPOSE 3000
