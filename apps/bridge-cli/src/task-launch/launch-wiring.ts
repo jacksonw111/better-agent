@@ -5,6 +5,9 @@ import type { ComputerTransport } from "../computer-transport";
 import { detectComputerInventory } from "../detect-inventory";
 import { runControlChannel } from "./control-ws";
 import { createLaunchHandler } from "./launch-handler";
+import { type CloneCommandSink, createCloneHandler } from "./project-clone";
+import { createProjectQueryHandler } from "./project-query";
+import { prepareProjectRunWorkspace } from "./project-workspace";
 import { prepareRepositoryRunWorkspace } from "./repo-workspace";
 import { createRunSessionSupplier } from "./run-session";
 import {
@@ -27,7 +30,14 @@ export interface TaskLaunchRuntimeConfig {
 	serverUrl: string;
 	/** The client's shutdown signal: aborts every run session on SIGINT. */
 	signal: AbortSignal;
-	transport: Pick<ComputerTransport, "ackLaunch" | "updateRunStatus">;
+	transport: Pick<
+		ComputerTransport,
+		| "ackClone"
+		| "ackLaunch"
+		| "reportCloneResult"
+		| "submitProjectQueryResult"
+		| "updateRunStatus"
+	>;
 }
 
 /** §10.2 client-side context assembly: fresh installed-tool facts per launch
@@ -56,10 +66,9 @@ async function buildStartContext(
 
 // D5's workspace fork (§9.2): repository intents go through the shared bare
 // cache + per-task worktree; stand-alone intents get the clean managed task
-// directory. Both funnel into the same status sequence. Q1's project intents
-// are NOT handled by this client yet (the CLI half is a follow-up task): they
-// fail loudly with a real error the run report carries verbatim, rather than
-// silently landing in the wrong directory.
+// directory; Q2's project intents resolve to the Project's long-lived
+// checkout (project-workspace.ts) — no per-session directory at all. All
+// three funnel into the same status sequence.
 function prepareCommandWorkspace(command: RunLaunchCommand): Promise<string> {
 	const { workspace } = command;
 	switch (workspace.kind) {
@@ -70,17 +79,14 @@ function prepareCommandWorkspace(command: RunLaunchCommand): Promise<string> {
 				workspace,
 			});
 		case "project":
-			return Promise.reject(
-				new Error(
-					"Project workspaces are not supported by this client version yet — update the CLI"
-				)
-			);
+			return prepareProjectRunWorkspace(workspace);
 		default:
 			return prepareRunWorkspace({ taskId: command.taskId, workspace });
 	}
 }
 
 export function createTaskLaunchRuntime(config: TaskLaunchRuntimeConfig): {
+	cloneHandler: CloneCommandSink;
 	launchHandler: LaunchCommandSink;
 	startControlChannel(identity: ComputerIdentity): void;
 } {
@@ -93,7 +99,19 @@ export function createTaskLaunchRuntime(config: TaskLaunchRuntimeConfig): {
 		signal: config.signal,
 		updateRunStatus: (report) => config.transport.updateRunStatus(report),
 	});
+	// Q2: the clone processor (both delivery channels) and the read-only query
+	// executor (WS-only) share the transport's computer-plane oRPC routes.
+	const cloneHandler = createCloneHandler({
+		ackClone: (projectId) => config.transport.ackClone(projectId),
+		log: config.log,
+		reportCloneResult: (input) => config.transport.reportCloneResult(input),
+	});
+	const queryHandler = createProjectQueryHandler({
+		log: config.log,
+		submitResult: (input) => config.transport.submitProjectQueryResult(input),
+	});
 	return {
+		cloneHandler,
 		launchHandler,
 		startControlChannel(identity) {
 			// Fire-and-forget: the channel loops (with backoff) until the
@@ -102,8 +120,14 @@ export function createTaskLaunchRuntime(config: TaskLaunchRuntimeConfig): {
 				identity,
 				log: config.log,
 				nextTimestamp: config.nextTimestamp,
+				onCloneProject: (command) => {
+					cloneHandler.handle(command).catch(() => undefined);
+				},
 				onLaunch: (command) => {
 					launchHandler.handle(command).catch(() => undefined);
+				},
+				onProjectQuery: (command) => {
+					queryHandler.handle(command).catch(() => undefined);
 				},
 				serverUrl: config.serverUrl,
 				signal: config.signal,

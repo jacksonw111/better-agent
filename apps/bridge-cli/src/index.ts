@@ -137,6 +137,7 @@ async function startComputerClient(args: ClientCliArgs): Promise<void> {
 		transport,
 	});
 	await runComputerClient(args, {
+		cloneHandler: launch.cloneHandler,
 		detectInventory: () => detectComputerInventory(),
 		generateKeyPair: generateComputerKeyPair,
 		identityFile: createIdentityFile(),

@@ -11,6 +11,7 @@ import type {
 	ComputerTransport,
 } from "./computer-transport";
 import type { ComputerInventory } from "./detect-inventory";
+import type { CloneCommandSink } from "./task-launch/project-clone";
 
 // The client-mode lifecycle (S1-T3): pair-or-load an identity, register once
 // with the freshly detected inventory, then heartbeat forever. S25-T1 adds
@@ -55,6 +56,9 @@ export interface LaunchCommandSink {
 }
 
 export interface ComputerClientDeps {
+	/** Q2 clone_project processing. Optional like launchHandler — without one
+	 * an undelivered clone command simply stays queued. */
+	cloneHandler?: CloneCommandSink;
 	detectInventory(): Promise<ComputerInventory>;
 	generateKeyPair(): ComputerKeyPair;
 	identityFile: IdentityFile;
@@ -72,25 +76,22 @@ export interface ComputerClientDeps {
 	wait: HeartbeatWait;
 }
 
-/** Fires the launch handler for each delivered command WITHOUT awaiting —
- * run sessions are long-lived; the heartbeat loop must keep beating. Non-
- * launch kinds (Q1's clone_project) are skipped for now: this client version
- * predates project support, and an unacked clone command simply stays queued
- * (same contract as the WS channel ignoring unknown frames). */
-function dispatchLaunches(
+/** Fires the matching handler for each delivered command WITHOUT awaiting —
+ * run sessions (and clones) are long-lived; the heartbeat loop must keep
+ * beating. A kind without a wired handler is simply skipped: the command
+ * stays queued server-side (same contract as the WS channel ignoring unknown
+ * frames). Both `handle`s never reject by contract; the catches are
+ * belt-and-braces so a buggy handler can still never kill the loop. */
+function dispatchCommands(
 	commands: ComputerPendingCommand[],
-	handler: LaunchCommandSink | undefined
+	deps: Pick<ComputerClientDeps, "cloneHandler" | "launchHandler">
 ): void {
-	if (!handler) {
-		return;
-	}
 	for (const command of commands) {
-		if (command.kind !== "launch") {
-			continue;
+		if (command.kind === "launch") {
+			deps.launchHandler?.handle(command).catch(() => undefined);
+		} else {
+			deps.cloneHandler?.handle(command).catch(() => undefined);
 		}
-		// `handle` never rejects by contract; the catch is belt-and-braces so a
-		// buggy handler can still never kill the heartbeat loop.
-		handler.handle(command).catch(() => undefined);
 	}
 }
 
@@ -214,7 +215,7 @@ export async function runComputerClient(
 	while (await deps.wait()) {
 		try {
 			const { pendingCommands } = await deps.transport.heartbeat();
-			dispatchLaunches(pendingCommands, deps.launchHandler);
+			dispatchCommands(pendingCommands, deps);
 		} catch (error) {
 			// Transient by assumption: the server derives Offline from missed
 			// heartbeats, so the right move is to keep trying, not to exit.

@@ -103,10 +103,14 @@ function rig() {
 	const sleeper = fakeSleep();
 	const controller = new AbortController();
 	const onLaunch = vi.fn();
+	const onCloneProject = vi.fn();
+	const onProjectQuery = vi.fn();
 	const channel = runControlChannel({
 		identity,
 		nextTimestamp: createMonotonicTimestamp(),
+		onCloneProject,
 		onLaunch,
+		onProjectQuery,
 		serverUrl: "https://server.example",
 		signal: controller.signal,
 		sleep: sleeper.sleep,
@@ -121,7 +125,16 @@ function rig() {
 		vi.waitFor(() => {
 			expect(socketCount()).toBeGreaterThanOrEqual(count);
 		});
-	return { channel, controller, onLaunch, sleeper, sockets, waitForSocket };
+	return {
+		channel,
+		controller,
+		onCloneProject,
+		onLaunch,
+		onProjectQuery,
+		sleeper,
+		sockets,
+		waitForSocket,
+	};
 }
 
 describe("control channel - handshake", () => {
@@ -160,13 +173,46 @@ describe("control channel - launch delivery", () => {
 		await context.channel;
 	});
 
-	it("ignores non-launch and unparseable frames", async () => {
+	it("ignores unknown, incomplete and unparseable frames", async () => {
 		const context = rig();
 		await context.waitForSocket(1);
 		context.sockets[0]?.emitOpen();
 		context.sockets[0]?.emitMessage("not json {");
 		context.sockets[0]?.emitMessage(JSON.stringify({ kind: "ping" }));
 		context.sockets[0]?.emitMessage(JSON.stringify({ kind: "launch" }));
+		context.sockets[0]?.emitMessage(JSON.stringify({ kind: "clone_project" }));
+		context.sockets[0]?.emitMessage(
+			JSON.stringify({ kind: "project_query", op: "rm_rf", requestId: "r" })
+		);
+		expect(context.onLaunch).not.toHaveBeenCalled();
+		expect(context.onCloneProject).not.toHaveBeenCalled();
+		expect(context.onProjectQuery).not.toHaveBeenCalled();
+		context.controller.abort();
+		await context.channel;
+	});
+});
+
+describe("control channel - Q2 frame routing", () => {
+	it("routes clone_project and project_query frames to their handlers", async () => {
+		const context = rig();
+		await context.waitForSocket(1);
+		context.sockets[0]?.emitOpen();
+		const clone = {
+			kind: "clone_project",
+			projectId: "project-1",
+			repoCloneUrl: "https://github.com/acme/app.git",
+		};
+		const query = {
+			kind: "project_query",
+			op: "fs_list",
+			path: "src",
+			projectId: "project-1",
+			requestId: "req-1",
+		};
+		context.sockets[0]?.emitMessage(JSON.stringify(clone));
+		context.sockets[0]?.emitMessage(JSON.stringify(query));
+		expect(context.onCloneProject).toHaveBeenCalledExactlyOnceWith(clone);
+		expect(context.onProjectQuery).toHaveBeenCalledExactlyOnceWith(query);
 		expect(context.onLaunch).not.toHaveBeenCalled();
 		context.controller.abort();
 		await context.channel;

@@ -69,3 +69,30 @@ describe("runComputerClient - launch delivery (S25-T1)", () => {
 		expect(transport.heartbeat).toHaveBeenCalledTimes(2);
 	});
 });
+
+describe("runComputerClient - clone delivery (Q2)", () => {
+	it("hands heartbeat clone_project commands to the clone handler", async () => {
+		const pendingClone = {
+			kind: "clone_project" as const,
+			projectId: "project-1",
+			repoCloneUrl: "https://github.com/acme/app.git",
+		};
+		const transport = fakeTransport();
+		transport.heartbeat.mockResolvedValueOnce({
+			pendingCommands: [pendingClone, pendingLaunch],
+		});
+		const cloneHandler = { handle: vi.fn(() => Promise.resolve()) };
+		const launchHandler = {
+			handle: vi.fn(() => Promise.resolve()),
+			settle: vi.fn(() => Promise.resolve()),
+		};
+
+		await runComputerClient(
+			clientArgs(),
+			fakeDeps({ cloneHandler, launchHandler, transport, wait: waitTimes(1) })
+		);
+
+		expect(cloneHandler.handle).toHaveBeenCalledExactlyOnceWith(pendingClone);
+		expect(launchHandler.handle).toHaveBeenCalledExactlyOnceWith(pendingLaunch);
+	});
+});

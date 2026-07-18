@@ -1,8 +1,13 @@
 import type { ComputerStore } from "@better-agent/agent/computer-ports";
+import type { ProjectQueryCommand } from "@better-agent/agent/project-ports";
 import {
 	buildPendingCommands,
 	type PendingCommandDeps,
 } from "./pending-commands";
+import {
+	createProjectQueryHub,
+	type ProjectQueryHub,
+} from "./project-query-hub";
 
 // S2-T2 (design D4): the computer control channel's server half — an
 // in-memory computerId → socket registry plus the push path. Deliberately
@@ -29,18 +34,38 @@ export interface ComputerControlChannel {
 	 * (as one JSON frame each) — to the Computer's registered socket; a no-op
 	 * without one. */
 	notifyComputer(computerId: string): Promise<void>;
+	/** Q2: the in-memory park behind projects.query — lives on the channel
+	 * because a parked query and the socket its frame travelled on share one
+	 * Node process by construction (see project-query-hub.ts). */
+	projectQueries: ProjectQueryHub;
 	/** Registers the Computer's live socket, replacing any previous one. */
 	register(computerId: string, socket: ComputerControlSocket): void;
+	/** Q2: pushes one real-time project_query frame — NOT part of the
+	 * pendingCommands derivation, never redelivered. False when the Computer
+	 * has no live control socket (the caller fails fast instead of queueing). */
+	sendProjectQuery(computerId: string, command: ProjectQueryCommand): boolean;
 	/** Removes the socket — only if it is still the registered one, so a
 	 * stale (already-replaced) connection closing can't drop a live one. */
 	unregister(computerId: string, socket: ComputerControlSocket): void;
 }
 
 export function createComputerControlChannel(
-	deps: ComputerControlChannelDeps
+	deps: ComputerControlChannelDeps,
+	options: { projectQueryTimeoutMs?: number } = {}
 ): ComputerControlChannel {
 	const sockets = new Map<string, ComputerControlSocket>();
 	return {
+		projectQueries: createProjectQueryHub({
+			timeoutMs: options.projectQueryTimeoutMs,
+		}),
+		sendProjectQuery(computerId, command) {
+			const socket = sockets.get(computerId);
+			if (!socket) {
+				return false;
+			}
+			socket.send(JSON.stringify(command));
+			return true;
+		},
 		register(computerId, socket) {
 			sockets.set(computerId, socket);
 		},

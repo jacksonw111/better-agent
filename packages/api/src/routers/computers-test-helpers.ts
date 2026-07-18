@@ -181,49 +181,65 @@ function buildGithubRig() {
 	};
 }
 
-function emptyBridgeTokenStore() {
-	return memoryBridgeTokenStore(new Map(), new Map(), () => undefined);
-}
-
 /** S2-T2/S2-T3: the launch-delivery stores heartbeat/ackLaunch/tasks.create
  * read alongside the computer store — empty by default. Q1 adds the project
  * store feeding the clone_project half of the pending queue. */
 function buildDeliveryStores() {
 	return {
-		bridgeToken: emptyBridgeTokenStore(),
+		bridgeToken: memoryBridgeTokenStore(new Map(), new Map(), () => undefined),
 		project: createFakeProjectStore(),
 		run: createFakeRunStore(),
 		task: createFakeTaskStore(),
 	};
 }
 
-function buildRigServices() {
+/** The in-memory stores one rig shares with its returned test handles. */
+function buildRigStores() {
 	const rows = new Map<string, ComputerRow>();
 	const computer: ComputerStore = {
 		...memoryPairingCodes([]),
 		...memoryComputerRows(rows),
 	};
-	const { github, githubConnection, secretBox } = buildGithubRig();
-	const { bridgeToken, project, run, task } = buildDeliveryStores();
 	// Recorded so tests can assert that Task Start never writes lifecycle chat
 	// messages (§19.2) — the map must stay empty through the whole flow.
 	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
 	// S25-T2: lets the cross-layer flow tests drive bridge.startSession(runId)
 	// with the launch payload's sessionCredential inside the SAME rig.
 	const bridgeSession = memoryBridgeSessionStore(new Map());
+	return {
+		...buildGithubRig(),
+		...buildDeliveryStores(),
+		bridgeMessages,
+		bridgeSession,
+		computer,
+		rows,
+	};
+}
+
+function buildRigServices(options: RigOptions = {}) {
+	const stores = buildRigStores();
+	const {
+		bridgeMessages,
+		bridgeSession,
+		bridgeToken,
+		computer,
+		github,
+		githubConnection,
+		project,
+		run,
+		secretBox,
+		task,
+	} = stores;
+	// Real channel, no registered sockets by default — delivery falls back to
+	// heartbeat pendingCommands like a no-WS production computer (D4). Q2 query
+	// tests register a fake socket on it and shorten the park timeout.
+	const computerControl = createComputerControlChannel(
+		{ bridgeToken, computer, project, run, secretBox, task },
+		{ projectQueryTimeoutMs: options.projectQueryTimeoutMs }
+	);
 	const services = {
 		authz: { enabled: false },
-		// Real channel, no registered sockets: notifyComputer is a push no-op and
-		// delivery falls back to heartbeat pendingCommands, exactly like a no-WS
-		// production computer (D4).
-		computerControl: createComputerControlChannel({
-			bridgeToken,
-			computer,
-			project,
-			run,
-			secretBox,
-			task,
-		}),
+		computerControl,
 		computerReplayGuard: createReplayGuard(),
 		githubClient: () => github.client,
 		secretBox,
@@ -238,24 +254,16 @@ function buildRigServices() {
 			task,
 		},
 	} as never;
-	return {
-		bridgeMessages,
-		bridgeSession,
-		bridgeToken,
-		computer,
-		github,
-		githubConnection,
-		project,
-		rows,
-		run,
-		secretBox,
-		services,
-		task,
-	};
+	return { ...stores, computerControl, services };
 }
 
-export function buildComputerRig() {
-	const { services, ...stores } = buildRigServices();
+/** Q2: lets query tests shrink the park timeout. */
+export interface RigOptions {
+	projectQueryTimeoutMs?: number;
+}
+
+export function buildComputerRig(options: RigOptions = {}) {
+	const { services, ...stores } = buildRigServices(options);
 	const base = {
 		services,
 		authedAgent: null,

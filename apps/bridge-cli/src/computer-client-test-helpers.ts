@@ -28,6 +28,9 @@ export function clientArgs(pairCode?: string): ClientCliArgs {
 
 export function fakeTransport() {
 	return {
+		ackClone: vi.fn<ComputerTransport["ackClone"]>(() =>
+			Promise.resolve({ ok: true })
+		),
 		ackLaunch: vi.fn<ComputerTransport["ackLaunch"]>(() =>
 			Promise.resolve({ ok: true })
 		),
@@ -38,7 +41,13 @@ export function fakeTransport() {
 			Promise.resolve({ computerId: "computer-1" })
 		),
 		register: vi.fn<ComputerTransport["register"]>(() => Promise.resolve()),
+		reportCloneResult: vi.fn<ComputerTransport["reportCloneResult"]>(() =>
+			Promise.resolve({ ok: true })
+		),
 		setIdentity: vi.fn<ComputerTransport["setIdentity"]>(),
+		submitProjectQueryResult: vi.fn<
+			ComputerTransport["submitProjectQueryResult"]
+		>(() => Promise.resolve({ ok: true })),
 		updateRunStatus: vi.fn<ComputerTransport["updateRunStatus"]>(() =>
 			Promise.resolve({ ok: true })
 		),

@@ -68,6 +68,64 @@ export interface ProjectCloneCommand {
 	token?: string;
 }
 
+/** Read-only operations the web can ask a Project's Computer to run (Q2). */
+export type ProjectQueryOp = "fs_list" | "git_status";
+
+/** How long the server parks a `projects.query` call waiting for the
+ * Computer's `projects.submitQueryResult` before failing with TIMEOUT. */
+export const PROJECT_QUERY_TIMEOUT_MS = 10_000;
+
+/** Entry cap per fs_list reply — dirs first, alpha within each half. */
+export const PROJECT_FS_LIST_MAX_ENTRIES = 500;
+
+/** The real-time query frame pushed over the computer control WS (Q2).
+ * Deliberately NOT part of the pendingCommands persistent queue: a query is a
+ * live request from a waiting user — if the Computer's WS is down the server
+ * fails fast (PRECONDITION_FAILED) instead of queueing a stale question. */
+export interface ProjectQueryCommand {
+	kind: "project_query";
+	op: ProjectQueryOp;
+	/** fs_list only — a project-relative path; `""`/absent means the root. */
+	path?: string;
+	projectId: string;
+	requestId: string;
+}
+
+export interface ProjectFsEntry {
+	kind: "file" | "dir";
+	name: string;
+	/** Bytes, files only — best-effort (a stat failure just omits it). */
+	size?: number;
+}
+
+/** fs_list result: dirs first then files, alpha within each half, `.git`
+ * omitted, capped at PROJECT_FS_LIST_MAX_ENTRIES. */
+export interface ProjectFsListResult {
+	entries: ProjectFsEntry[];
+}
+
+export interface ProjectGitChange {
+	path: string;
+	/** The verbatim two-char porcelain v1 XY status (e.g. " M", "??"). */
+	status: string;
+}
+
+/** git_status result. `branch` is null only for a detached HEAD. */
+export interface ProjectGitStatusResult {
+	branch: string | null;
+	changes: ProjectGitChange[];
+	dirty: boolean;
+	lastCommit: { hash: string; subject: string } | null;
+}
+
+export type ProjectQueryResult = ProjectFsListResult | ProjectGitStatusResult;
+
+/** What the Computer reports back for one parked query — the CLI's execution
+ * error travels verbatim in `errorMessage`, never synthesized server-side. */
+export type ProjectQueryOutcome =
+	| { ok: true; result: ProjectQueryResult }
+	| { errorMessage: string; ok: false };
+
 export interface ProjectStore {
 	/** Owner-scoped delete; false when the row isn't the caller's. Deletes the
 	 * DB row ONLY — the checkout directory on the Computer is the user's local

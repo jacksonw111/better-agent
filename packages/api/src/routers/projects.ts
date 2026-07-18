@@ -2,6 +2,7 @@ import type { ProjectRow } from "@better-agent/agent/project-ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { authorizedUserProcedure, computerProcedure } from "../index";
+import { query, submitQueryResult } from "./projects-query";
 import {
 	notifyComputerBestEffort,
 	requireOnlineOwnedComputer,
@@ -204,5 +205,9 @@ export const projectsRouter = {
 	delete: deleteProject,
 	get,
 	list,
+	// Q2: the read-only query loop (projects-query.ts) — user-plane `query`
+	// round-trips through the computer-plane `submitQueryResult`.
+	query,
 	reportCloneResult,
+	submitQueryResult,
 };

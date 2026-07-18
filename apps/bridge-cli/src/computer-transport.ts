@@ -4,6 +4,7 @@ import type {
 	ManagedToolInventoryItem,
 } from "@better-agent/agent/computer-ports";
 import { signComputerRequest } from "@better-agent/agent/crypto/computer-signature";
+import type { ProjectQueryResult } from "@better-agent/agent/project-ports";
 import type { AppRouterClient } from "@better-agent/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -53,7 +54,20 @@ export interface RunStatusUpdateInput {
 	workspacePath?: string;
 }
 
+/** Q2: mirrors projects.reportCloneResult's discriminated input. */
+export type ProjectCloneResultInput =
+	| { localPath: string; projectId: string; status: "ready" }
+	| { errorMessage: string; projectId: string; status: "error" };
+
+/** Q2: mirrors projects.submitQueryResult's discriminated input. */
+export type ProjectQuerySubmitResultInput =
+	| { ok: true; requestId: string; result: ProjectQueryResult }
+	| { errorMessage: string; ok: false; requestId: string };
+
 export interface ComputerTransport {
+	/** Q2: acks one delivered clone_project command — ok:false means the
+	 * Project was already acked (a redelivery) and the clone must be skipped. */
+	ackClone(projectId: string): Promise<{ ok: boolean }>;
 	/** Acks one delivered Launch Command (S25-T1, design D4) — ok:false means
 	 * the Run was already acked (a redelivery) and must be skipped. */
 	ackLaunch(runId: string): Promise<{ ok: boolean }>;
@@ -63,9 +77,17 @@ export interface ComputerTransport {
 	heartbeat(): Promise<{ pendingCommands: ComputerPendingCommand[] }>;
 	pair(input: ComputerPairInput): Promise<{ computerId: string }>;
 	register(attributes: ComputerAttributes): Promise<void>;
+	/** Q2: reports the clone outcome (ready+localPath / error+errorMessage) —
+	 * ok:false is a settled (terminal) project, idempotently skipped. */
+	reportCloneResult(input: ProjectCloneResultInput): Promise<{ ok: boolean }>;
 	/** Arms the signed routes. Called once, after pairing or after loading the
 	 * identity file — `pair` itself needs no identity. */
 	setIdentity(identity: ComputerSigningIdentity): void;
+	/** Q2: answers one real-time project_query — ok:false means the request
+	 * already timed out (or was answered), which the CLI simply ignores. */
+	submitProjectQueryResult(
+		input: ProjectQuerySubmitResultInput
+	): Promise<{ ok: boolean }>;
 	/** Reports a Run's launch progress / terminal state (S25-T1, §11.2). */
 	updateRunStatus(update: RunStatusUpdateInput): Promise<{ ok: boolean }>;
 }
@@ -116,6 +138,7 @@ export function createComputerTransport(config: {
 	});
 	const client = createORPCClient(link) as AppRouterClient;
 	return {
+		ackClone: (projectId) => client.projects.ackClone({ projectId }),
 		ackLaunch: (runId) => client.runs.ackLaunch({ runId }),
 		heartbeat: async () => {
 			const { pendingCommands } = await client.computers.heartbeat();
@@ -125,9 +148,12 @@ export function createComputerTransport(config: {
 		register: async (attributes) => {
 			await client.computers.register(attributes);
 		},
+		reportCloneResult: (input) => client.projects.reportCloneResult(input),
 		setIdentity: (next) => {
 			identity = next;
 		},
+		submitProjectQueryResult: (input) =>
+			client.projects.submitQueryResult(input),
 		updateRunStatus: (update) => client.runs.updateStatus(update),
 	};
 }
