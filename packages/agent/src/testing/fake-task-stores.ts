@@ -15,6 +15,7 @@ export function createFakeTaskStore(
 			const task: TaskRow = {
 				...input,
 				id: crypto.randomUUID(),
+				projectId: input.projectId ?? null,
 				status: "active",
 				createdAt: now,
 				updatedAt: now,

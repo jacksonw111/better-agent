@@ -9,10 +9,12 @@ import type { IssueSnapshot } from "./task-ports";
 // the canonical repositoryUrl for the client's start-context Repository line.
 
 const MISSING_REPOSITORY_ERROR = /repository/;
+const MISSING_PROJECT_ERROR = /projectId/;
 
 const TASK = {
 	id: "task-1",
 	description: "Fix the flaky login test using /tdd please",
+	projectId: null as string | null,
 	repositoryFullName: null as string | null,
 	repositoryUrl: null as string | null,
 	repositoryCloneUrl: null as string | null,
@@ -85,6 +87,24 @@ it("carries resumeAgentSessionId only when the run has one (P1 session resume)",
 	expect(buildLaunchCommand(TASK, RUN, "bt_s")).not.toHaveProperty(
 		"resumeAgentSessionId"
 	);
+});
+
+it("builds a project workspace carrying the projectId only — never a path (Q1)", () => {
+	const command = buildLaunchCommand(
+		{ ...TASK, projectId: "project-9" },
+		{ ...RUN, workspaceKind: "project" },
+		"bt_secret"
+	);
+	expect(command.workspace).toEqual({
+		kind: "project",
+		projectId: "project-9",
+	});
+});
+
+it("throws when a project run's task has no projectId", () => {
+	expect(() =>
+		buildLaunchCommand(TASK, { ...RUN, workspaceKind: "project" }, "bt_s")
+	).toThrow(MISSING_PROJECT_ERROR);
 });
 
 it("throws when a repository run's task has no repository identity", () => {

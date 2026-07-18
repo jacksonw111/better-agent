@@ -13,6 +13,7 @@ import type {
 	GithubRepositorySummary,
 } from "@better-agent/agent/github/github-ports";
 import type { BridgeMessageRow } from "@better-agent/agent/ports";
+import { createFakeProjectStore } from "@better-agent/agent/testing/fake-project-store";
 import {
 	createFakeRunStore,
 	createFakeTaskStore,
@@ -184,6 +185,18 @@ function emptyBridgeTokenStore() {
 	return memoryBridgeTokenStore(new Map(), new Map(), () => undefined);
 }
 
+/** S2-T2/S2-T3: the launch-delivery stores heartbeat/ackLaunch/tasks.create
+ * read alongside the computer store — empty by default. Q1 adds the project
+ * store feeding the clone_project half of the pending queue. */
+function buildDeliveryStores() {
+	return {
+		bridgeToken: emptyBridgeTokenStore(),
+		project: createFakeProjectStore(),
+		run: createFakeRunStore(),
+		task: createFakeTaskStore(),
+	};
+}
+
 function buildRigServices() {
 	const rows = new Map<string, ComputerRow>();
 	const computer: ComputerStore = {
@@ -191,11 +204,7 @@ function buildRigServices() {
 		...memoryComputerRows(rows),
 	};
 	const { github, githubConnection, secretBox } = buildGithubRig();
-	// S2-T2/S2-T3: the launch-delivery stores heartbeat/ackLaunch/tasks.create
-	// read alongside the computer store — empty by default.
-	const run = createFakeRunStore();
-	const task = createFakeTaskStore();
-	const bridgeToken = emptyBridgeTokenStore();
+	const { bridgeToken, project, run, task } = buildDeliveryStores();
 	// Recorded so tests can assert that Task Start never writes lifecycle chat
 	// messages (§19.2) — the map must stay empty through the whole flow.
 	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
@@ -210,7 +219,9 @@ function buildRigServices() {
 		computerControl: createComputerControlChannel({
 			bridgeToken,
 			computer,
+			project,
 			run,
+			secretBox,
 			task,
 		}),
 		computerReplayGuard: createReplayGuard(),
@@ -222,6 +233,7 @@ function buildRigServices() {
 			bridgeToken,
 			computer,
 			githubConnection,
+			project,
 			run,
 			task,
 		},
@@ -233,6 +245,7 @@ function buildRigServices() {
 		computer,
 		github,
 		githubConnection,
+		project,
 		rows,
 		run,
 		secretBox,

@@ -24,9 +24,11 @@ export type RunStatus =
 	| "stopped"
 	| "completed";
 
-/** Where a Run works: a git-worktree-backed repository checkout, or a clean
- * managed task directory when the Task has no repository (§6.16). */
-export type WorkspaceKind = "repository" | "standalone";
+/** Where a Run works: a git-worktree-backed repository checkout, a clean
+ * managed task directory when the Task has no repository (§6.16), or — Q1 —
+ * the fixed directory of a Project (a long-lived per-Computer repository
+ * checkout shared by every session on that Project). */
+export type WorkspaceKind = "repository" | "standalone" | "project";
 
 /** Per-Run snapshot of a linked GitHub issue, captured at launch time so the
  * Run records exactly which requirements the Agent worked from (§6.15). */
@@ -45,6 +47,10 @@ export interface TaskInsert {
 	name: string;
 	/** Assembled once at creation (§10.1) and immutable thereafter. */
 	openingMessage: string;
+	/** Q1: the Project this Task's sessions run inside — null/omitted for
+	 * repository and stand-alone Tasks. Optional (not `string | null`) so
+	 * pre-Q1 callers keep compiling; stores normalize omission to null. */
+	projectId?: string | null;
 	/** GitHub-resolved clone URL, saved at creation (S4-T2, §6.14) — the
 	 * Launch payload's repository intent uses it verbatim, never a guess. */
 	repositoryCloneUrl: string | null;
@@ -59,6 +65,7 @@ export interface TaskInsert {
 export interface TaskRow extends TaskInsert {
 	createdAt: Date;
 	id: string;
+	projectId: string | null;
 	status: TaskStatus;
 	updatedAt: Date;
 }
@@ -124,9 +131,18 @@ export interface StandaloneWorkspaceIntent {
 	kind: "standalone";
 }
 
+/** Q1: run inside the Project's long-lived checkout. The payload carries the
+ * projectId ONLY — the client resolves the absolute path from its own local
+ * project record; the server never dictates a filesystem path. */
+export interface ProjectWorkspaceIntent {
+	kind: "project";
+	projectId: string;
+}
+
 export type RunWorkspaceIntent =
 	| StandaloneWorkspaceIntent
-	| RepositoryWorkspaceIntent;
+	| RepositoryWorkspaceIntent
+	| ProjectWorkspaceIntent;
 
 /** The Launch Command for a Run awaiting launch (§9.1, design D4) — pushed
  * over the computer control WS and returned as heartbeat `pendingCommands`.

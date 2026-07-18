@@ -1,4 +1,7 @@
-import { COMPUTER_HEARTBEAT_INTERVAL_MS } from "@better-agent/agent/computer-ports";
+import {
+	COMPUTER_HEARTBEAT_INTERVAL_MS,
+	type ComputerPendingCommand,
+} from "@better-agent/agent/computer-ports";
 import type { ComputerKeyPair } from "@better-agent/agent/crypto/computer-signature";
 import type { RunLaunchCommand } from "@better-agent/agent/task-ports";
 import type { ClientCliArgs } from "./args";
@@ -70,15 +73,21 @@ export interface ComputerClientDeps {
 }
 
 /** Fires the launch handler for each delivered command WITHOUT awaiting —
- * run sessions are long-lived; the heartbeat loop must keep beating. */
+ * run sessions are long-lived; the heartbeat loop must keep beating. Non-
+ * launch kinds (Q1's clone_project) are skipped for now: this client version
+ * predates project support, and an unacked clone command simply stays queued
+ * (same contract as the WS channel ignoring unknown frames). */
 function dispatchLaunches(
-	commands: RunLaunchCommand[],
+	commands: ComputerPendingCommand[],
 	handler: LaunchCommandSink | undefined
 ): void {
 	if (!handler) {
 		return;
 	}
 	for (const command of commands) {
+		if (command.kind !== "launch") {
+			continue;
+		}
 		// `handle` never rejects by contract; the catch is belt-and-braces so a
 		// buggy handler can still never kill the heartbeat loop.
 		handler.handle(command).catch(() => undefined);

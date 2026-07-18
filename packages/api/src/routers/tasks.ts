@@ -12,12 +12,13 @@ import { appendRun } from "./tasks-append-run";
 import {
 	refreshedIssueSnapshots,
 	repositoryTaskFields,
-	resolveGithubStartContext,
 } from "./tasks-github-context";
 import {
 	notifyComputerBestEffort,
 	requireOnlineOwnedComputer,
 	requireRuntimeInInventory,
+	resolveProjectAndGithub,
+	resolveWorkspaceKind,
 } from "./tasks-guards";
 import { resume } from "./tasks-resume";
 import { reconciledRunWithSession } from "./tasks-run-status";
@@ -72,6 +73,10 @@ const create = authorizedUserProcedure
 				.max(TASK_NAME_MAX_LENGTH)
 				.refine(hasVisibleText, "Task name is required")
 				.optional(),
+			// Q1: start the session inside a Project's long-lived checkout. The
+			// Project must be `ready` and live on `computerId`; mutually exclusive
+			// with repositoryFullName (a Project already IS a repository).
+			projectId: z.uuid().optional(),
 			// Optional GitHub repository (§6.14), as `owner/repo`.
 			repositoryFullName: z.string().min(1).optional(),
 		})
@@ -84,15 +89,17 @@ const create = authorizedUserProcedure
 			input.computerId
 		);
 		requireRuntimeInInventory(computer, input.agentKind);
-		// §8.5 steps 4–5: GitHub validation + snapshots, still BEFORE any write.
-		const { issueSnapshots, repository } = await resolveGithubStartContext(
-			services,
-			context.authedUser.id,
-			input
+		const { issueSnapshots, project, repository } =
+			await resolveProjectAndGithub(
+				services,
+				context.authedUser.id,
+				computer.id,
+				input
+			);
+		const workspaceKind: WorkspaceKind = resolveWorkspaceKind(
+			Boolean(project),
+			Boolean(repository)
 		);
-		const workspaceKind: WorkspaceKind = repository
-			? "repository"
-			: "standalone";
 		// §8.5 steps 6–8: assemble the opening message once, then task + run.
 		const openingMessage = assembleOpeningMessage({
 			agentKind: input.agentKind,
@@ -108,6 +115,7 @@ const create = authorizedUserProcedure
 			description: input.description,
 			name: input.name ?? defaultSessionName(new Date()),
 			openingMessage,
+			projectId: project?.id ?? null,
 			...repositoryTaskFields(repository),
 			userId: context.authedUser.id,
 		});

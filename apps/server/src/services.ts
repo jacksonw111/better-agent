@@ -21,6 +21,7 @@ import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
+import { createProjectStore } from "@better-agent/db/repositories/project-store";
 import { createPushSubscriptionStore } from "@better-agent/db/repositories/push-subscription-store";
 import { createRunStore } from "@better-agent/db/repositories/run-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
@@ -75,6 +76,7 @@ interface StoreParts {
 	memoryStore: ReturnType<typeof createMemoryStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
+	projectStore: ReturnType<typeof createProjectStore>;
 	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
 	runStore: ReturnType<typeof createRunStore>;
 	secretBox: ReturnType<typeof getSecretBox>;
@@ -118,6 +120,7 @@ function buildStores(
 		knowledge: parts.knowledgeStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
+		project: parts.projectStore,
 		pushSubscription: parts.pushSubscriptionStore,
 		run: parts.runStore,
 		skill: parts.skillStore,
@@ -125,6 +128,20 @@ function buildStores(
 		...authStores,
 	};
 }
+// S2-T2 (D4): /computer-ws registry + command push (launch + Q1 clone).
+// In-process like commandBus — a live WS is always on the same Node process;
+// heartbeat pendingCommands covers the no-WS gap.
+function buildComputerControl(parts: StoreParts) {
+	return createComputerControlChannel({
+		bridgeToken: parts.bridgeTokenStore,
+		computer: parts.computerStore,
+		project: parts.projectStore,
+		run: parts.runStore,
+		secretBox: parts.secretBox,
+		task: parts.taskStore,
+	});
+}
+
 function assembleServices(
 	parts: StoreParts & {
 		auth: ReturnType<typeof buildAuthServices>;
@@ -177,15 +194,7 @@ function assembleServices(
 		// signature timestamps must strictly increase per computer, and the
 		// single-instance Docker deployment means one process sees them all.
 		computerReplayGuard: createReplayGuard(),
-		// S2-T2 (D4): /computer-ws registry + launch push. In-process like
-		// commandBus — a live WS is always on the same Node process; heartbeat
-		// pendingCommands covers the no-WS gap.
-		computerControl: createComputerControlChannel({
-			bridgeToken: parts.bridgeTokenStore,
-			computer: parts.computerStore,
-			run: parts.runStore,
-			task: parts.taskStore,
-		}),
+		computerControl: buildComputerControl(parts),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }
@@ -210,6 +219,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		bridgeUsageStore: createBridgeUsageStore(db),
 		computerStore: createComputerStore(db),
 		githubConnectionStore: createGithubConnectionStore(db),
+		projectStore: createProjectStore(db),
 		taskStore: createTaskStore(db),
 		runStore: createRunStore(db),
 		secretBox,

@@ -3,8 +3,10 @@ import {
 	type ComputerRow,
 } from "@better-agent/agent/computer-ports";
 import type { BridgeAgentKind } from "@better-agent/agent/ports";
+import type { ProjectRow } from "@better-agent/agent/project-ports";
 import { ORPCError } from "@orpc/server";
 import type { Context } from "../context";
+import { resolveGithubStartContext } from "./tasks-github-context";
 
 // Task Start preconditions and delivery helpers (S2-T3, master spec §8.5):
 // the computer/runtime gates that run BEFORE any write, and the best-effort
@@ -47,6 +49,75 @@ export function requireRuntimeInInventory(
 			message: `Agent runtime ${agentKind} is not in this computer's inventory`,
 		});
 	}
+}
+
+/** Q1: a project session's Project must be the caller's, live on the SAME
+ * Computer the session starts on, and be `ready` (cloned, path reported) —
+ * a queued/cloning/errored checkout can never host a session. Runs BEFORE
+ * any write, like every other Start gate. */
+export async function requireReadyProject(
+	services: Services,
+	userId: string,
+	projectId: string,
+	computerId: string
+): Promise<ProjectRow> {
+	const project = await services.stores.project.getById(projectId, userId);
+	if (!project) {
+		throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+	}
+	if (project.computerId !== computerId) {
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message: "Project lives on a different computer",
+		});
+	}
+	if (project.status !== "ready") {
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message: "Project is not ready — wait for the clone to finish",
+		});
+	}
+	return project;
+}
+
+/** Q1 + §8.5 steps 4–5: the project gate and the GitHub context, resolved
+ * together and still BEFORE any write like every other Start check. A project
+ * session excludes an explicit repository — the Project already IS one. */
+export async function resolveProjectAndGithub(
+	services: Services,
+	userId: string,
+	computerId: string,
+	input: {
+		issueNumbers?: number[];
+		projectId?: string;
+		repositoryFullName?: string;
+	}
+) {
+	if (input.projectId && input.repositoryFullName) {
+		throw new ORPCError("BAD_REQUEST", {
+			message:
+				"A project session already has its repository — omit repositoryFullName",
+		});
+	}
+	const project = input.projectId
+		? await requireReadyProject(services, userId, input.projectId, computerId)
+		: null;
+	const { issueSnapshots, repository } = await resolveGithubStartContext(
+		services,
+		userId,
+		input
+	);
+	return { issueSnapshots, project, repository };
+}
+
+/** Q1: a project session runs in the Project's checkout; otherwise the
+ * repository/stand-alone split is unchanged. */
+export function resolveWorkspaceKind(
+	hasProject: boolean,
+	hasRepository: boolean
+): "project" | "repository" | "standalone" {
+	if (hasProject) {
+		return "project";
+	}
+	return hasRepository ? "repository" : "standalone";
 }
 
 /** §8.5 step 10: best-effort WS push. A failure never rolls the Start back —

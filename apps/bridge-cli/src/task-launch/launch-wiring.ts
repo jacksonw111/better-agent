@@ -54,6 +54,32 @@ async function buildStartContext(
 	);
 }
 
+// D5's workspace fork (§9.2): repository intents go through the shared bare
+// cache + per-task worktree; stand-alone intents get the clean managed task
+// directory. Both funnel into the same status sequence. Q1's project intents
+// are NOT handled by this client yet (the CLI half is a follow-up task): they
+// fail loudly with a real error the run report carries verbatim, rather than
+// silently landing in the wrong directory.
+function prepareCommandWorkspace(command: RunLaunchCommand): Promise<string> {
+	const { workspace } = command;
+	switch (workspace.kind) {
+		case "repository":
+			return prepareRepositoryRunWorkspace({
+				runId: command.runId,
+				taskId: command.taskId,
+				workspace,
+			});
+		case "project":
+			return Promise.reject(
+				new Error(
+					"Project workspaces are not supported by this client version yet — update the CLI"
+				)
+			);
+		default:
+			return prepareRunWorkspace({ taskId: command.taskId, workspace });
+	}
+}
+
 export function createTaskLaunchRuntime(config: TaskLaunchRuntimeConfig): {
 	launchHandler: LaunchCommandSink;
 	startControlChannel(identity: ComputerIdentity): void;
@@ -62,20 +88,7 @@ export function createTaskLaunchRuntime(config: TaskLaunchRuntimeConfig): {
 		ackLaunch: (runId) => config.transport.ackLaunch(runId),
 		buildStartContext,
 		log: config.log,
-		// D5's workspace fork (§9.2): repository intents go through the shared
-		// bare cache + per-task worktree; stand-alone intents get the clean
-		// managed task directory. Both funnel into the same status sequence.
-		prepareWorkspace: (command) =>
-			command.workspace.kind === "repository"
-				? prepareRepositoryRunWorkspace({
-						runId: command.runId,
-						taskId: command.taskId,
-						workspace: command.workspace,
-					})
-				: prepareRunWorkspace({
-						taskId: command.taskId,
-						workspace: command.workspace,
-					}),
+		prepareWorkspace: (command) => prepareCommandWorkspace(command),
 		runSession: createRunSessionSupplier({ serverUrl: config.serverUrl }),
 		signal: config.signal,
 		updateRunStatus: (report) => config.transport.updateRunStatus(report),

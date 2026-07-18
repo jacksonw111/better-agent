@@ -16,6 +16,7 @@ import {
 import { users } from "./auth";
 import { bridgeSessions, bridgeTokens } from "./bridge";
 import { computers } from "./computers";
+import { projects } from "./projects";
 
 // A Task: the user's persistent unit of work (S2-T1, master spec §6.7).
 // `description` is the user's instruction verbatim — never rewritten — and
@@ -36,6 +37,9 @@ export const tasks = pgTable(
 			.notNull()
 			.references(() => computers.id),
 		agentKind: text("agent_kind").$type<BridgeAgentKind>().notNull(),
+		// Q1: the Project this Task's sessions run inside (fixed long-lived
+		// checkout on the Computer) — null for repository/stand-alone Tasks.
+		projectId: uuid("project_id").references(() => projects.id),
 		// Optional GitHub context (§6.14): all null when the Task has no
 		// repository, in which case Runs use a stand-alone workspace. cloneUrl
 		// and defaultBranch are GitHub-resolved at creation (S4-T2) so Launch

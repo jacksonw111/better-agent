@@ -1,9 +1,9 @@
 import type {
+	ComputerPendingCommand,
 	ComputerRuntimeInventoryItem,
 	ManagedToolInventoryItem,
 } from "@better-agent/agent/computer-ports";
 import { signComputerRequest } from "@better-agent/agent/crypto/computer-signature";
-import type { RunLaunchCommand } from "@better-agent/agent/task-ports";
 import type { AppRouterClient } from "@better-agent/api/routers/index";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
@@ -57,9 +57,10 @@ export interface ComputerTransport {
 	/** Acks one delivered Launch Command (S25-T1, design D4) — ok:false means
 	 * the Run was already acked (a redelivery) and must be skipped. */
 	ackLaunch(runId: string): Promise<{ ok: boolean }>;
-	/** Heartbeat + the no-WS launch delivery fallback: the server returns the
-	 * Computer's still-unacked Launch Commands with every beat (D4). */
-	heartbeat(): Promise<{ pendingCommands: RunLaunchCommand[] }>;
+	/** Heartbeat + the no-WS command delivery fallback: the server returns the
+	 * Computer's still-unacked control-channel commands (launches and, Q1,
+	 * clone_project) with every beat (D4). */
+	heartbeat(): Promise<{ pendingCommands: ComputerPendingCommand[] }>;
 	pair(input: ComputerPairInput): Promise<{ computerId: string }>;
 	register(attributes: ComputerAttributes): Promise<void>;
 	/** Arms the signed routes. Called once, after pairing or after loading the

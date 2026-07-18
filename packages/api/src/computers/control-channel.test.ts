@@ -1,6 +1,10 @@
-import type { ComputerRow } from "@better-agent/agent/computer-ports";
+import type {
+	ComputerPendingCommand,
+	ComputerRow,
+} from "@better-agent/agent/computer-ports";
+import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createRunSessionCredential } from "@better-agent/agent/task/run-session-credential";
-import type { RunLaunchCommand } from "@better-agent/agent/task-ports";
+import { createFakeProjectStore } from "@better-agent/agent/testing/fake-project-store";
 import {
 	createFakeRunStore,
 	createFakeTaskStore,
@@ -21,9 +25,9 @@ const USER_ID = "alice-uid";
 const DELIVERED_TWICE = 2;
 
 function fakeSocket() {
-	const sent: RunLaunchCommand[] = [];
+	const sent: ComputerPendingCommand[] = [];
 	const socket: ComputerControlSocket = {
-		send: (data) => sent.push(JSON.parse(data) as RunLaunchCommand),
+		send: (data) => sent.push(JSON.parse(data) as ComputerPendingCommand),
 	};
 	return { sent, socket };
 }
@@ -31,6 +35,8 @@ function fakeSocket() {
 function buildChannelRig() {
 	const run = createFakeRunStore();
 	const task = createFakeTaskStore();
+	const project = createFakeProjectStore();
+	const secretBox = createSecretBox("control-channel-secret-32-chars!");
 	const bridgeToken = memoryBridgeTokenStore(
 		new Map(),
 		new Map(),
@@ -45,10 +51,12 @@ function buildChannelRig() {
 		computer: {
 			getById: (id) => Promise.resolve(id === COMPUTER_ID ? computerRow : null),
 		},
+		project,
 		run,
+		secretBox,
 		task,
 	});
-	return { bridgeToken, channel, run, task };
+	return { bridgeToken, channel, project, run, secretBox, task };
 }
 
 type ChannelRig = ReturnType<typeof buildChannelRig>;
@@ -90,8 +98,12 @@ it("pushes a launch command per created run to the registered socket", async () 
 	await rig.channel.notifyComputer(COMPUTER_ID);
 
 	expect(sent).toHaveLength(1);
-	expect(sent[0]).toMatchObject({ kind: "launch", runId: run.id });
-	expect(sent[0]?.sessionCredential.startsWith("bt_")).toBe(true);
+	const first = sent[0];
+	expect(first).toMatchObject({ kind: "launch", runId: run.id });
+	if (first?.kind !== "launch") {
+		throw new Error("expected a launch command");
+	}
+	expect(first.sessionCredential.startsWith("bt_")).toBe(true);
 });
 
 it("redelivers on repeat notify until the run is acked, then never again", async () => {
@@ -107,6 +119,40 @@ it("redelivers on repeat notify until the run is acked, then never again", async
 	await rig.run.updateStatus(run.id, { status: "launching" });
 	await rig.channel.notifyComputer(COMPUTER_ID);
 	expect(sent).toHaveLength(DELIVERED_TWICE);
+});
+
+it("pushes clone commands ahead of launches, decrypting the project token (Q1)", async () => {
+	const rig = buildChannelRig();
+	const run = await seedCreatedRun(rig);
+	const project = await rig.project.insert({
+		computerId: COMPUTER_ID,
+		encryptedToken: rig.secretBox.encrypt("ghp_project_token"),
+		name: "Better Agent",
+		repoCloneUrl: "https://github.com/acme/better-agent.git",
+		repoFullName: "acme/better-agent",
+		tokenLast4: "oken",
+		userId: USER_ID,
+	});
+	const { sent, socket } = fakeSocket();
+	rig.channel.register(COMPUTER_ID, socket);
+
+	await rig.channel.notifyComputer(COMPUTER_ID);
+
+	expect(sent).toHaveLength(DELIVERED_TWICE);
+	expect(sent[0]).toEqual({
+		kind: "clone_project",
+		projectId: project.id,
+		repoCloneUrl: "https://github.com/acme/better-agent.git",
+		token: "ghp_project_token",
+	});
+	expect(sent[1]).toMatchObject({ kind: "launch", runId: run.id });
+
+	// The ack (created→cloning) removes the clone from the derivation.
+	await rig.project.updateStatus(project.id, { status: "cloning" });
+	sent.length = 0;
+	await rig.channel.notifyComputer(COMPUTER_ID);
+	expect(sent).toHaveLength(1);
+	expect(sent[0]?.kind).toBe("launch");
 });
 
 it("is a no-op for a computer with no registered socket", async () => {

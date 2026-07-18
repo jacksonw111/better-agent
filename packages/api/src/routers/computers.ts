@@ -9,7 +9,7 @@ import {
 } from "@better-agent/agent/crypto/auth-tokens";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
-import { buildPendingLaunchCommands } from "../computers/pending-commands";
+import { buildPendingCommands } from "../computers/pending-commands";
 import {
 	authorizedUserProcedure,
 	computerProcedure,
@@ -101,12 +101,14 @@ const register = computerProcedure
 
 // `pendingCommands` is the no-WS fallback delivery path for control-channel
 // commands (D4, S2-T2): the Computer's still-`created` Runs rendered as
-// Launch payloads — identical to what /computer-ws pushes, so a Computer
-// without a live WS still launches within one heartbeat interval (≤10s).
+// Launch payloads, plus (Q1) its still-`created` Projects as clone_project
+// commands — identical to what /computer-ws pushes, so a Computer without a
+// live WS still picks everything up within one heartbeat interval (≤10s).
 const heartbeat = computerProcedure.handler(async ({ context }) => {
-	await context.services.stores.computer.touch(context.computer.id, new Date());
-	const pendingCommands = await buildPendingLaunchCommands(
-		context.services.stores,
+	const { services } = context;
+	await services.stores.computer.touch(context.computer.id, new Date());
+	const pendingCommands = await buildPendingCommands(
+		{ ...services.stores, secretBox: services.secretBox },
 		context.computer
 	);
 	return { ok: true, pendingCommands };

@@ -16,6 +16,7 @@ function toRow(row: typeof schema.tasks.$inferSelect): TaskRow {
 		status: row.status,
 		computerId: row.computerId,
 		agentKind: row.agentKind,
+		projectId: row.projectId ?? null,
 		repositoryFullName: row.repositoryFullName ?? null,
 		repositoryUrl: row.repositoryUrl ?? null,
 		repositoryCloneUrl: row.repositoryCloneUrl ?? null,

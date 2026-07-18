@@ -1,7 +1,7 @@
 import type { ComputerStore } from "@better-agent/agent/computer-ports";
 import {
-	buildPendingLaunchCommands,
-	type PendingCommandStores,
+	buildPendingCommands,
+	type PendingCommandDeps,
 } from "./pending-commands";
 
 // S2-T2 (design D4): the computer control channel's server half — an
@@ -20,13 +20,14 @@ export interface ComputerControlSocket {
 	send(data: string): void;
 }
 
-export interface ComputerControlChannelDeps extends PendingCommandStores {
+export interface ComputerControlChannelDeps extends PendingCommandDeps {
 	computer: Pick<ComputerStore, "getById">;
 }
 
 export interface ComputerControlChannel {
-	/** Pushes every pending Launch Command (as one JSON frame each) to the
-	 * Computer's registered socket; a no-op without one. */
+	/** Pushes every pending control-channel command — clone_project + launch
+	 * (as one JSON frame each) — to the Computer's registered socket; a no-op
+	 * without one. */
 	notifyComputer(computerId: string): Promise<void>;
 	/** Registers the Computer's live socket, replacing any previous one. */
 	register(computerId: string, socket: ComputerControlSocket): void;
@@ -57,7 +58,7 @@ export function createComputerControlChannel(
 			if (!computer) {
 				return;
 			}
-			const commands = await buildPendingLaunchCommands(deps, computer);
+			const commands = await buildPendingCommands(deps, computer);
 			for (const command of commands) {
 				socket.send(JSON.stringify(command));
 			}

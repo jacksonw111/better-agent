@@ -18,8 +18,10 @@ export const AGENT_RUNTIME_LABELS: Record<BridgeAgentKind, string> = {
 	pi: "Pi",
 };
 
-/** §10.1 workspace wording: "repository workspace 或 managed task directory". */
+/** §10.1 workspace wording: "repository workspace 或 managed task directory";
+ * Q1 adds the Project's long-lived checkout. */
 const WORKSPACE_LABELS: Record<WorkspaceKind, string> = {
+	project: "project directory",
 	repository: "repository workspace",
 	standalone: "managed task directory",
 };

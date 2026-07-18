@@ -16,6 +16,7 @@ export type LaunchTaskSource = Pick<
 	TaskRow,
 	| "description"
 	| "id"
+	| "projectId"
 	| "repositoryCloneUrl"
 	| "repositoryDefaultBranch"
 	| "repositoryFullName"
@@ -51,6 +52,30 @@ function repositoryIntent(task: LaunchTaskSource): RunWorkspaceIntent {
 	};
 }
 
+/** Q1: the project intent carries the projectId only — the client resolves
+ * the checkout path from its local project record; the payload never dictates
+ * an absolute path. */
+function projectIntent(task: LaunchTaskSource): RunWorkspaceIntent {
+	if (!task.projectId) {
+		throw new Error(`Task ${task.id} has a project run but no projectId`);
+	}
+	return { kind: "project", projectId: task.projectId };
+}
+
+function workspaceIntent(
+	task: LaunchTaskSource,
+	run: LaunchRunSource
+): RunWorkspaceIntent {
+	switch (run.workspaceKind) {
+		case "repository":
+			return repositoryIntent(task);
+		case "project":
+			return projectIntent(task);
+		default:
+			return { kind: "standalone" };
+	}
+}
+
 /** Builds the Launch Command for `run`. `sessionToken` is the raw `bt_…`
  * credential pre-issued at Run creation (see run-session-credential.ts). */
 export function buildLaunchCommand(
@@ -58,10 +83,7 @@ export function buildLaunchCommand(
 	run: LaunchRunSource,
 	sessionToken: string
 ): RunLaunchCommand {
-	const workspace: RunWorkspaceIntent =
-		run.workspaceKind === "repository"
-			? repositoryIntent(task)
-			: { kind: "standalone" };
+	const workspace: RunWorkspaceIntent = workspaceIntent(task, run);
 	const command: RunLaunchCommand = {
 		kind: "launch",
 		taskId: task.id,

@@ -42,6 +42,7 @@ import type {
 	UserStore,
 	WebAuthzCacheStore,
 } from "@better-agent/agent/ports";
+import type { ProjectStore } from "@better-agent/agent/project-ports";
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
@@ -133,6 +134,7 @@ export interface AgentServices {
 		knowledge: KnowledgeStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
+		project: ProjectStore;
 		pushSubscription: PushSubscriptionStore;
 		run: RunStore;
 		skill: SkillStore;
