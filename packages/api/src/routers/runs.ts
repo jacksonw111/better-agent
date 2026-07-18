@@ -44,7 +44,9 @@ const FORWARD_STATUS_ORDER: readonly RunStatus[] = [
 	"running",
 	"waiting_for_user",
 ];
-const TERMINAL_STATUSES: ReadonlySet<RunStatus> = new Set([
+/** Exported for the run-status reconcile paths (tasks-run-status.ts /
+ * bridge-session-mgmt.ts): a run in one of these never changes again. */
+export const TERMINAL_RUN_STATUSES: ReadonlySet<RunStatus> = new Set([
 	"completed",
 	"failed",
 	"stopped",
@@ -69,7 +71,7 @@ function statusRank(status: RunStatus): number {
 }
 
 function isForwardTransition(current: RunStatus, next: RunStatus): boolean {
-	if (TERMINAL_STATUSES.has(current)) {
+	if (TERMINAL_RUN_STATUSES.has(current)) {
 		return false;
 	}
 	return statusRank(next) > statusRank(current);

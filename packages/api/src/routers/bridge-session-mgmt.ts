@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { userProcedure } from "../index";
+import { TERMINAL_RUN_STATUSES } from "./runs";
 
 // P3-T1 (docs/local-agent-workspace-plan.md): user-facing session lifecycle —
 // end / rename / star / archive / restore / hard-delete — split out of
@@ -44,6 +45,27 @@ async function sendStopControl(
 	}
 }
 
+/** Run-status reconcile bugfix: ending a session must also settle its bound
+ * Run (bridge_sessions.run_id). The web's task/session lists read runs.status,
+ * and the client — the only writer of terminal reports — is being told to
+ * stop by this very call, so nobody is left to report `stopped`; without this
+ * server-side flip the run shows as live forever. Also the semantics P3's
+ * session switching relies on: an ended session's run IS stopped. */
+async function stopBoundRun(
+	context: Context,
+	sessionId: string
+): Promise<void> {
+	const session = await context.services.stores.bridgeSession.get(sessionId);
+	if (!session?.runId) {
+		return;
+	}
+	const run = await context.services.stores.run.getById(session.runId);
+	if (!run || TERMINAL_RUN_STATUSES.has(run.status)) {
+		return;
+	}
+	await context.services.stores.run.updateStatus(run.id, { status: "stopped" });
+}
+
 export const endSession = userProcedure
 	.input(sessionIdInput)
 	.handler(async ({ input, context }) => {
@@ -56,6 +78,7 @@ export const endSession = userProcedure
 			input.sessionId,
 			context.authedUser.id
 		);
+		await stopBoundRun(context, input.sessionId);
 		await sendStopControl(context, input.sessionId);
 		return { ok: true };
 	});
@@ -120,6 +143,7 @@ export const archiveSession = userProcedure
 				input.sessionId,
 				context.authedUser.id
 			);
+			await stopBoundRun(context, input.sessionId);
 			await sendStopControl(context, input.sessionId);
 		}
 		await context.services.stores.bridgeSession.setArchived(
@@ -166,6 +190,9 @@ export const deleteSession = userProcedure
 		if (row?.status === "active") {
 			await sendStopControl(context, input.sessionId);
 		}
+		// Before the row disappears — afterwards the run's binding is dangling
+		// and there is no way back to the run id.
+		await stopBoundRun(context, input.sessionId);
 		await context.services.stores.bridgeSession.deleteHard(
 			input.sessionId,
 			context.authedUser.id

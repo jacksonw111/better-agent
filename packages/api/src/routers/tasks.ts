@@ -20,6 +20,7 @@ import {
 	requireRuntimeInInventory,
 } from "./tasks-guards";
 import { resume } from "./tasks-resume";
+import { reconciledRunWithSession } from "./tasks-run-status";
 
 // Tasks router (S2-T3): atomic Start per master spec §8.5 — every validation
 // runs BEFORE the first write, so a rejected Start leaves no task/run rows;
@@ -121,14 +122,14 @@ const create = authorizedUserProcedure
 
 /** List projection of a Task's latest Run — enough for status badges, plus
  * (P1/P3) whether its runtime reported a conversation id, i.e. whether a
- * resume would continue the conversation rather than cold-start. */
-async function toLatestRun(services: Services, run: RunRow | null) {
-	if (!run) {
+ * resume would continue the conversation rather than cold-start. The status
+ * goes through the reconcile-on-read pass (tasks-run-status.ts) so a run
+ * whose reporter died never shows as live forever. */
+async function toLatestRun(services: Services, latest: RunRow | null) {
+	if (!latest) {
 		return null;
 	}
-	const session = run.sessionId
-		? await services.stores.bridgeSession.get(run.sessionId)
-		: null;
+	const { run, session } = await reconciledRunWithSession(services, latest);
 	return {
 		createdAt: run.createdAt,
 		errorMessage: run.errorMessage,
@@ -196,11 +197,10 @@ function toTaskRun(run: RunRow) {
 
 /** S3-T2: the run projection plus its bound bridge session row (null until
  * the client binds one at startSession) — the Conversation page renders the
- * run's message stream straight off this session. */
-async function toTaskRunWithSession(services: Services, run: RunRow) {
-	const session = run.sessionId
-		? await services.stores.bridgeSession.get(run.sessionId)
-		: null;
+ * run's message stream straight off this session. Statuses go through the
+ * same reconcile-on-read pass as the list projection above. */
+async function toTaskRunWithSession(services: Services, row: RunRow) {
+	const { run, session } = await reconciledRunWithSession(services, row);
 	return { ...toTaskRun(run), session };
 }
 

@@ -87,3 +87,61 @@ it("startSession without runId behaves exactly as before: no bindings", async ()
 	expect((await rig.bridgeSession.get(sessionId))?.runId).toBeNull();
 	expect(rig.run.rows.get(run.id)?.sessionId).toBeNull();
 });
+
+// Run-status reconcile bugfix: ending a session from the web must also settle
+// its bound Run — the stop kills the local process, so no client is left to
+// report `stopped`, and the task lists would show the run as live forever.
+
+/** A bound session whose run reached `running` — the state a web-side end/
+ * archive/delete finds when the agent is (or just was) actually working. */
+async function startBoundRunningSession(rig: Rig) {
+	const { credential, run } = await seedRunWithCredential(rig);
+	const cli = rig.bridgeClientFor({
+		tokenId: credential.tokenId,
+		userId: ALICE.id,
+	});
+	const { sessionId } = await cli.bridge.startSession({
+		agentKind: AGENT_KIND,
+		runId: run.id,
+	});
+	await rig.run.updateStatus(run.id, { status: "running" });
+	return { alice: rig.userClientFor(ALICE), run, sessionId };
+}
+
+it("endSession flips a non-terminal bound run to stopped", async () => {
+	const rig = build();
+	const { alice, run, sessionId } = await startBoundRunningSession(rig);
+
+	await alice.bridge.endSession({ sessionId });
+
+	expect(rig.run.rows.get(run.id)?.status).toBe("stopped");
+});
+
+it("endSession never rewrites a bound run that already reached a terminal status", async () => {
+	const rig = build();
+	const { alice, run, sessionId } = await startBoundRunningSession(rig);
+	await rig.run.updateStatus(run.id, { status: "completed" });
+
+	await alice.bridge.endSession({ sessionId });
+
+	expect(rig.run.rows.get(run.id)?.status).toBe("completed");
+});
+
+it("archiveSession on an active session stops the bound run", async () => {
+	const rig = build();
+	const { alice, run, sessionId } = await startBoundRunningSession(rig);
+
+	await alice.bridge.archiveSession({ sessionId });
+
+	expect(rig.run.rows.get(run.id)?.status).toBe("stopped");
+});
+
+it("deleteSession stops the bound run before the session row disappears", async () => {
+	const rig = build();
+	const { alice, run, sessionId } = await startBoundRunningSession(rig);
+
+	await alice.bridge.deleteSession({ sessionId });
+
+	expect(await rig.bridgeSession.get(sessionId)).toBeNull();
+	expect(rig.run.rows.get(run.id)?.status).toBe("stopped");
+});
