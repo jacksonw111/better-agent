@@ -10,6 +10,8 @@ import type { GitExecResult } from "./repo-cache";
 
 const TOKEN = "ghp_secret_token_value";
 const EXPECTED_DIR = "/base/projects/0a1b2c3d-better-agent";
+/** One ack for the original delivery, one for the redelivered command. */
+const ACKED_TWICE = 2;
 
 function command(
 	overrides: Partial<ProjectCloneCommand> = {}
@@ -173,17 +175,26 @@ describe("clone handler - idempotency", () => {
 		]);
 	});
 
-	it("the seen set and the server ack both stop duplicate clones", async () => {
+	it("in-flight duplicates collapse to one ack; settled ones defer to the server", async () => {
 		const context = rig();
-		await context.handler.handle(command());
-		await context.handler.handle(command());
+		// The two delivery channels racing the same command: one ack, one clone.
+		await Promise.all([
+			context.handler.handle(command()),
+			context.handler.handle(command()),
+		]);
 		expect(context.ackClone).toHaveBeenCalledTimes(1);
+		expect(context.gitCalls.filter((args) => args[0] === "clone")).toHaveLength(
+			1
+		);
 
-		const redelivered = rig();
-		redelivered.ackClone.mockResolvedValueOnce({ ok: false });
-		await redelivered.handler.handle(command());
-		expect(redelivered.gitCalls).toEqual([]);
-		expect(redelivered.reports).toEqual([]);
+		// Once settled the SERVER ack is the idempotency source: a redelivery is
+		// acked again and its ok:false stops the clone.
+		context.ackClone.mockResolvedValueOnce({ ok: false });
+		await context.handler.handle(command());
+		expect(context.ackClone).toHaveBeenCalledTimes(ACKED_TWICE);
+		expect(context.gitCalls.filter((args) => args[0] === "clone")).toHaveLength(
+			1
+		);
 	});
 
 	it("a failed ack clears the seen mark so redelivery retries", async () => {
@@ -194,6 +205,24 @@ describe("clone handler - idempotency", () => {
 
 		await context.handler.handle(command());
 		expect(context.reports[0]).toMatchObject({ status: "ready" });
+	});
+});
+
+describe("clone handler - retry", () => {
+	it("a failed clone can be retried in the same process once the server re-queues it", async () => {
+		// projects.retryClone / a repo edit reset the row to `created`, so the
+		// SAME projectId is redelivered — the seen set must not swallow it.
+		const options = { failClone: "fatal: could not read Username" } as {
+			failClone?: string;
+		};
+		const context = rig(options);
+		await context.handler.handle(command({ token: undefined }));
+		expect(context.reports[0]).toMatchObject({ status: "error" });
+
+		options.failClone = undefined;
+		await context.handler.handle(command({ token: undefined }));
+		expect(context.ackClone).toHaveBeenCalledTimes(ACKED_TWICE);
+		expect(context.reports[1]).toMatchObject({ status: "ready" });
 	});
 });
 

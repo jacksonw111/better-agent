@@ -1,23 +1,28 @@
 import { CopyAction } from "@better-agent/ui/components/actions";
+import { Button } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import type { ProjectListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
+import { EditProjectDialog } from "./edit-project-dialog";
 import { ProjectFilesCard } from "./project-files-card";
 import { ProjectGitCard } from "./project-git-card";
 import { deleteProjectLabel, projectsPollInterval } from "./project-list";
 import { ProjectStartWork } from "./project-start-work";
 import { ProjectStatusChip } from "./project-status-chip";
 
-// Q3: the /computers/$computerId/projects/$projectId body — the checkout's
-// identity (name, repo, clone status, local path once ready) as the header,
-// the Git and Files cards as the live view into the checkout, and the Start
-// work block that opens sessions inside it. projects.get polls on the same
-// 5s cadence as the list while the clone is still pending.
+// Q3: the /computers/$computerId/projects/$projectId body. One compact header
+// row carries the checkout's identity (name, repo, clone-status chip — with a
+// Retry beside a failed one — and the copyable local path once ready) with
+// the Edit/Delete actions on its right. Below it the MAIN action first: the
+// Start work block that opens sessions inside the checkout, then the Git and
+// Files cards side by side as the live view into it. projects.get polls on
+// the same 5s cadence as the list while a clone is pending.
 
 /** Matches COMPUTER_HEARTBEAT_INTERVAL_MS — the online gate stays fresh. */
 const COMPUTERS_REFETCH_INTERVAL_MS = 10_000;
@@ -25,11 +30,11 @@ const COMPUTERS_REFETCH_INTERVAL_MS = 10_000;
 function ProjectDetailSkeleton() {
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex flex-col gap-2">
+			<div className="flex items-center gap-3">
 				<Skeleton className="h-6 w-48" />
 				<Skeleton className="h-4 w-64" />
 			</div>
-			<div className="grid gap-4 lg:grid-cols-2">
+			<div className="grid gap-4 md:grid-cols-2">
 				<Skeleton className="h-40 w-full rounded-xl" />
 				<Skeleton className="h-40 w-full rounded-xl" />
 			</div>
@@ -57,6 +62,43 @@ function LocalPath({ path }: { path: string }) {
 	);
 }
 
+/** projects.retryClone for a FAILED clone: error → created re-enters the
+ * delivery queue and the page's poll follows the fresh attempt. Disabled
+ * while the computer is offline — the server would refuse the re-queue. */
+function RetryCloneButton({
+	online,
+	projectId,
+}: {
+	online: boolean;
+	projectId: string;
+}) {
+	const queryClient = useQueryClient();
+	const retry = useMutation(
+		orpc.projects.retryClone.mutationOptions({
+			onSuccess: () => {
+				queryClient.invalidateQueries({ queryKey: orpc.projects.get.key() });
+				queryClient.invalidateQueries({ queryKey: orpc.projects.list.key() });
+				toast.success("Clone restarted");
+			},
+			onError: (error: Error) => toast.error(error.message),
+		})
+	);
+	return (
+		<Button
+			disabled={!online || retry.isPending}
+			onClick={() => retry.mutate({ projectId })}
+			size="xs"
+			type="button"
+			variant="outline"
+		>
+			<RefreshCwIcon
+				className={retry.isPending ? "size-3.5 animate-spin" : "size-3.5"}
+			/>
+			Retry
+		</Button>
+	);
+}
+
 /** projects.delete from the detail page: success toasts, refreshes the list
  * and navigates back to the computer the project lived on. */
 function useDeleteProject(computerId: string) {
@@ -74,6 +116,8 @@ function useDeleteProject(computerId: string) {
 	);
 }
 
+/** One compact row: identity facts left, Edit/Delete right; the error line
+ * (a full sentence) gets its own row underneath. */
 function ProjectHeader({
 	onDelete,
 	online,
@@ -84,35 +128,39 @@ function ProjectHeader({
 	project: ProjectListItem;
 }) {
 	return (
-		<div className="flex items-start justify-between gap-3">
-			<div className="flex min-w-0 flex-col gap-1.5">
-				<div className="flex flex-wrap items-center gap-2">
-					<h1 className="truncate font-semibold text-lg">{project.name}</h1>
-					<ProjectStatusChip status={project.status} />
-					{!online && <ComputerStatusChip connected={false} />}
-				</div>
-				<p className="truncate text-muted-foreground text-sm">
+		<header className="flex flex-col gap-2">
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+				<h1 className="truncate font-semibold text-lg">{project.name}</h1>
+				<span className="truncate text-muted-foreground text-sm">
 					{project.repoFullName}
-				</p>
+				</span>
+				<ProjectStatusChip status={project.status} />
 				{project.status === "error" && (
-					<p className="break-words text-destructive text-sm">
-						{project.errorMessage ?? "Clone failed"}
-					</p>
+					<RetryCloneButton online={online} projectId={project.id} />
 				)}
+				{!online && <ComputerStatusChip connected={false} />}
 				{project.status === "ready" && project.localPath && (
 					<LocalPath path={project.localPath} />
 				)}
+				<div className="ml-auto flex items-center gap-1">
+					<EditProjectDialog project={project} />
+					<DeleteConfirm
+						label={deleteProjectLabel(project.name)}
+						onConfirm={onDelete}
+					/>
+				</div>
 			</div>
-			<DeleteConfirm
-				label={deleteProjectLabel(project.name)}
-				onConfirm={onDelete}
-			/>
-		</div>
+			{project.status === "error" && (
+				<p className="break-words text-destructive text-sm">
+					{project.errorMessage ?? "Clone failed"}
+				</p>
+			)}
+		</header>
 	);
 }
 
 /** The Git + Files cards — the live view into the checkout, both behind the
- * same online/status gate. */
+ * same online/status gate, side by side from md up. */
 function ProjectCards({
 	online,
 	projectId,
@@ -123,7 +171,7 @@ function ProjectCards({
 	status: ProjectListItem["status"];
 }) {
 	return (
-		<div className="grid gap-4 lg:grid-cols-2">
+		<div className="grid gap-4 md:grid-cols-2">
 			<ProjectGitCard online={online} projectId={projectId} status={status} />
 			<ProjectFilesCard online={online} projectId={projectId} status={status} />
 		</div>
@@ -166,12 +214,12 @@ export function ProjectDetail({
 				online={online}
 				project={project}
 			/>
+			<ProjectStartWork computer={computer} online={online} project={project} />
 			<ProjectCards
 				online={online}
 				projectId={projectId}
 				status={project.status}
 			/>
-			<ProjectStartWork computer={computer} online={online} project={project} />
 		</div>
 	);
 }

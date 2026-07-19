@@ -105,6 +105,27 @@ function makeComputerProjectReads(
 	};
 }
 
+// The user-plane edit (projects.update / projects.retryClone). Kept out of
+// makeProjectWrites for the max-lines-per-function gate, like the read split.
+function makeProjectEdit(db: Db): Pick<ProjectStore, "update"> {
+	return {
+		// Owner-scoped partial edit: drizzle skips undefined values in `set`, so
+		// omitted fields keep their values. Returns the updated row (the router
+		// answers with it), or null when the row isn't the caller's.
+		async update(id, userId, update) {
+			const rows = await db
+				.update(schema.projects)
+				.set({ ...update, updatedAt: new Date() })
+				.where(
+					and(eq(schema.projects.id, id), eq(schema.projects.userId, userId))
+				)
+				.returning();
+			const row = rows[0];
+			return row ? toRow(row) : null;
+		},
+	};
+}
+
 function makeProjectWrites(
 	db: Db
 ): Pick<ProjectStore, "insert" | "updateStatus" | "delete"> {
@@ -161,6 +182,7 @@ export function createProjectStore(db: Db): ProjectStore {
 	return {
 		...makeProjectReads(db),
 		...makeComputerProjectReads(db),
+		...makeProjectEdit(db),
 		...makeProjectWrites(db),
 	};
 }

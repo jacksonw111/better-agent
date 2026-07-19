@@ -12,11 +12,11 @@ import { makeComputer } from "@/components/tasks/wizard-test-fixtures";
 import { ProjectDetail } from "./project-detail";
 import { erroredProject, makeProject, readyProject } from "./project-fixtures";
 
-// Q3: the project detail header — name, repo, clone-status chip, the local
-// checkout path (copyable) once ready, and the Delete action (popover
-// confirm) that removes the server-side record and navigates back to the
-// computer. The Git/Files/Start-work blocks have their own suites; here
-// they're stubbed to their gate props.
+// Q3: the project detail header — one compact row with name, repo, chip
+// (plus Retry beside a failed clone), the copyable local path once ready and
+// the Edit/Delete actions on the right; the Start work block renders BEFORE
+// the Git/Files cards (main action first). The Git/Files/Start-work/Edit
+// blocks have their own suites; here they're stubbed to their gate props.
 
 const NOT_FOUND_PATTERN = /wasn't found/;
 const CHECKOUT_KEPT_PATTERN = /local checkout directory .* is not deleted/;
@@ -28,6 +28,8 @@ const store = vi.hoisted(() => ({
 	gates: [] as Record<string, unknown>[],
 	navigations: [] as Record<string, unknown>[],
 	project: null as unknown,
+	retryArgs: [] as Record<string, unknown>[],
+	retryError: null as Error | null,
 	toasts: [] as string[],
 }));
 
@@ -66,6 +68,14 @@ vi.mock("./project-start-work", () => ({
 	ProjectStartWork: () => <div data-testid="start-work" />,
 }));
 
+vi.mock("./edit-project-dialog", () => ({
+	EditProjectDialog: () => (
+		<button data-testid="edit-project" type="button">
+			Edit
+		</button>
+	),
+}));
+
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
 		computers: {
@@ -100,6 +110,17 @@ vi.mock("@/utils/orpc", () => ({
 				}),
 			},
 			list: { key: () => ["projects", "list"] },
+			retryClone: {
+				mutationOptions: (opts: Record<string, unknown>) => ({
+					mutationFn: (args: Record<string, unknown>) => {
+						store.retryArgs.push(args);
+						return store.retryError
+							? Promise.reject(store.retryError)
+							: Promise.resolve({ ok: true });
+					},
+					...opts,
+				}),
+			},
 		},
 	},
 }));
@@ -126,6 +147,8 @@ afterEach(() => {
 	store.gates.length = 0;
 	store.navigations.length = 0;
 	store.project = null;
+	store.retryArgs.length = 0;
+	store.retryError = null;
 	store.toasts.length = 0;
 	cleanup();
 });
@@ -144,9 +167,55 @@ it("shows name, repo, status and the copyable local path once ready", async () =
 		view.getByText("/Users/dev/.better-agent/projects/project1-better-agent")
 	).toBeDefined();
 	expect(view.getByRole("button", { name: "Copy path" })).toBeDefined();
+	expect(view.getByTestId("edit-project")).toBeDefined();
 	expect(view.getByTestId("git-card")).toBeDefined();
 	expect(view.getByTestId("files-card")).toBeDefined();
 	expect(view.getByTestId("start-work")).toBeDefined();
+});
+
+it("puts Start work before the Git/Files cards — the main action first", async () => {
+	store.computers = [makeComputer()];
+	store.project = readyProject;
+	const { view } = renderDetail();
+
+	await waitFor(() => {
+		expect(view.getByTestId("start-work")).toBeDefined();
+	});
+	const startWork = view.getByTestId("start-work");
+	const gitCard = view.getByTestId("git-card");
+	const followed = startWork.compareDocumentPosition(gitCard);
+	// biome-ignore lint/suspicious/noBitwiseOperators: compareDocumentPosition is a bitmask API
+	expect(followed & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it("offers Retry beside a failed clone and re-queues it", async () => {
+	store.computers = [makeComputer()];
+	store.project = erroredProject;
+	const { view } = renderDetail();
+
+	await waitFor(() => {
+		expect(view.getByText("Private Repo")).toBeDefined();
+	});
+	fireEvent.click(view.getByRole("button", { name: "Retry" }));
+
+	await waitFor(() => {
+		expect(store.retryArgs).toEqual([{ projectId: "project-err" }]);
+	});
+	expect(store.toasts).toEqual(["success:Clone restarted"]);
+});
+
+it("disables Retry while the computer is offline and surfaces retry failures", async () => {
+	store.computers = [makeComputer({ connected: false })];
+	store.project = erroredProject;
+	const { view } = renderDetail();
+
+	await waitFor(() => {
+		expect(view.getByText("Private Repo")).toBeDefined();
+	});
+	expect(
+		view.getByRole("button", { name: "Retry" }).hasAttribute("disabled")
+	).toBe(true);
+	expect(store.retryArgs).toEqual([]);
 });
 
 it("hides the local path before the clone finishes and shows the error after a failed one", async () => {

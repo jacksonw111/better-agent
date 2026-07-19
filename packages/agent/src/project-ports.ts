@@ -51,6 +51,21 @@ export interface ProjectStatusUpdate {
 	status: ProjectStatus;
 }
 
+/** Owner-scoped partial edit (projects.update / projects.retryClone): omitted
+ * fields stay untouched. A repo/token change also resets the clone state —
+ * status back to `created` with errorMessage/localPath cleared — which is what
+ * re-enters the row into the clone-delivery queue (D4). */
+export interface ProjectEditUpdate {
+	encryptedToken?: string | null;
+	errorMessage?: string | null;
+	localPath?: string | null;
+	name?: string;
+	repoCloneUrl?: string;
+	repoFullName?: string;
+	status?: ProjectStatus;
+	tokenLast4?: string | null;
+}
+
 /** The clone command delivered over the computer control channel (WS push +
  * heartbeat pendingCommands, same dual path as Launch Commands). Idempotent
  * by construction: `projectId` is the idempotency key — only a `created`
@@ -146,6 +161,13 @@ export interface ProjectStore {
 	 * oldest first. A Project leaves this list when its ack flips it to
 	 * `cloning`. */
 	listCreatedByComputer(computerId: string): Promise<ProjectRow[]>;
+	/** Owner-scoped edit; null when the row isn't the caller's. Unspecified
+	 * fields stay untouched; returns the updated row. */
+	update(
+		id: string,
+		userId: string,
+		update: ProjectEditUpdate
+	): Promise<ProjectRow | null>;
 	/** False when the Project is unknown; unspecified fields stay untouched. */
 	updateStatus(id: string, update: ProjectStatusUpdate): Promise<boolean>;
 }

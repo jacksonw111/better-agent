@@ -3,135 +3,30 @@ import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
-	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 	DialogTrigger,
 } from "@better-agent/ui/components/dialog";
-import { Input } from "@better-agent/ui/components/input";
-import { Label } from "@better-agent/ui/components/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/utils/orpc";
+import {
+	EMPTY_PROJECT_DRAFT,
+	isValidGitUrl,
+	ProjectDialogFooter,
+	type ProjectDraft,
+	ProjectDraftFields,
+} from "./project-form-fields";
 
 // Q3: "New project" — registers a long-lived checkout of one git repository
 // on this computer. Any git remote works: an https URL on any host, or the
 // ssh form `git@host:path.git` (which clones with this computer's ssh keys).
 // Creation queues the clone on the machine; the Projects list's poll
 // (project-list.tsx) then follows created/cloning to ready/error. The token
-// is OPTIONAL and omitted (not sent empty) when left blank.
-
-/** scp-like ssh remote: `git@host:path(.git)` — mirrors the server's schema. */
-const SSH_URL_PATTERN = /^[\w.-]+@[\w.-]+:\S+$/;
-
-/** An http(s) URL on any host, or the ssh form — the server accepts exactly
- * these two shapes. */
-export function isValidGitUrl(value: string): boolean {
-	const trimmed = value.trim();
-	if (SSH_URL_PATTERN.test(trimmed)) {
-		return true;
-	}
-	try {
-		const { protocol } = new URL(trimmed);
-		return protocol === "https:" || protocol === "http:";
-	} catch {
-		return false;
-	}
-}
-
-interface Draft {
-	name: string;
-	repoUrl: string;
-	token: string;
-}
-
-const EMPTY_DRAFT: Draft = { name: "", repoUrl: "", token: "" };
-
-function Field({
-	children,
-	id,
-	label,
-}: {
-	children: React.ReactNode;
-	id: string;
-	label: string;
-}) {
-	return (
-		<div className="flex flex-col gap-1.5">
-			<Label htmlFor={id}>{label}</Label>
-			{children}
-		</div>
-	);
-}
-
-/** Any git remote works; a non-empty value that fits neither accepted shape
- * gets an inline explanation instead of a silently disabled Create. */
-function GitUrlField({
-	onChange,
-	value,
-}: {
-	onChange: (next: string) => void;
-	value: string;
-}) {
-	const showError = value.trim() !== "" && !isValidGitUrl(value);
-	return (
-		<Field id="project-repo-url" label="Git URL">
-			<Input
-				aria-invalid={showError || undefined}
-				id="project-repo-url"
-				onChange={(event) => onChange(event.target.value)}
-				placeholder="https://github.com/owner/repo.git or git@host:group/repo.git"
-				value={value}
-			/>
-			{showError && (
-				<p className="text-destructive text-xs">
-					Enter an https:// URL or an ssh address like git@host:group/repo.git.
-				</p>
-			)}
-		</Field>
-	);
-}
-
-function DraftFields({
-	draft,
-	onChange,
-}: {
-	draft: Draft;
-	onChange: (next: Draft) => void;
-}) {
-	return (
-		<div className="flex flex-col gap-4">
-			<Field id="project-name" label="Name">
-				<Input
-					id="project-name"
-					onChange={(event) => onChange({ ...draft, name: event.target.value })}
-					placeholder="My project"
-					value={draft.name}
-				/>
-			</Field>
-			<GitUrlField
-				onChange={(repoUrl) => onChange({ ...draft, repoUrl })}
-				value={draft.repoUrl}
-			/>
-			<Field id="project-token" label="Access token (optional)">
-				<Input
-					id="project-token"
-					onChange={(event) =>
-						onChange({ ...draft, token: event.target.value })
-					}
-					type="password"
-					value={draft.token}
-				/>
-				<p className="text-muted-foreground text-xs">
-					Only used with https URLs — ssh addresses clone with this computer's
-					ssh keys.
-				</p>
-			</Field>
-		</div>
-	);
-}
+// is OPTIONAL and omitted (not sent empty) when left blank. The form fields
+// are shared with the Edit dialog (project-form-fields.tsx).
 
 /** projects.create with the blank token OMITTED; success refreshes the list
  * (whose poll follows the clone) and hands control back to the dialog. */
@@ -142,7 +37,7 @@ function useCreateProject(computerId: string, onCreated: () => void) {
 			onError: (error: Error) => toast.error(error.message),
 		})
 	);
-	const submit = (draft: Draft) =>
+	const submit = (draft: ProjectDraft) =>
 		create.mutate(
 			{
 				computerId,
@@ -166,11 +61,11 @@ function useCreateProject(computerId: string, onCreated: () => void) {
  * the Projects section drops it into its header without wiring. */
 export function NewProjectDialog({ computerId }: { computerId: string }) {
 	const [open, setOpen] = useState(false);
-	const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+	const [draft, setDraft] = useState<ProjectDraft>(EMPTY_PROJECT_DRAFT);
 	const onOpenChange = (next: boolean) => {
 		setOpen(next);
 		if (!next) {
-			setDraft(EMPTY_DRAFT);
+			setDraft(EMPTY_PROJECT_DRAFT);
 		}
 	};
 	const create = useCreateProject(computerId, () => onOpenChange(false));
@@ -189,23 +84,20 @@ export function NewProjectDialog({ computerId }: { computerId: string }) {
 						from the project works in the same checkout.
 					</DialogDescription>
 				</DialogHeader>
-				<DraftFields draft={draft} onChange={setDraft} />
-				<DialogFooter>
-					<Button
-						onClick={() => onOpenChange(false)}
-						type="button"
-						variant="outline"
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={!valid || create.pending}
-						onClick={() => create.submit(draft)}
-						type="button"
-					>
-						{create.pending ? "Creating…" : "Create project"}
-					</Button>
-				</DialogFooter>
+				<ProjectDraftFields
+					draft={draft}
+					onChange={setDraft}
+					tokenHint="Only used with https URLs — ssh addresses clone with this computer's ssh keys."
+					tokenLabel="Access token (optional)"
+				/>
+				<ProjectDialogFooter
+					disabled={!valid || create.pending}
+					idleLabel="Create project"
+					onCancel={() => onOpenChange(false)}
+					onSubmit={() => create.submit(draft)}
+					pending={create.pending}
+					pendingLabel="Creating…"
+				/>
 			</DialogContent>
 		</Dialog>
 	);

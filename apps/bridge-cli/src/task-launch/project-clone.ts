@@ -17,8 +17,11 @@ import {
 // Q2: the clone_project processor behind both delivery channels (WS push +
 // heartbeat pendingCommands), mirroring launch-handler.ts's idempotency
 // double-lock: an in-process seen set catches the two channels racing the
-// same projectId, and the server's ackClone ok:false catches redelivery
-// across restarts. A repo credential, when present, is used for THIS clone
+// same projectId WHILE a command is in flight, and the server's ackClone
+// ok:false catches every settled redelivery. The seen mark is released once
+// processing settles — the server must stay the idempotency source so a
+// user-triggered retry or repo edit (which resets the SAME projectId back to
+// `created`) can re-clone without restarting this process. A repo credential, when present, is used for THIS clone
 // only: it goes into the clone URL (`https://x-access-token:<token>@…`), the
 // remote is rewritten token-free right after, and the token is deliberately
 // NOT persisted anywhere (no .git/config, no credential helper, no log) —
@@ -225,9 +228,8 @@ export function createCloneHandler(
 		try {
 			acked = (await deps.ackClone(projectId)).ok;
 		} catch (error) {
-			// Nothing cloned: clear the seen mark so the server's redelivery (the
-			// project is still `created`) gets another chance.
-			seen.delete(projectId);
+			// Nothing cloned; the server's redelivery (the project is still
+			// `created`) gets another chance once the seen mark is released.
 			deps.log(`project ${projectId}: clone ack failed: ${errorText(error)}`);
 			return;
 		}
@@ -243,11 +245,14 @@ export function createCloneHandler(
 
 	return {
 		handle(command) {
+			// In-flight guard only: released on settle so a server-side re-queue
+			// of the same projectId (retry / repo edit) is processed again — the
+			// ack's ok:false already stops every duplicate that isn't `created`.
 			if (seen.has(command.projectId)) {
 				return Promise.resolve();
 			}
 			seen.add(command.projectId);
-			return process(command);
+			return process(command).finally(() => seen.delete(command.projectId));
 		},
 	};
 }

@@ -3,7 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { within } from "@testing-library/dom";
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { isValidGitUrl, NewProjectDialog } from "./new-project-dialog";
+import { NewProjectDialog } from "./new-project-dialog";
+import { isValidGitUrl } from "./project-form-fields";
 
 // Q3: the "New project" dialog — name + Git URL (any host, https or the ssh
 // form, validated inline) + an OPTIONAL token that is omitted from the create

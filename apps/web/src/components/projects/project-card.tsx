@@ -16,7 +16,7 @@ export function unavailableReason(
 	online: boolean
 ): string | null {
 	if (status === "error") {
-		return "The clone failed — fix the repository or token and create the project again.";
+		return "The clone failed — edit the repository details or retry the clone from the header above.";
 	}
 	if (status !== "ready") {
 		return "The repository is still being cloned — this card fills in once the project is ready.";

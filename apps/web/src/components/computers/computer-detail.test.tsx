@@ -130,7 +130,7 @@ it("lists the machine's agent runtimes, each linking into its session list", asy
 	expect(view.queryByText("Tasks")).toBeNull();
 });
 
-it("shows the Projects block with its New project entry", async () => {
+it("shows the Projects block first — before Agents — with its New project entry", async () => {
 	store.computers = [makeComputer()];
 	const { view } = renderDetail("computer-1");
 
@@ -141,6 +141,12 @@ it("shows the Projects block with its New project entry", async () => {
 	await waitFor(() => {
 		expect(view.getByText("No projects yet")).toBeDefined();
 	});
+	// Projects are the main work entry, so their section leads the page.
+	const projectsHeading = view.getByText("Projects");
+	const agentsHeading = view.getByText("Agents");
+	const position = projectsHeading.compareDocumentPosition(agentsHeading);
+	// biome-ignore lint/suspicious/noBitwiseOperators: compareDocumentPosition is a bitmask API
+	expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it("explains an empty runtime inventory instead of a blank list", async () => {
