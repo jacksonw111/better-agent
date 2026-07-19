@@ -1,6 +1,6 @@
 {
   "name": "@jacksonw111/better-agent-bridge",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Better Agent client CLI — pairs a computer to a Better Agent server, reports runtime/skill/tool inventory, launches task runs in managed workspaces, and relays local coding agents (claude-code, opencode, codex, pi) over oRPC.",
   "license": "MIT",
   "type": "module",
