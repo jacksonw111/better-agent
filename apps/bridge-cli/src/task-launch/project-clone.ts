@@ -81,10 +81,24 @@ function scrubToken(text: string, token: string | undefined): string {
 		.join("***");
 }
 
-/** `https://x-access-token:<token>@github.com/…` — credentials injected via
- * the URL API so any special characters are encoded correctly. */
-function authenticatedCloneUrl(repoCloneUrl: string, token: string): string {
-	const url = new URL(repoCloneUrl);
+/** `https://x-access-token:<token>@<host>/…` for any http(s) host —
+ * credentials injected via the URL API so special characters are encoded
+ * correctly. Returns null for every other URL shape (the scp-like
+ * `git@host:path.git` ssh form): those authenticate with this machine's own
+ * ssh keys, so the token is deliberately ignored and never enters the URL. */
+function authenticatedCloneUrl(
+	repoCloneUrl: string,
+	token: string
+): string | null {
+	let url: URL;
+	try {
+		url = new URL(repoCloneUrl);
+	} catch {
+		return null;
+	}
+	if (url.protocol !== "https:" && url.protocol !== "http:") {
+		return null;
+	}
 	url.username = "x-access-token";
 	url.password = token;
 	return url.toString();
@@ -127,11 +141,15 @@ async function cloneInto(
 	dir: string
 ): Promise<void> {
 	await deps.mkdirRecursive(projectsDir(deps.basePath));
-	const cloneUrl = command.token
+	const credentialedUrl = command.token
 		? authenticatedCloneUrl(command.repoCloneUrl, command.token)
-		: command.repoCloneUrl;
-	await runGit(deps.exec, ["clone", cloneUrl, dir]);
-	if (command.token) {
+		: null;
+	await runGit(deps.exec, [
+		"clone",
+		credentialedUrl ?? command.repoCloneUrl,
+		dir,
+	]);
+	if (credentialedUrl) {
 		await runGit(deps.exec, [
 			"-C",
 			dir,

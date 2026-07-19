@@ -116,6 +116,48 @@ describe("clone handler - happy path", () => {
 	});
 });
 
+describe("clone handler - url shapes", () => {
+	it("injects the one-time token for an https URL on any host", async () => {
+		const context = rig();
+		await context.handler.handle(
+			command({ repoCloneUrl: "https://gitlab.example.com/group/repo.git" })
+		);
+
+		expect(context.gitCalls[0]).toEqual([
+			"clone",
+			`https://x-access-token:${TOKEN}@gitlab.example.com/group/repo.git`,
+			"/base/projects/0a1b2c3d-repo",
+		]);
+		expect(context.gitCalls[1]).toEqual([
+			"-C",
+			"/base/projects/0a1b2c3d-repo",
+			"remote",
+			"set-url",
+			"origin",
+			"https://gitlab.example.com/group/repo.git",
+		]);
+	});
+
+	it("clones an ssh remote as-is: the token is ignored, origin never rewritten", async () => {
+		const context = rig();
+		await context.handler.handle(
+			command({ repoCloneUrl: "git@git.company.io:group/repo.git" })
+		);
+
+		// ssh auth is this machine's own ssh keys — the token never enters the
+		// URL, so there is nothing to rewrite afterwards either.
+		expect(context.gitCalls).toEqual([
+			[
+				"clone",
+				"git@git.company.io:group/repo.git",
+				"/base/projects/0a1b2c3d-repo",
+			],
+		]);
+		expect(context.reports[0]).toMatchObject({ status: "ready" });
+		expect(JSON.stringify(context.gitCalls)).not.toContain(TOKEN);
+	});
+});
+
 describe("clone handler - idempotency", () => {
 	it("re-reports ready for an existing checkout without running git", async () => {
 		const context = rig({ existing: true });

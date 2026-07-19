@@ -19,12 +19,14 @@ function createInput(computerId: string) {
 	};
 }
 
+type CreateOverrides = Partial<ReturnType<typeof createInput>> & {
+	repoUrl?: string;
+};
+
 async function createProject(
 	rig: Rig,
 	computerId: string,
-	overrides?: Partial<ReturnType<typeof createInput>> & {
-		repoCloneUrl?: string;
-	}
+	overrides?: CreateOverrides
 ) {
 	return await rig
 		.userClientFor(ALICE)
@@ -55,23 +57,66 @@ it("create queues one idempotent clone delivery with the decrypted token", async
 	expect((await client().computers.heartbeat()).pendingCommands).toEqual([]);
 });
 
-it("create keeps an explicit repoCloneUrl and omits token for public repos", async () => {
+it("create accepts an https repoUrl on any host and omits token for public repos", async () => {
 	const rig = buildComputerRig();
 	const { client, computerId } = await pairComputer(rig, ALICE);
 
 	const project = await createProject(rig, computerId, {
-		repoCloneUrl: "https://example.com/mirror/better-agent.git",
+		repoFullName: undefined,
+		repoUrl: "https://gitlab.example.com/group/sub/better-agent.git",
 		token: undefined,
 	});
+	// The URL is stored verbatim; the display name is host-stripped, .git-less.
 	expect(project.repoCloneUrl).toBe(
-		"https://example.com/mirror/better-agent.git"
+		"https://gitlab.example.com/group/sub/better-agent.git"
 	);
+	expect(project.repoFullName).toBe("group/sub/better-agent");
 	expect(project.tokenLast4).toBeNull();
 
 	const commands = (await client().computers.heartbeat()).pendingCommands;
 	expect(commands).toHaveLength(1);
+	expect(commands[0]).toMatchObject({
+		repoCloneUrl: "https://gitlab.example.com/group/sub/better-agent.git",
+	});
 	// A token-less project's clone command omits the key entirely.
 	expect(commands[0]).not.toHaveProperty("token");
+});
+
+it("create accepts an ssh repoUrl and derives the same display name", async () => {
+	const rig = buildComputerRig();
+	const { computerId } = await pairComputer(rig, ALICE);
+
+	const project = await createProject(rig, computerId, {
+		repoFullName: undefined,
+		repoUrl: "git@git.company.io:group/sub/better-agent.git",
+	});
+	expect(project.repoCloneUrl).toBe(
+		"git@git.company.io:group/sub/better-agent.git"
+	);
+	expect(project.repoFullName).toBe("group/sub/better-agent");
+});
+
+it("create rejects malformed git URLs and ambiguous repo inputs", async () => {
+	const rig = buildComputerRig();
+	const { computerId } = await pairComputer(rig, ALICE);
+	const attempt = (overrides: Record<string, unknown>) =>
+		createProject(rig, computerId, overrides as CreateOverrides);
+
+	// Not https and not the ssh form.
+	await expect(
+		attempt({ repoFullName: undefined, repoUrl: "ftp://host/repo.git" })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	await expect(
+		attempt({ repoFullName: undefined, repoUrl: "not a url" })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	// Exactly one of repoUrl/repoFullName — neither and both are rejected.
+	await expect(
+		attempt({ repoFullName: undefined, repoUrl: undefined })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	await expect(
+		attempt({ repoUrl: "https://github.com/acme/other.git" })
+	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+	expect(rig.project.rows.size).toBe(0);
 });
 
 it("no user-facing response ever carries the token — last4 only", async () => {

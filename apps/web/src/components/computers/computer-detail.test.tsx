@@ -63,6 +63,12 @@ vi.mock("@/utils/orpc", () => ({
 					...opts,
 				}),
 			},
+			delete: {
+				mutationOptions: (opts: Record<string, unknown>) => ({
+					mutationFn: () => Promise.resolve({ ok: true }),
+					...opts,
+				}),
+			},
 			list: {
 				key: () => ["projects", "list"],
 				queryOptions: (opts?: { input?: unknown }) => ({

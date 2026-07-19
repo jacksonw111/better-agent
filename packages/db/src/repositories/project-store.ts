@@ -129,14 +129,30 @@ function makeProjectWrites(
 		},
 		// Owner-scoped. Deletes the DB row ONLY — the checkout directory on the
 		// Computer is the user's local data and is never removed by the server.
+		// Sessions that used the project are detached (project_id → null) first:
+		// tasks.project_id has no ON DELETE action, so the delete would otherwise
+		// hit the FK, and the chat history should outlive the project anyway.
 		async delete(id, userId) {
-			const rows = await db
-				.delete(schema.projects)
-				.where(
-					and(eq(schema.projects.id, id), eq(schema.projects.userId, userId))
-				)
-				.returning({ id: schema.projects.id });
-			return rows.length > 0;
+			return await db.transaction(async (tx) => {
+				const owned = await tx
+					.select({ id: schema.projects.id })
+					.from(schema.projects)
+					.where(
+						and(eq(schema.projects.id, id), eq(schema.projects.userId, userId))
+					);
+				if (owned.length === 0) {
+					return false;
+				}
+				await tx
+					.update(schema.tasks)
+					.set({ projectId: null })
+					.where(eq(schema.tasks.projectId, id));
+				const rows = await tx
+					.delete(schema.projects)
+					.where(eq(schema.projects.id, id))
+					.returning({ id: schema.projects.id });
+				return rows.length > 0;
+			});
 		},
 	};
 }

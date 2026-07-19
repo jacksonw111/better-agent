@@ -1,9 +1,11 @@
 import type { ProjectInsert } from "@better-agent/agent/project-ports";
 import type { PGlite } from "@electric-sql/pglite";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { users } from "../schema/auth";
 import { computers } from "../schema/computers";
 import { projects } from "../schema/projects";
+import { tasks } from "../schema/tasks";
 import { createTestDb, type TestDb } from "../testing/test-db";
 import { createProjectStore } from "./project-store";
 
@@ -205,4 +207,54 @@ it("delete is owner-scoped and removes only the DB row", async () => {
 
 	expect(await store.delete(created.id, alice)).toBe(true);
 	expect(await store.getById(created.id, alice)).toBeNull();
+});
+
+async function seedTask(
+	userId: string,
+	computerId: string,
+	projectId: string
+): Promise<string> {
+	const [row] = await db
+		.insert(tasks)
+		.values({
+			agentKind: "claude_code",
+			computerId,
+			description: "Fix the flaky test",
+			name: "Fix the flaky test",
+			openingMessage: "Fix the flaky test",
+			projectId,
+			userId,
+		})
+		.returning();
+	return row?.id ?? "";
+}
+
+it("delete detaches the project's sessions: tasks survive with projectId null", async () => {
+	const store = createProjectStore(db);
+	const alice = await seedUser("alice@x.com");
+	const computerId = await seedComputer(alice);
+	const created = await store.insert(projectInput(alice, computerId));
+	const taskId = await seedTask(alice, computerId, created.id);
+
+	expect(await store.delete(created.id, alice)).toBe(true);
+	expect(await store.getById(created.id, alice)).toBeNull();
+
+	// The chat history outlives the project — the task row stays, detached.
+	const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+	expect(task).toBeDefined();
+	expect(task?.projectId).toBeNull();
+});
+
+it("a non-owner delete leaves the project's tasks attached", async () => {
+	const store = createProjectStore(db);
+	const alice = await seedUser("alice@x.com");
+	const bob = await seedUser("bob@x.com");
+	const computerId = await seedComputer(alice);
+	const created = await store.insert(projectInput(alice, computerId));
+	const taskId = await seedTask(alice, computerId, created.id);
+
+	expect(await store.delete(created.id, bob)).toBe(false);
+
+	const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId));
+	expect(task?.projectId).toBe(created.id);
 });

@@ -1,21 +1,51 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, waitFor, within } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { makeComputer } from "@/components/tasks/wizard-test-fixtures";
 import { ProjectDetail } from "./project-detail";
 import { erroredProject, makeProject, readyProject } from "./project-fixtures";
 
-// Q3: the project detail header — name, repo, clone-status chip, and the
-// local checkout path (copyable) once ready. The Git/Files/Start-work blocks
-// have their own suites; here they're stubbed to their gate props.
+// Q3: the project detail header — name, repo, clone-status chip, the local
+// checkout path (copyable) once ready, and the Delete action (popover
+// confirm) that removes the server-side record and navigates back to the
+// computer. The Git/Files/Start-work blocks have their own suites; here
+// they're stubbed to their gate props.
 
 const NOT_FOUND_PATTERN = /wasn't found/;
+const CHECKOUT_KEPT_PATTERN = /local checkout directory .* is not deleted/;
 
 const store = vi.hoisted(() => ({
 	computers: [] as unknown[],
+	deleteArgs: [] as Record<string, unknown>[],
+	deleteError: null as Error | null,
 	gates: [] as Record<string, unknown>[],
+	navigations: [] as Record<string, unknown>[],
 	project: null as unknown,
+	toasts: [] as string[],
+}));
+
+vi.mock("sonner", () => ({
+	toast: {
+		error: (message: string) => {
+			store.toasts.push(`error:${message}`);
+		},
+		success: (message: string) => {
+			store.toasts.push(`success:${message}`);
+		},
+	},
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => (options: Record<string, unknown>) => {
+		store.navigations.push(options);
+	},
 }));
 
 vi.mock("./project-git-card", () => ({
@@ -48,6 +78,17 @@ vi.mock("@/utils/orpc", () => ({
 			},
 		},
 		projects: {
+			delete: {
+				mutationOptions: (opts: Record<string, unknown>) => ({
+					mutationFn: (args: Record<string, unknown>) => {
+						store.deleteArgs.push(args);
+						return store.deleteError
+							? Promise.reject(store.deleteError)
+							: Promise.resolve({ ok: true });
+					},
+					...opts,
+				}),
+			},
 			get: {
 				key: () => ["projects", "get"],
 				queryOptions: (opts?: { input?: { projectId?: string } }) => ({
@@ -58,26 +99,34 @@ vi.mock("@/utils/orpc", () => ({
 							: Promise.reject(new Error("Project not found")),
 				}),
 			},
+			list: { key: () => ["projects", "list"] },
 		},
 	},
 }));
 
 function renderDetail() {
 	const queryClient = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
+		defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
 	});
 	const { container } = render(
 		<QueryClientProvider client={queryClient}>
 			<ProjectDetail computerId="computer-1" projectId="project-1" />
 		</QueryClientProvider>
 	);
-	return { view: within(container) };
+	return {
+		body: within(container.ownerDocument.body),
+		view: within(container),
+	};
 }
 
 afterEach(() => {
 	store.computers = [];
+	store.deleteArgs.length = 0;
+	store.deleteError = null;
 	store.gates.length = 0;
+	store.navigations.length = 0;
 	store.project = null;
+	store.toasts.length = 0;
 	cleanup();
 });
 
@@ -125,6 +174,49 @@ it("passes the online/status gates down to both cards", async () => {
 		expect(git?.online).toBe(false);
 		expect(git?.status).toBe("cloning");
 	});
+});
+
+it("deletes after the confirm and navigates back to the computer", async () => {
+	store.computers = [makeComputer()];
+	store.project = readyProject;
+	const { body, view } = renderDetail();
+
+	await waitFor(() => {
+		expect(view.getByText("Better Agent")).toBeDefined();
+	});
+	fireEvent.click(view.getByRole("button", { name: "Delete" }));
+	// The confirm copy says the local checkout directory is NOT deleted.
+	expect(body.getByText(CHECKOUT_KEPT_PATTERN)).toBeDefined();
+	expect(store.deleteArgs).toEqual([]);
+
+	fireEvent.click(body.getByRole("button", { name: "Confirm" }));
+	await waitFor(() => {
+		expect(store.deleteArgs).toEqual([{ projectId: "project-1" }]);
+	});
+	await waitFor(() => {
+		expect(store.navigations).toEqual([
+			{ params: { computerId: "computer-1" }, to: "/computers/$computerId" },
+		]);
+	});
+	expect(store.toasts).toEqual(["success:Project deleted"]);
+});
+
+it("surfaces a delete failure as an error toast and stays put", async () => {
+	store.computers = [makeComputer()];
+	store.project = readyProject;
+	store.deleteError = new Error("Project not found");
+	const { body, view } = renderDetail();
+
+	await waitFor(() => {
+		expect(view.getByText("Better Agent")).toBeDefined();
+	});
+	fireEvent.click(view.getByRole("button", { name: "Delete" }));
+	fireEvent.click(body.getByRole("button", { name: "Confirm" }));
+
+	await waitFor(() => {
+		expect(store.toasts).toEqual(["error:Project not found"]);
+	});
+	expect(store.navigations).toEqual([]);
 });
 
 it("shows a not-found state for an unknown project", async () => {

@@ -16,25 +16,38 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/utils/orpc";
 
-// Q3: "New project" — registers a long-lived checkout of one GitHub repo on
-// this computer. Creation queues the clone on the machine; the Projects
-// list's poll (project-list.tsx) then follows created/cloning to ready/error.
-// The token is OPTIONAL and omitted (not sent empty) when left blank.
+// Q3: "New project" — registers a long-lived checkout of one git repository
+// on this computer. Any git remote works: an https URL on any host, or the
+// ssh form `git@host:path.git` (which clones with this computer's ssh keys).
+// Creation queues the clone on the machine; the Projects list's poll
+// (project-list.tsx) then follows created/cloning to ready/error. The token
+// is OPTIONAL and omitted (not sent empty) when left blank.
 
-const REPO_PATTERN = /^[^/\s]+\/[^/\s]+$/;
+/** scp-like ssh remote: `git@host:path(.git)` — mirrors the server's schema. */
+const SSH_URL_PATTERN = /^[\w.-]+@[\w.-]+:\S+$/;
 
-/** owner/repo, no spaces, exactly one slash — mirrors the server's schema. */
-export function isValidRepo(value: string): boolean {
-	return REPO_PATTERN.test(value.trim());
+/** An http(s) URL on any host, or the ssh form — the server accepts exactly
+ * these two shapes. */
+export function isValidGitUrl(value: string): boolean {
+	const trimmed = value.trim();
+	if (SSH_URL_PATTERN.test(trimmed)) {
+		return true;
+	}
+	try {
+		const { protocol } = new URL(trimmed);
+		return protocol === "https:" || protocol === "http:";
+	} catch {
+		return false;
+	}
 }
 
 interface Draft {
 	name: string;
-	repo: string;
+	repoUrl: string;
 	token: string;
 }
 
-const EMPTY_DRAFT: Draft = { name: "", repo: "", token: "" };
+const EMPTY_DRAFT: Draft = { name: "", repoUrl: "", token: "" };
 
 function Field({
 	children,
@@ -50,6 +63,34 @@ function Field({
 			<Label htmlFor={id}>{label}</Label>
 			{children}
 		</div>
+	);
+}
+
+/** Any git remote works; a non-empty value that fits neither accepted shape
+ * gets an inline explanation instead of a silently disabled Create. */
+function GitUrlField({
+	onChange,
+	value,
+}: {
+	onChange: (next: string) => void;
+	value: string;
+}) {
+	const showError = value.trim() !== "" && !isValidGitUrl(value);
+	return (
+		<Field id="project-repo-url" label="Git URL">
+			<Input
+				aria-invalid={showError || undefined}
+				id="project-repo-url"
+				onChange={(event) => onChange(event.target.value)}
+				placeholder="https://github.com/owner/repo.git or git@host:group/repo.git"
+				value={value}
+			/>
+			{showError && (
+				<p className="text-destructive text-xs">
+					Enter an https:// URL or an ssh address like git@host:group/repo.git.
+				</p>
+			)}
+		</Field>
 	);
 }
 
@@ -70,14 +111,10 @@ function DraftFields({
 					value={draft.name}
 				/>
 			</Field>
-			<Field id="project-repo" label="GitHub repository">
-				<Input
-					id="project-repo"
-					onChange={(event) => onChange({ ...draft, repo: event.target.value })}
-					placeholder="owner/repo"
-					value={draft.repo}
-				/>
-			</Field>
+			<GitUrlField
+				onChange={(repoUrl) => onChange({ ...draft, repoUrl })}
+				value={draft.repoUrl}
+			/>
 			<Field id="project-token" label="Access token (optional)">
 				<Input
 					id="project-token"
@@ -88,7 +125,8 @@ function DraftFields({
 					value={draft.token}
 				/>
 				<p className="text-muted-foreground text-xs">
-					Used to clone private repositories on this computer.
+					Only used with https URLs — ssh addresses clone with this computer's
+					ssh keys.
 				</p>
 			</Field>
 		</div>
@@ -109,7 +147,7 @@ function useCreateProject(computerId: string, onCreated: () => void) {
 			{
 				computerId,
 				name: draft.name.trim(),
-				repoFullName: draft.repo.trim(),
+				repoUrl: draft.repoUrl.trim(),
 				token: draft.token === "" ? undefined : draft.token,
 			},
 			{
@@ -136,7 +174,7 @@ export function NewProjectDialog({ computerId }: { computerId: string }) {
 		}
 	};
 	const create = useCreateProject(computerId, () => onOpenChange(false));
-	const valid = draft.name.trim().length > 0 && isValidRepo(draft.repo);
+	const valid = draft.name.trim().length > 0 && isValidGitUrl(draft.repoUrl);
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<DialogTrigger render={<Button size="sm" />}>
@@ -147,7 +185,7 @@ export function NewProjectDialog({ computerId }: { computerId: string }) {
 				<DialogHeader className="gap-1.5">
 					<DialogTitle>New project</DialogTitle>
 					<DialogDescription>
-						Clone a GitHub repository onto this computer — every session started
+						Clone a git repository onto this computer — every session started
 						from the project works in the same checkout.
 					</DialogDescription>
 				</DialogHeader>

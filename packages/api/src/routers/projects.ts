@@ -8,8 +8,9 @@ import {
 	requireOnlineOwnedComputer,
 } from "./tasks-guards";
 
-// Projects router (Q1): a Project is a long-lived checkout of one GitHub
-// repository on one Computer — cloned once into a fixed directory, shared as
+// Projects router (Q1): a Project is a long-lived checkout of one git
+// repository (any host, https or ssh) on one Computer — cloned once into a
+// fixed directory, shared as
 // the cwd by every session started against it. Creation queues the clone via
 // the same "queue IS the state" delivery as Launch Commands (D4): a
 // still-`created` row renders as a pending `clone_project` command on both
@@ -28,8 +29,65 @@ import {
 const NAME_MAX_LENGTH = 120;
 const TOKEN_LAST4 = 4;
 const REPO_FULL_NAME_PATTERN = /^[^/\s]+\/[^/\s]+$/;
+/** scp-like ssh remote: `git@host:path(.git)` — user@host:path, no spaces. */
+const SSH_REPO_URL_PATTERN = /^[\w.-]+@[\w.-]+:\S+$/;
+const LEADING_SLASHES = /^\/+/;
+const TRAILING_SLASHES = /\/+$/;
+const GIT_SUFFIX = /\.git$/;
 
 const hasVisibleText = (value: string) => value.trim().length > 0;
+
+/** Parses `value` as an http(s) URL, or null for anything else (including the
+ * ssh form, which the URL constructor rejects). */
+function parseHttpGitUrl(value: string): URL | null {
+	try {
+		const url = new URL(value);
+		return url.protocol === "https:" || url.protocol === "http:" ? url : null;
+	} catch {
+		return null;
+	}
+}
+
+/** Any host is fine — the only accepted shapes are an http(s) URL and the
+ * scp-like ssh remote. */
+function isValidGitUrl(value: string): boolean {
+	return parseHttpGitUrl(value) !== null || SSH_REPO_URL_PATTERN.test(value);
+}
+
+/** The display name stored in `repo_full_name`: host stripped, path minus
+ * `.git` — `owner/repo`, `group/sub/repo`, and the same for the ssh form. */
+function repoDisplayName(repoUrl: string): string {
+	const httpUrl = parseHttpGitUrl(repoUrl);
+	const path = httpUrl
+		? httpUrl.pathname
+		: repoUrl.slice(repoUrl.indexOf(":") + 1);
+	const trimmed = path
+		.replace(LEADING_SLASHES, "")
+		.replace(TRAILING_SLASHES, "")
+		.replace(GIT_SUFFIX, "");
+	return trimmed === "" ? repoUrl : trimmed;
+}
+
+/** Exactly one of the two repo inputs: `repoUrl` (any git remote, verbatim
+ * clone URL) or the legacy GitHub shorthand `repoFullName`. */
+function resolveRepoSource(input: {
+	repoFullName?: string;
+	repoUrl?: string;
+}): { repoCloneUrl: string; repoFullName: string } {
+	if (input.repoUrl) {
+		return {
+			repoCloneUrl: input.repoUrl,
+			repoFullName: repoDisplayName(input.repoUrl),
+		};
+	}
+	if (!input.repoFullName) {
+		throw new ORPCError("BAD_REQUEST", { message: "Git URL is required" });
+	}
+	return {
+		repoCloneUrl: `https://github.com/${input.repoFullName}.git`,
+		repoFullName: input.repoFullName,
+	};
+}
 
 /** Explicit field list so `encryptedToken` can never leak into a user-facing
  * response by accident — the credential surface is tokenLast4 only. */
@@ -49,22 +107,38 @@ function toListedProject(row: ProjectRow) {
 	};
 }
 
-const create = authorizedUserProcedure
-	.input(
-		z.object({
-			computerId: z.uuid(),
-			name: z
-				.string()
-				.max(NAME_MAX_LENGTH)
-				.refine(hasVisibleText, "Project name is required"),
-			// Defaults to the https URL derived from repoFullName when omitted.
-			repoCloneUrl: z.url().optional(),
-			repoFullName: z.string().regex(REPO_FULL_NAME_PATTERN, {
+const CREATE_INPUT = z
+	.object({
+		computerId: z.uuid(),
+		name: z
+			.string()
+			.max(NAME_MAX_LENGTH)
+			.refine(hasVisibleText, "Project name is required"),
+		// Legacy GitHub shorthand — kept so existing callers still work; the
+		// server derives the https URL exactly as before.
+		repoFullName: z
+			.string()
+			.regex(REPO_FULL_NAME_PATTERN, {
 				message: "Repository must be owner/repo",
-			}),
-			token: z.string().min(1).optional(),
-		})
-	)
+			})
+			.optional(),
+		// The primary repo input: any git remote — an https URL on any host, or
+		// the ssh form `git@host:path.git`.
+		repoUrl: z
+			.string()
+			.refine(isValidGitUrl, {
+				message: "Git URL must be https://… or git@host:path.git",
+			})
+			.optional(),
+		token: z.string().min(1).optional(),
+	})
+	.refine((value) => Boolean(value.repoUrl) !== Boolean(value.repoFullName), {
+		message: "Provide exactly one of repoUrl or repoFullName",
+		path: ["repoUrl"],
+	});
+
+const create = authorizedUserProcedure
+	.input(CREATE_INPUT)
 	.handler(async ({ input, context }) => {
 		const { services } = context;
 		// Same gate as Task Start (§8.5): the computer must be the caller's and
@@ -74,15 +148,15 @@ const create = authorizedUserProcedure
 			context.authedUser.id,
 			input.computerId
 		);
+		const repo = resolveRepoSource(input);
 		const project = await services.stores.project.insert({
 			computerId: computer.id,
 			encryptedToken: input.token
 				? services.secretBox.encrypt(input.token)
 				: null,
 			name: input.name,
-			repoCloneUrl:
-				input.repoCloneUrl ?? `https://github.com/${input.repoFullName}.git`,
-			repoFullName: input.repoFullName,
+			repoCloneUrl: repo.repoCloneUrl,
+			repoFullName: repo.repoFullName,
 			tokenLast4: input.token ? input.token.slice(-TOKEN_LAST4) : null,
 			userId: context.authedUser.id,
 		});
