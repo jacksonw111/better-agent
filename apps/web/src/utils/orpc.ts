@@ -63,6 +63,18 @@ export async function refreshAccessToken(): Promise<boolean> {
 	}
 }
 
+/** The deduped refresh: every caller (link interceptor, auth bootstrap, SSE
+ * reconnects) shares one in-flight refresh, so concurrent 401s can never race
+ * two refresh calls into refresh-token rotation invalidating one another. */
+export function refreshAccessTokenShared(): Promise<boolean> {
+	if (!refreshInFlight) {
+		refreshInFlight = refreshAccessToken().finally(() => {
+			refreshInFlight = null;
+		});
+	}
+	return refreshInFlight;
+}
+
 function isUnauthorized(error: unknown): boolean {
 	return error instanceof ORPCError && error.code === "UNAUTHORIZED";
 }
@@ -91,12 +103,7 @@ const link = new RPCLink({
 				return await next();
 			} catch (error) {
 				if (isUnauthorized(error)) {
-					if (!refreshInFlight) {
-						refreshInFlight = refreshAccessToken().finally(() => {
-							refreshInFlight = null;
-						});
-					}
-					const ok = await refreshInFlight;
+					const ok = await refreshAccessTokenShared();
 					if (ok) {
 						return await next();
 					}

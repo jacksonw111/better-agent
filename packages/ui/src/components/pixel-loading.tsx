@@ -51,9 +51,16 @@ function usePixelSceneLoop(
 			drawPixelScene(ctx, STATIC_FRAME_MS, night);
 		}
 		if (ctx && !reduced) {
+			// 30fps cap: retro-correct for pixel art and halves the draw work —
+			// the rAF still runs so the browser can throttle it in hidden tabs.
+			const frameBudgetMs = 33;
 			const start = performance.now();
+			let lastDraw = -frameBudgetMs;
 			const render = (now: number) => {
-				drawPixelScene(ctx, now - start, night);
+				if (now - lastDraw >= frameBudgetMs) {
+					lastDraw = now;
+					drawPixelScene(ctx, now - start, night);
+				}
 				frame = requestAnimationFrame(render);
 			};
 			frame = requestAnimationFrame(render);

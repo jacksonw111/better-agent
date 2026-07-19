@@ -13,8 +13,8 @@ import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
-import { getAccessToken, loadRefreshToken, setTokens } from "@/utils/auth";
-import { client, orpc } from "@/utils/orpc";
+import { getAccessToken, loadRefreshToken } from "@/utils/auth";
+import { orpc, refreshAccessTokenShared } from "@/utils/orpc";
 
 const PUBLIC_PATHS = [
 	"/login",
@@ -23,34 +23,63 @@ const PUBLIC_PATHS = [
 	"/reset-password",
 ];
 
-// On load, mint a fresh access token from the stored refresh token (if any)
-// before deciding whether the user is signed in. Returns whether bootstrap
-// has finished; sign-in state is read live from getAccessToken().
-function useAuthBootstrap(): boolean {
-	const [ready, setReady] = useState(false);
+// Remembers that the LAST bootstrap on this browser authenticated fine — a
+// non-sensitive hint (no token material) that lets the next reload render the
+// app immediately instead of blocking on the refresh round trip.
+const WARM_BOOT_KEY = "ba_warm_boot";
+
+function readWarmBoot(): boolean {
+	return (
+		typeof localStorage !== "undefined" &&
+		localStorage.getItem(WARM_BOOT_KEY) === "1"
+	);
+}
+
+function writeWarmBoot(on: boolean): void {
+	if (typeof localStorage === "undefined") {
+		return;
+	}
+	if (on) {
+		localStorage.setItem(WARM_BOOT_KEY, "1");
+	} else {
+		localStorage.removeItem(WARM_BOOT_KEY);
+	}
+}
+
+// On load, mint a fresh access token from the stored refresh token before
+// deciding whether the user is signed in. Warm boots (this browser authed
+// successfully last time) don't wait for that round trip: `optimistic` lets
+// the shell render immediately while the refresh runs in the background —
+// early queries 401 once and the link interceptor retries them after the
+// SAME shared refresh (refreshAccessTokenShared, so rotation can't race).
+// A refresh that ultimately fails drops `optimistic` and the redirect-to-login
+// effect takes over.
+function useAuthBootstrap(): { optimistic: boolean; ready: boolean } {
+	const [state, setState] = useState(() => ({
+		ready: false,
+		optimistic: loadRefreshToken() !== null && readWarmBoot(),
+	}));
 	useEffect(() => {
 		let active = true;
-		const refreshToken = loadRefreshToken();
-		if (refreshToken) {
-			client.auth
-				.refresh({ refreshToken })
-				.then((result) => setTokens(result))
-				.catch(() => {
-					// Stored refresh token is invalid/expired; stay signed out.
-				})
-				.finally(() => {
-					if (active) {
-						setReady(true);
-					}
-				});
+		const settle = () => {
+			if (active) {
+				setState({ ready: true, optimistic: false });
+			}
+		};
+		if (loadRefreshToken()) {
+			refreshAccessTokenShared().then((ok) => {
+				writeWarmBoot(ok);
+				settle();
+			});
 		} else {
-			setReady(true);
+			writeWarmBoot(false);
+			settle();
 		}
 		return () => {
 			active = false;
 		};
 	}, []);
-	return ready;
+	return state;
 }
 
 function AuthedShell() {
@@ -136,7 +165,7 @@ function BoundaryContent({
 }
 
 export function AuthBoundary() {
-	const ready = useAuthBootstrap();
+	const { optimistic, ready } = useAuthBootstrap();
 	const navigate = useNavigate();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
@@ -145,11 +174,14 @@ export function AuthBoundary() {
 	const isInvite = pathname.startsWith("/invite");
 	// Read live each render: after /auth/verify calls setTokens, this becomes
 	// non-null on the next render, so the just-signed-in user isn't redirected.
-	const authed = getAccessToken() !== null;
+	// Warm boots count as authed while the background refresh is in flight.
+	const authed = getAccessToken() !== null || optimistic;
+	// Warm boots render the shell before the round trip settles.
+	const settled = ready || optimistic;
 
 	const inviteStatus = useQuery({
 		...orpc.invite.status.queryOptions(),
-		enabled: ready && authed && !isPublic,
+		enabled: settled && authed && !isPublic,
 	});
 	const blocked = inviteStatus.data
 		? inviteStatus.data.required && !inviteStatus.data.authorized
@@ -171,10 +203,10 @@ export function AuthBoundary() {
 			<BoundaryContent
 				authed={authed}
 				blocked={blocked}
-				inviteChecked={Boolean(inviteStatus.data)}
+				inviteChecked={Boolean(inviteStatus.data) || optimistic}
 				isInvite={isInvite}
 				isPublic={isPublic}
-				ready={ready}
+				ready={settled}
 			/>
 		</>
 	);
