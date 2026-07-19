@@ -163,33 +163,10 @@ export function parseSessionReadyDetail(
 	};
 }
 
-/** Folds one status event into the running `sessionReady` detail: a full
- * `session_ready` replaces it wholesale, a `permission_mode_changed` /
- * `model_changed` patches just its field (creating a partial detail when none
- * has arrived yet), and `undefined` means "not a sessionReady-affecting
- * status" — the caller leaves its state untouched. */
-export function foldSessionReadyDetail(
-	prev: SessionReadyDetail | null,
-	event: { detail?: unknown; status: string }
-): SessionReadyDetail | null | undefined {
-	if (event.status === SESSION_READY_STATUS) {
-		return parseSessionReadyDetail(event.detail);
-	}
-	if (event.status === PERMISSION_MODE_CHANGED_STATUS) {
-		const permissionMode = isRecord(event.detail)
-			? asOptionalString(event.detail.permissionMode)
-			: undefined;
-		return permissionMode ? { ...prev, permissionMode } : prev;
-	}
-	if (event.status === MODEL_CHANGED_STATUS) {
-		const model = isRecord(event.detail)
-			? asOptionalString(event.detail.model)
-			: undefined;
-		return model ? { ...prev, model } : prev;
-	}
-	// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
-	return undefined;
-}
+// (The spread-based `foldSessionReadyDetail` that lived here fabricated a
+// partial detail when a read-back folded before the handshake —
+// fix-caps-regression replaced it with the id-tracked fold in
+// session-ready-fold.ts.)
 
 function parseUsageTokens(value: unknown): TurnUsageTokens | undefined {
 	if (!isRecord(value)) {

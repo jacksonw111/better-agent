@@ -262,6 +262,10 @@ describe("feedReducer question resolution folding", () => {
 	});
 });
 
+// (The sessionReady read-back folding assertions — fix-caps-regression —
+// live in use-bridge-feed-readback.test.ts, split out for the repo's
+// max-lines-per-file gate.)
+
 describe("feedReducer anti-leak (raw RPC envelope)", () => {
 	it("drops a wrapped oRPC {json:{ok:true}} envelope instead of rendering it", () => {
 		const state = feedReducer(initialFeedState, {

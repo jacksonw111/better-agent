@@ -1,35 +1,18 @@
-import {
-	COMMAND_CATALOG_STATUS,
-	type CommandCatalogDetail,
-	parseCommandCatalogDetail,
-} from "./bridge-command-catalog";
+import type { CommandCatalogDetail } from "./bridge-command-catalog";
 import type { RawBridgeEvent, StreamEvent } from "./bridge-events";
-import {
-	parseQueueUpdateDetail,
-	QUEUE_UPDATE_STATUS,
-	type QueueUpdateDetail,
-} from "./bridge-queue-status";
-import {
-	parseSessionListDetail,
-	SESSION_LIST_STATUS,
-	type SessionListDetail,
-} from "./bridge-session-list";
-import {
-	foldSessionReadyDetail,
-	parseTurnUsageDetail,
-	parseUsageUpdateDetail,
-	type SessionReadyDetail,
-	TURN_USAGE_STATUS,
-	type TurnUsageDetail,
-	USAGE_UPDATE_STATUS,
-	type UsageUpdateDetail,
+import type { QueueUpdateDetail } from "./bridge-queue-status";
+import type { SessionListDetail } from "./bridge-session-list";
+import type {
+	SessionReadyDetail,
+	TurnUsageDetail,
+	UsageUpdateDetail,
 } from "./bridge-session-status";
-import {
-	parseStatusSnapshotDetail,
-	STATUS_SNAPSHOT_STATUS,
-	type StatusSnapshotDetail,
-} from "./bridge-status-snapshot";
+import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import { mergeEvents, pushSeenIds } from "./event-feed";
+import {
+	initialSessionReadyFold,
+	type SessionReadyFold,
+} from "./session-ready-fold";
 import {
 	nextAnsweredApprovals,
 	nextAnsweredQuestions,
@@ -39,6 +22,7 @@ import {
 	applyPendingReplay,
 	extractReplayedRows,
 } from "./use-bridge-feed-pending";
+import { nextStatusDetails } from "./use-bridge-feed-status";
 
 /** First id handed to an optimistic local echo. Local echoes count DOWN from
  * here (-1, -2, …); server ids are always ≥ 0, so a negative id can never
@@ -91,6 +75,11 @@ export interface FeedState {
 	 * tail scans, latest wins. */
 	sessionList: SessionListDetail | null;
 	sessionReady: SessionReadyDetail | null;
+	/** The fold bookkeeping `sessionReady` above is DERIVED from (handshake
+	 * base + id-tracked read-back patches) — fix-caps-regression: a read-back
+	 * arriving before the handshake stashes here instead of fabricating a
+	 * partial detail. See session-ready-fold.ts. */
+	sessionReadyFold: SessionReadyFold;
 	/** The latest `status_snapshot` detail, or `null` before a `getStatus`
 	 * request has gotten a reply — see bridge-status-snapshot.ts. */
 	statusSnapshot: StatusSnapshotDetail | null;
@@ -111,72 +100,14 @@ export const initialFeedState: FeedState = {
 	seenIds: [],
 	sessionList: null,
 	sessionReady: null,
+	sessionReadyFold: initialSessionReadyFold,
 	statusSnapshot: null,
 	turnUsage: null,
 	usageUpdate: null,
 };
 
-interface StatusDetails {
-	commandCatalog: CommandCatalogDetail | null;
-	queueUpdate: QueueUpdateDetail | null;
-	sessionList: SessionListDetail | null;
-	sessionReady: SessionReadyDetail | null;
-	statusSnapshot: StatusSnapshotDetail | null;
-	turnUsage: TurnUsageDetail | null;
-	usageUpdate: UsageUpdateDetail | null;
-}
-
-/** Folds the newly-merged events' curated status details onto the prior ones:
- * for each matching status kind the LATEST such event in `parsed` wins (events
- * are id-ascending), and a kind absent from this batch keeps its prior value.
- * Runs only over the fresh tail, so a session's whole append cost stays linear
- * rather than O(n²). */
-function nextStatusDetails(
-	prev: StatusDetails,
-	parsed: StreamEvent[]
-): StatusDetails {
-	let {
-		commandCatalog,
-		queueUpdate,
-		sessionList,
-		sessionReady,
-		statusSnapshot,
-		turnUsage,
-		usageUpdate,
-	} = prev;
-	for (const { event } of parsed) {
-		if (event.kind !== "status") {
-			continue;
-		}
-		// session_ready replaces the detail; permission_mode_changed /
-		// model_changed patch their field — see foldSessionReadyDetail.
-		const folded = foldSessionReadyDetail(sessionReady, event);
-		if (folded !== undefined) {
-			sessionReady = folded;
-		} else if (event.status === TURN_USAGE_STATUS) {
-			turnUsage = parseTurnUsageDetail(event.detail);
-		} else if (event.status === USAGE_UPDATE_STATUS) {
-			usageUpdate = parseUsageUpdateDetail(event.detail);
-		} else if (event.status === SESSION_LIST_STATUS) {
-			sessionList = parseSessionListDetail(event.detail);
-		} else if (event.status === STATUS_SNAPSHOT_STATUS) {
-			statusSnapshot = parseStatusSnapshotDetail(event.detail);
-		} else if (event.status === QUEUE_UPDATE_STATUS) {
-			queueUpdate = parseQueueUpdateDetail(event.detail);
-		} else if (event.status === COMMAND_CATALOG_STATUS) {
-			commandCatalog = parseCommandCatalogDetail(event.detail);
-		}
-	}
-	return {
-		commandCatalog,
-		queueUpdate,
-		sessionList,
-		sessionReady,
-		statusSnapshot,
-		turnUsage,
-		usageUpdate,
-	};
-}
+// (`StatusDetails`/`nextStatusDetails` — the curated per-status-kind folding
+// — moved to use-bridge-feed-status.ts for the max-lines-per-file gate.)
 
 export type FeedAction =
 	| { type: "events"; events: RawBridgeEvent[] }
