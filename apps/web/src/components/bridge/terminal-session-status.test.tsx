@@ -24,8 +24,6 @@ const SESSION_READY_DETAIL = {
 	],
 };
 
-const SESSION_LABEL_PATTERN = /Session:/;
-
 const TURN_USAGE_DETAIL = {
 	costUsd: 0.012_345,
 	numTurns: 3,
@@ -74,7 +72,7 @@ it("renders session_ready as the status header, not a chat row", async () => {
 	expect(view.queryByText("session_ready")).toBeNull();
 });
 
-it("shows the claude session id prominently in the header, never the label", async () => {
+it("keeps the claude session id as the header tooltip, never showing the label", async () => {
 	const fake = makeControllableTransport();
 	fake.history.mockResolvedValue([
 		{
@@ -91,12 +89,12 @@ it("shows the claude session id prominently in the header, never the label", asy
 	);
 	const view = within(container);
 
-	// The prominent `Session: <id>` header, with the full id in its tooltip —
-	// preferring the claude session id off `session_ready`.
+	// The id text is gone from the header (user request 2026-07-18); the full
+	// id stays reachable as the identity cluster's tooltip — preferring the
+	// claude session id off `session_ready`.
 	await waitFor(() => {
 		expect(view.getByTitle("claude-session-xyz123")).toBeDefined();
 	});
-	expect(view.getByText(SESSION_LABEL_PATTERN)).toBeDefined();
 	// The bridge session `label` ("my-repo") must never surface as the title.
 	expect(view.queryByText("my-repo")).toBeNull();
 });
