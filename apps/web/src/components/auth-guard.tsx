@@ -1,3 +1,4 @@
+import { PixelLoading } from "@better-agent/ui/components/pixel-loading";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -6,11 +7,9 @@ import { cn } from "@better-agent/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-
 import { CommandPalette } from "@/components/command-palette/command-palette";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
-import { RocketLoader } from "@/components/rocket-loader";
 import { RouteProgress } from "@/components/route-progress";
 import { RouteTransition } from "@/components/route-transition";
 import { WebSidebar } from "@/components/sidebar";
@@ -87,10 +86,12 @@ function AuthedShell() {
 	);
 }
 
+// The global boot loader. The pixel platformer replaced the RocketLoader
+// here by request; the rocket stays alive for route-level waits (chat.tsx).
 function LoadingScreen() {
 	return (
 		<div className="flex h-svh items-center justify-center">
-			<RocketLoader />
+			<PixelLoading label="Loading" />
 		</div>
 	);
 }

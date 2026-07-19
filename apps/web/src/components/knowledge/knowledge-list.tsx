@@ -1,5 +1,4 @@
 import { Button } from "@better-agent/ui/components/button";
-import { PixelLoading } from "@better-agent/ui/components/pixel-loading";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2Icon, UploadIcon } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -12,6 +11,7 @@ import { orpc } from "@/utils/orpc";
 import { groupByDay } from "./date-groups";
 import { DocumentDrawer } from "./document-drawer";
 import { DocumentGroups } from "./knowledge-groups";
+import { KnowledgeListSkeleton } from "./knowledge-skeletons";
 import type { KnowledgeDocument } from "./knowledge-types";
 import { UploadDialog } from "./upload-dialog";
 import { type DocumentUpload, useDocumentUpload } from "./use-document-upload";
@@ -63,7 +63,7 @@ function DocumentResults({
 		[items]
 	);
 	if (isPending) {
-		return <PixelLoading label="Loading documents…" />;
+		return <KnowledgeListSkeleton />;
 	}
 	if (items.length === 0) {
 		return <EmptyState searching={searching} />;
