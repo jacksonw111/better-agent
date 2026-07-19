@@ -4,6 +4,7 @@ import {
 	drawSprite,
 	NIGHT_PALETTE,
 	type PixelPalette,
+	RUNNER_HEIGHT,
 	RUNNER_JUMP,
 	RUNNER_RUN_1,
 	RUNNER_RUN_2,
@@ -258,7 +259,7 @@ function drawRunner(
 	const runFrame =
 		Math.floor(timeMs / 90) % 2 === 0 ? RUNNER_RUN_1 : RUNNER_RUN_2;
 	const sprite = lift > 2 ? RUNNER_JUMP : runFrame;
-	drawSprite(ctx, sprite, CHAR_SCREEN_X, GROUND_Y - 12 - lift);
+	drawSprite(ctx, sprite, CHAR_SCREEN_X, GROUND_Y - RUNNER_HEIGHT - lift);
 }
 
 /** One full frame. Pure: same (timeMs, night) → same pixels. */

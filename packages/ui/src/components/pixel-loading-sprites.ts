@@ -1,6 +1,7 @@
 // Pixel data for the platformer loading animation (pixel-loading.tsx).
-// Original sprites in the spirit of a classic 8-bit level 1-1 — no ripped
-// assets. Characters index into the palette: "." = transparent.
+// The hero is a 12x16 classic plumber — red cap, mustache, blue overalls —
+// drawn by hand here (not a ripped sprite sheet). Characters index into
+// SPRITE_COLORS: "." = transparent.
 
 export interface PixelPalette {
 	block: string;
@@ -58,60 +59,101 @@ export const NIGHT_PALETTE: PixelPalette = {
 	star: "#e8e8f8",
 };
 
-/** Sprite-char → color. The runner is an original little adventurer:
- * r = cap/shirt, s = skin, b = overalls, k = boots/eyes, y = buckle. */
+/** Sprite-char → color: r = cap/shirt red, s = skin, m = hair/mustache brown,
+ * b = overalls blue, y = buttons, k = eyes/boots. */
 export const SPRITE_COLORS: Record<string, string> = {
 	r: "#d82800",
 	s: "#fcb890",
+	m: "#5c2e0c",
 	b: "#2848c8",
 	k: "#201810",
 	y: "#fcd000",
 };
 
+export const RUNNER_HEIGHT = 16;
+
+// Facing right; cap bill and mustache point in the running direction.
 export const RUNNER_RUN_1 = [
-	"...rrrr...",
-	"..rrrrrr..",
-	"..sskss...",
-	"..ssssss..",
-	"...ssss...",
-	"..rbbbbr..",
-	".rrbyybrr.",
-	".ssbbbbss.",
-	"..bbbbbb..",
-	"..bb..bb..",
-	".kkk..bb..",
-	"......kkk.",
+	"...rrrrrr...",
+	"..rrrrrrrrr.",
+	"..mmmsssss..",
+	".mmsmsssks..",
+	".mmsmssssss.",
+	".msssssmmm..",
+	"...ssssss...",
+	"..rrrrrr....",
+	".rrrrbbrrr..",
+	".rrbbbbbbrr.",
+	".ssbybbybss.",
+	"..sbbbbbbs..",
+	"..bbbbbbbb..",
+	"..bbb..bbb..",
+	".kkkk...bbb.",
+	".........kkk",
 ];
 
 export const RUNNER_RUN_2 = [
-	"...rrrr...",
-	"..rrrrrr..",
-	"..sskss...",
-	"..ssssss..",
-	"...ssss...",
-	"..rbbbbr..",
-	".rrbyybrr.",
-	".ssbbbbss.",
-	"..bbbbbb..",
-	"...bbbb...",
-	"...bbbb...",
-	"..kk..kk..",
+	"...rrrrrr...",
+	"..rrrrrrrrr.",
+	"..mmmsssss..",
+	".mmsmsssks..",
+	".mmsmssssss.",
+	".msssssmmm..",
+	"...ssssss...",
+	"..rrrrrr....",
+	".rrrrbbrrr..",
+	".rrbbbbbbrr.",
+	".ssbybbybss.",
+	"..sbbbbbbs..",
+	"..bbbbbbbb..",
+	"...bbbbbb...",
+	"...bb..bb...",
+	"..kkk..kkk..",
 ];
 
 export const RUNNER_JUMP = [
-	"...rrrr...",
-	"..rrrrrr..",
-	"..sskss...",
-	"..ssssss..",
-	"ss.ssss.ss",
-	"srrbbbbrrs",
-	".rrbyybrr.",
-	"..bbbbbb..",
-	"..bb..bb..",
-	".bb....bb.",
-	".kk....kk.",
-	"..........",
+	"...rrrrrr.ss",
+	"..rrrrrrrrss",
+	"..mmmsssss..",
+	".mmsmsssks..",
+	".mmsmssssss.",
+	".msssssmmm..",
+	"...ssssss...",
+	".srrrrrr....",
+	"ssrrrbbrrr..",
+	".srbbbbbbr..",
+	"..bbybbyb...",
+	"..bbbbbbbb..",
+	"..bbbbbbbb..",
+	".bbb....bbb.",
+	".kkk....kkk.",
+	"............",
 ];
+
+// Each sprite rasterizes to an offscreen canvas once; every animation frame
+// after that is a single drawImage instead of ~150 fillRects.
+const spriteCache = new Map<string[], HTMLCanvasElement>();
+
+function rasterize(sprite: string[]): HTMLCanvasElement {
+	const canvas = document.createElement("canvas");
+	canvas.width = sprite[0]?.length ?? 0;
+	canvas.height = sprite.length;
+	const ctx = canvas.getContext("2d");
+	if (!ctx) {
+		return canvas;
+	}
+	for (let row = 0; row < sprite.length; row++) {
+		const line = sprite[row] ?? "";
+		for (let col = 0; col < line.length; col++) {
+			const color = SPRITE_COLORS[line[col] ?? "."];
+			if (color) {
+				ctx.fillStyle = color;
+				ctx.fillRect(col, row, 1, 1);
+			}
+		}
+	}
+	return canvas;
+}
 
 /** Draws one string-array sprite at (x, y), 1 grid cell = 1 canvas px. */
 export function drawSprite(
@@ -120,14 +162,10 @@ export function drawSprite(
 	x: number,
 	y: number
 ): void {
-	for (let row = 0; row < sprite.length; row++) {
-		const line = sprite[row] ?? "";
-		for (let col = 0; col < line.length; col++) {
-			const color = SPRITE_COLORS[line[col] ?? "."];
-			if (color) {
-				ctx.fillStyle = color;
-				ctx.fillRect(x + col, y + row, 1, 1);
-			}
-		}
+	let cached = spriteCache.get(sprite);
+	if (!cached) {
+		cached = rasterize(sprite);
+		spriteCache.set(sprite, cached);
 	}
+	ctx.drawImage(cached, x, y);
 }
