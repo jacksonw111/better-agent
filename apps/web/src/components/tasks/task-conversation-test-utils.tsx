@@ -22,6 +22,9 @@ export const taskStore = {
 	endSessionCalls: [] as string[],
 	/** Per-session persisted relay events served by the transport's history. */
 	historyBySession: {} as Record<string, { event: unknown; seq: number }[]>,
+	/** sessionIds fetched through the transport's history (fix-crash-2: prior
+	 * runs must NOT prefetch their transcripts while collapsed). */
+	historyCalls: [] as string[],
 	/** tasks.list filter inputs, recorded per query mount/refetch. */
 	listInputs: [] as unknown[],
 	/** taskIds navigated to via useNavigate (the session switch target). */
@@ -41,6 +44,7 @@ export function resetTaskStore(): void {
 	taskStore.detail = null;
 	taskStore.endSessionCalls.length = 0;
 	taskStore.historyBySession = {};
+	taskStore.historyCalls.length = 0;
 	taskStore.listInputs.length = 0;
 	taskStore.navigations.length = 0;
 	taskStore.project = null;
@@ -61,8 +65,19 @@ export function buildTaskTransportMock() {
 					// unsubscribe: no-op for this fake
 				};
 			},
-			history: (input: { sessionId: string }) =>
-				Promise.resolve(taskStore.historyBySession[input.sessionId] ?? []),
+			history: (input: {
+				afterSeq?: number;
+				limit?: number;
+				sessionId: string;
+			}) => {
+				taskStore.historyCalls.push(input.sessionId);
+				const rows = taskStore.historyBySession[input.sessionId] ?? [];
+				const afterSeq = input.afterSeq ?? 0;
+				const paged = rows.filter((row) => row.seq > afterSeq);
+				return Promise.resolve(
+					input.limit === undefined ? paged : paged.slice(0, input.limit)
+				);
+			},
 			observe: () => Promise.resolve([]),
 			sendInput: () => Promise.resolve(),
 		}),

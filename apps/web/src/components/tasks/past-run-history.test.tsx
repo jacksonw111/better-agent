@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
-// P3 history continuity: a resumed session is ONE thread — the previous runs'
-// persisted bridge history replays read-only above the live feed, in run
-// order, capped at PRIOR_RUN_HISTORY_LIMIT prior runs.
+// P3 history continuity + fix-crash-2: a resumed session is ONE thread — the
+// previous runs' transcripts are reachable above the live feed, but each one
+// starts as a COLLAPSED one-line summary (no fetch, no mounted turns) and, on
+// expand, lazily fetches its history and mounts only the trailing
+// FEED_WINDOW_SIZE turns behind the shared "Show earlier" control. Eagerly
+// fetching and fully mounting up to 3 long transcripts is what moved the
+// "Aw, Snap" tab OOM from the live feed into this leading slot.
 
-import { cleanup, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { FEED_WINDOW_SIZE } from "@/components/bridge/turn-window";
 import type { TaskRun } from "@/utils/api-types";
 import { PRIOR_RUN_HISTORY_LIMIT, priorRunsOf } from "./past-run-history";
 import { TaskConversation } from "./task-conversation";
@@ -35,7 +40,9 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 const HOUR_MS = 3_600_000;
-const EARLIER_RUN_PATTERN = /Earlier run ·/;
+const EARLIER_RUN_PATTERN = /Earlier run/;
+const EXPANDED_SUMMARY_PATTERN = /Earlier run · 1 条消息/;
+const SHOW_EARLIER_PATTERN = /Show earlier messages/;
 const FIRST_RUN_REPLY = "I fixed the redirect in the auth callback.";
 const SECOND_RUN_REPLY = "Added the regression test as asked.";
 const LIVE_REPLY = "Continuing from where we left off.";
@@ -77,7 +84,7 @@ function seedRun(
 	ordinal: number,
 	hoursAgo: number,
 	status: string,
-	reply: string
+	messages: string[]
 ) {
 	const session = makeTaskSession({
 		id: `session-${ordinal}`,
@@ -85,9 +92,10 @@ function seedRun(
 		status: status === "running" ? "active" : "ended",
 		tokenId: `token-${ordinal}`,
 	});
-	store.historyBySession[session.id] = [
-		{ event: { kind: "message", role: "assistant", text: reply }, seq: 1 },
-	];
+	store.historyBySession[session.id] = messages.map((text, index) => ({
+		event: { kind: "message", role: "user", text },
+		seq: index + 1,
+	}));
 	return makeTaskRun({
 		createdAt: new Date(Date.now() - hoursAgo * HOUR_MS),
 		id: `run-${ordinal}`,
@@ -97,33 +105,87 @@ function seedRun(
 	});
 }
 
-it("replays the previous runs' history above the live feed, in run order", async () => {
+function seedThreeRunSession() {
 	store.detail = makeTaskDetail({
 		runs: [
-			seedRun(1, 2, "completed", FIRST_RUN_REPLY),
-			seedRun(2, 1, "stopped", SECOND_RUN_REPLY),
-			seedRun(3, 0, "running", LIVE_REPLY),
+			seedRun(1, 2, "completed", [FIRST_RUN_REPLY]),
+			seedRun(2, 1, "stopped", [SECOND_RUN_REPLY]),
+			seedRun(3, 0, "running", [LIVE_REPLY]),
 		],
 	});
-	const { container, view } = renderTaskConversation(TaskConversation);
+}
 
-	// Every transcript is on screen: the two earlier runs replay read-only
-	// above the live feed…
+it("renders prior runs collapsed by default, without fetching their history", async () => {
+	seedThreeRunSession();
+	const { view } = renderTaskConversation(TaskConversation);
+
+	// The live run's feed streams as usual…
 	await waitFor(() => {
-		expect(view.getByText(FIRST_RUN_REPLY)).toBeDefined();
-		expect(view.getByText(SECOND_RUN_REPLY)).toBeDefined();
 		expect(view.getByText(LIVE_REPLY)).toBeDefined();
 	});
-	// …in run-time order, before the current run's stream (textContent
-	// traversal is document order).
-	const text = container.textContent ?? "";
-	expect(text.indexOf(FIRST_RUN_REPLY)).toBeLessThan(
-		text.indexOf(SECOND_RUN_REPLY)
-	);
-	expect(text.indexOf(SECOND_RUN_REPLY)).toBeLessThan(text.indexOf(LIVE_REPLY));
-	// Each replayed block announces itself as an earlier run.
+	// …while each prior run is exactly one summary row: no transcript text in
+	// the DOM, and — the data-layer half of the OOM fix — no history fetch at
+	// all for a collapsed run.
 	expect(view.getAllByText(EARLIER_RUN_PATTERN).length).toBe(2);
-	// The live terminal only ever connects to the CURRENT run's session — the
-	// replayed runs are plain read-only content.
+	expect(view.queryByText(FIRST_RUN_REPLY)).toBeNull();
+	expect(view.queryByText(SECOND_RUN_REPLY)).toBeNull();
+	expect(store.historyCalls).not.toContain("session-1");
+	expect(store.historyCalls).not.toContain("session-2");
+	// The live terminal only ever connects to the CURRENT run's session.
 	expect(store.connectedSessionIds).toEqual(["session-3"]);
+});
+
+it("expanding one prior run fetches and renders ONLY that run's transcript", async () => {
+	seedThreeRunSession();
+	const { view } = renderTaskConversation(TaskConversation);
+	await waitFor(() => {
+		expect(view.getByText(LIVE_REPLY)).toBeDefined();
+	});
+
+	const [firstSummary] = view.getAllByRole("button", {
+		name: EARLIER_RUN_PATTERN,
+	});
+	fireEvent.click(firstSummary as HTMLElement);
+
+	await waitFor(() => {
+		expect(view.getByText(FIRST_RUN_REPLY)).toBeDefined();
+	});
+	// The sibling prior run stays collapsed AND unfetched.
+	expect(view.queryByText(SECOND_RUN_REPLY)).toBeNull();
+	expect(store.historyCalls).toContain("session-1");
+	expect(store.historyCalls).not.toContain("session-2");
+	// Collapsing again unmounts the transcript (the cached history stays).
+	fireEvent.click(view.getByRole("button", { name: EXPANDED_SUMMARY_PATTERN }));
+	expect(view.queryByText(FIRST_RUN_REPLY)).toBeNull();
+});
+
+it("an expanded transcript mounts only the trailing feed window behind Show earlier", async () => {
+	const overflow = 10;
+	const total = FEED_WINDOW_SIZE + overflow;
+	const messages = Array.from({ length: total }, (_, i) => `old-msg-${i + 1}`);
+	store.detail = makeTaskDetail({
+		runs: [
+			seedRun(1, 1, "completed", messages),
+			seedRun(2, 0, "running", [LIVE_REPLY]),
+		],
+	});
+	const { view } = renderTaskConversation(TaskConversation);
+	await waitFor(() => {
+		expect(view.getByText(LIVE_REPLY)).toBeDefined();
+	});
+
+	fireEvent.click(view.getByRole("button", { name: EARLIER_RUN_PATTERN }));
+
+	// Only the trailing FEED_WINDOW_SIZE turns mount; the earliest hide behind
+	// the shared expand control.
+	await waitFor(() => {
+		expect(view.getByText(`old-msg-${total}`)).toBeDefined();
+	});
+	expect(view.getByText(`old-msg-${overflow + 1}`)).toBeDefined();
+	expect(view.queryByText(`old-msg-${overflow}`)).toBeNull();
+	const expand = view.getByRole("button", { name: SHOW_EARLIER_PATTERN });
+	expect(expand.textContent).toContain(`还有 ${overflow} 条`);
+
+	fireEvent.click(expand);
+	expect(view.getByText("old-msg-1")).toBeDefined();
 });

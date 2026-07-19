@@ -2,7 +2,8 @@
 import { fireEvent, render, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import type { BridgeTurn } from "./bridge-turns";
-import { FEED_WINDOW_SIZE, TerminalFeed } from "./terminal-feed";
+import { TerminalFeed } from "./terminal-feed";
+import { FEED_WINDOW_SIZE } from "./turn-window";
 
 // Feed windowing: an agent can produce thousands of turns in one session, and
 // mounting every one of them is what made the /tasks chat tab OOM the whole

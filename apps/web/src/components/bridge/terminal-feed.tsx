@@ -12,6 +12,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { formatElapsed } from "./activity-format";
 import { BridgeChatRow } from "./bridge-chat-row";
 import type { BridgeTurn } from "./bridge-turns";
+import { ShowEarlierButton, useTurnWindow } from "./turn-window";
 
 // The scrolling conversation surface for a Local Agent session, split out of
 // terminal.tsx to keep that file under the repo's max-lines-per-file gate: the
@@ -134,16 +135,10 @@ function attachSkeletonTurnId(turns: BridgeTurn[]): number | null {
  * assistant turn as blocks (see bridge-turns-approval.ts). */
 const SIDE_TURN_KINDS = new Set(["status", "error", "file", "task", "plan"]);
 
-/** How many trailing turns stay mounted (windowing): an agent can produce
- * thousands of turns in one session, and mounting every one is what made the
- * /tasks chat tab's memory grow linearly with agent output until the browser
- * killed it ("Aw, Snap"). Earlier turns hide behind `ShowEarlierItem`, which
- * reveals one more window per click. */
-export const FEED_WINDOW_SIZE = 60;
-
-/** The expand control for the turns hidden above the window — rendered as the
- * feed's first item so the scroller's anchoring observers see it like any
- * other row. */
+/** The expand control for the turns hidden above the window (windowing: an
+ * agent can produce thousands of turns in one session, see turn-window.tsx) —
+ * rendered as the feed's first item so the scroller's anchoring observers see
+ * it like any other row. */
 function ShowEarlierItem({
 	hiddenCount,
 	onExpand,
@@ -153,15 +148,7 @@ function ShowEarlierItem({
 }) {
 	return (
 		<MessageScrollerItem>
-			<div className="flex justify-center py-1">
-				<button
-					className="rounded-full bg-muted px-4 py-1.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted/80 hover:text-foreground"
-					onClick={onExpand}
-					type="button"
-				>
-					Show earlier messages（还有 {hiddenCount} 条）
-				</button>
-			</div>
+			<ShowEarlierButton hiddenCount={hiddenCount} onExpand={onExpand} />
 		</MessageScrollerItem>
 	);
 }
@@ -206,8 +193,7 @@ function FeedTurnItems({
  * Only the trailing `FEED_WINDOW_SIZE` turns mount — see `ShowEarlierItem`. */
 export function TerminalFeed(props: TerminalFeedProps) {
 	const { leading, turnInFlight, turns } = props;
-	const [windowSize, setWindowSize] = useState(FEED_WINDOW_SIZE);
-	const hiddenCount = Math.max(turns.length - windowSize, 0);
+	const { hiddenCount, showEarlier } = useTurnWindow(turns.length);
 	const visibleTurns = hiddenCount > 0 ? turns.slice(hiddenCount) : turns;
 	// The floating avatar skeleton covers pure waiting (before any assistant
 	// message exists) and a turn that's only a running tool; see
@@ -224,9 +210,7 @@ export function TerminalFeed(props: TerminalFeedProps) {
 						{hiddenCount > 0 && (
 							<ShowEarlierItem
 								hiddenCount={hiddenCount}
-								onExpand={() =>
-									setWindowSize((size) => size + FEED_WINDOW_SIZE)
-								}
+								onExpand={showEarlier}
 							/>
 						)}
 						{turns.length === 0 && !turnInFlight ? (
