@@ -147,6 +147,26 @@ function commandsChangedEvent(raw: Record<string, unknown>): NormalizedEvent[] {
 	return [{ kind: "status", status: "command_catalog", detail: { commands } }];
 }
 
+/** The SDK's `SDKStatusMessage` (system/status) optionally carries the LIVE
+ * `permissionMode` — the only wire signal for a mid-session mode change the
+ * adapter itself didn't make (plan-mode exit, the CLI's own mode cycling).
+ * Surfaced as a curated `permission_mode_changed` status (folded into the
+ * web's sessionReady detail — see the web's use-bridge-feed.ts); a status
+ * line without one stays internal noise. */
+function statusChangedEvent(raw: Record<string, unknown>): NormalizedEvent[] {
+	const permissionMode = asString(raw.permissionMode);
+	if (permissionMode === undefined) {
+		return NO_EVENTS;
+	}
+	return [
+		{
+			kind: "status",
+			status: "permission_mode_changed",
+			detail: { permissionMode },
+		},
+	];
+}
+
 function normalizeClaudeSystem(
 	raw: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -157,6 +177,9 @@ function normalizeClaudeSystem(
 	}
 	if (asString(raw.subtype) === "commands_changed") {
 		return commandsChangedEvent(raw);
+	}
+	if (asString(raw.subtype) === "status") {
+		return statusChangedEvent(raw);
 	}
 	// Every other system subtype (hooks, thinking_tokens, …) is internal noise.
 	return NO_EVENTS;

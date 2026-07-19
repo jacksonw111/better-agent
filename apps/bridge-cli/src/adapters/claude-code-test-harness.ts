@@ -53,7 +53,7 @@ type QueryControls = Pick<
 >;
 
 function makeQueryControls(
-	models: Array<{ value: string }>,
+	models: Array<{ resolvedModel?: string; value: string }>,
 	commands: SlashCommand[]
 ): QueryControls {
 	return {
@@ -80,7 +80,7 @@ function makeQueryControls(
  * `supportedCommands` default to the given (empty) lists — a test that cares
  * passes its own. */
 export function mockQuery(
-	models: Array<{ value: string }> = [],
+	models: Array<{ resolvedModel?: string; value: string }> = [],
 	commands: SlashCommand[] = []
 ): {
 	harness: QueryHarness;

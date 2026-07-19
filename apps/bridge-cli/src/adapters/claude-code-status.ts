@@ -7,16 +7,18 @@
 
 import type {
 	McpServerStatus,
-	ModelInfo,
+	PermissionMode,
 	SDKControlGetContextUsageResponse,
 	SDKSessionInfo,
 } from "@anthropic-ai/claude-agent-sdk";
 import { listSessions as sdkListSessions } from "@anthropic-ai/claude-agent-sdk";
 import type { NormalizedEvent } from "../normalize/types";
 import { isRecord } from "../normalize/types";
+import { isPermissionMode } from "./claude-code-startup-config";
 import { fetchClaudeQuota } from "./quota/claude-quota";
 import { createQuotaCache, type QuotaCache } from "./quota/quota-cache";
 import { withTimeout } from "./quota/quota-shared";
+import type { AgentHandle } from "./types";
 import {
 	type QuotaSnapshot,
 	STATUS_SNAPSHOT_STATUS,
@@ -51,15 +53,26 @@ export interface LastKnownSessionInfo {
 	permissionMode?: string;
 }
 
-/** Captures `session_ready`'s model/permissionMode into `lastKnown` as the
- * event flows by — a pure observer, the event itself is never altered. */
+/** Statuses whose detail carries a live model/permissionMode worth folding
+ * into `lastKnown`: the one-time init handshake plus the mid-session change
+ * events (the handle's own read-backs AND the SDK's system/status pushes —
+ * see `permissionModeChangedEvent` below and normalize/claude-code.ts's
+ * `statusChangedEvent`). */
+const SESSION_INFO_STATUSES = new Set([
+	"session_ready",
+	"model_changed",
+	"permission_mode_changed",
+]);
+
+/** Captures the latest reported model/permissionMode into `lastKnown` as the
+ * events flow by — a pure observer, the events themselves are never altered. */
 export function recordSessionInfo(
 	event: NormalizedEvent,
 	lastKnown: LastKnownSessionInfo
 ): void {
 	if (
 		event.kind !== "status" ||
-		event.status !== "session_ready" ||
+		!SESSION_INFO_STATUSES.has(event.status) ||
 		!isRecord(event.detail)
 	) {
 		return;
@@ -70,6 +83,66 @@ export function recordSessionInfo(
 	if (typeof event.detail.permissionMode === "string") {
 		lastKnown.permissionMode = event.detail.permissionMode;
 	}
+}
+
+/** The read-back event the handle pushes once the SDK has APPLIED a
+ * `setPermissionMode` — the web's menu is controlled by the latest reported
+ * value, so without this it snapped back to the startup mode after every
+ * switch (and after a reload, which only replays the original session_ready). */
+function permissionModeChangedEvent(mode: string): NormalizedEvent {
+	return {
+		kind: "status",
+		status: "permission_mode_changed",
+		detail: { permissionMode: mode },
+	};
+}
+
+/** `permissionModeChangedEvent`'s twin for a `setModel` switch. */
+function modelChangedEvent(model: string): NormalizedEvent {
+	return {
+		kind: "status",
+		status: "model_changed",
+		detail: { model },
+	};
+}
+
+/** The SDK control methods `makeControlSetters` drives — a structural subset
+ * of the SDK `Query` (mirrors `StatusQuery` above) so tests can hand in a
+ * plain mock. */
+interface ControlQuery {
+	setModel(model: string): Promise<void>;
+	setPermissionMode(mode: PermissionMode): Promise<void>;
+}
+
+/** The handle's `setModel`/`setPermissionMode` with read-back: the SDK has no
+ * change-notification for its own applied switches, so once the call RESOLVES
+ * a read-back status event is pushed — the web's menus are controlled by the
+ * latest reported value, and this (persisted like any event) is what keeps
+ * the display honest mid-session and across reloads. Lives here (not
+ * claude-code.ts) purely for that file's 300-line limit. */
+export function makeControlSetters(
+	session: ControlQuery,
+	events: EventSink,
+	lastKnown: LastKnownSessionInfo
+): Pick<AgentHandle, "setModel" | "setPermissionMode"> {
+	return {
+		setModel(model: string): void {
+			lastKnown.model = model;
+			session
+				.setModel(model)
+				.then(() => events.push(modelChangedEvent(model)))
+				.catch(() => undefined);
+		},
+		setPermissionMode(mode: string): void {
+			if (isPermissionMode(mode)) {
+				lastKnown.permissionMode = mode;
+				session
+					.setPermissionMode(mode)
+					.then(() => events.push(permissionModeChangedEvent(mode)))
+					.catch(() => undefined);
+			}
+		},
+	};
 }
 
 /** Runs one SDK control call, resolving to `undefined` (never rejecting,
@@ -88,40 +161,10 @@ function resolveGuarded<T>(call: () => Promise<T>): Promise<T | undefined> {
 	return Promise.race([result, timeout]);
 }
 
-/** Fetches this session's available model ids from the SDK control channel,
- * resolving to `undefined` (never rejecting, never hanging) on any failure or
- * timeout — see `resolveGuarded`. The web model picker lists exactly these
- * ids; an empty/absent list hides the picker. Lives here (not claude-code.ts)
- * purely for the shared timeout guard + that file's 300-line limit. */
-export function fetchSupportedModels(session: {
-	supportedModels(): Promise<ModelInfo[]>;
-}): Promise<string[] | undefined> {
-	return resolveGuarded(() =>
-		session.supportedModels().then((infos) => infos.map((info) => info.value))
-	);
-}
-
-/** Folds the agent's reported model ids into the one-time `session_ready`
- * event, leaving every other event untouched. The list comes from the SDK
- * (`supportedModels()`), not the raw init line `normalize/claude-code.ts`
- * sees, so it's merged in the adapter rather than in normalize. */
-export async function withReportedModels(
-	event: NormalizedEvent,
-	models: Promise<string[] | undefined>
-): Promise<NormalizedEvent> {
-	if (event.kind !== "status" || event.status !== "session_ready") {
-		return event;
-	}
-	const list = await models;
-	if (list === undefined || list.length === 0 || !isRecord(event.detail)) {
-		return event;
-	}
-	return {
-		kind: "status",
-		status: "session_ready",
-		detail: { ...event.detail, models: list },
-	};
-}
+// (The `fetchSupportedModels`/`withReportedModels` copies that used to live
+// here were dead code — claude-code.ts imports the real ones from
+// claude-code-models.ts, which also resolves the init line's canonical model
+// id to its alias row.)
 
 /** R4-T1: how long `getStatus` waits on the (cached) claude quota fetch
  * before proceeding without it — the brief's "race 5s", independent of the

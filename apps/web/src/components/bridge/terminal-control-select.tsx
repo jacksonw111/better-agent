@@ -39,16 +39,21 @@ interface ModelControlState {
 
 /** Resolves what the always-present model control should show from whatever the
  * agent reported: the full switchable list, else just the current model as a
- * read-only label, else an empty "Model" affordance with an explanatory tip. */
+ * read-only label, else an empty "Model" affordance with an explanatory tip.
+ * A current model MISSING from the reported list (claude's init line reports a
+ * canonical id while the switchable list holds aliases; a startup config can
+ * pin any id) is appended as its own option — the menu must always be able to
+ * display and highlight what the session is actually on. */
 export function resolveModelControl(
 	model: string | undefined,
 	models: string[] | undefined
 ): ModelControlState {
 	if (models && models.length > 0) {
-		return {
-			hasList: true,
-			options: models.map((id) => ({ label: id, value: id })),
-		};
+		const options = models.map((id) => ({ label: id, value: id }));
+		if (model !== undefined && !models.includes(model)) {
+			options.push({ label: model, value: model });
+		}
+		return { hasList: true, options };
 	}
 	if (model) {
 		return {
@@ -102,13 +107,21 @@ export function ControlSelect({
 	return (
 		<Select
 			disabled={disabled}
+			// Lets `SelectValue` render the selected option's LABEL while the menu
+			// is closed — without this base-ui shows the raw wire value (the popup's
+			// items aren't mounted, so labels can't be resolved from them).
+			items={options}
 			onValueChange={(next) => {
 				const picked = firstStringValue(next);
 				if (picked) {
 					onChange(picked);
 				}
 			}}
-			value={value}
+			// `?? null`, NOT undefined: `undefined` mounts base-ui's Select
+			// UNCONTROLLED, and the real value arriving later (session_ready lands
+			// after mount) is then ignored — the closed trigger showed the
+			// placeholder forever instead of the session's current model/mode.
+			value={value ?? null}
 		>
 			<SelectTrigger
 				aria-label={label}

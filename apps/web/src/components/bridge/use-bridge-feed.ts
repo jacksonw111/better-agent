@@ -15,10 +15,9 @@ import {
 	type SessionListDetail,
 } from "./bridge-session-list";
 import {
-	parseSessionReadyDetail,
+	foldSessionReadyDetail,
 	parseTurnUsageDetail,
 	parseUsageUpdateDetail,
-	SESSION_READY_STATUS,
 	type SessionReadyDetail,
 	TURN_USAGE_STATUS,
 	type TurnUsageDetail,
@@ -149,8 +148,11 @@ function nextStatusDetails(
 		if (event.kind !== "status") {
 			continue;
 		}
-		if (event.status === SESSION_READY_STATUS) {
-			sessionReady = parseSessionReadyDetail(event.detail);
+		// session_ready replaces the detail; permission_mode_changed /
+		// model_changed patch their field — see foldSessionReadyDetail.
+		const folded = foldSessionReadyDetail(sessionReady, event);
+		if (folded !== undefined) {
+			sessionReady = folded;
 		} else if (event.status === TURN_USAGE_STATUS) {
 			turnUsage = parseTurnUsageDetail(event.detail);
 		} else if (event.status === USAGE_UPDATE_STATUS) {

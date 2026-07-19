@@ -11,6 +11,13 @@ import type { StreamEvent } from "./bridge-events";
  * `bridge-turns.ts` to exclude them from the rendered turn list, and by the
  * `latest*` finders below to pick them back out of the raw feed. */
 export const SESSION_READY_STATUS = "session_ready";
+/** The claude adapter's read-back after an applied `setPermissionMode`, and
+ * the SDK's own live mode pushes (system/status) — patches `sessionReady`'s
+ * `permissionMode` so the composer menu tracks reality after a switch (and
+ * across reloads, where only the original session_ready would replay). */
+export const PERMISSION_MODE_CHANGED_STATUS = "permission_mode_changed";
+/** `permission_mode_changed`'s twin for an applied `setModel`. */
+export const MODEL_CHANGED_STATUS = "model_changed";
 export const TURN_USAGE_STATUS = "turn_usage";
 /** opencode (ACP) emits its evolving task list as a `plan` status update whose
  * `detail` is the list of entries — rendered as a todolist, not a status line. */
@@ -154,6 +161,34 @@ export function parseSessionReadyDetail(
 		skills: asOptionalStringArray(detail.skills),
 		mcpServers: asOptionalMcpServers(detail.mcpServers),
 	};
+}
+
+/** Folds one status event into the running `sessionReady` detail: a full
+ * `session_ready` replaces it wholesale, a `permission_mode_changed` /
+ * `model_changed` patches just its field (creating a partial detail when none
+ * has arrived yet), and `undefined` means "not a sessionReady-affecting
+ * status" — the caller leaves its state untouched. */
+export function foldSessionReadyDetail(
+	prev: SessionReadyDetail | null,
+	event: { detail?: unknown; status: string }
+): SessionReadyDetail | null | undefined {
+	if (event.status === SESSION_READY_STATUS) {
+		return parseSessionReadyDetail(event.detail);
+	}
+	if (event.status === PERMISSION_MODE_CHANGED_STATUS) {
+		const permissionMode = isRecord(event.detail)
+			? asOptionalString(event.detail.permissionMode)
+			: undefined;
+		return permissionMode ? { ...prev, permissionMode } : prev;
+	}
+	if (event.status === MODEL_CHANGED_STATUS) {
+		const model = isRecord(event.detail)
+			? asOptionalString(event.detail.model)
+			: undefined;
+		return model ? { ...prev, model } : prev;
+	}
+	// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+	return undefined;
 }
 
 function parseUsageTokens(value: unknown): TurnUsageTokens | undefined {

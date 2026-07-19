@@ -16,6 +16,7 @@ import {
 import {
 	type ClaudeQuery,
 	fetchSupportedModels,
+	type ReportedModel,
 	withReportedModels,
 	withSessionCapabilities,
 } from "./claude-code-models";
@@ -23,11 +24,11 @@ import { writeSkillFiles } from "./claude-code-skills";
 import {
 	claudeMcpServers,
 	configQueryOptions,
-	isPermissionMode,
 } from "./claude-code-startup-config";
 import {
 	type LastKnownSessionInfo,
 	makeClaudeGetStatus,
+	makeControlSetters,
 	makeListSessions,
 	recordSessionInfo,
 } from "./claude-code-status";
@@ -66,7 +67,7 @@ import type {
 interface DrainSessionDeps {
 	events: AsyncQueue<NormalizedEvent>;
 	lastKnown: LastKnownSessionInfo;
-	models: Promise<string[] | undefined>;
+	models: Promise<ReportedModel[] | undefined>;
 	// R1-T2: the stateful normalizer — tracks tool_use/tool_result id pairs to
 	// stamp durationMs adapter-side (the SDK carries no wire duration). One
 	// instance per session, so state doesn't leak across sessions.
@@ -209,16 +210,8 @@ function buildClaudeHandle(deps: ClaudeHandleDeps): AgentHandle {
 		// so it never reaches here — "interrupt" aborts then sends fresh; "queue"
 		// falls through to plain doSend.
 		sendWith: makeInterruptThenSend({ doInterrupt, doSend }),
-		setModel(model: string): void {
-			lastKnown.model = model;
-			session.setModel(model).catch(() => undefined);
-		},
-		setPermissionMode(mode: string): void {
-			if (isPermissionMode(mode)) {
-				lastKnown.permissionMode = mode;
-				session.setPermissionMode(mode).catch(() => undefined);
-			}
-		},
+		// setModel/setPermissionMode with read-back — see makeControlSetters.
+		...makeControlSetters(session, events, lastKnown),
 		setMcpServers(servers: ResolvedMcpServer[]): void {
 			// R5-b LIVE: replace the session's SDK MCP servers, no restart.
 			// Fire-and-forget like setModel (result surfaces via next getStatus).

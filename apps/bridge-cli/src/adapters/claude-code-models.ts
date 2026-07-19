@@ -15,32 +15,66 @@ export type ClaudeQuery = ReturnType<typeof query>;
  * list is already resolved by the time the init line is normalized. */
 const SUPPORTED_MODELS_TIMEOUT_MS = 4000;
 
-/** Fetches this session's available model ids from the SDK control channel,
+/** One `supportedModels()` row the adapter keeps: the switchable alias id
+ * (`value`, e.g. "sonnet") plus the canonical wire id that alias resolves to
+ * (`resolvedModel`, e.g. "claude-sonnet-4-5") — the latter is what the init
+ * line reports as the session's current `model`. */
+export interface ReportedModel {
+	resolvedModel?: string;
+	value: string;
+}
+
+/** Fetches this session's available models from the SDK control channel,
  * resolving to `undefined` (never rejecting, never hanging) on any failure or
  * timeout — see SUPPORTED_MODELS_TIMEOUT_MS. The web model picker lists exactly
- * these ids; an empty/absent list hides the picker. */
+ * these rows' `value` ids; an empty/absent list hides the picker. */
 export function fetchSupportedModels(
 	session: ClaudeQuery
-): Promise<string[] | undefined> {
+): Promise<ReportedModel[] | undefined> {
 	let timer: ReturnType<typeof setTimeout>;
 	const timeout = new Promise<undefined>((resolve) => {
 		timer = setTimeout(() => resolve(undefined), SUPPORTED_MODELS_TIMEOUT_MS);
 	});
 	const models = session
 		.supportedModels()
-		.then((infos) => infos.map((info) => info.value))
+		.then((infos) =>
+			infos.map((info) => ({
+				resolvedModel: info.resolvedModel,
+				value: info.value,
+			}))
+		)
 		.catch(() => undefined)
 		.finally(() => clearTimeout(timer));
 	return Promise.race([models, timeout]);
 }
 
+/** The init line's `model` is the CANONICAL wire id while the switchable list
+ * holds alias rows — without mapping it back to the alias whose
+ * `resolvedModel` matches, the composer's model menu could never highlight
+ * (or label) the session's current model. Exact matches only: a prefix match
+ * against versioned ids risks crossing model families ("claude-sonnet-4" vs
+ * "claude-sonnet-4-5"). An unresolvable id stays verbatim — the web appends
+ * it to the menu as its own option instead. */
+function resolveModelAlias(model: unknown, list: ReportedModel[]): unknown {
+	if (
+		typeof model !== "string" ||
+		list.some((entry) => entry.value === model)
+	) {
+		return model;
+	}
+	const match = list.find((entry) => entry.resolvedModel === model);
+	return match ? match.value : model;
+}
+
 /** Folds the agent's reported model ids into the one-time `session_ready`
- * event, leaving every other event untouched. The list comes from the SDK
- * (`supportedModels()`), not the raw init line `normalize/claude-code.ts` sees,
- * so it's merged here in the adapter rather than in normalize. */
+ * event (and resolves the current model to its alias — see
+ * `resolveModelAlias`), leaving every other event untouched. The list comes
+ * from the SDK (`supportedModels()`), not the raw init line
+ * `normalize/claude-code.ts` sees, so it's merged here in the adapter rather
+ * than in normalize. */
 export async function withReportedModels(
 	event: NormalizedEvent,
-	models: Promise<string[] | undefined>
+	models: Promise<ReportedModel[] | undefined>
 ): Promise<NormalizedEvent> {
 	if (event.kind !== "status" || event.status !== "session_ready") {
 		return event;
@@ -52,7 +86,11 @@ export async function withReportedModels(
 	return {
 		kind: "status",
 		status: "session_ready",
-		detail: { ...event.detail, models: list },
+		detail: {
+			...event.detail,
+			model: resolveModelAlias(event.detail.model, list),
+			models: list.map((entry) => entry.value),
+		},
 	};
 }
 

@@ -63,6 +63,37 @@ function buildLabeledOptions(
 	return values.map((value) => ({ label: labels[value] ?? value, value }));
 }
 
+/** Appends the session's CURRENT value when it isn't among the offered ones —
+ * a task session can start in a mode the menu deliberately doesn't offer
+ * (e.g. `bypassPermissions` via a persisted startup config), and the closed
+ * trigger must still display it as the current value rather than rendering
+ * blank. Picking it back is a no-op switch to the mode already active, so
+ * this never widens what a user can escalate INTO. */
+function withCurrentOption(
+	options: PickerOption[],
+	current: string | undefined,
+	labels: Record<string, string>
+): PickerOption[] {
+	if (current === undefined || options.some((o) => o.value === current)) {
+		return options;
+	}
+	return [...options, { label: labels[current] ?? current, value: current }];
+}
+
+/** The permission menu's options: the agent's offered modes, plus the
+ * session's current mode when it isn't offered — split out of
+ * `ComposerControls` purely for the max-lines-per-function gate. */
+function permissionOptionsFor(
+	permissionModes: readonly string[],
+	permissionMode: string | undefined
+): PickerOption[] {
+	return withCurrentOption(
+		buildLabeledOptions(permissionModes, PERMISSION_MODE_LABELS),
+		permissionMode,
+		PERMISSION_MODE_LABELS
+	);
+}
+
 export interface ComposerControlsProps {
 	/** Disables both menus — mirrors the composer's `disabled` (no live session
 	 * to relay a control command to). */
@@ -116,9 +147,9 @@ export function ComposerControls({
 	thinkingLevels,
 }: ComposerControlsProps) {
 	const modelControl = resolveModelControl(model, models);
-	const permissionOptions = buildLabeledOptions(
+	const permissionOptions = permissionOptionsFor(
 		permissionModes,
-		PERMISSION_MODE_LABELS
+		permissionMode
 	);
 	const thinkingOptions = buildLabeledOptions(
 		thinkingLevels,

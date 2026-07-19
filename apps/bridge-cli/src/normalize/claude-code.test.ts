@@ -39,6 +39,39 @@ describe("normalizeClaudeCode - system envelope", () => {
 	});
 });
 
+// The SDK reports LIVE permission-mode changes (plan-mode exit, the CLI's
+// own mode cycling) as system/status lines carrying `permissionMode` — the
+// one-time session_ready would otherwise be the display's only source and
+// go stale the moment the mode moves. Own describe block to keep the system
+// envelope block under the repo's max-lines-per-function gate.
+describe("normalizeClaudeCode - system/status permission mode", () => {
+	it("maps a system/status line's permissionMode to a permission_mode_changed status", () => {
+		const events = normalizeClaudeCode({
+			type: "system",
+			subtype: "status",
+			status: null,
+			permissionMode: "acceptEdits",
+		});
+		expect(events).toEqual([
+			{
+				kind: "status",
+				status: "permission_mode_changed",
+				detail: { permissionMode: "acceptEdits" },
+			},
+		]);
+	});
+
+	it("hides a system/status line that carries no permissionMode", () => {
+		expect(
+			normalizeClaudeCode({
+				type: "system",
+				subtype: "status",
+				status: "compacting",
+			})
+		).toEqual([]);
+	});
+});
+
 // R5-T1: the SDK's mid-session `SDKCommandsChangedMessage` push (skills
 // discovered dynamically as the agent works in a subdirectory) — a
 // REPLACEMENT command_catalog, same shape as claude-code-commands.ts's
