@@ -1,3 +1,4 @@
+import { PixelLoading } from "@better-agent/ui/components/pixel-loading";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import type { AgentClient } from "@jacksonw111/agent-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,7 +9,6 @@ import { AgentGrid } from "@/components/chat/agent-grid";
 import { clearLastChat, saveLastChat } from "@/components/chat/chat-session";
 import { ChatView } from "@/components/chat/chat-view";
 import { useRestoreChat } from "@/components/chat/use-restore-chat";
-import { RocketLoader } from "@/components/rocket-loader";
 import { StepTransition } from "@/components/step-transition";
 import type { AgentRow, UserSessionRow } from "@/utils/api-types";
 import { userAgentClient } from "@/utils/chat-client";
@@ -246,7 +246,12 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 		);
 	}
 	if (sending || sessionId === "") {
-		return <RocketLoader label="Opening chat…" />;
+		return (
+			<PixelLoading
+				className="h-full flex-1 justify-center"
+				label="Opening chat…"
+			/>
+		);
 	}
 	return (
 		<ChatPanel
