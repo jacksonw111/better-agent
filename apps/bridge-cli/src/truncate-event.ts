@@ -18,6 +18,13 @@ import {
 	type StatusEvent,
 	type ToolEvent,
 } from "./normalize/types";
+import {
+	byteSizeOf,
+	MAX_EVENT_BYTES,
+	shrinkOversizedStatusEvent,
+} from "./truncate-status-shrink";
+
+export { MAX_EVENT_BYTES } from "./truncate-status-shrink";
 
 /** Max length (characters) of any single text-bearing field before it's
  * truncated. Comfortably under the server's 32_768-byte `MAX_EVENT_BYTES`
@@ -28,14 +35,11 @@ import {
  * this cap but still add up to more than the server allows. */
 export const MAX_EVENT_TEXT_CHARS = 16_000;
 
-/** Mirrors `MAX_EVENT_BYTES` in `packages/api/src/routers/bridge.ts` — kept
- * as a local copy (bridge-cli and the api package don't share a runtime
- * constants module) so `truncateEvent` can detect an event that's still
- * oversized after every field has been truncated (e.g. a tool event whose
- * input *and* output are each independently under `MAX_EVENT_TEXT_CHARS`,
- * but not both at once) and degrade it instead of letting the server
- * reject the batch. Keep the two values in sync. */
-const MAX_EVENT_BYTES = 32_768;
+// `MAX_EVENT_BYTES` (the local mirror of the server cap in
+// `packages/api/src/routers/bridge.ts` — bridge-cli and the api package don't
+// share a runtime constants module) and `byteSizeOf` moved to
+// truncate-status-shrink.ts so the structural status shrinker can share them
+// without an import cycle; re-exported above for existing importers.
 
 /** `status` value an oversized event degrades to once truncating its own
  * fields still isn't enough — see `truncateEvent`. Never applied to
@@ -121,12 +125,6 @@ function truncateApprovalField(value: string): string {
  * the whole event over the byte cap, by `truncateEvent`'s final check). */
 function truncateUnknownField(value: unknown): unknown {
 	return typeof value === "string" ? truncateString(value) : value;
-}
-
-/** Serialized size of `value` in UTF-8 bytes, as JSON — mirrors `byteSizeOf`
- * in `packages/api/src/routers/bridge.ts`. */
-function byteSizeOf(value: unknown): number {
-	return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
 }
 
 /** Shared by `MessageEvent` and `OutputEvent` — both are just a `text`
@@ -263,9 +261,16 @@ export function truncateEvent(value: unknown): unknown {
 	if (truncated.kind === "approval") {
 		return capApprovalOptionsEvent(truncated);
 	}
-	return byteSizeOf(truncated) <= MAX_EVENT_BYTES
-		? truncated
-		: degradeToTruncatedStatus(truncated);
+	if (byteSizeOf(truncated) <= MAX_EVENT_BYTES) {
+		return truncated;
+	}
+	// Control-plane statuses (`session_ready`, `command_catalog`) shrink
+	// structurally instead of degrading — see truncate-status-shrink.ts.
+	const shrunk =
+		truncated.kind === "status"
+			? shrinkOversizedStatusEvent(truncated)
+			: undefined;
+	return shrunk ?? degradeToTruncatedStatus(truncated);
 }
 
 /** Wraps `events` so every emitted value passes through `truncateEvent`

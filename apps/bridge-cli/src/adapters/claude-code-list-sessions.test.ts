@@ -5,7 +5,11 @@
 import { listSessions } from "@anthropic-ai/claude-agent-sdk";
 import { expect, it, vi } from "vitest";
 import { claudeCodeAdapter } from "./claude-code";
-import { mockQuery, nextEvent } from "./claude-code-test-harness";
+import {
+	mockQuery,
+	nextEvent,
+	skipStartupReady,
+} from "./claude-code-test-harness";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
@@ -31,6 +35,7 @@ it("listSessions() pushes a session_list status event with the fetched sessions"
 	]);
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.listSessions?.();
 
@@ -67,6 +72,7 @@ it("listSessions() pushes an error event when the SDK call rejects", async () =>
 	vi.mocked(listSessions).mockRejectedValue(new Error("no claude dir"));
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.listSessions?.();
 

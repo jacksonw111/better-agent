@@ -1,7 +1,11 @@
 import { type CanUseTool, query } from "@anthropic-ai/claude-agent-sdk";
 import { expect, it, vi } from "vitest";
 import { claudeCodeAdapter } from "./claude-code";
-import { mockQuery, nextEvent } from "./claude-code-test-harness";
+import {
+	mockQuery,
+	nextEvent,
+	skipStartupReady,
+} from "./claude-code-test-harness";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
@@ -12,6 +16,7 @@ it("streams the reply as output once and drops the duplicate final text block", 
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	// The response text streams live via stream_event text_delta...
 	harness.yieldMessage({
@@ -49,6 +54,7 @@ it("normalizes a thinking_delta stream_event into a reasoning-flagged output eve
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	harness.yieldMessage({
 		type: "stream_event",
@@ -70,6 +76,7 @@ it("persists the user's turn AND forwards it to the SDK on send", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.send("do the thing");
 	expect(await iterator.next()).toEqual({
@@ -93,6 +100,7 @@ it("routes a tool permission request to an approval event and resolves allow", a
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	const options = { toolUseID: "req_1" } as Parameters<CanUseTool>[2];
 	const decision = harness.canUseTool("Bash", { command: "ls" }, options);
@@ -111,6 +119,7 @@ it("resolves deny when the user rejects the tool", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	const options = { toolUseID: "req_2" } as Parameters<CanUseTool>[2];
 	const decision = harness.canUseTool("Bash", { command: "rm -rf" }, options);
@@ -125,6 +134,7 @@ it("stop() interrupts the session and closes the events stream", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.stop();
 	expect(harness.interrupt).toHaveBeenCalledTimes(1);
@@ -199,6 +209,7 @@ it("merges the agent's supportedModels() ids into the session_ready event", asyn
 	]);
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	harness.yieldMessage({
 		type: "system",
@@ -228,6 +239,7 @@ it("omits models from session_ready when the agent reports none", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	harness.yieldMessage({
 		type: "system",

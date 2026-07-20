@@ -11,10 +11,12 @@ import type { NormalizedEvent } from "../normalize/types";
 
 export type ClaudeQuery = ReturnType<typeof query>;
 
-/** Mirrors claude-code-models.ts's SUPPORTED_MODELS_TIMEOUT_MS: a safety
- * valve so a stuck control channel can never hang `start()` waiting on the
- * command catalog. */
-const SUPPORTED_COMMANDS_TIMEOUT_MS = 4000;
+/** Mirrors claude-code-models.ts's SUPPORTED_MODELS_TIMEOUT_MS (raised to 8s
+ * alongside it — the control channel measured ~3.9s on a real plugin-heavy
+ * machine): a safety valve so a stuck control channel can never hang the
+ * catalog fetch forever. Fire-and-forget, so unlike the models fetch this
+ * never delays `start()`. */
+const SUPPORTED_COMMANDS_TIMEOUT_MS = 8000;
 
 /** Fetches this session's slash-command catalog off the SDK control channel,
  * resolving to `undefined` (never rejecting, never hanging) on any failure or

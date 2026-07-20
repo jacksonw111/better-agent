@@ -88,6 +88,10 @@ export function mockQuery(
 	const output = createAsyncQueue<unknown>();
 	const controls = makeQueryControls(models, commands);
 	const harness = {} as QueryHarness;
+	// Controls exist BEFORE the adapter starts, so a test can re-mock e.g.
+	// `supportedModels` ahead of `start()` (the startup session_ready fetches
+	// it during start — see claude-code-startup-ready.ts).
+	Object.assign(harness, controls);
 	vi.mocked(query).mockImplementation((params) => {
 		harness.prompt = params.prompt as AsyncIterable<SDKUserMessage>;
 		harness.canUseTool = params.options?.canUseTool as CanUseTool;
@@ -112,4 +116,18 @@ export async function nextEvent(
 ): Promise<NormalizedEvent | undefined> {
 	const { value, done } = await iterator.next();
 	return done ? undefined : value;
+}
+
+/** Consumes (and sanity-checks) the startup `session_ready` that `start()`
+ * emits as the feed's first event (see claude-code-startup-ready.ts) — for
+ * tests that assert on what comes AFTER it. */
+export async function skipStartupReady(
+	iterator: AsyncIterator<NormalizedEvent>
+): Promise<void> {
+	const event = await nextEvent(iterator);
+	if (event?.kind !== "status" || event.status !== "session_ready") {
+		throw new Error(
+			`expected the startup session_ready first, got ${JSON.stringify(event)}`
+		);
+	}
 }

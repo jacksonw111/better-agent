@@ -25,6 +25,7 @@ import {
 	claudeMcpServers,
 	configQueryOptions,
 } from "./claude-code-startup-config";
+import { pushStartupSessionReady } from "./claude-code-startup-ready";
 import {
 	type LastKnownSessionInfo,
 	makeClaudeGetStatus,
@@ -257,6 +258,16 @@ export const claudeCodeAdapter: Adapter = {
 		// handshake that produces the `session_ready` line, so it's ready by the
 		// time `withReportedModels` merges it in (see fetchSupportedModels).
 		const models = fetchSupportedModels(session);
+		// getStatus's model/permissionMode source: the SDK has no on-demand read
+		// for the permission mode, so the adapter tracks the last-known values
+		// (init event + this handle's own setModel/setPermissionMode calls).
+		const lastKnown: LastKnownSessionInfo = {};
+		// fix(resume-caps): the init line (the only other session_ready source)
+		// doesn't arrive until the FIRST user turn, which a resume never sends —
+		// emit the startup handshake now, before draining (and before the
+		// catalog fetch below is wired, so session_ready is deterministically
+		// the feed's first event). See claude-code-startup-ready.ts.
+		await pushStartupSessionReady({ dir, events, lastKnown, models, opts });
 		// R5-T1: same control channel, its own one-time `command_catalog` event
 		// (not merged into `session_ready` — unlike models, nothing else needs
 		// it inline) — fire-and-forget, so `start()` doesn't wait on it.
@@ -267,10 +278,6 @@ export const claudeCodeAdapter: Adapter = {
 				}
 			})
 			.catch(() => undefined);
-		// getStatus's model/permissionMode source: the SDK has no on-demand read
-		// for the permission mode, so the adapter tracks the last-known values
-		// (init event + this handle's own setModel/setPermissionMode calls).
-		const lastKnown: LastKnownSessionInfo = {};
 		drainSession({
 			events,
 			lastKnown,

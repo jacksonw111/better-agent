@@ -9,7 +9,11 @@
 import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { expect, it, vi } from "vitest";
 import { claudeCodeAdapter } from "./claude-code";
-import { mockQuery, nextEvent } from "./claude-code-test-harness";
+import {
+	mockQuery,
+	nextEvent,
+	skipStartupReady,
+} from "./claude-code-test-harness";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
@@ -20,6 +24,7 @@ it("interrupt() retracts a pending approval, cancels its resolver, and a late an
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	const options = { toolUseID: "req_3" } as Parameters<CanUseTool>[2];
 	const decision = harness.canUseTool("Bash", { command: "ls" }, options);

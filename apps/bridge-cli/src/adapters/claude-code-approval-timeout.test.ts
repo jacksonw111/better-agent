@@ -2,7 +2,11 @@ import type { CanUseTool } from "@anthropic-ai/claude-agent-sdk";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { APPROVAL_TIMEOUT_MS } from "./approvals";
 import { claudeCodeAdapter } from "./claude-code";
-import { mockQuery, nextEvent } from "./claude-code-test-harness";
+import {
+	mockQuery,
+	nextEvent,
+	skipStartupReady,
+} from "./claude-code-test-harness";
 
 // FIX2 (rc-final-review): makeCanUseTool used to call `approvals.register`
 // directly instead of routing through the shared RC-T4 fail-closed contract
@@ -37,6 +41,7 @@ it("denies (fail-closed) and pushes a visible timed-out event once an approval g
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	const options = { toolUseID: "req_timeout" } as CanUseToolOptions;
 	const decision = harness.canUseTool("Bash", { command: "rm -rf" }, options);
@@ -69,6 +74,7 @@ it("still allows on a timely answer, even with fake timers armed", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	const options = { toolUseID: "req_ontime" } as CanUseToolOptions;
 	const decision = harness.canUseTool("Bash", { command: "ls" }, options);
@@ -92,6 +98,7 @@ it("still denies on a timely rejection, even with fake timers armed", async () =
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	const options = { toolUseID: "req_ontime_deny" } as CanUseToolOptions;
 	const decision = harness.canUseTool("Bash", { command: "rm -rf" }, options);

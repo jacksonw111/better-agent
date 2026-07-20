@@ -8,7 +8,11 @@ import {
 	type ClaudeQuery,
 	fetchSupportedCommands,
 } from "./claude-code-commands";
-import { mockQuery, nextEvent } from "./claude-code-test-harness";
+import {
+	mockQuery,
+	nextEvent,
+	skipStartupReady,
+} from "./claude-code-test-harness";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
@@ -33,6 +37,7 @@ it("emits a command_catalog status event off the agent's supportedCommands() onc
 	);
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	expect(await nextEvent(iterator)).toEqual({
 		kind: "status",
@@ -51,6 +56,7 @@ it("emits no command_catalog event when the agent reports no commands", async ()
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	harness.yieldMessage({
 		type: "system",
@@ -80,6 +86,7 @@ it("replaces the cached catalog with a mid-session commands_changed push", async
 	);
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	expect(await nextEvent(iterator)).toMatchObject({
 		status: "command_catalog",

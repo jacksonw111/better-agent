@@ -8,12 +8,15 @@ import { CLAUDE_CODE_SESSION_CAPABILITIES } from "./session-capabilities";
 
 export type ClaudeQuery = ReturnType<typeof query>;
 
-/** How long to wait for the SDK's `supportedModels()` — resolved off the same
- * init handshake that yields the `session_ready` line — before emitting
+/** How long to wait for the SDK's `supportedModels()` before emitting
  * `session_ready` without a model list. A safety valve so a stuck control
- * channel can never freeze the feed at its very first event; in practice the
- * list is already resolved by the time the init line is normalized. */
-const SUPPORTED_MODELS_TIMEOUT_MS = 4000;
+ * channel can never freeze the feed at its very first event — the startup
+ * session_ready (claude-code-startup-ready.ts) awaits this during `start()`.
+ * The old 4000 was too tight: the control channel measured ~3.9s on a real
+ * plugin-heavy machine (2026-07-19 resume-caps investigation), so half the
+ * time the handshake shipped with no models and the composer's model picker
+ * silently vanished. */
+const SUPPORTED_MODELS_TIMEOUT_MS = 8000;
 
 /** One `supportedModels()` row the adapter keeps: the switchable alias id
  * (`value`, e.g. "sonnet") plus the canonical wire id that alias resolves to

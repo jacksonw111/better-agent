@@ -1,6 +1,10 @@
 import { expect, it, vi } from "vitest";
 import { claudeCodeAdapter } from "./claude-code";
-import { mockQuery, nextEvent } from "./claude-code-test-harness";
+import {
+	mockQuery,
+	nextEvent,
+	skipStartupReady,
+} from "./claude-code-test-harness";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 	query: vi.fn(),
@@ -30,6 +34,7 @@ it("pushes a permission_mode_changed read-back event once the SDK applies the mo
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.setPermissionMode?.("plan");
 
@@ -45,6 +50,7 @@ it("emits a read-back event for every SDK permission mode value", async () => {
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	for (const mode of ALL_PERMISSION_MODES) {
 		handle.setPermissionMode?.(mode);
@@ -61,6 +67,7 @@ it("pushes no read-back event for an unrecognized permission mode", async () => 
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.setPermissionMode?.("not-a-real-mode");
 	expect(harness.setPermissionMode).not.toHaveBeenCalled();
@@ -77,6 +84,7 @@ it("pushes no read-back event when the SDK rejects the mode switch", async () =>
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 	harness.setPermissionMode.mockImplementation(() =>
 		Promise.reject(new Error("nope"))
 	);
@@ -95,6 +103,7 @@ it("pushes a model_changed read-back event once the SDK applies the model", asyn
 	const { harness } = mockQuery();
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	handle.setModel?.("opus");
 
@@ -117,6 +126,7 @@ it("resolves the init line's canonical model id to its reported alias in session
 	]);
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	harness.yieldMessage({
 		type: "system",
@@ -138,6 +148,7 @@ it("keeps the init model id verbatim when no alias row resolves to it", async ()
 	]);
 	const handle = await claudeCodeAdapter.start("/tmp/project");
 	const iterator = handle.events[Symbol.asyncIterator]();
+	await skipStartupReady(iterator);
 
 	harness.yieldMessage({
 		type: "system",
