@@ -51,6 +51,8 @@ it("answers an approval via sendInput, disables its buttons, and shows the chose
 				requestId: "req-1",
 				optionId: "allow",
 			},
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 	const allowButton = view.getByRole("button", {
@@ -106,7 +108,13 @@ it("renders a fresh approval card as disabled when its requestId was already ans
 	}
 });
 
-it("rolls back the answered mark and toasts when sendInput rejects, leaving buttons clickable", async () => {
+// fix-send-outbox: an approval decision is exactly the kind of message that
+// must not be lost, so it now rides the send outbox — a transient rejection is
+// RETRIED (same idempotency key, so the agent can't act on it twice) instead
+// of immediately rolling the card back and toasting at the user. The rollback
+// and toast still exist, but only once the outbox exhausts its retries; that
+// exhaustion path is covered without the real backoff in send-outbox.test.ts.
+it("retries a rejected approval decision under the same key instead of rolling it back", async () => {
 	const fake = makeControllableTransport();
 	fake.sendInput.mockRejectedValueOnce(new Error("network down"));
 	const { container } = render(
@@ -125,19 +133,20 @@ it("rolls back the answered mark and toasts when sendInput rejects, leaving butt
 		fireEvent.click(view.getByRole("button", { name: ALLOW_BUTTON_PATTERN }));
 	});
 
-	await waitFor(() => {
-		expect(toast.error).toHaveBeenCalledWith("network down");
-	});
-	await waitFor(() => {
-		const allowButton = view.getByRole("button", {
-			name: ALLOW_BUTTON_PATTERN,
-		}) as HTMLButtonElement;
-		expect(allowButton.disabled).toBe(false);
-	});
-	const denyButton = view.getByRole("button", {
-		name: DENY_BUTTON_PATTERN,
+	await waitFor(
+		() => {
+			expect(fake.sendInput).toHaveBeenCalledTimes(2);
+		},
+		{ timeout: 3000 }
+	);
+	const [first, second] = fake.sendInput.mock.calls;
+	expect(second[0]).toEqual(first[0]);
+	expect(toast.error).not.toHaveBeenCalled();
+	// The card stays answered throughout: the decision was never lost.
+	const allowButton = view.getByRole("button", {
+		name: ALLOW_CHOSEN_BUTTON_PATTERN,
 	}) as HTMLButtonElement;
-	expect(denyButton.disabled).toBe(false);
+	expect(allowButton.disabled).toBe(true);
 });
 
 it("renders a replayed approval as answered (never timed out) when history carries its resolution event", async () => {

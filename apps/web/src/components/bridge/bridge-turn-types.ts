@@ -27,6 +27,12 @@ export interface UserTurn {
 	/** S3-T2: mirrors `MessageEvent.origin` — a CLI-injected Task Start Context
 	 * turn, rendered collapsed (one expandable line) instead of as a bubble. */
 	origin?: "task-start";
+	/** fix-send-outbox: mirrors `MessageEvent.sendKey`/`sendStatus` — present
+	 * only on an optimistic echo still tracked by the send outbox, so the row
+	 * can render "sending"/"failed" (with retry/discard) instead of letting an
+	 * undelivered message pass for a sent one. */
+	sendKey?: string;
+	sendStatus?: "failed" | "sending" | "sent";
 	text: string;
 }
 

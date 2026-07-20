@@ -11,6 +11,7 @@ import { resolveMcpServers } from "./bridge-mcp-resolve";
 import { pendingRequests } from "./bridge-pending-requests";
 import { fetchConfig, restartSession } from "./bridge-restart";
 import { requireRunForSessionToken } from "./bridge-run-binding";
+import { sendInput } from "./bridge-send-input";
 import {
 	archiveSession,
 	deleteSession,
@@ -19,7 +20,6 @@ import {
 	restoreSession,
 	starSession,
 } from "./bridge-session-mgmt";
-import { assertInputWithinSizeLimit } from "./bridge-size-limits";
 import { resolveSkills } from "./bridge-skills-resolve";
 import {
 	createToken,
@@ -229,23 +229,8 @@ export const bridgeRouter = {
 			);
 		}),
 
-	sendInput: userProcedure
-		.input(z.object({ sessionId: z.uuid(), data: z.unknown() }))
-		.handler(async ({ input, context }) => {
-			await requireOwnedBridgeSession(
-				context,
-				context.authedUser.id,
-				input.sessionId
-			);
-			assertInputWithinSizeLimit(input.data);
-			await context.services.relayStore.append(
-				input.sessionId,
-				"commands",
-				input.data
-			);
-			context.services.commandBus.notify(input.sessionId);
-			return { ok: true };
-		}),
+	// fix-send-outbox: the web's reliable send path — see bridge-send-input.ts.
+	sendInput,
 
 	// P5-1: still-unanswered approval/question replay for (re)connect — see
 	// bridge-pending-requests.ts.

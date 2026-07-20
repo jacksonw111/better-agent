@@ -1,4 +1,4 @@
-import { type Dispatch, useReducer, useState } from "react";
+import { type Dispatch, useReducer } from "react";
 import type { TextWhen } from "./agent-capabilities";
 import type { SessionListDetail } from "./bridge-session-list";
 import type { BridgeTransport } from "./bridge-transport";
@@ -31,6 +31,7 @@ import {
 	useListSessionsWithTimeout,
 } from "./use-bridge-terminal-parts";
 import { type ImageRef, imageCountSuffix } from "./use-image-attachments";
+import { useSendOutbox } from "./use-send-outbox";
 import { useSseConnection } from "./use-sse-connection";
 
 export type { UseBridgeTerminalResult } from "./use-bridge-terminal-parts";
@@ -40,17 +41,18 @@ function useSendInput(
 	transport: BridgeTransport,
 	dispatchFeed: Dispatch<FeedAction>
 ) {
-	const [sending, setSending] = useState(false);
-	const sendRaw = async (data: unknown): Promise<void> => {
-		setSending(true);
-		try {
-			await transport.sendInput({ sessionId, data });
-		} finally {
-			setSending(false);
-		}
-	};
-	// Plain chat send only: echo the user's own line into the feed immediately
-	// (optimistic) BEFORE the round trip. `sendRaw` stays echo-free so approval
+	// fix-send-outbox: every send — chat AND control — now goes through the
+	// session's send outbox (see send-outbox.ts) instead of a bare, un-retried
+	// `transport.sendInput`: serialized (user messages have order semantics),
+	// retried with backoff, persisted across a reload, and carrying a stable
+	// idempotency key so a retry can't double-deliver. `sendRaw` keeps its old
+	// contract for control commands — echo-free, and its promise still rejects
+	// on final failure so `makeAnswerApproval`'s rollback+toast still fires.
+	const outbox = useSendOutbox(sessionId, transport, dispatchFeed);
+	const sendRaw = (data: unknown): Promise<void> => outbox.enqueueControl(data);
+	// Plain chat send only: the outbox echoes the user's own line into the feed
+	// immediately (optimistic) under the send's idempotency key, so the line
+	// itself carries the delivery state. `sendRaw` stays echo-free so approval
 	// decisions never produce a fake chat line.
 	//
 	// R3-T1: `when` rides the send as a busy-turn policy override. Omitted (or
@@ -69,20 +71,18 @@ function useSendInput(
 	): Promise<void> => {
 		const trimmed = text.trim();
 		const withImages = images && images.length > 0 ? images : undefined;
-		dispatchFeed({
-			type: "localEcho",
-			text: `${trimmed}${imageCountSuffix(withImages?.length ?? 0)}`,
-		});
+		const echoText = `${trimmed}${imageCountSuffix(withImages?.length ?? 0)}`;
+		const send = (data: unknown) => outbox.enqueueMessage(data, echoText);
 		if (withImages) {
 			const overridden = when && when !== "queue" ? when : undefined;
-			return sendRaw({ text: trimmed, when: overridden, images: withImages });
+			return send({ text: trimmed, when: overridden, images: withImages });
 		}
 		if (when && when !== "queue") {
-			return sendRaw({ text: trimmed, when });
+			return send({ text: trimmed, when });
 		}
-		return sendRaw(trimmed);
+		return send(trimmed);
 	};
-	return { sending, sendInput, sendRaw };
+	return { sending: outbox.sending, sendInput, sendRaw };
 }
 
 interface LiveConnectionArgs {

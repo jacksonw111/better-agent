@@ -69,6 +69,8 @@ it("posts input via the transport and clears the box", async () => {
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: "hello agent",
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 	expect(textarea.value).toBe("");
@@ -181,6 +183,8 @@ it("can send input before the output stream has connected", async () => {
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: "hello before connect",
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });

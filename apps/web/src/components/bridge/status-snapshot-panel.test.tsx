@@ -47,6 +47,8 @@ it("sends a getStatus control command via sendInput when the button is opened", 
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: { type: "control", action: "getStatus" },
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });

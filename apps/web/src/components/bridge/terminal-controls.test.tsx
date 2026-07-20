@@ -61,6 +61,8 @@ it("renders the model menu from the agent's reported models and dispatches setMo
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: { type: "control", action: "setModel", model: "sonnet" },
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });
@@ -95,6 +97,8 @@ it("dispatches a setPermissionMode control command when a mode is picked", async
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: { type: "control", action: "setPermissionMode", mode: "plan" },
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });
@@ -126,6 +130,8 @@ it("swaps Send for a Stop button while a turn is in flight and dispatches interr
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: SESSION.id,
 			data: { type: "control", action: "interrupt" },
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });
@@ -164,6 +170,8 @@ it("sends {text, when} once a busy-mode is picked while a pi turn is in flight",
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: PI_SESSION.id,
 			data: { text: "steer this", when: "steer" },
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });
@@ -234,6 +242,8 @@ it("renders the Thinking menu from the live handshake's thinkingLevels and dispa
 		expect(fake.sendInput).toHaveBeenCalledWith({
 			sessionId: PI_SESSION.id,
 			data: { type: "control", action: "setThinking", level: "high" },
+			// fix-send-outbox: every send now carries the outbox's idempotency key.
+			idempotencyKey: expect.any(String),
 		});
 	});
 });

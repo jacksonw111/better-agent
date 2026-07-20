@@ -1,4 +1,17 @@
 import { configure } from "@testing-library/react";
+import { beforeEach } from "vitest";
+
+// fix-send-outbox: the bridge terminal's send outbox persists undelivered
+// sends in `sessionStorage` keyed by session id (see send-outbox.ts), and the
+// terminal tests all drive the SAME fixture session. Without this, a test that
+// leaves a send in flight bleeds a restored (re-echoed, still-queued) message
+// into the next test in the file. Guarded so the node-environment test files,
+// which have no `sessionStorage`, are unaffected.
+if (typeof sessionStorage !== "undefined") {
+	beforeEach(() => {
+		sessionStorage.clear();
+	});
+}
 
 // Finance genui charts (bar-series, data-table, line-series, ...) load their
 // recharts-backed view via `React.lazy` + `<Suspense>`; the chart assertions

@@ -9,6 +9,7 @@ import type {
 } from "./bridge-session-status";
 import type { StatusSnapshotDetail } from "./bridge-status-snapshot";
 import { mergeEvents, pushSeenIds } from "./event-feed";
+import type { EchoSendStatus } from "./send-outbox-types";
 import {
 	initialSessionReadyFold,
 	type SessionReadyFold,
@@ -17,7 +18,7 @@ import {
 	nextAnsweredApprovals,
 	nextAnsweredQuestions,
 } from "./use-bridge-feed-answers";
-import { stripAckedEchoes } from "./use-bridge-feed-echoes";
+import { applyEchoStatus, stripAckedEchoes } from "./use-bridge-feed-echoes";
 import {
 	applyPendingReplay,
 	extractReplayedRows,
@@ -111,7 +112,11 @@ export const initialFeedState: FeedState = {
 
 export type FeedAction =
 	| { type: "events"; events: RawBridgeEvent[] }
-	| { text: string; type: "localEcho" }
+	| { sendKey?: string; text: string; type: "localEcho" }
+	/** fix-send-outbox: one outbox entry's delivery state, stamped onto (or,
+	 * on a discard, removing) the echo it was minted for — see
+	 * `applyEchoStatus`. */
+	| { key: string; status: EchoSendStatus; type: "echoStatus" }
 	| { optionId: string; requestId: string; type: "answer" }
 	| { requestId: string; type: "unanswer" }
 	/** R3-T3: mirrors "answer"/"unanswer" for a `question` turn. */
@@ -122,6 +127,56 @@ export type FeedAction =
 	 * use-bridge-feed-pending.ts. */
 	| { events: RawBridgeEvent[]; type: "pendingReplay" }
 	| { type: "reset" };
+
+/** fix-send-outbox: folds one outbox status onto the echo it belongs to (see
+ * `applyEchoStatus`), returning `state` untouched when the echo has already
+ * been reconciled away so the feed doesn't re-render for nothing. Split out of
+ * `feedReducer` for the repo's max-lines/complexity-per-function gates. */
+function nextEchoStatus(
+	state: FeedState,
+	key: string,
+	status: EchoSendStatus
+): FeedState {
+	const { events, removed } = applyEchoStatus(state.events, key, status);
+	if (events === state.events) {
+		return state;
+	}
+	return {
+		...state,
+		events,
+		pendingEchoes: Math.max(0, state.pendingEchoes - removed),
+	};
+}
+
+/** Optimistic echo of the user's own line: appended directly (never through
+ * `mergeEvents`) with a negative id, so it shows instantly and leaves the
+ * server high-water mark untouched. fix-send-outbox: `sendKey` (when the send
+ * went through the outbox) rides along so the outbox's later status updates
+ * can find this exact line; omitted entirely otherwise, keeping the pre-outbox
+ * event shape. Split out of `feedReducer` for the max-lines-per-function gate. */
+function appendLocalEcho(
+	state: FeedState,
+	text: string,
+	sendKey?: string
+): FeedState {
+	const echo: StreamEvent = {
+		id: state.nextLocalId,
+		event: {
+			kind: "message",
+			role: "user",
+			text,
+			...(sendKey === undefined
+				? {}
+				: { sendKey, sendStatus: "sending" as const }),
+		},
+	};
+	return {
+		...state,
+		events: [...state.events, echo],
+		nextLocalId: state.nextLocalId - 1,
+		pendingEchoes: state.pendingEchoes + 1,
+	};
+}
 
 export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 	switch (action.type) {
@@ -150,23 +205,12 @@ export function feedReducer(state: FeedState, action: FeedAction): FeedState {
 			delete answeredQuestions[action.requestId];
 			return { ...state, answeredQuestions };
 		}
+		case "echoStatus":
+			return nextEchoStatus(state, action.key, action.status);
 		case "pendingReplay":
 			return applyPendingReplay(state, action.events);
-		case "localEcho": {
-			// Optimistic echo of the user's own line: appended directly (never
-			// through `mergeEvents`) with a negative id, so it shows instantly and
-			// leaves the server high-water mark untouched.
-			const echo: StreamEvent = {
-				id: state.nextLocalId,
-				event: { kind: "message", role: "user", text: action.text },
-			};
-			return {
-				...state,
-				events: [...state.events, echo],
-				nextLocalId: state.nextLocalId - 1,
-				pendingEchoes: state.pendingEchoes + 1,
-			};
-		}
+		case "localEcho":
+			return appendLocalEcho(state, action.text, action.sendKey);
 		default:
 			return mergeFeedEvents(state, action.events);
 	}

@@ -7,6 +7,7 @@ import { memo } from "react";
 import { AssistantTurnBlock } from "./assistant-turn-block";
 import type { AssistantTurn, BridgeTurn, UserTurn } from "./bridge-turns";
 import { ErrorLine, FileLine } from "./event-line";
+import { SendStatusRow } from "./send-status-row";
 import { StatusLine } from "./status-line";
 import { TaskCard } from "./task-card";
 import { TaskStartContextRow } from "./task-start-context-row";
@@ -145,6 +146,26 @@ function SideTurn({
 	}
 }
 
+/** The user's bubble plus, for a still-unsettled optimistic echo, its send
+ * status (fix-send-outbox). A turn with no `sendKey` — every server-persisted
+ * user message — renders exactly the bare `ChatRow` it always did. */
+function UserWithSendStatus({
+	avatars,
+	turn,
+}: {
+	avatars?: ChatAvatars;
+	turn: UserTurn;
+}) {
+	return (
+		<>
+			<ChatRow avatars={avatars} message={userMessage(turn)} />
+			{turn.sendKey !== undefined && turn.sendStatus !== undefined && (
+				<SendStatusRow sendKey={turn.sendKey} status={turn.sendStatus} />
+			)}
+		</>
+	);
+}
+
 function BridgeChatRowImpl({
 	answered,
 	answeredQuestions,
@@ -162,7 +183,7 @@ function BridgeChatRowImpl({
 			return turn.origin === "task-start" ? (
 				<TaskStartContextRow text={turn.text} />
 			) : (
-				<ChatRow avatars={avatars} message={userMessage(turn)} />
+				<UserWithSendStatus avatars={avatars} turn={turn} />
 			);
 		case "assistant":
 			return (

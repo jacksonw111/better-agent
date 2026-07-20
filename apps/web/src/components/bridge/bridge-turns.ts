@@ -34,6 +34,7 @@ import {
 } from "./bridge-turns-tool-task";
 import { STATUS_NOTICE_KINDS } from "./status-line";
 import { parseTodoItems } from "./todo-list";
+import { makeUserTurn } from "./user-turn";
 
 export type {
 	AssistantTurn,
@@ -139,11 +140,7 @@ function foldTaskTool(state: FoldState, id: number, event: ToolEvent): void {
 function foldMessage(state: FoldState, id: number, event: MessageEvent): void {
 	if (event.role === "user") {
 		state.current = null;
-		// S3-T2: the task-start tag rides along only when present, so ordinary
-		// user turns keep their exact prior shape (tests compare structurally).
-		const origin =
-			event.origin === "task-start" ? { origin: event.origin } : {};
-		pushTurn(state, { kind: "user", id, text: event.text, ...origin });
+		pushTurn(state, makeUserTurn(id, event));
 		return;
 	}
 	finalizeAssistantMessage(state, id, event);

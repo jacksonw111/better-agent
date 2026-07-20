@@ -58,7 +58,16 @@ export interface BridgeTransport {
 	pendingRequests?: (input: {
 		sessionId: string;
 	}) => Promise<PendingBridgeRequests>;
-	sendInput: (input: { data: unknown; sessionId: string }) => Promise<void>;
+	/** fix-send-outbox: `idempotencyKey` is the send outbox's client-minted key
+	 * for this message, stable across its retries — the server dedups on it so
+	 * a retry that follows a send it already received never double-delivers to
+	 * the agent (see `bridge.sendInput`). Optional so the fake transports in
+	 * tests keep compiling; omitting it is the pre-outbox behavior. */
+	sendInput: (input: {
+		data: unknown;
+		idempotencyKey?: string;
+		sessionId: string;
+	}) => Promise<void>;
 	/** P3-T2: uploads one composer image against the bridge session; the
 	 * returned ref rides the text command as `images[]`. Optional so existing
 	 * fake transports in tests keep compiling — the attach UI only mounts when

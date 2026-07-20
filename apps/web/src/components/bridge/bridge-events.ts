@@ -25,6 +25,16 @@ export interface MessageEvent extends TurnScoped {
 	 * the web folds these turns collapsed instead of as ordinary user bubbles. */
 	origin?: "task-start";
 	role: "user" | "assistant";
+	/** fix-send-outbox: LOCAL-ONLY (never on the wire, never parsed off a
+	 * server frame) — the send-outbox key of the optimistic echo this event is,
+	 * so the outbox's status updates can find their line again. Only ever set
+	 * on a negative-id echo (see use-bridge-feed.ts's `localEcho`). */
+	sendKey?: string;
+	/** fix-send-outbox: LOCAL-ONLY — the echo's live delivery state. Absent
+	 * once the send succeeded (it is then an ordinary user message, awaiting
+	 * its persisted twin); `"failed"` after the outbox exhausted its retries,
+	 * which the row renders with retry/discard actions. */
+	sendStatus?: "failed" | "sending" | "sent";
 	text: string;
 	thinking?: boolean;
 }
