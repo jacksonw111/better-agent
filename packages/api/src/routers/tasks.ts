@@ -8,6 +8,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
+import { listActive } from "./tasks-active";
 import { appendRun } from "./tasks-append-run";
 import {
 	refreshedIssueSnapshots,
@@ -280,6 +281,7 @@ export const tasksRouter = {
 	create,
 	get,
 	list,
+	listActive,
 	resume,
 	retry,
 };

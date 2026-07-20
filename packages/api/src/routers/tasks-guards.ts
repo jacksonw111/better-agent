@@ -54,7 +54,16 @@ export function requireRuntimeInInventory(
 /** Q1: a project session's Project must be the caller's, live on the SAME
  * Computer the session starts on, and be `ready` (cloned, path reported) —
  * a queued/cloning/errored checkout can never host a session. Runs BEFORE
- * any write, like every other Start gate. */
+ * any write, like every other Start gate.
+ *
+ * Deliberately NOT a concurrency gate: several sessions may run against the
+ * same Project — i.e. the same working directory — at the same time. That is
+ * the point of the multi-session model (tasks-active.ts), and the product
+ * decision is the user's to make. The risk is real and unmitigated here:
+ * concurrent agents editing one checkout can clobber each other's edits and
+ * fight over the git index. Any future mitigation belongs on the CLIENT
+ * (per-directory worktrees or a local lock), where the filesystem actually
+ * is — the server never knows what the agents are writing. */
 export async function requireReadyProject(
 	services: Services,
 	userId: string,

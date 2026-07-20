@@ -47,6 +47,7 @@ import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
+import type { ActiveSessionStore } from "@better-agent/agent/task/active-session-ports";
 import type { RunStore, TaskStore } from "@better-agent/agent/task-ports";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { McpService } from "@better-agent/agent/tool/mcp-tools";
@@ -136,6 +137,7 @@ export interface AgentServices {
 		memoryItem: MemoryItemStore;
 		project: ProjectStore;
 		pushSubscription: PushSubscriptionStore;
+		activeSession: ActiveSessionStore;
 		run: RunStore;
 		skill: SkillStore;
 		task: TaskStore;

@@ -1,3 +1,4 @@
+import { createInMemoryRelayStore } from "@better-agent/agent/bridge/relay-store";
 import type {
 	ComputerRow,
 	ComputerStore,
@@ -12,7 +13,11 @@ import type {
 	GithubIssueDetail,
 	GithubRepositorySummary,
 } from "@better-agent/agent/github/github-ports";
-import type { BridgeMessageRow } from "@better-agent/agent/ports";
+import type {
+	BridgeMessageRow,
+	BridgeSessionRow,
+} from "@better-agent/agent/ports";
+import { createFakeActiveSessionStore } from "@better-agent/agent/testing/fake-active-session-store";
 import { createFakeProjectStore } from "@better-agent/agent/testing/fake-project-store";
 import {
 	createFakeRunStore,
@@ -205,13 +210,28 @@ function buildRigStores() {
 	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
 	// S25-T2: lets the cross-layer flow tests drive bridge.startSession(runId)
 	// with the launch payload's sessionCredential inside the SAME rig.
-	const bridgeSession = memoryBridgeSessionStore(new Map());
+	const bridgeSessionRows = new Map<string, BridgeSessionRow>();
+	const bridgeSession = memoryBridgeSessionStore(bridgeSessionRows);
+	const delivery = buildDeliveryStores();
 	return {
 		...buildGithubRig(),
-		...buildDeliveryStores(),
+		...delivery,
+		// The multi-session view's read port: the same join the DB store does
+		// in one statement, composed here from the sibling fakes.
+		activeSession: createFakeActiveSessionStore({
+			bridgeSession,
+			computer,
+			project: delivery.project,
+			run: delivery.run,
+			task: delivery.task,
+		}),
 		bridgeMessages,
 		bridgeSession,
+		bridgeSessionRows,
 		computer,
+		// tasks.listActive derives "needs attention" from the relay tails, the
+		// same way bridge.listSessions does.
+		relayStore: createInMemoryRelayStore(),
 		rows,
 	};
 }
@@ -219,6 +239,7 @@ function buildRigStores() {
 function buildRigServices(options: RigOptions = {}) {
 	const stores = buildRigStores();
 	const {
+		activeSession,
 		bridgeMessages,
 		bridgeSession,
 		bridgeToken,
@@ -226,6 +247,7 @@ function buildRigServices(options: RigOptions = {}) {
 		github,
 		githubConnection,
 		project,
+		relayStore,
 		run,
 		secretBox,
 		task,
@@ -242,8 +264,10 @@ function buildRigServices(options: RigOptions = {}) {
 		computerControl,
 		computerReplayGuard: createReplayGuard(),
 		githubClient: () => github.client,
+		relayStore,
 		secretBox,
 		stores: {
+			activeSession,
 			bridgeMessage: memoryBridgeMessageStore(bridgeMessages),
 			bridgeSession,
 			bridgeToken,

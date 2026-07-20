@@ -24,6 +24,16 @@ export type RunStatus =
 	| "stopped"
 	| "completed";
 
+/** A Run in one of these never changes again. Lives here (not in the API
+ * router that first needed it) because every layer has to agree on what
+ * "still running" means: the API's reconcile-on-read, and the DB's
+ * active-session query, which filters on it. */
+export const TERMINAL_RUN_STATUSES: ReadonlySet<RunStatus> = new Set([
+	"completed",
+	"failed",
+	"stopped",
+]);
+
 /** Where a Run works: a git-worktree-backed repository checkout, a clean
  * managed task directory when the Task has no repository (§6.16), or — Q1 —
  * the fixed directory of a Project (a long-lived per-Computer repository

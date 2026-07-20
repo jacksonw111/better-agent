@@ -6,9 +6,10 @@ import type {
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import {
-	deriveSessionAttention,
-	type SessionAttention,
-} from "../bridge/session-attention";
+	isAttentionEligible,
+	readSessionAttention,
+} from "../bridge/read-attention";
+import type { SessionAttention } from "../bridge/session-attention";
 import { userProcedure } from "../index";
 
 // P2-T1 (docs/local-agent-workspace-plan.md): `listSessions` pagination +
@@ -19,13 +20,6 @@ import { userProcedure } from "../index";
 const DEFAULT_SESSIONS_LIMIT = 30;
 /** Hard cap on `limit`, bounding one request's rows AND attention reads. */
 const MAX_SESSIONS_LIMIT = 100;
-/** How many trailing relay events/commands to inspect per session for the
- * attention signal — a bounded tail, never the full replay window. */
-const ATTENTION_TAIL_LIMIT = 50;
-/** Attention is only derived for sessions seen within this window (5 min);
- * anything staler is offline, so "waiting on you"/"working" would mislead. */
-const ATTENTION_RECENCY_MS = 300_000;
-
 const listSessionsInput = z
 	.object({
 		/** P3-T1: `true` pages ONLY archived sessions (the archived view);
@@ -75,18 +69,8 @@ export function decodeSessionCursor(cursor: string): BridgeSessionCursor {
 	return { createdAt: new Date(ms), id };
 }
 
-/** Whether `row` is worth an attention read at all: ended sessions are never
- * "working"/"waiting", and a session not seen recently is offline. */
-function isAttentionEligible(row: BridgeSessionRow, nowMs: number): boolean {
-	return (
-		row.status !== "ended" &&
-		nowMs - new Date(row.lastSeenAt).getTime() <= ATTENTION_RECENCY_MS
-	);
-}
-
-/** Attaches the derived attention signal to one row. Best-effort: a relay
- * read failure degrades to `attention: null` rather than failing the whole
- * list — the signal is a hint, the rows are the data. */
+/** Attaches the derived attention signal to one row (see
+ * ../bridge/read-attention.ts for the eligibility gate and the bounded tails). */
 async function withAttention(
 	relayStore: RelayStore,
 	row: BridgeSessionRow,
@@ -95,19 +79,7 @@ async function withAttention(
 	if (!isAttentionEligible(row, nowMs)) {
 		return { ...row, attention: null };
 	}
-	try {
-		const [events, commands] = await Promise.all([
-			relayStore.readTail(row.id, "events", ATTENTION_TAIL_LIMIT),
-			relayStore.readTail(row.id, "commands", ATTENTION_TAIL_LIMIT),
-		]);
-		const attention = deriveSessionAttention(
-			events.map((event) => event.data),
-			commands.map((command) => command.data)
-		);
-		return { ...row, attention };
-	} catch {
-		return { ...row, attention: null };
-	}
+	return { ...row, attention: await readSessionAttention(relayStore, row.id) };
 }
 
 /** One newest-first page of the caller's sessions plus a `nextCursor` to

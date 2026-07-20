@@ -1,4 +1,7 @@
-import type { RunStatus } from "@better-agent/agent/task-ports";
+import {
+	type RunStatus,
+	TERMINAL_RUN_STATUSES,
+} from "@better-agent/agent/task-ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import { computerProcedure } from "../index";
@@ -44,13 +47,7 @@ const FORWARD_STATUS_ORDER: readonly RunStatus[] = [
 	"running",
 	"waiting_for_user",
 ];
-/** Exported for the run-status reconcile paths (tasks-run-status.ts /
- * bridge-session-mgmt.ts): a run in one of these never changes again. */
-export const TERMINAL_RUN_STATUSES: ReadonlySet<RunStatus> = new Set([
-	"completed",
-	"failed",
-	"stopped",
-]);
+
 // Everything a client may report — `created` is server-only and `launching`
 // belongs to ackLaunch above.
 const REPORTABLE_STATUSES = [

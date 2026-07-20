@@ -1,8 +1,8 @@
+import { TERMINAL_RUN_STATUSES } from "@better-agent/agent/task-ports";
 import { z } from "zod";
 import { requireOwnedBridgeSession } from "../bridge/ownership";
 import type { Context } from "../context";
 import { userProcedure } from "../index";
-import { TERMINAL_RUN_STATUSES } from "./runs";
 
 // P3-T1 (docs/local-agent-workspace-plan.md): user-facing session lifecycle —
 // end / rename / star / archive / restore / hard-delete — split out of

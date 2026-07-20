@@ -1,7 +1,9 @@
 import type { BridgeSessionRow } from "@better-agent/agent/ports";
-import type { RunRow } from "@better-agent/agent/task-ports";
+import {
+	type RunRow,
+	TERMINAL_RUN_STATUSES,
+} from "@better-agent/agent/task-ports";
 import type { Context } from "../context";
-import { TERMINAL_RUN_STATUSES } from "./runs";
 
 // Effective run status on the read path (run-status reconcile bugfix). A
 // non-terminal runs.status can go stale because the client is the only writer
@@ -23,25 +25,54 @@ type Services = Context["services"];
  * actually fine — only a computer well past offline does. */
 export const RUN_STALE_OFFLINE_GRACE_MS = 60_000;
 
+/** The liveness facts the orphan test needs, decoupled from HOW they were
+ * fetched — per-run store reads on the tasks.list/get path, or columns of the
+ * single joined active-session query (tasks-active.ts). */
+export interface RunLivenessInputs {
+	/** Null when the computer row is gone — nobody can report anything. */
+	computerLastSeenAt: Date | null;
+	/** Whether the run ever bound a bridge session. A run with no binding is
+	 * judged purely on its computer's heartbeat (it may still be launching). */
+	hasSessionBinding: boolean;
+	nowMs: number;
+	/** Null when the bound session row is missing (hard-deleted out from under
+	 * the run, leaving a dangling sessionId) — the same as ended, for the
+	 * purposes of "is anyone still reporting?". */
+	sessionStatus: "active" | "ended" | null;
+}
+
 /** True when nobody is left to report this run's real status: its bound
  * bridge session is over (ended — or hard-deleted from under it, leaving a
  * dangling sessionId), or its computer stopped heartbeating past the grace
- * window (client killed, network gone, machine off — or the row deleted). */
+ * window (client killed, network gone, machine off — or the row deleted).
+ *
+ * Pure and exported so every read path judges liveness identically — a second
+ * implementation is how a dead session ends up advertised as live. */
+export function isRunPresumedDead(inputs: RunLivenessInputs): boolean {
+	if (inputs.hasSessionBinding && inputs.sessionStatus !== "active") {
+		return true;
+	}
+	if (!inputs.computerLastSeenAt) {
+		return true;
+	}
+	return (
+		inputs.nowMs - inputs.computerLastSeenAt.getTime() >
+		RUN_STALE_OFFLINE_GRACE_MS
+	);
+}
+
 async function isRunOrphaned(
 	services: Services,
 	run: RunRow,
 	session: BridgeSessionRow | null
 ): Promise<boolean> {
-	if (run.sessionId && (!session || session.status === "ended")) {
-		return true;
-	}
 	const computer = await services.stores.computer.getById(run.computerId);
-	if (!computer) {
-		return true;
-	}
-	return (
-		Date.now() - computer.lastSeenAt.getTime() > RUN_STALE_OFFLINE_GRACE_MS
-	);
+	return isRunPresumedDead({
+		computerLastSeenAt: computer?.lastSeenAt ?? null,
+		hasSessionBinding: Boolean(run.sessionId),
+		nowMs: Date.now(),
+		sessionStatus: session?.status ?? null,
+	});
 }
 
 /** The run as the read path should present it, plus its bound session row

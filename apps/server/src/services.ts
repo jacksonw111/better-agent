@@ -6,6 +6,7 @@ import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import { createCommandBus } from "@better-agent/api/bridge/command-bus";
 import { createComputerControlChannel } from "@better-agent/api/computers/control-channel";
+import { createActiveSessionStore } from "@better-agent/db/repositories/active-session-store";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
 import { createBridgeMessageStore } from "@better-agent/db/repositories/bridge-message-store";
@@ -58,6 +59,7 @@ import { buildRuntime } from "./services-runtime";
 // Shared by buildStores + assembleServices (both take "everything needed to
 // construct a store"); factored out so neither signature repeats the list.
 interface StoreParts {
+	activeSessionStore: ReturnType<typeof createActiveSessionStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
 	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
@@ -122,6 +124,7 @@ function buildStores(
 		memoryItem: parts.memoryItemStore,
 		project: parts.projectStore,
 		pushSubscription: parts.pushSubscriptionStore,
+		activeSession: parts.activeSessionStore,
 		run: parts.runStore,
 		skill: parts.skillStore,
 		task: parts.taskStore,
@@ -222,6 +225,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		projectStore: createProjectStore(db),
 		taskStore: createTaskStore(db),
 		runStore: createRunStore(db),
+		activeSessionStore: createActiveSessionStore(db),
 		secretBox,
 	};
 }
