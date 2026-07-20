@@ -18,6 +18,12 @@ export const SESSION_READY_STATUS = "session_ready";
 export const PERMISSION_MODE_CHANGED_STATUS = "permission_mode_changed";
 /** `permission_mode_changed`'s twin for an applied `setModel`. */
 export const MODEL_CHANGED_STATUS = "model_changed";
+/** The claude adapter's out-of-band model LIST, emitted when the SDK's
+ * `supportedModels()` resolved too late for the one-time `session_ready`
+ * handshake (see `claude-code-models.ts`'s `modelCatalogEvent`). Patches
+ * `sessionReady`'s `models` so the composer's picker appears late rather than
+ * staying gone for the whole session. */
+export const MODEL_CATALOG_STATUS = "model_catalog";
 export const TURN_USAGE_STATUS = "turn_usage";
 /** opencode (ACP) emits its evolving task list as a `plan` status update whose
  * `detail` is the list of entries — rendered as a todolist, not a status line. */

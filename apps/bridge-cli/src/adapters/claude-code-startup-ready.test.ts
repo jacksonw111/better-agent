@@ -32,7 +32,6 @@ it("emits a startup session_ready as the FIRST event, before any SDK message", a
 		detail: {
 			cwd: "/tmp/project",
 			models: ["opus", "sonnet"],
-			permissionMode: "default",
 			capabilities: {
 				fs: true,
 				git: true,
@@ -41,6 +40,22 @@ it("emits a startup session_ready as the FIRST event, before any SDK message", a
 			},
 		},
 	});
+});
+
+it("omits model and permissionMode entirely when the startup config sets neither", async () => {
+	// The SDK exposes no read for either value, so an unconfigured launch has
+	// NOTHING truthful to report: the user's own settings decide the mode
+	// (`permissions.defaultMode` need not be "default") and this process can't
+	// see them. Reporting a guessed "default" put a possibly-wrong mode in the
+	// composer; omitting leaves the menu neutral until init supplies the truth.
+	mockQuery([{ value: "opus" }]);
+	const handle = await claudeCodeAdapter.start("/tmp/project");
+	const iterator = handle.events[Symbol.asyncIterator]();
+
+	const event = await nextEvent(iterator);
+	const detail = (event as { detail: Record<string, unknown> }).detail;
+	expect(detail.permissionMode).toBeUndefined();
+	expect(detail.model).toBeUndefined();
 });
 
 it("reflects the persisted startup config's model (alias-resolved) and permissionMode", async () => {

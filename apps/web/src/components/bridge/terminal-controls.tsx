@@ -3,6 +3,8 @@ import {
 	OptionalControl,
 	type PickerOption,
 	resolveModelControl,
+	UNRESOLVED_VALUE_PLACEHOLDER,
+	UNRESOLVED_VALUE_TITLE,
 } from "./terminal-control-select";
 
 // The composer's bottom-right control menus (relocated out of the header per
@@ -94,6 +96,37 @@ function permissionOptionsFor(
 	);
 }
 
+/** The tooltip for a control whose current value is still unknown — paired
+ * with `UNRESOLVED_VALUE_PLACEHOLDER`, and undefined once a value is known so
+ * the caller can fall back to its usual tooltip. */
+function unresolvedTitle(value: string | undefined): string | undefined {
+	return value === undefined ? UNRESOLVED_VALUE_TITLE : undefined;
+}
+
+/** `unresolvedTitle`'s twin for the trigger text. */
+function unresolvedPlaceholder(value: string | undefined): string | undefined {
+	return value === undefined ? UNRESOLVED_VALUE_PLACEHOLDER : undefined;
+}
+
+/** The model menu's value-dependent props. Split out for the
+ * max-lines-per-function gate. The placeholder covers the case where the agent
+ * reported a switchable list but no CURRENT model (a resumed session, whose
+ * SDK can't be asked what it's on): the menu works, it just has nothing
+ * selected — say so rather than showing a bare "Model" that reads as a chosen
+ * value. */
+function modelSelectProps(
+	control: ReturnType<typeof resolveModelControl>,
+	model: string | undefined
+) {
+	return {
+		displayLabel: control.displayLabel,
+		label: "Model",
+		options: control.options,
+		placeholder: control.hasList ? unresolvedPlaceholder(model) : undefined,
+		value: model,
+	};
+}
+
 export interface ComposerControlsProps {
 	/** Disables both menus — mirrors the composer's `disabled` (no live session
 	 * to relay a control command to). */
@@ -159,20 +192,18 @@ export function ComposerControls({
 	return (
 		<>
 			<ControlSelect
+				{...modelSelectProps(modelControl, model)}
 				disabled={disabled || !modelControl.hasList}
-				displayLabel={modelControl.displayLabel}
-				label="Model"
 				onChange={onSetModel}
-				options={modelControl.options}
-				title={modelControl.title ?? nextTurnHint}
-				value={model}
+				title={modelControl.title ?? unresolvedTitle(model) ?? nextTurnHint}
 			/>
 			<OptionalControl
 				disabled={disabled}
 				label="Permission mode"
 				onChange={onSetPermissionMode}
 				options={permissionOptions}
-				title={nextTurnHint}
+				placeholder={unresolvedPlaceholder(permissionMode)}
+				title={unresolvedTitle(permissionMode) ?? nextTurnHint}
 				value={permissionMode}
 			/>
 			<OptionalControl

@@ -20,6 +20,18 @@ import {
 export const NO_MODEL_REPORTED_TITLE =
 	"This agent doesn't report a model list yet.";
 
+/** Shown in a control's trigger while the session's CURRENT value is still
+ * unknown. The agent SDKs expose no read for the live model/permission mode,
+ * so a resumed (or never-yet-messaged) session has nothing truthful to report
+ * until its first turn — the CLI now omits the field rather than guessing a
+ * default. A neutral marker beats both a blank trigger (reads as broken) and
+ * the bare menu label (reads as a selected value). */
+export const UNRESOLVED_VALUE_PLACEHOLDER = "未确定";
+
+/** The tooltip pairing with `UNRESOLVED_VALUE_PLACEHOLDER` — says WHY it's
+ * unknown and what resolves it, so the state doesn't look like a failure. */
+export const UNRESOLVED_VALUE_TITLE = "发送首条消息后同步当前值";
+
 export interface PickerOption {
 	label: string;
 	value: string;
@@ -86,6 +98,9 @@ interface ControlSelectProps {
 	label: string;
 	onChange: (value: string) => void;
 	options: readonly PickerOption[];
+	/** Trigger text while `value` is unset — defaults to the menu's `label`.
+	 * See `UNRESOLVED_VALUE_PLACEHOLDER` for the unknown-value case. */
+	placeholder?: string;
 	/** Native tooltip on the trigger — used to explain the model control's
 	 * disabled state when the agent reports no model list. */
 	title?: string;
@@ -101,6 +116,7 @@ export function ControlSelect({
 	label,
 	onChange,
 	options,
+	placeholder,
 	title,
 	value,
 }: ControlSelectProps) {
@@ -129,7 +145,7 @@ export function ControlSelect({
 				size="sm"
 				title={title}
 			>
-				<SelectValue placeholder={label}>
+				<SelectValue placeholder={placeholder ?? label}>
 					{displayLabel ?? undefined}
 				</SelectValue>
 			</SelectTrigger>
@@ -149,6 +165,7 @@ interface OptionalControlProps {
 	label: string;
 	onChange: (value: string) => void;
 	options: readonly PickerOption[];
+	placeholder?: string;
 	title?: string;
 	value?: string;
 }
@@ -162,6 +179,7 @@ export function OptionalControl({
 	label,
 	onChange,
 	options,
+	placeholder,
 	title,
 	value,
 }: OptionalControlProps) {
@@ -174,6 +192,7 @@ export function OptionalControl({
 			label={label}
 			onChange={onChange}
 			options={options}
+			placeholder={placeholder}
 			title={title}
 			value={value}
 		/>

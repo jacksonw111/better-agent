@@ -1,3 +1,4 @@
+import type { BridgeTokenConfig } from "@better-agent/agent/ports";
 import { createRunSessionCredential } from "@better-agent/agent/task/run-session-credential";
 import type {
 	IssueSnapshot,
@@ -14,6 +15,11 @@ import type { Context } from "../context";
 type Services = Context["services"];
 
 export interface AppendRunInput {
+	/** Startup config for the Run's pre-issued session credential — the CLI
+	 * reads it back on `startSession` and applies it to the launched agent.
+	 * `tasks.resume` uses it to carry the previous run's model/permission mode
+	 * forward; omitted by cold starts, which launch on the agent's defaults. */
+	config?: BridgeTokenConfig;
 	/** The snapshots THIS launch resolved — snapshots belong to the Run (§6.15). */
 	issueSnapshots: IssueSnapshot[];
 	/** P1 (session resume): the previous run's runtime conversation id; the
@@ -32,7 +38,12 @@ export async function appendRun(
 	const { task } = input;
 	const credential = await createRunSessionCredential({
 		bridgeTokenStore: services.stores.bridgeToken,
-	})({ agentKind: task.agentKind, taskId: task.id, userId: task.userId });
+	})({
+		agentKind: task.agentKind,
+		config: input.config,
+		taskId: task.id,
+		userId: task.userId,
+	});
 	const runId = crypto.randomUUID();
 	return await services.stores.run.insert({
 		agentKind: task.agentKind,

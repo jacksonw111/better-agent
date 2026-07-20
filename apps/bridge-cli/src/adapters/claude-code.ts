@@ -9,11 +9,9 @@ import {
 } from "./approvals";
 import { type AsyncQueue, createAsyncQueue } from "./async-queue";
 import { type EventSink, makeCanUseTool } from "./claude-code-approvals";
+import { announceCommandCatalog } from "./claude-code-commands";
 import {
-	commandCatalogEvent,
-	fetchSupportedCommands,
-} from "./claude-code-commands";
-import {
+	announceLateModels,
 	type ClaudeQuery,
 	fetchSupportedModels,
 	type ReportedModel,
@@ -257,7 +255,10 @@ export const claudeCodeAdapter: Adapter = {
 		// Kicked off immediately: `supportedModels()` resolves off the same init
 		// handshake that produces the `session_ready` line, so it's ready by the
 		// time `withReportedModels` merges it in (see fetchSupportedModels).
-		const models = fetchSupportedModels(session);
+		const { late: lateModels, models } = fetchSupportedModels(session);
+		// A list that misses the handshake's window is announced out of band
+		// rather than dropped — see `announceLateModels`.
+		announceLateModels(lateModels, events);
 		// getStatus's model/permissionMode source: the SDK has no on-demand read
 		// for the permission mode, so the adapter tracks the last-known values
 		// (init event + this handle's own setModel/setPermissionMode calls).
@@ -270,14 +271,8 @@ export const claudeCodeAdapter: Adapter = {
 		await pushStartupSessionReady({ dir, events, lastKnown, models, opts });
 		// R5-T1: same control channel, its own one-time `command_catalog` event
 		// (not merged into `session_ready` — unlike models, nothing else needs
-		// it inline) — fire-and-forget, so `start()` doesn't wait on it.
-		fetchSupportedCommands(session)
-			.then((commands) => {
-				if (commands && commands.length > 0) {
-					events.push(commandCatalogEvent(commands));
-				}
-			})
-			.catch(() => undefined);
+		// it inline). See `announceCommandCatalog`.
+		announceCommandCatalog(session, events);
 		drainSession({
 			events,
 			lastKnown,

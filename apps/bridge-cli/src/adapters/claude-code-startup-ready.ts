@@ -29,10 +29,6 @@ import {
 } from "./claude-code-status";
 import type { StartOptions } from "./types";
 
-/** The mode claude launches in when the startup config doesn't set one —
- * the SDK/CLI default. */
-const DEFAULT_PERMISSION_MODE = "default";
-
 interface StartupReadyDeps {
 	dir: string;
 	events: { push(event: NormalizedEvent): void };
@@ -63,8 +59,15 @@ export async function pushStartupSessionReady(
 			// The canonical config model is alias-resolved by withReportedModels
 			// (same as the init line's) so the composer menu can highlight it.
 			model: opts?.config?.model,
-			permissionMode:
-				startupPermissionMode(opts?.config) ?? DEFAULT_PERMISSION_MODE,
+			// No fallback: the SDK has no read for either value, so the ONLY
+			// thing this handshake can honestly report is what the CLI itself
+			// passed to `query()`. An unconfigured launch inherits whatever the
+			// user's own settings say (`permissions.defaultMode` need not be
+			// "default"), which this process cannot see — reporting a guessed
+			// "default" made the composer show a mode the session might not be
+			// in. Omitting the field leaves the menu unselected (the web shows a
+			// neutral placeholder) until the real init line supplies the truth.
+			permissionMode: startupPermissionMode(opts?.config),
 		},
 	};
 	const event = withSessionCapabilities(await withReportedModels(base, models));

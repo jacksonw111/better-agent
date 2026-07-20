@@ -192,3 +192,43 @@ it("list filters by computerId and agentKind and flags agentSessionId presence",
 		status: "completed",
 	});
 });
+
+it("resume carries the previous run's model and permission mode into the new run's startup config", async () => {
+	// The SDK can't be ASKED what it's running, so a resumed session only knows
+	// its model/mode if the launch passes them explicitly — hence the carry.
+	const rig = buildComputerRig();
+	const { client, computerId } = await pairClaude(rig);
+	const { runId, taskId } = await createChatSession(rig, computerId, "Chat");
+	const session = await finishRun(rig, client, runId, "claude-session-42");
+	await rig.bridgeSession.setLastSessionInfo(session.id, {
+		model: "opus",
+		permissionMode: "acceptEdits",
+	});
+
+	const { runId: resumedRunId } = await rig
+		.userClientFor(ALICE)
+		.tasks.resume({ taskId });
+
+	const tokenId = rig.run.rows.get(resumedRunId)?.sessionTokenId ?? "";
+	const token = await rig.bridgeToken.getById(tokenId, ALICE.id);
+	expect(token?.config).toMatchObject({
+		model: "opus",
+		permissionMode: "acceptEdits",
+	});
+});
+
+it("resume leaves the new run's config unset when the previous session reported nothing", async () => {
+	const rig = buildComputerRig();
+	const { client, computerId } = await pairClaude(rig);
+	const { runId, taskId } = await createChatSession(rig, computerId, "Chat");
+	await finishRun(rig, client, runId, "claude-session-42");
+
+	const { runId: resumedRunId } = await rig
+		.userClientFor(ALICE)
+		.tasks.resume({ taskId });
+
+	const tokenId = rig.run.rows.get(resumedRunId)?.sessionTokenId ?? "";
+	const token = await rig.bridgeToken.getById(tokenId, ALICE.id);
+	// Not a guessed default — nothing was ever observed, so nothing is pinned.
+	expect(token?.config ?? null).toBeNull();
+});

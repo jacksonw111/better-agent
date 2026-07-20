@@ -31,6 +31,8 @@ function toRow(
 		label: row.label ?? null,
 		name: row.name ?? null,
 		agentSessionId: row.agentSessionId ?? null,
+		lastModel: row.lastModel ?? null,
+		lastPermissionMode: row.lastPermissionMode ?? null,
 		runId: row.runId ?? null,
 		status: row.status,
 		createdAt: row.createdAt,
@@ -124,6 +126,32 @@ async function setSessionAgentSessionId(
 		.where(eq(schema.bridgeSessions.id, id));
 }
 
+/** Per-field UPDATE of the last reported model/permission mode: fields the
+ * caller didn't provide are left OUT of the patch entirely (rather than
+ * written as null), so a `model_changed` read-back — which carries only a
+ * model — can never blank the stored permission mode. Nothing to write is a
+ * no-op, not an empty UPDATE. */
+async function setSessionLastInfo(
+	db: Db,
+	id: string,
+	info: { model?: string; permissionMode?: string }
+): Promise<void> {
+	const patch: Partial<typeof schema.bridgeSessions.$inferInsert> = {};
+	if (info.model !== undefined) {
+		patch.lastModel = info.model;
+	}
+	if (info.permissionMode !== undefined) {
+		patch.lastPermissionMode = info.permissionMode;
+	}
+	if (Object.keys(patch).length === 0) {
+		return;
+	}
+	await db
+		.update(schema.bridgeSessions)
+		.set(patch)
+		.where(eq(schema.bridgeSessions.id, id));
+}
+
 async function setSessionVncEndpoint(
 	db: Db,
 	id: string,
@@ -214,6 +242,7 @@ export function createBridgeSessionStore(db: Db): BridgeSessionStore {
 		touch: (id) => touchSession(db, id),
 		setAgentSessionId: (id, agentSessionId) =>
 			setSessionAgentSessionId(db, id, agentSessionId),
+		setLastSessionInfo: (id, info) => setSessionLastInfo(db, id, info),
 		setVncEndpoint: (id, vncEndpoint) =>
 			setSessionVncEndpoint(db, id, vncEndpoint),
 		end: (id, userId) =>

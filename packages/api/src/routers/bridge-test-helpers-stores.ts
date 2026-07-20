@@ -115,6 +115,8 @@ function newSessionRow(
 		label: input.label ?? null,
 		name: null,
 		agentSessionId: null,
+		lastModel: null,
+		lastPermissionMode: null,
 		runId: input.runId ?? null,
 		status: "active",
 		createdAt: new Date(),
@@ -193,6 +195,25 @@ function memoryListSessionPage(
 		.slice(0, opts.limit);
 }
 
+/** Per-field, like the real store: an omitted field keeps its stored value
+ * rather than being blanked. Standalone so `memoryBridgeSessionStore` stays
+ * under the max-lines-per-function gate. */
+function memorySetLastInfo(
+	rows: Map<string, BridgeSessionRow>,
+	id: string,
+	info: { model?: string; permissionMode?: string }
+): Promise<void> {
+	const row = rows.get(id);
+	if (row) {
+		rows.set(id, {
+			...row,
+			lastModel: info.model ?? row.lastModel ?? null,
+			lastPermissionMode: info.permissionMode ?? row.lastPermissionMode ?? null,
+		});
+	}
+	return Promise.resolve();
+}
+
 export function memoryBridgeSessionStore(
 	rows: Map<string, BridgeSessionRow>
 ): BridgeSessionStore {
@@ -227,6 +248,7 @@ export function memoryBridgeSessionStore(
 			}
 			return Promise.resolve();
 		},
+		setLastSessionInfo: (id, info) => memorySetLastInfo(rows, id, info),
 		setVncEndpoint(id, vncEndpoint) {
 			const row = rows.get(id);
 			if (row) {

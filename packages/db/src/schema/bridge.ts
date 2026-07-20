@@ -82,6 +82,17 @@ export const bridgeSessions = pgTable(
 		// circularly import each other (TS7022 implicit-any on both tables).
 		// runs.session_id carries the authoritative, FK-enforced binding.
 		runId: uuid("run_id"),
+		// The last model / permission mode this session was observed running
+		// with — captured off the CLI's `session_ready` handshake and its
+		// `model_changed`/`permission_mode_changed` read-backs (see
+		// `packages/api/src/routers/bridge-session-info.ts`). The SDK exposes no
+		// way to READ either value back, so without persisting them a resumed
+		// run would have to guess; `tasks.resume` seeds the next run's startup
+		// config from these so the continuation keeps the same model/mode AND
+		// the values become a reported truth rather than a guess. Nullable:
+		// unset until the first handshake, and for adapters reporting neither.
+		lastModel: text("last_model"),
+		lastPermissionMode: text("last_permission_mode"),
 		// The VNC WebSocket endpoint the browser noVNC viewer connects through
 		// for a cua/computer-use session. Nullable: only set for sessions that
 		// boot a Cua VM; null for every other local-agent run.

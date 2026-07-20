@@ -27,18 +27,35 @@ export interface ReportedModel {
 	value: string;
 }
 
-/** Fetches this session's available models from the SDK control channel,
- * resolving to `undefined` (never rejecting, never hanging) on any failure or
- * timeout — see SUPPORTED_MODELS_TIMEOUT_MS. The web model picker lists exactly
- * these rows' `value` ids; an empty/absent list hides the picker. */
+/** A `supportedModels()` fetch split into the part the handshake can wait for
+ * and the part it can't. */
+export interface SupportedModelsFetch {
+	/** The list if it arrived ONLY AFTER `models` had already timed out,
+	 * `undefined` otherwise (in time, failed, or never). Before this existed a
+	 * slow control channel meant the list was lost for the whole session — the
+	 * composer's model picker silently vanished with no way back. The caller
+	 * re-announces it out of band (see `modelCatalogEvent`): a late list is
+	 * strictly better than none. */
+	late: Promise<ReportedModel[] | undefined>;
+	/** Resolves to `undefined` (never rejecting, never hanging) on any failure
+	 * or timeout — see SUPPORTED_MODELS_TIMEOUT_MS. The web model picker lists
+	 * exactly these rows' `value` ids; an empty/absent list hides the picker. */
+	models: Promise<ReportedModel[] | undefined>;
+}
+
+/** Fetches this session's available models from the SDK control channel. */
 export function fetchSupportedModels(
 	session: ClaudeQuery
-): Promise<ReportedModel[] | undefined> {
+): SupportedModelsFetch {
 	let timer: ReturnType<typeof setTimeout>;
+	let timedOut = false;
 	const timeout = new Promise<undefined>((resolve) => {
-		timer = setTimeout(() => resolve(undefined), SUPPORTED_MODELS_TIMEOUT_MS);
+		timer = setTimeout(() => {
+			timedOut = true;
+			resolve(undefined);
+		}, SUPPORTED_MODELS_TIMEOUT_MS);
 	});
-	const models = session
+	const fetched = session
 		.supportedModels()
 		.then((infos) =>
 			infos.map((info) => ({
@@ -48,7 +65,43 @@ export function fetchSupportedModels(
 		)
 		.catch(() => undefined)
 		.finally(() => clearTimeout(timer));
-	return Promise.race([models, timeout]);
+	return {
+		late: fetched.then((list) => (timedOut ? list : undefined)),
+		models: Promise.race([fetched, timeout]),
+	};
+}
+
+/** Wires the late-arriving model list (see `SupportedModelsFetch.late`) to the
+ * feed as a one-time `model_catalog`. Fire-and-forget — `start()` must not
+ * wait on it, having already shipped its handshake without the list. Lives
+ * here rather than inline in claude-code.ts for that file's function-length
+ * gate. */
+export function announceLateModels(
+	late: Promise<ReportedModel[] | undefined>,
+	events: { push(event: NormalizedEvent): void }
+): void {
+	late
+		.then((list) => {
+			if (list && list.length > 0) {
+				events.push(modelCatalogEvent(list));
+			}
+		})
+		.catch(() => undefined);
+}
+
+/** The one-time out-of-band announcement of a model list that missed the
+ * handshake — its OWN status, deliberately not a second `session_ready`: the
+ * web folds a handshake by REPLACING the base detail wholesale, so re-emitting
+ * one here would wipe the richer detail the real init line contributes
+ * (sessionId, tools, slashCommands, …). Same shape/rationale as the
+ * `command_catalog` event. The web folds it as a per-field patch — see
+ * `session-ready-fold.ts`. */
+export function modelCatalogEvent(models: ReportedModel[]): NormalizedEvent {
+	return {
+		kind: "status",
+		status: "model_catalog",
+		detail: { models: models.map((entry) => entry.value) },
+	};
 }
 
 /** The init line's `model` is the CANONICAL wire id while the switchable list

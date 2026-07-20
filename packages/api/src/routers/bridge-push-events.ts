@@ -2,6 +2,7 @@ import { log } from "evlog";
 import type { Context } from "../context";
 import { maybePersistAgentSessionId } from "./bridge-agent-session-id";
 import { maybeRecordBridgeUsage } from "./bridge-record-usage";
+import { maybePersistSessionInfo } from "./bridge-session-info";
 
 // Split out of bridge.ts purely to keep that file under the repo's
 // max-lines-per-file gate.
@@ -45,6 +46,7 @@ export async function appendPushedEvents(
 		}
 		persisted.push({ seq, event });
 		await maybePersistAgentSessionId(context, sessionId, event);
+		await maybePersistSessionInfo(context, sessionId, event);
 		await maybeRecordBridgeUsage({ context, userId, sessionId, seq, event });
 	}
 	return persisted;

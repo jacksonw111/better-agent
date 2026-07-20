@@ -1,6 +1,7 @@
 import {
 	asOptionalString,
 	isRecord,
+	MODEL_CATALOG_STATUS,
 	MODEL_CHANGED_STATUS,
 	PERMISSION_MODE_CHANGED_STATUS,
 	parseSessionReadyDetail,
@@ -30,10 +31,21 @@ interface FieldPatch {
 	value: string;
 }
 
+/** A late model LIST plus the event id that carried it — the list's own
+ * `FieldPatch`, separate because its value is an array rather than a string. */
+interface ModelsPatch {
+	eventId: number;
+	value: string[];
+}
+
 export interface SessionReadyFold {
 	/** The latest parsed `session_ready` detail — the only thing that can make
 	 * `sessionReadyOf` non-null. */
 	base: SessionReadyDetail | null;
+	/** A `model_catalog`'s list, applied like the read-back patches below. Its
+	 * own slot (not `patches`) because it holds an array, and because a list
+	 * that arrives late is additive: it fills a picker the handshake couldn't. */
+	modelsPatch: ModelsPatch | null;
 	/** Read-back patches by field, newest event id wins per field. Kept OUT of
 	 * `base` so a read-back can never touch (or fabricate) any other field. */
 	patches: { model?: FieldPatch; permissionMode?: FieldPatch };
@@ -44,9 +56,26 @@ export interface SessionReadyFold {
 
 export const initialSessionReadyFold: SessionReadyFold = {
 	base: null,
+	modelsPatch: null,
 	patches: {},
 	readyEventId: 0,
 };
+
+/** Pulls a `model_catalog`'s `models` array off its wire detail — undefined
+ * for a malformed or empty one, which the caller ignores. */
+function modelsPatchOf(
+	detail: unknown,
+	eventId: number
+): ModelsPatch | undefined {
+	if (!(isRecord(detail) && Array.isArray(detail.models))) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const value = detail.models.filter(
+		(entry): entry is string => typeof entry === "string"
+	);
+	return value.length > 0 ? { eventId, value } : undefined;
+}
 
 type PatchField = "model" | "permissionMode";
 
@@ -109,6 +138,13 @@ export function foldSessionReadyEvent(
 	if (event.status === MODEL_CHANGED_STATUS) {
 		return withPatch(prev, "model", patchOf(event.detail, "model", id));
 	}
+	if (event.status === MODEL_CATALOG_STATUS) {
+		const modelsPatch = modelsPatchOf(event.detail, id);
+		if (!modelsPatch || (prev.modelsPatch?.eventId ?? 0) >= id) {
+			return prev;
+		}
+		return { ...prev, modelsPatch };
+	}
 	// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
 	return undefined;
 }
@@ -120,11 +156,16 @@ export function foldSessionReadyEvent(
 export function sessionReadyOf(
 	fold: SessionReadyFold
 ): SessionReadyDetail | null {
-	const { base, patches, readyEventId } = fold;
+	const { base, modelsPatch, patches, readyEventId } = fold;
 	if (!base) {
 		return null;
 	}
 	const detail = { ...base };
+	// A newer catalog fills in the list the handshake shipped without; an older
+	// one loses to the handshake, same id rule as every other patch.
+	if (modelsPatch && modelsPatch.eventId > readyEventId) {
+		detail.models = modelsPatch.value;
+	}
 	if (patches.model && patches.model.eventId > readyEventId) {
 		detail.model = patches.model.value;
 	}

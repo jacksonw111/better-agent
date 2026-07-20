@@ -5,7 +5,11 @@
 // UI. The raw token is persisted (like user-created bridge tokens) because
 // the Launch payload is built later, at delivery time, not at creation.
 
-import type { BridgeAgentKind, BridgeTokenStore } from "../bridge-token-ports";
+import type {
+	BridgeAgentKind,
+	BridgeTokenConfig,
+	BridgeTokenStore,
+} from "../bridge-token-ports";
 import { generateToken, hashToken } from "../crypto/auth-tokens";
 
 const SESSION_CREDENTIAL_PREFIX = "bt_";
@@ -17,6 +21,11 @@ export interface RunSessionCredentialDeps {
 
 export interface RunSessionCredentialInput {
 	agentKind: BridgeAgentKind;
+	/** Startup config persisted onto the minted token, which the CLI reads back
+	 * via `startSession` and hands the adapter as `opts.config`. `tasks.resume`
+	 * sets `model`/`permissionMode` here so the continuation launches on the
+	 * same ones the previous run ended on (see tasks-resume.ts). */
+	config?: BridgeTokenConfig;
 	taskId: string;
 	userId: string;
 }
@@ -40,6 +49,7 @@ export function createRunSessionCredential(deps: RunSessionCredentialDeps) {
 			token,
 			tokenHash: hashToken(token),
 			last4: token.slice(-LAST4_LENGTH),
+			config: input.config,
 		});
 		return { token, tokenId: created.id };
 	};

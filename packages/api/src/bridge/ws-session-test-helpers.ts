@@ -66,6 +66,7 @@ export function build(
 						return Promise.resolve();
 					},
 					setAgentSessionId: () => Promise.resolve(),
+					setLastSessionInfo: () => Promise.resolve(),
 				},
 				bridgeMessage: {
 					appendMany: (_sessionId: string, rows: typeof persistedRows) => {

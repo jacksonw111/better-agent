@@ -259,7 +259,9 @@ it("hides the Thinking menu when the live handshake reports an empty thinkingLev
 
 it("shows a next-turn-effect tooltip on the model and permission menus for a codex session", async () => {
 	const { container } = await renderReady(
-		{ model: "gpt-5", models: ["gpt-5", "gpt-5-mini"] },
+		// Both values reported: the unknown-value tooltip would otherwise take
+		// precedence, and this spec is about the per-turn semantics tooltip.
+		{ model: "gpt-5", models: ["gpt-5", "gpt-5-mini"], permissionMode: "auto" },
 		CODEX_SESSION
 	);
 	const view = within(container);
@@ -275,6 +277,7 @@ it("does not show the next-turn-effect tooltip for a claude session", async () =
 	const { container } = await renderReady({
 		model: "opus",
 		models: ["opus", "sonnet"],
+		permissionMode: "default",
 	});
 	const view = within(container);
 

@@ -1,3 +1,4 @@
+import type { BridgeTokenConfig } from "@better-agent/agent/ports";
 import type { RunRow } from "@better-agent/agent/task-ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
@@ -41,6 +42,36 @@ async function reportedAgentSessionId(
 	return session?.agentSessionId ?? null;
 }
 
+/** The startup config the resumed run launches with: the model and permission
+ * mode the previous run was last observed on (persisted by ingest — see
+ * bridge-session-info.ts). Two things ride on this. Product-wise, continuing a
+ * conversation should keep the model and mode it was being held on rather than
+ * silently dropping back to the agent's defaults. Mechanically, the SDK offers
+ * no way to READ either value back, so a value the CLI passes to `query()`
+ * explicitly is the only kind it can report as TRUTH at startup — without it
+ * the resumed session's handshake must omit both fields (the composer's menus
+ * then show no selection) until claude's init line arrives, which in
+ * streaming-input mode waits for the user's first turn. Returns undefined when
+ * nothing was ever recorded, so a config-less token stays config-less rather
+ * than being pinned to a guess. */
+async function carriedStartupConfig(
+	services: Services,
+	run: RunRow
+): Promise<BridgeTokenConfig | undefined> {
+	if (!run.sessionId) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	const session = await services.stores.bridgeSession.get(run.sessionId);
+	const model = session?.lastModel ?? undefined;
+	const permissionMode = session?.lastPermissionMode ?? undefined;
+	if (model === undefined && permissionMode === undefined) {
+		// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+		return undefined;
+	}
+	return { model, permissionMode };
+}
+
 export const resume = authorizedUserProcedure
 	.input(z.object({ taskId: z.uuid() }))
 	.handler(async ({ input, context }) => {
@@ -65,6 +96,7 @@ export const resume = authorizedUserProcedure
 			task.computerId
 		);
 		const run = await appendRun(services, {
+			config: await carriedStartupConfig(services, latest),
 			issueSnapshots: latest.issueSnapshots,
 			resumeAgentSessionId: await reportedAgentSessionId(services, latest),
 			task,

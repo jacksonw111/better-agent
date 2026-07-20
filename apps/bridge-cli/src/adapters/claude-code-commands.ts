@@ -35,6 +35,24 @@ export function fetchSupportedCommands(
 	return Promise.race([commands, timeout]);
 }
 
+/** Fetches the catalog and pushes it as a one-time `command_catalog` once it
+ * lands. Fire-and-forget — `start()` must not wait on it (unlike the model
+ * list, nothing needs this inline in `session_ready`). Lives here rather than
+ * inline in claude-code.ts for that file's 300-line gate; mirrors
+ * `announceLateModels`. */
+export function announceCommandCatalog(
+	session: ClaudeQuery,
+	events: { push(event: NormalizedEvent): void }
+): void {
+	fetchSupportedCommands(session)
+		.then((commands) => {
+			if (commands && commands.length > 0) {
+				events.push(commandCatalogEvent(commands));
+			}
+		})
+		.catch(() => undefined);
+}
+
 /** Builds the `command_catalog` status event both the one-time initial fetch
  * (this file) and the mid-session `commands_changed` push
  * (normalize/claude-code.ts) emit — the web's `bridge-command-catalog.ts`

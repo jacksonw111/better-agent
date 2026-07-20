@@ -16,6 +16,13 @@ export interface BridgeSessionRow {
 	createdAt: Date;
 	id: string;
 	label: string | null;
+	/** The last model this session was observed running with (`session_ready`
+	 * / `model_changed`). Optional (not `string | null`) so pre-existing row
+	 * literals in tests keep compiling — same precedent as `runId`. */
+	lastModel?: string | null;
+	/** `lastModel`'s twin for the permission mode
+	 * (`session_ready` / `permission_mode_changed`). */
+	lastPermissionMode?: string | null;
 	lastSeenAt: Date;
 	/** P3-T1: user-set display name (web rename) — distinct from `label`, the
 	 * CLI's launch-time label, which is never mutated. */
@@ -75,6 +82,14 @@ export interface BridgeSessionStore {
 	setAgentSessionId(id: string, agentSessionId: string): Promise<void>;
 	/** Sets or clears `archivedAt`, owner-guarded. */
 	setArchived(id: string, userId: string, archived: boolean): Promise<void>;
+	/** Records the session's latest reported model / permission mode. Only the
+	 * PROVIDED fields are written (an omitted/undefined one leaves the stored
+	 * value alone), so a read-back carrying just one field can't blank the
+	 * other; last writer wins per field. A call with neither field is a no-op. */
+	setLastSessionInfo(
+		id: string,
+		info: { model?: string; permissionMode?: string }
+	): Promise<void>;
 	setStarred(id: string, userId: string, starred: boolean): Promise<void>;
 	setVncEndpoint(id: string, vncEndpoint: string | null): Promise<void>;
 	touch(id: string): Promise<void>;

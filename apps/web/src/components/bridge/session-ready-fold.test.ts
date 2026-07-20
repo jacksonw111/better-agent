@@ -160,3 +160,49 @@ describe("foldSessionReadyEvent id ordering", () => {
 		expect(sessionReadyOf(state)?.permissionMode).toBe("default");
 	});
 });
+
+describe("model_catalog (a model list that missed the handshake)", () => {
+	/** A listless handshake — what a slow SDK control channel produces. */
+	function readyWithoutModels(id: number): SessionReadyFold {
+		const next = foldSessionReadyEvent(initialSessionReadyFold, id, {
+			detail: { ...READY_DETAIL, model: undefined, models: undefined },
+			status: "session_ready",
+		});
+		if (next === undefined) {
+			throw new Error("session_ready must fold");
+		}
+		return next;
+	}
+
+	it("fills in the picker's list without touching the rest of the handshake", () => {
+		const state = fold(readyWithoutModels(1), 4, "model_catalog", {
+			models: ["sonnet", "opus"],
+		});
+		const detail = sessionReadyOf(state);
+		expect(detail?.models).toEqual(["sonnet", "opus"]);
+		// The capability handshake must survive it — the whole point of patching
+		// rather than re-folding a second session_ready.
+		expect(detail?.capabilities).toEqual(CAPS);
+		expect(detail?.sessionId).toBe("claude-1");
+	});
+
+	it("loses to a NEWER session_ready and to a newer catalog", () => {
+		let state = fold(readyWithoutModels(1), 4, "model_catalog", {
+			models: ["stale"],
+		});
+		state = fold(state, 9, "model_catalog", { models: ["fresh"] });
+		expect(sessionReadyOf(state)?.models).toEqual(["fresh"]);
+		// A restart's handshake (id 12) supersedes the old session's catalog.
+		state = ready(12, state);
+		expect(sessionReadyOf(state)?.models).toEqual(READY_DETAIL.models);
+	});
+
+	it("ignores a malformed or empty catalog", () => {
+		let state = fold(readyWithoutModels(1), 4, "model_catalog", {
+			models: [],
+		});
+		expect(sessionReadyOf(state)?.models).toBeUndefined();
+		state = fold(state, 5, "model_catalog", { models: "sonnet" });
+		expect(sessionReadyOf(state)?.models).toBeUndefined();
+	});
+});
