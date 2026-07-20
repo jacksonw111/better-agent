@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 // P3 session lifecycle: entering a settled session auto-resumes it (a new run
 // continuing the same thread) behind a loading veil; switching to a sibling
-// session stops the live process first, then navigates; the header offers
-// Stop while the agent is live; a failed resume surfaces its error with a
-// retry, outside the chat. The pure conversation-content contract lives in
+// session just navigates and LEAVES the live one running (sessions are
+// long-lived — only an explicit Stop ends one); the header offers Stop while
+// the agent is live; a failed resume surfaces its error with a retry, outside
+// the chat. The pure conversation-content contract lives in
 // task-conversation.test.tsx (300-line file cap).
 
 import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
@@ -149,7 +150,7 @@ it("surfaces a failed resume outside the chat, with a retry that resumes again",
 	});
 });
 
-it("stops the live session before switching to a sibling, then navigates", async () => {
+it("leaves the live session running when switching to a sibling, and just navigates", async () => {
 	store.detail = liveDetail();
 	store.sessions = siblingSessions();
 	const { view } = renderTaskConversation(TaskConversation);
@@ -162,14 +163,14 @@ it("stops the live session before switching to a sibling, then navigates", async
 	);
 	fireEvent.click(target);
 
-	// Stop first (the same bridge.endSession path as the header's Stop) …
-	await waitFor(() => {
-		expect(store.endSessionCalls).toEqual(["session-1"]);
-	});
-	// … then navigate to the target session, whose own mount resumes it.
+	// Straight to the target session — no stop, no veil. The session we left
+	// keeps working in the background (that's what the global active-session
+	// indicator surfaces); only an explicit Stop ends one.
 	await waitFor(() => {
 		expect(store.navigations).toEqual(["task-2"]);
 	});
+	expect(store.endSessionCalls).toEqual([]);
+	expect(view.queryByText(STOPPING_LABEL)).toBeNull();
 	expect(store.resumeCalls).toEqual([]);
 });
 

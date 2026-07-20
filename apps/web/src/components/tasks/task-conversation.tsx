@@ -28,11 +28,11 @@ import {
 
 // P3: the /tasks/$taskId body — one SESSION's chat. The left pane lists the
 // sibling sessions (same computer + agent); the conversation always follows
-// the session's LATEST run. Entering a settled session auto-resumes it and
-// switching away from a live one stops its process first — both transitions
-// veiled by the loading overlay (see use-session-lifecycle.ts). Earlier runs'
-// history replays read-only above the live feed (past-run-history.tsx), so
-// the thread never loses what came before.
+// the session's LATEST run. Entering a settled session auto-resumes it behind
+// the loading overlay; switching away from a LIVE one leaves it running (see
+// use-session-lifecycle.ts) — the global indicator is where you find it again.
+// Earlier runs' history replays read-only above the live feed
+// (past-run-history.tsx), so the thread never loses what came before.
 
 /** Poll cadence for tasks.get — run status moves server-side (launch, client
  * status reports, session binding), so the page follows on its own. */
@@ -119,10 +119,7 @@ function ConversationMain({
 				headerStart={drawerToggle}
 				workspacePath={currentRun?.workspacePath ?? null}
 			/>
-			{lifecycle.switching && <TransitionOverlay label="正在结束当前会话…" />}
-			{!lifecycle.switching && lifecycle.resuming && (
-				<TransitionOverlay label="正在恢复会话…" />
-			)}
+			{lifecycle.resuming && <TransitionOverlay label="正在恢复会话…" />}
 		</div>
 	);
 }

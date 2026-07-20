@@ -9,13 +9,15 @@ import type { TaskDetail, TaskRun } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 
 // P3: the session chat's lifecycle transitions, split out of
-// task-conversation.tsx (300-line file cap). One hook owns all three moves:
+// task-conversation.tsx (300-line file cap). One hook owns the moves:
 //  - entering a SETTLED session auto-resumes it (tasks.resume appends a new
 //    run continuing the same runtime conversation) — this is also what fixes
 //    "an ended session can't be reopened";
-//  - switching to a sibling session STOPS the live process first
-//    (bridge.endSession, the same best-effort stop-control path the /local
-//    workspace uses), then navigates — the target's own mount resumes it;
+//  - switching to a sibling session just NAVIGATES. Sessions are long-lived
+//    work units: leaving the page (or hopping to a sibling) must never end
+//    one, or the user loses the agent that was still working for them. The
+//    ONLY way a session ends is the header's explicit Stop (below) — which is
+//    also what makes the global active-session indicator meaningful.
 //  - the header's Stop ends the live run's session in place.
 
 /** A run in one of these states is settled — entering the session appends a
@@ -43,13 +45,11 @@ export interface SessionLifecycle {
 	 * status — drives the "正在恢复会话…" overlay. */
 	resuming: boolean;
 	retryResume: () => void;
-	/** Switches to a sibling session, stopping the live process first. */
+	/** Switches to a sibling session — a pure navigation. The session being
+	 * left keeps running in the background. */
 	selectSession: (taskId: string) => void;
 	stop: () => void;
 	stopPending: boolean;
-	/** True while the stop-before-switch is in flight — drives the
-	 * "正在结束当前会话…" overlay. */
-	switching: boolean;
 }
 
 function useResumeMutation(
@@ -116,25 +116,17 @@ interface MoveDeps {
 	goTo: (taskId: string) => void;
 	latestRun: TaskRun | null;
 	onInvalidate: () => void;
-	setSwitching: (next: boolean) => void;
-	switching: boolean;
 	taskId: string;
 }
 
-/** The stop / stop-then-navigate moves, built from the hook's live deps —
- * split out purely for the max-lines-per-function gate. */
+/** The navigate / stop moves, built from the hook's live deps — split out
+ * purely for the max-lines-per-function gate. Switching sessions deliberately
+ * does NOT touch the current run: the session keeps working in the background
+ * and stays listed in the global active-session indicator. */
 function sessionMoves(deps: MoveDeps) {
-	const { endMutate, goTo, latestRun, switching, taskId } = deps;
+	const { endMutate, goTo, latestRun, taskId } = deps;
 	const selectSession = (nextTaskId: string) => {
-		if (nextTaskId === taskId || switching) {
-			return;
-		}
-		if (latestRun?.sessionId && !TERMINAL_RUN_STATUSES.has(latestRun.status)) {
-			deps.setSwitching(true);
-			endMutate(
-				{ sessionId: latestRun.sessionId },
-				{ onSettled: () => goTo(nextTaskId) }
-			);
+		if (nextTaskId === taskId) {
 			return;
 		}
 		goTo(nextTaskId);
@@ -159,7 +151,6 @@ export function useSessionLifecycle(
 	const navigate = useNavigate();
 	const [resumedRunId, setResumedRunId] = useState<string | null>(null);
 	const [resumeError, setResumeError] = useState<string | null>(null);
-	const [switching, setSwitching] = useState(false);
 	const latestRun = detail?.runs.at(-1) ?? null;
 
 	const resume = useResumeMutation(
@@ -177,8 +168,6 @@ export function useSessionLifecycle(
 		latestRun,
 		onInvalidate: () =>
 			queryClient.invalidateQueries({ queryKey: orpc.tasks.get.key() }),
-		setSwitching,
-		switching,
 		taskId,
 	});
 
@@ -192,7 +181,6 @@ export function useSessionLifecycle(
 			setResumeError(null);
 			resume.mutate({ taskId });
 		},
-		stopPending: endSession.isPending && !switching,
-		switching,
+		stopPending: endSession.isPending,
 	};
 }

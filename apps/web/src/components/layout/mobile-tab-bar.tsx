@@ -6,6 +6,7 @@ import { BookMarked, Bot, EllipsisIcon, Gauge, Laptop } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useImmersiveChat } from "@/components/layout/use-immersive-chat";
+import { ActiveSessionsIndicator } from "@/components/tasks/active-sessions-indicator";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -165,6 +166,10 @@ export function MobileTabBar() {
 						key={item.to}
 					/>
 				))}
+				{/* Not a destination — a live status tab. Sessions keep running when
+				    you leave a page, so the dock needs its own way to show what's
+				    still working; its panel opens upward, over the dock. */}
+				<ActiveSessionsIndicator side="top" variant="dock" />
 				<MoreTabButton />
 			</nav>
 		</div>

@@ -6,7 +6,11 @@ import { PanelLeftIcon } from "lucide-react";
 import type { TaskListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { relativeTime } from "@/utils/relative-time";
-import { RunStatusChip } from "./task-status-chip";
+import {
+	isLiveRunStatus,
+	RunStatusChip,
+	runNeedsAttention,
+} from "./task-status-chip";
 
 // P3: the chat window's LEFT pane — the sibling sessions of the one being
 // viewed (same computer + same agent runtime, via tasks.list's server-side
@@ -20,10 +24,15 @@ import { RunStatusChip } from "./task-status-chip";
 /** Matches the session-list page's poll so both surfaces feel equally live. */
 const SESSIONS_REFETCH_INTERVAL_MS = 10_000;
 
-const GREEN_DOT_STATUSES: ReadonlySet<string> = new Set([
-	"running",
-	"waiting_for_user",
-]);
+/** A row's live state, read straight from the shared status semantics so the
+ * sidebar can't drift from the global indicator's colouring. */
+function rowLiveness(session: TaskListItem) {
+	const status = session.latestRun?.status ?? null;
+	return {
+		attention: runNeedsAttention(status),
+		live: isLiveRunStatus(status),
+	};
+}
 
 function newestFirst(sessions: TaskListItem[]): TaskListItem[] {
 	return [...sessions].sort(
@@ -43,8 +52,36 @@ export function siblingSessionsOf(
 	return sessions.filter((session) => session.projectId === projectId);
 }
 
+/** Active wins (it's the row you're reading), then the waiting-on-you tint,
+ * then the plain hover. Split out of `SessionRow` for the complexity gate. */
+function sessionRowClass(active: boolean, attention: boolean): string {
+	if (active) {
+		return "bg-muted/70";
+	}
+	return attention
+		? "bg-amber-500/10 hover:bg-amber-500/20"
+		: "hover:bg-muted/40";
+}
+
+/** The live dot beside a running session's name — amber when it's blocked on
+ * the user, otherwise the working green. */
+function LiveDot({ attention }: { attention: boolean }) {
+	return (
+		<span
+			aria-hidden
+			className={cn(
+				"size-1.5 shrink-0 rounded-full",
+				attention ? "bg-amber-500" : "bg-emerald-500"
+			)}
+		/>
+	);
+}
+
 /** One session row: the whole row switches sessions (tint + radius, no
- * borders — same active/hover treatment as the /local session rows). */
+ * borders — same active/hover treatment as the /local session rows). A still-
+ * running session carries a live dot beside its name, and one blocked on the
+ * user gets an amber tint — switching away no longer stops anything, so the
+ * list has to say which siblings are still working. */
 function SessionRow({
 	active,
 	onSelect,
@@ -54,18 +91,24 @@ function SessionRow({
 	onSelect: () => void;
 	session: TaskListItem;
 }) {
+	const { attention, live } = rowLiveness(session);
 	return (
 		<button
 			aria-current={active ? "true" : undefined}
 			className={cn(
 				"flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors",
-				active ? "bg-muted/70" : "hover:bg-muted/40"
+				sessionRowClass(active, attention)
 			)}
+			data-attention={attention ? "true" : undefined}
+			data-live={live ? "true" : undefined}
 			onClick={onSelect}
 			type="button"
 		>
 			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="truncate text-sm">{session.name}</span>
+				<span className="flex min-w-0 items-center gap-1.5">
+					{live && <LiveDot attention={attention} />}
+					<span className="truncate text-sm">{session.name}</span>
+				</span>
 				<span className="truncate text-muted-foreground text-xs">
 					{relativeTime(new Date(session.createdAt).toISOString())}
 				</span>
@@ -182,6 +225,7 @@ function RailSessionButton({
 	onSelect: () => void;
 	session: TaskListItem;
 }) {
+	const { attention, live } = rowLiveness(session);
 	return (
 		<button
 			aria-current={active ? "true" : undefined}
@@ -190,6 +234,8 @@ function RailSessionButton({
 				"flex size-7 shrink-0 items-center justify-center rounded-lg transition-colors",
 				active ? "bg-muted/70" : "hover:bg-muted/40"
 			)}
+			data-attention={attention ? "true" : undefined}
+			data-live={live ? "true" : undefined}
 			onClick={onSelect}
 			title={session.name}
 			type="button"
@@ -198,9 +244,9 @@ function RailSessionButton({
 				aria-hidden
 				className={cn(
 					"size-2 rounded-full",
-					GREEN_DOT_STATUSES.has(session.latestRun?.status ?? "")
-						? "bg-emerald-500"
-						: "bg-muted-foreground/40"
+					attention && "bg-amber-500",
+					live && !attention && "bg-emerald-500",
+					live || "bg-muted-foreground/40"
 				)}
 			/>
 		</button>

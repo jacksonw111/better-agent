@@ -1,10 +1,16 @@
 import { Skeleton } from "@better-agent/ui/components/skeleton";
+import { cn } from "@better-agent/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ChevronRightIcon, FolderGit2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
+import {
+	type ActiveSessionsSummary,
+	countActiveByProject,
+	useActiveSessions,
+} from "@/components/tasks/active-sessions";
 import type { ProjectListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { isClonePending, ProjectStatusChip } from "./project-status-chip";
@@ -36,10 +42,43 @@ export function projectsPollInterval(
 	return pending ? PROJECT_POLL_INTERVAL_MS : false;
 }
 
+/** "N active" beside a project whose sessions are still working — amber when
+ * one of them is blocked on the user. Sessions outlive the page you started
+ * them from, so this is how a project row admits it still has work in flight. */
+function ActiveSessionsBadge({ summary }: { summary: ActiveSessionsSummary }) {
+	if (summary.total === 0) {
+		return null;
+	}
+	return (
+		<span
+			className={cn(
+				"flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-xs",
+				summary.needsAttention
+					? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+					: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+			)}
+			data-testid="project-active-sessions"
+		>
+			<span
+				aria-hidden
+				className={cn(
+					"size-1.5 rounded-full",
+					summary.needsAttention ? "bg-amber-500" : "bg-emerald-500"
+				)}
+			/>
+			{summary.needsAttention
+				? `${summary.total} active · ${summary.attentionCount} waiting`
+				: `${summary.total} active`}
+		</span>
+	);
+}
+
 function ProjectRow({
+	activeSummary,
 	onDelete,
 	project,
 }: {
+	activeSummary: ActiveSessionsSummary | undefined;
 	onDelete: (id: string) => void;
 	project: ProjectListItem;
 }) {
@@ -63,6 +102,7 @@ function ProjectRow({
 					</span>
 				)}
 			</span>
+			{activeSummary && <ActiveSessionsBadge summary={activeSummary} />}
 			<ProjectStatusChip status={project.status} />
 			<span className="relative flex items-center">
 				<DeleteConfirm
@@ -105,6 +145,8 @@ export function ComputerProjectList({ computerId }: { computerId: string }) {
 		refetchInterval: (state) => projectsPollInterval(state.state.data),
 	});
 	const deleteProject = useDeleteProjectRow();
+	const { sessions } = useActiveSessions();
+	const activeByProject = countActiveByProject(sessions ?? []);
 	const projects = query.data;
 	if (!projects) {
 		return <ProjectListSkeleton />;
@@ -122,6 +164,7 @@ export function ComputerProjectList({ computerId }: { computerId: string }) {
 		<div className="flex flex-col gap-2">
 			{projects.map((project) => (
 				<ProjectRow
+					activeSummary={activeByProject[project.id]}
 					key={project.id}
 					onDelete={(id) => deleteProject.mutate({ projectId: id })}
 					project={project}

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -17,7 +18,24 @@ const store = vi.hoisted(() => ({
 	setOpenMobileCalls: [] as boolean[],
 }));
 
+// The dock carries the global active-session tab, which queries
+// tasks.listActive — stubbed here so these tests stay about the dock itself.
+vi.mock("@/utils/orpc", () => ({
+	orpc: {
+		tasks: {
+			listActive: {
+				key: () => ["tasks", "listActive"],
+				queryOptions: () => ({
+					queryKey: ["tasks", "listActive"],
+					queryFn: () => Promise.resolve({ sessions: [] }),
+				}),
+			},
+		},
+	},
+}));
+
 vi.mock("@tanstack/react-router", () => ({
+	useNavigate: () => () => Promise.resolve(),
 	useRouterState: (opts: { select: (state: unknown) => unknown }) =>
 		opts.select({
 			location: { pathname: store.pathname, search: store.search },
@@ -47,7 +65,14 @@ vi.mock("@better-agent/ui/components/sidebar", () => ({
 }));
 
 function renderBar() {
-	const { container } = render(<MobileTabBar />);
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	const { container } = render(
+		<QueryClientProvider client={queryClient}>
+			<MobileTabBar />
+		</QueryClientProvider>
+	);
 	return within(container);
 }
 
@@ -74,6 +99,12 @@ it("renders a tab for each primary destination plus More", () => {
 		view.getByRole("link", { name: MEMORIES_LABEL_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("button", { name: MORE_LABEL_PATTERN })).toBeDefined();
+});
+
+it("carries the global active-sessions tab so running work is reachable from the dock", () => {
+	const view = renderBar();
+
+	expect(view.getByTestId("active-sessions-trigger")).toBeDefined();
 });
 
 it("tints the tab matching the current route as active", () => {

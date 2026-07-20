@@ -3,6 +3,7 @@ import { AppShellSidebar } from "@better-agent/ui/components/app-shell-sidebar";
 import { Bot } from "lucide-react";
 
 import { WEB_NAV_ITEMS } from "@/components/nav-items";
+import { ActiveSessionsIndicator } from "@/components/tasks/active-sessions-indicator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 
@@ -24,6 +25,10 @@ export function WebSidebar() {
 			brand={{ icon: Bot, title: "better-agent" }}
 			footer={
 				<div className="flex items-center gap-1">
+					{/* Sessions keep running after you navigate away, so the footer
+					    carries a permanent "what's still working / what wants me"
+					    entry — quiet at zero, amber when one is blocked on you. */}
+					<ActiveSessionsIndicator side="right" />
 					<UserMenu />
 					<ThemeToggle />
 				</div>

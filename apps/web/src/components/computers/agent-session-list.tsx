@@ -1,5 +1,6 @@
 import { Button } from "@better-agent/ui/components/button";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
+import { cn } from "@better-agent/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { MessagesSquareIcon, PlusIcon } from "lucide-react";
@@ -7,7 +8,11 @@ import { toast } from "sonner";
 import { AgentKindIcon } from "@/components/bridge/local-agent-kind-icon";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import { EmptyState } from "@/components/layout/empty-state";
-import { RunStatusChip } from "@/components/tasks/task-status-chip";
+import {
+	isLiveRunStatus,
+	RunStatusChip,
+	runNeedsAttention,
+} from "@/components/tasks/task-status-chip";
 import type { TaskListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { relativeTime } from "@/utils/relative-time";
@@ -28,21 +33,44 @@ export function parseAgentKind(value: string): AgentKind | null {
 }
 
 /** One session row: name, latest-run status chip, relative age — the whole
- * row opens the chat (tint + radius, no borders). */
+ * row opens the chat (tint + radius, no borders). Sessions keep running when
+ * you leave their chat, so a live one shows a dot beside its name and one
+ * blocked on the user tints amber. */
 function SessionRow({ session }: { session: TaskListItem }) {
+	const status = session.latestRun?.status ?? null;
+	const attention = runNeedsAttention(status);
+	const live = isLiveRunStatus(status);
 	return (
 		<Link
-			className="flex items-center gap-3 rounded-xl bg-muted/40 px-4 py-3 transition-colors hover:bg-muted/70"
+			className={cn(
+				"flex items-center gap-3 rounded-xl px-4 py-3 transition-colors",
+				attention
+					? "bg-amber-500/10 hover:bg-amber-500/20"
+					: "bg-muted/40 hover:bg-muted/70"
+			)}
+			data-attention={attention ? "true" : undefined}
+			data-live={live ? "true" : undefined}
 			params={{ taskId: session.id }}
 			to="/tasks/$taskId"
 		>
 			<span className="flex min-w-0 flex-1 flex-col">
-				<span className="truncate font-medium text-sm">{session.name}</span>
+				<span className="flex min-w-0 items-center gap-2">
+					{live && (
+						<span
+							aria-hidden
+							className={cn(
+								"size-1.5 shrink-0 rounded-full",
+								attention ? "bg-amber-500" : "bg-emerald-500"
+							)}
+						/>
+					)}
+					<span className="truncate font-medium text-sm">{session.name}</span>
+				</span>
 				<span className="truncate text-muted-foreground text-xs">
 					{relativeTime(new Date(session.createdAt).toISOString())}
 				</span>
 			</span>
-			<RunStatusChip status={session.latestRun?.status ?? null} />
+			<RunStatusChip status={status} />
 		</Link>
 	);
 }

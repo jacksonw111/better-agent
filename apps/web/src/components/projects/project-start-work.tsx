@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AgentKindIcon } from "@/components/bridge/local-agent-kind-icon";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
+import { RunStatusChip } from "@/components/tasks/task-status-chip";
 import type {
 	ComputerListItem,
 	ProjectListItem,
@@ -130,6 +131,9 @@ function SessionPicker({
 							{relativeTime(new Date(session.createdAt).toISOString())}
 						</span>
 					</span>
+					{/* Sessions survive navigation now, so the picker has to say which
+					    of these are still running before you pick one. */}
+					<RunStatusChip status={session.latestRun?.status ?? null} />
 				</ChoiceRow>
 			))}
 		</div>
