@@ -13,10 +13,12 @@ import { findOnPath } from "./adapters/process-io";
 import type { AgentKind } from "./adapters/types";
 
 // Inventory detection (D2): PATH-existence probes in a FIXED order — claude,
-// opencode, codex, pi, git, gh — and nothing more. No `gh auth status`, no
-// runtime activation, no health checks: the platform reports installed-or-not
-// facts and never claims a binary is authenticated. claude-code is the only
-// v1 runtime with discoverable skills (~/.claude/skills/*/SKILL.md).
+// opencode, codex, pi, git, gh, agent-browser, agent-device — and nothing
+// more. No `gh auth status`, no `agent-device doctor`, no runtime activation,
+// no health checks (master spec §3.5): the platform reports installed-or-not
+// facts and never claims a binary is authenticated or functional.
+// claude-code is the only v1 runtime with discoverable skills
+// (~/.claude/skills/*/SKILL.md).
 
 const RUNTIME_PROBE_ORDER: AgentKind[] = [
 	"claude-code",
@@ -24,7 +26,56 @@ const RUNTIME_PROBE_ORDER: AgentKind[] = [
 	"codex",
 	"pi",
 ];
-const MANAGED_TOOLS: ManagedToolName[] = ["git", "gh"];
+const MANAGED_TOOLS: ManagedToolName[] = [
+	"git",
+	"gh",
+	"agent-browser",
+	"agent-device",
+];
+
+/** Whether the bridge may offer to install a managed tool for the user, and
+ * how. `assisted: false` means detect-only — never propose an install. */
+export interface ManagedToolInstallInfo {
+	assisted: boolean;
+	command?: string;
+	note?: string;
+}
+
+/** Install policy per managed tool
+ * (docs/research/2026-07-20-agent-browser-device-integration.md §E).
+ * agent-browser ships prebuilt static binaries for every supported platform
+ * with no runtime dependency, so an assisted install is safe. agent-device's
+ * npm package is small but its REAL dependency is a full Xcode install and/or
+ * the Android SDK platform-tools — tens of gigabytes we must never pull down
+ * on a user's behalf — so it is detected only. git and gh are system tools the
+ * platform reports on but does not manage the installation of. */
+export const MANAGED_TOOL_INSTALL: Record<
+	ManagedToolName,
+	ManagedToolInstallInfo
+> = {
+	"agent-browser": { assisted: true, command: "npm i -g agent-browser" },
+	"agent-device": {
+		assisted: false,
+		note: "agent-device needs a full Xcode install (for iOS simctl) and/or the Android SDK platform-tools (for adb); Better Agent detects it but never installs it.",
+	},
+	gh: { assisted: false, note: "Install gh from https://cli.github.com." },
+	git: {
+		assisted: false,
+		note: "Install git with your system package manager.",
+	},
+};
+
+/** The missing tools the bridge may offer to install — the ONLY sanctioned
+ * source for an install prompt, so agent-device can never leak into one. */
+export function assistedInstallCandidates(
+	toolInventory: ManagedToolInventoryItem[]
+): ManagedToolName[] {
+	return toolInventory
+		.filter(
+			(tool) => !tool.installed && MANAGED_TOOL_INSTALL[tool.name].assisted
+		)
+		.map((tool) => tool.name);
+}
 
 export interface ComputerInventory {
 	runtimeInventory: ComputerRuntimeInventoryItem[];

@@ -43,7 +43,7 @@ const runtimeInventoryItemInput = z.object({
 
 const toolInventoryItemInput = z.object({
 	installed: z.boolean(),
-	name: z.enum(["git", "gh"]),
+	name: z.enum(["git", "gh", "agent-browser", "agent-device"]),
 });
 
 const attributesInputShape = {

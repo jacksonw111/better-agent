@@ -1,4 +1,7 @@
-import type { ManagedToolInventoryItem } from "@better-agent/agent/computer-ports";
+import type {
+	ManagedToolInventoryItem,
+	ManagedToolName,
+} from "@better-agent/agent/computer-ports";
 import type { IssueSnapshot } from "@better-agent/agent/task-ports";
 
 // S25-T1 (master spec §10.2): the Agent-facing Task Start Context, assembled
@@ -56,13 +59,32 @@ function gitHubBlocks(
 	];
 }
 
+/** One orientation line for tools the agent cannot be assumed to already know
+ * (git and gh need none). Still a fact line, not a tutorial: it says what the
+ * tool is for and the one command that gets the agent started — everything
+ * else it discovers via `--help`. No health or capability promise: whether a
+ * browser or a device is actually available is decided by real command output
+ * (§3.5's no-preflight rule). */
+const TOOL_USAGE_HINTS: Partial<Record<ManagedToolName, string>> = {
+	"agent-browser":
+		"It drives a browser from the shell and keeps state in a daemon across commands: `agent-browser open <url>` then `agent-browser snapshot -i` prints a compact accessibility tree whose `@ref` handles later commands act on; run `agent-browser --help` for the rest.",
+	"agent-device":
+		"It drives iOS/Android devices and simulators from the shell; run `agent-device devices` to see what this machine actually has and `agent-device --help` for the rest.",
+};
+
+function toolFactLines(tool: ManagedToolInventoryItem): string[] {
+	const fact = `- ${tool.name} is installed and managed by Better Agent.`;
+	const hint = TOOL_USAGE_HINTS[tool.name];
+	return hint === undefined ? [fact] : [fact, `- ${hint}`];
+}
+
 function environmentBlock(
 	toolInventory: ManagedToolInventoryItem[],
 	workspacePath: string
 ): string {
 	const toolFacts = toolInventory
 		.filter((tool) => tool.installed)
-		.map((tool) => `- ${tool.name} is installed and managed by Better Agent.`);
+		.flatMap(toolFactLines);
 	return [
 		"## Agent environment",
 		...toolFacts,

@@ -37,7 +37,7 @@ export interface ComputerRuntimeInventoryItem {
 
 /** Managed tools the platform cares about (installed-or-not facts only —
  * authentication is never preflighted). */
-export type ManagedToolName = "git" | "gh";
+export type ManagedToolName = "git" | "gh" | "agent-browser" | "agent-device";
 
 export interface ManagedToolInventoryItem {
 	installed: boolean;

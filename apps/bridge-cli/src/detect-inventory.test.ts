@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import { detectComputerInventory } from "./detect-inventory";
+import {
+	assistedInstallCandidates,
+	detectComputerInventory,
+	MANAGED_TOOL_INSTALL,
+} from "./detect-inventory";
 
 // D2: PATH-existence probes in a FIXED order (claude, opencode, codex, pi,
-// git, gh) and nothing else — no `gh auth status`, no runtime activation.
-// claude-code is the only skill-discoverable runtime: its skills come from
-// scanning <skillsDir>/*/SKILL.md frontmatter, injected here as fake fs.
+// git, gh, agent-browser, agent-device) and nothing else — no `gh auth
+// status`, no `agent-device doctor`, no runtime activation. claude-code is the
+// only skill-discoverable runtime: its skills come from scanning
+// <skillsDir>/*/SKILL.md frontmatter, injected here as fake fs.
 
 function findOnly(binaries: string[]): (binary: string) => string | undefined {
 	const installed = new Set(binaries);
@@ -30,17 +35,21 @@ describe("detectComputerInventory - probes", () => {
 			"pi",
 			"git",
 			"gh",
+			"agent-browser",
+			"agent-device",
 		]);
 		expect(inventory.runtimeInventory).toEqual([]);
 		expect(inventory.toolInventory).toEqual([
 			{ installed: false, name: "git" },
 			{ installed: false, name: "gh" },
+			{ installed: false, name: "agent-browser" },
+			{ installed: false, name: "agent-device" },
 		]);
 	});
 
 	it("reports installed runtimes with their skill capability", async () => {
 		const inventory = await detectComputerInventory({
-			findExecutable: findOnly(["claude", "codex", "git", "gh"]),
+			findExecutable: findOnly(["claude", "codex", "git", "agent-browser"]),
 			readDirNames: () => Promise.reject(new Error("ENOENT")),
 		});
 		expect(inventory.runtimeInventory).toEqual([
@@ -49,8 +58,52 @@ describe("detectComputerInventory - probes", () => {
 		]);
 		expect(inventory.toolInventory).toEqual([
 			{ installed: true, name: "git" },
-			{ installed: true, name: "gh" },
+			{ installed: false, name: "gh" },
+			{ installed: true, name: "agent-browser" },
+			{ installed: false, name: "agent-device" },
 		]);
+	});
+});
+
+// P0 (docs/research/2026-07-20-agent-browser-device-integration.md §E):
+// agent-browser ships static binaries and is safe to offer as an assisted
+// install; agent-device's real dependency is a full Xcode / Android SDK
+// toolchain, so it is detected but NEVER offered for automatic installation.
+describe("managed tool install eligibility", () => {
+	it("marks agent-browser assisted and agent-device detect-only", () => {
+		expect(MANAGED_TOOL_INSTALL["agent-browser"].assisted).toBe(true);
+		expect(MANAGED_TOOL_INSTALL["agent-browser"].command).toBeDefined();
+		expect(MANAGED_TOOL_INSTALL["agent-device"].assisted).toBe(false);
+		expect(MANAGED_TOOL_INSTALL["agent-device"].command).toBeUndefined();
+		expect(MANAGED_TOOL_INSTALL["agent-device"].note).toContain("Xcode");
+		expect(MANAGED_TOOL_INSTALL["agent-device"].note).toContain("Android SDK");
+	});
+
+	it("never offers to install git or gh", () => {
+		expect(MANAGED_TOOL_INSTALL.git.assisted).toBe(false);
+		expect(MANAGED_TOOL_INSTALL.gh.assisted).toBe(false);
+	});
+});
+
+describe("assistedInstallCandidates", () => {
+	it("offers only missing tools that are assisted-installable", () => {
+		expect(
+			assistedInstallCandidates([
+				{ installed: false, name: "git" },
+				{ installed: false, name: "gh" },
+				{ installed: false, name: "agent-browser" },
+				{ installed: false, name: "agent-device" },
+			])
+		).toEqual(["agent-browser"]);
+	});
+
+	it("excludes tools that are already installed", () => {
+		expect(
+			assistedInstallCandidates([
+				{ installed: true, name: "agent-browser" },
+				{ installed: false, name: "agent-device" },
+			])
+		).toEqual([]);
 	});
 });
 

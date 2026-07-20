@@ -59,6 +59,49 @@ describe("buildTaskStartContext - environment template", () => {
 	});
 });
 
+// P0: agent-browser / agent-device are managed tools like git/gh, so they get
+// the same installed-fact line — plus ONE orientation line each, because
+// unlike git the agent cannot be assumed to know they exist. Still facts, not
+// tutorials: the agent runs `--help` for the rest.
+describe("buildTaskStartContext - agent tool orientation", () => {
+	it("adds a single usage line after each new tool's fact line", async () => {
+		const context = await buildTaskStartContext(
+			{
+				description: "d",
+				issueSnapshots: [],
+				toolInventory: [
+					{ installed: true, name: "agent-browser" },
+					{ installed: true, name: "agent-device" },
+				],
+				workspacePath: WORKSPACE,
+			},
+			identityResolve
+		);
+		expect(context).toBe(`d
+
+## Agent environment
+- agent-browser is installed and managed by Better Agent.
+- It drives a browser from the shell and keeps state in a daemon across commands: \`agent-browser open <url>\` then \`agent-browser snapshot -i\` prints a compact accessibility tree whose \`@ref\` handles later commands act on; run \`agent-browser --help\` for the rest.
+- agent-device is installed and managed by Better Agent.
+- It drives iOS/Android devices and simulators from the shell; run \`agent-device devices\` to see what this machine actually has and \`agent-device --help\` for the rest.
+- Authentication and current health have not been preflighted; actual command output is authoritative.
+- Task workspace: ${WORKSPACE}`);
+	});
+
+	it("omits the usage line when the tool is not installed", async () => {
+		const context = await buildTaskStartContext(
+			{
+				description: "d",
+				issueSnapshots: [],
+				toolInventory: [{ installed: false, name: "agent-browser" }],
+				workspacePath: WORKSPACE,
+			},
+			identityResolve
+		);
+		expect(context).not.toContain("agent-browser");
+	});
+});
+
 describe("buildTaskStartContext - GitHub block", () => {
 	it("renders the Repository line and issue sections between description and environment", async () => {
 		const context = await buildTaskStartContext(
