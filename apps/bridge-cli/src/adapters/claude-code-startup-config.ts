@@ -75,8 +75,20 @@ export function claudeMcpServers(
 
 /** The subset of the SDK's `query()` options this file derives from the
  * persisted startup config — spread into `startClaudeQuery`'s options object
- * as one expression, rather than one optional-chained field at a time. */
+ * as one expression, rather than one optional-chained field at a time.
+ *
+ * `allowDangerouslySkipPermissions` is ALWAYS `true`: it's the SDK's
+ * spawn-time gate that merely PERMITS the `bypassPermissions` mode — it does
+ * not itself change how tools are gated (the live `permissionMode` still
+ * governs that; a `default`/`plan`/… session keeps prompting). We set it on
+ * every claude session because `bypassPermissions` is now an offered mode
+ * (see session-capabilities.ts) and the flag is spawn-only — the SDK exposes
+ * no runtime control request to toggle it — so without it a LIVE
+ * `setPermissionMode('bypassPermissions')` would be silently refused
+ * (`bypass_permissions_disabled`) rather than take effect. Setting it up front
+ * lets the owner switch a running session into full-auto with no restart. */
 export function configQueryOptions(config: AgentStartConfig | undefined): {
+	allowDangerouslySkipPermissions: true;
 	effort: AgentStartConfig["effort"];
 	maxBudgetUsd: number | undefined;
 	maxTurns: number | undefined;
@@ -91,5 +103,6 @@ export function configQueryOptions(config: AgentStartConfig | undefined): {
 		effort: config?.effort,
 		model: config?.model,
 		permissionMode: startupPermissionMode(config),
+		allowDangerouslySkipPermissions: true,
 	};
 }

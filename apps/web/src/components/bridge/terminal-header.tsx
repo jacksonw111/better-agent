@@ -56,6 +56,7 @@ export function TerminalHeader({
 						<SessionIdLabel
 							agentKind={agentKind}
 							caps={actions.caps}
+							permissionMode={sessionReady?.permissionMode}
 							sessionId={sessionId}
 						/>
 						<TerminalStatus status={status} />

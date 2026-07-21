@@ -10,7 +10,7 @@ import {
 // matrix itself; terminal.test.tsx / terminal-controls.test.tsx cover the UI
 // actually gating on it.
 
-it("gives claude the full matrix — every optional surface on, the safe permission-mode subset", () => {
+it("gives claude the full matrix — every optional surface on, including the full-auto permission mode", () => {
 	const claude = capabilities("claude-code");
 	expect(claude.reasoning).toBe(true);
 	expect(claude.sessionList).toBe(true);
@@ -27,17 +27,18 @@ it("gives claude the full matrix — every optional surface on, the safe permiss
 		"acceptEdits",
 		"plan",
 		"dontAsk",
+		"bypassPermissions",
 	]);
 });
 
-// T0 security regression: `bypassPermissions`/`auto` both grant tool
-// execution without the web's `canUseTool` approval gate — a relayed
-// `setPermissionMode` offering them as one-click LIVE options would flip a
-// running session into ungated shell with no re-auth. They must never
-// reappear in the web-selectable set, however the safe subset above evolves.
-it("never offers bypassPermissions or auto as web-selectable claude permission modes", () => {
+// Owner request: `bypassPermissions` (full-auto "allow everything") is now an
+// offered mode — the CLI spawns with allowDangerouslySkipPermissions so a live
+// switch takes effect, and a session in it wears a persistent warning badge.
+// `auto` stays OUT: it routes prompts through a model classifier (different
+// behavior than the unconditional allow requested), so it is never offered.
+it("offers bypassPermissions (full-auto) but never auto as web-selectable claude permission modes", () => {
 	const claude = capabilities("claude-code");
-	expect(claude.permissionModes).not.toContain("bypassPermissions");
+	expect(claude.permissionModes).toContain("bypassPermissions");
 	expect(claude.permissionModes).not.toContain("auto");
 });
 

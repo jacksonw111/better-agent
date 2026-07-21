@@ -9,9 +9,19 @@ import type { AgentKind, SessionCapabilities } from "./types";
 
 /** claude-code: the SDK's full control surface — live MCP reconfiguration,
  * on-demand quota/context usage, a `list` session op (`listSessions`), and
- * the safe permission-mode subset (see agent-capabilities.ts's doc comment
- * on why `bypassPermissions`/`auto` are excluded). No thinking-level concept
- * — effort is a config-side (startup) knob today, not a live control. */
+ * the permission-mode list the composer's menu offers. `bypassPermissions`
+ * (full-auto "allow everything") was originally excluded here as a T0 safety
+ * decision (see the doc comment on `CLAUDE_PERMISSION_MODES` in the web's
+ * agent-capabilities.ts) — it grants tool execution with NO `canUseTool`
+ * human-approval gate. It is now offered again at the owner's explicit
+ * request: the CLI always spawns the SDK with `allowDangerouslySkipPermissions`
+ * (see claude-code-startup-config.ts) so a LIVE `setPermissionMode` into
+ * bypass actually takes effect, and the web renders a persistent "全自动"
+ * warning badge whenever a session is in it. `auto` stays out — it routes
+ * every prompt through a model classifier (a DIFFERENT behavior than the
+ * unconditional allow the owner asked for), so it isn't offered here. No
+ * thinking-level concept — effort is a config-side (startup) knob today, not
+ * a live control. */
 export const CLAUDE_CODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	approval: "gated",
 	busyModes: ["queue", "interrupt"],
@@ -21,7 +31,13 @@ export const CLAUDE_CODE_SESSION_CAPABILITIES: SessionCapabilities = {
 	images: true,
 	mcp: "live",
 	modelSwitch: true,
-	permissionModes: ["default", "acceptEdits", "plan", "dontAsk"],
+	permissionModes: [
+		"default",
+		"acceptEdits",
+		"plan",
+		"dontAsk",
+		"bypassPermissions",
+	],
 	quota: true,
 	sessionOps: ["list", "search"],
 	shell: true,

@@ -64,18 +64,30 @@ export interface AgentCapabilities {
 }
 
 /** The claude `PermissionMode` values offered as one-click web options —
- * deliberately NOT the SDK's full 6-value enum (mirrored in full by
+ * still NOT the SDK's full 6-value enum (all 6 remain accepted by
  * `PERMISSION_MODES` in `apps/bridge-cli/src/adapters/claude-code-startup-
- * config.ts`, which still validates/accepts all 6 for a startup config a user
- * sets deliberately, e.g. via the API/token directly). `bypassPermissions`
- * ("Bypass all permission checks") and `auto` ("Use a model classifier to
- * approve/deny permission prompts") both grant tool execution WITHOUT the
- * web's `canUseTool` human-approval gate — offering them here let a relayed
- * `setPermissionMode` flip a LIVE running session into ungated shell with no
- * re-auth (the T0 audit finding). `dontAsk` stays: per the SDK docs it DENIES
- * unapproved tools rather than granting them, so it can only narrow, not
- * escalate, privilege. */
-const CLAUDE_PERMISSION_MODES = ["default", "acceptEdits", "plan", "dontAsk"];
+ * config.ts` for a startup config a user sets deliberately). `bypassPermissions`
+ * ("Bypass all permission checks" — full-auto "allow everything") grants tool
+ * execution WITHOUT the web's `canUseTool` human-approval gate; it was
+ * originally excluded here (the T0 audit finding: a relayed `setPermissionMode`
+ * flipping a LIVE session into ungated shell with no re-auth). It is now
+ * offered again at the owner's explicit request for a full-auto mode — the
+ * risk is made continuously visible instead of hidden: a session in it wears a
+ * persistent "全自动" warning badge in the header (see session-id-label.tsx),
+ * mirroring pi's `noApprovalGate` "Ungated" badge. `auto` stays OUT — it routes
+ * prompts through a model classifier (different behavior than the unconditional
+ * allow requested). `dontAsk` stays: per the SDK docs it DENIES unapproved
+ * tools rather than granting them, so it can only narrow, not escalate,
+ * privilege. This static list is the fallback for old CLIs; a current CLI's
+ * live `session_ready` handshake (session-capabilities.ts) is what
+ * `resolveCapabilities` actually reads. */
+const CLAUDE_PERMISSION_MODES = [
+	"default",
+	"acceptEdits",
+	"plan",
+	"dontAsk",
+	"bypassPermissions",
+];
 
 /** opencode's ACP modes — `build` (the default acting mode) and `plan`
  * (read-only planning). Per the §2 research these are the real values, not the

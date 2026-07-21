@@ -27,7 +27,7 @@ import {
 const PERMISSION_MODE_LABELS: Record<string, string> = {
 	default: "Default",
 	acceptEdits: "Accept edits",
-	bypassPermissions: "Bypass permissions",
+	bypassPermissions: "Bypass permissions（全自动 allow）",
 	plan: "Plan",
 	dontAsk: "Don't ask",
 	auto: "Auto",
