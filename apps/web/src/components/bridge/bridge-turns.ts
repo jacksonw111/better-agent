@@ -26,6 +26,7 @@ import {
 import { STATUS_SNAPSHOT_STATUS } from "./bridge-status-snapshot";
 import type { BridgeTurn, PlanTurn, TaskTurn } from "./bridge-turn-types";
 import { foldApproval, foldQuestion } from "./bridge-turns-approval";
+import { foldTaskListTool, isTaskListTool } from "./bridge-turns-tasklist";
 import {
 	applyToolResult,
 	createTaskInvocation,
@@ -156,10 +157,14 @@ function foldTool(state: FoldState, id: number, event: ToolEvent): void {
 		return;
 	}
 	// A completed/failed follow-up for an already-started task never carries
-	// `input` again, so a call already known to be a task is routed there
-	// unconditionally — only a brand-new call needs the input-shape check.
+	// `input` again, so a known task is routed unconditionally by callId.
 	if (state.tasksByCallId.has(event.id)) {
 		foldTaskTool(state, id, event);
+		return;
+	}
+	// fix-tasktool-render: route Claude Code task-list tools to their own card.
+	if (state.taskToolsByCallId.has(event.id) || isTaskListTool(event.name)) {
+		foldTaskListTool(state, id, event);
 		return;
 	}
 	// A later update (completed/failed) mutates the block created at `started`

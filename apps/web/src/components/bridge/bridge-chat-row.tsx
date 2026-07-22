@@ -11,6 +11,7 @@ import { SendStatusRow } from "./send-status-row";
 import { StatusLine } from "./status-line";
 import { TaskCard } from "./task-card";
 import { TaskStartContextRow } from "./task-start-context-row";
+import { TaskToolCard } from "./task-tool-card";
 import { TodoList } from "./todo-list";
 
 /** The trailing open assistant turn streams a caret — but only while the
@@ -141,6 +142,8 @@ function SideTurn({
 			return <FileLine event={turn.event} />;
 		case "task":
 			return <TaskCard task={turn.task} />;
+		case "task-tool":
+			return <TaskToolCard tool={turn.tool} />;
 		default:
 			return <TodoList items={turn.items} />;
 	}

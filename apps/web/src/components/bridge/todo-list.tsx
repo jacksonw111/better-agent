@@ -50,6 +50,7 @@ export function parseTodoItems(detail: unknown): TodoItem[] {
 			asString(raw.content) ??
 			asString(raw.text) ??
 			asString(raw.title) ??
+			asString(raw.subject) ??
 			asString(raw.name);
 		if (content) {
 			items.push({ content, status: toStatus(raw.status) });

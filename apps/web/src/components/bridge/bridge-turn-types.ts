@@ -1,4 +1,7 @@
-import type { ChatBlock } from "@better-agent/ui/components/chat/chat-blocks";
+import type {
+	ChatBlock,
+	ToolInvocation,
+} from "@better-agent/ui/components/chat/chat-blocks";
 import type { ErrorEvent, FileEvent, StatusEvent } from "./bridge-events";
 import type { TaskInvocation } from "./task-invocation";
 import type { TodoItem } from "./todo-list";
@@ -72,6 +75,16 @@ export interface PlanTurn {
 	kind: "plan";
 }
 
+/** fix-tasktool-render: one Claude Code task-list tool call (`TaskCreate`/
+ * `TaskUpdate`/`TaskList`), folded out of the ordinary tool-block flow into
+ * its own turn so it renders as a clean task card (`TaskToolCard`) instead of
+ * the generic one-line tool block — see `foldTaskListTool`. */
+export interface TaskToolTurn {
+	id: number;
+	kind: "task-tool";
+	tool: ToolInvocation;
+}
+
 export type BridgeTurn =
 	| AssistantTurn
 	| UserTurn
@@ -79,4 +92,5 @@ export type BridgeTurn =
 	| ErrorTurn
 	| FileTurn
 	| TaskTurn
+	| TaskToolTurn
 	| PlanTurn;

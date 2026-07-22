@@ -18,6 +18,7 @@ import type {
 	AssistantTurn,
 	BridgeTurn,
 	PlanTurn,
+	TaskToolTurn,
 	TaskTurn,
 } from "./bridge-turn-types";
 
@@ -81,6 +82,10 @@ export interface FoldState {
 	 * that mutate `turns` and thus the only two places allowed to set this. */
 	structureChanged: boolean;
 	tasksByCallId: Map<string, TaskTurn>;
+	/** fix-tasktool-render: Claude Code task-list tool turns keyed by callId,
+	 * so a settle (completed/failed) mutates the card created at `started` in
+	 * place — see `foldTaskListTool`. */
+	taskToolsByCallId: Map<string, { turn: TaskToolTurn }>;
 	toolsByCallId: Map<string, ToolOwner>;
 	/** Turns mutated IN PLACE during the current incremental fold pass (a
 	 * block's text grew, a tool/task completed, the plan's items changed, the
@@ -104,6 +109,7 @@ export function createFoldState(): FoldState {
 		sealedBlock: null,
 		structureChanged: false,
 		tasksByCallId: new Map(),
+		taskToolsByCallId: new Map(),
 		toolsByCallId: new Map(),
 		touched: new Set(),
 		turns: [],
