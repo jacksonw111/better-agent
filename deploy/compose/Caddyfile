@@ -12,3 +12,17 @@
 {$ADMIN_DOMAIN} {
 	reverse_proxy admin:3000
 }
+
+# MCP servers. These also run on Cloudflare Workers; point mcp_servers rows at
+# either the Workers URL or these domains.
+{$MCP_DOMAIN} {
+	reverse_proxy mcp:3000
+}
+
+{$FINANCE_MCP_DOMAIN} {
+	reverse_proxy finance-mcp:3000
+}
+
+{$WEREAD_MCP_DOMAIN} {
+	reverse_proxy weread-mcp:3000
+}

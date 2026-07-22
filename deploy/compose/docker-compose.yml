@@ -1,7 +1,11 @@
 # better-agent on a single server via docker-compose.
-# Runs: postgres, redis, the API server, web, admin, and a Caddy reverse proxy
-# (auto-HTTPS). authz and mcp stay on Cloudflare Workers — the server reaches
-# them over their public URLs (AUTHZ_URL / the MCP server URL a user configures).
+# Runs: postgres, redis, the API server, web, admin, the three MCP servers
+# (mcp / finance-mcp / weread-mcp), and a Caddy reverse proxy (auto-HTTPS).
+# The MCP servers ALSO still deploy to Cloudflare Workers (deploy-test.yml) —
+# both deployments run the same Hono app; this compose serves the Node build.
+# Only authz stays exclusively on Cloudflare Workers — the server reaches it
+# over its public URL (AUTHZ_URL). Users point their mcp_servers rows at either
+# the Workers URL or the new Caddy MCP domains below.
 #
 # Images are NOT built here — the server is memory-constrained and would OOM.
 # GitHub Actions (.github/workflows/build-images.yml) builds server/web/admin
@@ -127,6 +131,40 @@ services:
     depends_on:
       - server
 
+  # ── MCP servers ───────────────────────────────────────────────────────────
+  # Stateless Hono apps (no DB/redis). Each listens on :3000 (PORT); the outer
+  # Caddy reverse-proxies its domain to <service>:3000. No host ports exposed.
+  # X (Twitter) MCP — per-request bearer token carries the user's X auth_token;
+  # no server-side secret needed.
+  mcp:
+    image: ghcr.io/jacksonw111/better-agent-mcp:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+  # Finance MCP — optional shared-token gate (API_TOKEN) plus upstream API keys.
+  # Empty API_TOKEN means open access (matches the Workers behavior).
+  finance-mcp:
+    image: ghcr.io/jacksonw111/better-agent-finance-mcp:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_TOKEN: ${FINANCE_MCP_API_TOKEN:-}
+      FRED_API_KEY: ${FRED_API_KEY:-}
+      ADANOS_API_KEY: ${ADANOS_API_KEY:-}
+
+  # WeRead MCP — the WeRead API key is normally per-user (bearer token on each
+  # request); WEREAD_API_KEY is an optional single-user fallback.
+  weread-mcp:
+    image: ghcr.io/jacksonw111/better-agent-weread-mcp:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      WEREAD_API_KEY: ${WEREAD_API_KEY:-}
+
   caddy:
     image: caddy:2.8-alpine
     restart: unless-stopped
@@ -137,6 +175,9 @@ services:
       API_DOMAIN: ${API_DOMAIN:?}
       WEB_DOMAIN: ${WEB_DOMAIN:?}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?}
+      MCP_DOMAIN: ${MCP_DOMAIN:?}
+      FINANCE_MCP_DOMAIN: ${FINANCE_MCP_DOMAIN:?}
+      WEREAD_MCP_DOMAIN: ${WEREAD_MCP_DOMAIN:?}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
@@ -145,6 +186,9 @@ services:
       - server
       - web
       - admin
+      - mcp
+      - finance-mcp
+      - weread-mcp
 
 volumes:
   pgdata:

@@ -1,10 +1,11 @@
 name: Build images (ghcr)
 
 # Builds the Docker images for the services that run on the self-hosted server
-# (server + web + admin) and pushes them to GitHub Container Registry. The server
-# is memory-constrained, so it never builds locally — it only `docker compose
-# pull`s these prebuilt images. authz + mcp stay on Cloudflare Workers
-# (deploy-test.yml), not here.
+# (server + web + admin + the three MCP servers) and pushes them to GitHub
+# Container Registry. The server is memory-constrained, so it never builds
+# locally — it only `docker compose pull`s these prebuilt images. The MCP images
+# built here run the Node build of the same apps that ALSO deploy to Cloudflare
+# Workers (deploy-test.yml). Only authz stays exclusively on Workers, not here.
 on:
   push:
     branches: [dev]
@@ -47,6 +48,12 @@ jobs:
             dockerfile: deploy/docker/app.Dockerfile
           - app: admin
             dockerfile: deploy/docker/app.Dockerfile
+          - app: mcp
+            dockerfile: deploy/docker/mcp.Dockerfile
+          - app: finance-mcp
+            dockerfile: deploy/docker/mcp.Dockerfile
+          - app: weread-mcp
+            dockerfile: deploy/docker/mcp.Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
