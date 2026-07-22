@@ -32,10 +32,9 @@ export interface AgentMemoryRow {
 }
 
 /** Produces a fixed-width embedding vector for a text. Current provider is
- * SiliconFlow's `BAAI/bge-m3` (1024 dims) via an external API — NOT the on-edge
- * Workers AI path decision D1 originally envisioned. `model` names the producing
- * model so it can be persisted alongside the vector for later re-embedding /
- * A-B tests. */
+ * SiliconFlow's `BAAI/bge-m3` (1024 dims) via an external API. `model` names the
+ * producing model so it can be persisted alongside the vector for later
+ * re-embedding / A-B tests. */
 export interface EmbeddingClient {
 	embed(text: string): Promise<number[]>;
 	readonly model: string;

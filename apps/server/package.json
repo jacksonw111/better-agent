@@ -22,7 +22,6 @@
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
     "@orpc/zod": "catalog:",
-    "@upstash/redis": "1.38.0",
     "aws4fetch": "1.0.20",
     "dotenv": "catalog:",
     "evlog": "catalog:",

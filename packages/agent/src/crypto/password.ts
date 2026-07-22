@@ -23,8 +23,8 @@ let cachedDummyHash: string | null = null;
 
 // A valid scrypt hash for an unguessable secret — used to equalize timing on
 // the "no such user / no password" path so login can't be used to enumerate.
-// Computed lazily (NOT at module load): Workers forbid generating random values
-// in global scope, so this must run inside a request handler.
+// Computed lazily (NOT at module load) so the one-time scrypt cost lands on
+// first use rather than at import, and is cached thereafter.
 export function dummyPasswordHash(): string {
 	if (cachedDummyHash === null) {
 		cachedDummyHash = hashPassword(randomBytes(32).toString("hex"));

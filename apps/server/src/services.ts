@@ -35,7 +35,7 @@ import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-auth
 import { env } from "@better-agent/env/server";
 import { createAttachmentStore } from "./attachment-store";
 import { buildAuthServices } from "./auth-services";
-import { buildAuthzClient, type ServiceBinding } from "./authz-client";
+import { buildAuthzClient } from "./authz-client";
 import { buildEmbeddingClient } from "./embedding-client";
 import { createKnowledgeStore, type MultipartBucket } from "./knowledge-store";
 import { buildMcpResolver } from "./mcp";
@@ -148,8 +148,6 @@ function buildComputerControl(parts: StoreParts) {
 function assembleServices(
 	parts: StoreParts & {
 		auth: ReturnType<typeof buildAuthServices>;
-		authzBinding?: ServiceBinding;
-		mcpBinding?: ServiceBinding;
 		cancellation: CancellationRegistry;
 		runtime: ReturnType<typeof buildRuntime>;
 	}
@@ -182,8 +180,8 @@ function assembleServices(
 		// token never rests anywhere but as secret-box ciphertext.
 		githubClient: (token: string) => createGithubClient({ token }),
 		secretBox: parts.secretBox,
-		mcp: buildMcpResolver(parts.mcpServerStore, parts.mcpBinding),
-		authz: buildAuthzClient(parts.authzBinding),
+		mcp: buildMcpResolver(parts.mcpServerStore),
+		authz: buildAuthzClient(),
 		// P3-T3: Web Push — null (feature disabled fail-open) without VAPID keys.
 		push: buildPushService(parts.pushSubscriptionStore),
 		rateLimiter: buildRateLimiter(),
@@ -245,12 +243,7 @@ function buildUploadStores(db: Db, uploads?: MultipartBucket) {
 	};
 }
 
-export function buildServices(
-	db: Db,
-	authzBinding?: ServiceBinding,
-	uploads?: MultipartBucket,
-	mcpBinding?: ServiceBinding
-) {
+export function buildServices(db: Db, uploads?: MultipartBucket) {
 	const secretBox = getSecretBox();
 	const deps = buildProviderDeps(db, secretBox);
 	const sessionStore = createSessionStore(db);
@@ -288,8 +281,6 @@ export function buildServices(
 		embeddingClient,
 		skillStore,
 		db,
-		authzBinding,
-		mcpBinding,
 		...buildMiscStores(db, secretBox),
 	});
 }

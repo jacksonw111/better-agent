@@ -233,8 +233,8 @@ export function createVncRouteDeps(services: AgentServices): VncRouteDeps {
 /**
  * Registers the two session-scoped VNC WebSocket routes on `app` and returns
  * `injectWebSocket`, which the Node entrypoint calls on the http server to
- * enable upgrades. Only wired on the Node (Docker) deployment — long-lived WS
- * are unsupported on the Workers entry, which never calls this.
+ * enable upgrades. Wired from the Node (Docker) entry, which owns the http
+ * server the WS upgrade handler attaches to.
  */
 export function registerVncRoutes(
 	app: Hono<EvlogVariables>,

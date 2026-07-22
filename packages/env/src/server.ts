@@ -17,12 +17,8 @@ export const env = createEnv({
 		CREDENTIALS_SECRET: z.string().min(32),
 		AUTH_JWT_SECRET: z.string().min(32),
 		REDIS_URL: z.string().optional(),
-		/** Upstash Redis REST — used on Cloudflare Workers (HTTP, cross-isolate)
-		 * to coordinate client/remote tool-call results. Both must be set. */
-		UPSTASH_REDIS_REST_URL: z.string().optional(),
-		UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-		/** S3-compatible attachment storage (k3s/prod; Workers uses the R2
-		 * binding instead). All four must be set together. */
+		/** S3-compatible attachment storage (k3s/prod). All four must be set
+		 * together. */
 		S3_ENDPOINT: z.string().optional(),
 		S3_BUCKET: z.string().optional(),
 		S3_ACCESS_KEY_ID: z.string().optional(),

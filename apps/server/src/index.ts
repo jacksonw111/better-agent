@@ -28,7 +28,7 @@ const uploads =
 				secretAccessKey: env.S3_SECRET_ACCESS_KEY,
 			})
 		: undefined;
-const services = buildServices(db, undefined, uploads);
+const services = buildServices(db, uploads);
 const app = buildApp(services);
 // Session-scoped VNC WebSocket proxy (video plane). Wired here, not in
 // buildApp, so buildApp stays transport-agnostic while this Node entry injects

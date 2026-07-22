@@ -20,11 +20,10 @@ import { attachHeartbeat, type HeartbeatRaw } from "./ws-heartbeat";
 //
 // IMPORTANT: this route is registered from index.ts (Node/Docker entry),
 // reusing vnc-proxy.ts's single `createNodeWebSocket({app})` instance's
-// `upgradeWebSocket`, NOT wired into the shared `buildApp` in app.ts — app.ts
-// is also used by the Cloudflare Workers entry (worker.ts), which can't
-// support long-lived WebSockets, and a second independent
-// `createNodeWebSocket({app})` instance racing the first one's 'upgrade'
-// listener on the same http server is unsafe (see vnc-proxy.ts's
+// `upgradeWebSocket`, NOT wired into the shared `buildApp` in app.ts — keeping
+// buildApp transport-agnostic lets the same app run without WS wiring, and a
+// second independent `createNodeWebSocket({app})` instance racing the first
+// one's 'upgrade' listener on the same http server is unsafe (see vnc-proxy.ts's
 // `registerVncRoutes` doc comment on why `upgradeWebSocket` is exposed from
 // there instead of created here).
 

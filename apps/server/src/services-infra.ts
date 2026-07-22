@@ -16,25 +16,22 @@ import {
 	createProviderCredentialStore,
 } from "@better-agent/db/repositories/provider-stores";
 import { env } from "@better-agent/env/server";
-import { Redis as UpstashRedis } from "@upstash/redis";
 import Redis from "ioredis";
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
 import { createRedisRelayStore } from "./redis-relay-store";
 import { createRedisSessionLock } from "./redis-session-lock";
-import { createUpstashCancellationRegistry } from "./upstash-cancellation";
-import { createUpstashPendingToolCallStore } from "./upstash-pending-store";
 
 // Low-level infra builders shared by services.ts, split out so that file
-// stays under the repo's 300-line cap. Each `build*` picks Upstash (Workers,
-// cross-isolate) > node-redis (single-process dev/self-host) > in-memory
-// (tests / no REDIS_URL configured) — see client-tools-need-redis-on-workers
-// for why the in-memory fallback doesn't cross Workers isolates.
+// stays under the repo's 300-line cap. Each `build*` picks node-redis (shared
+// state across processes when REDIS_URL is set — needed for horizontal scaling
+// and for client/remote tool-call results to reach the streaming turn) >
+// in-memory (single-process dev / tests / no REDIS_URL configured).
 
 export type Db = Parameters<typeof createAgentStore>[0];
 
-// scrypt key derivation is slow — memoize the secret box per isolate.
+// scrypt key derivation is slow — memoize the secret box for the process.
 let cachedSecretBox: ReturnType<typeof createSecretBox> | null = null;
 export function getSecretBox() {
 	cachedSecretBox ??= createSecretBox(env.CREDENTIALS_SECRET);
@@ -67,18 +64,7 @@ export function buildProviderDeps(
 	};
 }
 
-// Upstash REST client for cross-isolate coordination on Cloudflare Workers.
-function upstashRedis(): UpstashRedis | null {
-	const url = env.UPSTASH_REDIS_REST_URL;
-	const token = env.UPSTASH_REDIS_REST_TOKEN;
-	return url && token ? new UpstashRedis({ url, token }) : null;
-}
-
 export function buildPendingToolCallStore() {
-	const upstash = upstashRedis();
-	if (upstash) {
-		return createUpstashPendingToolCallStore(upstash);
-	}
 	return env.REDIS_URL
 		? createRedisPendingToolCallStore(new Redis(env.REDIS_URL))
 		: createInMemoryPendingToolCallStore();
@@ -91,10 +77,6 @@ export function buildSessionLock() {
 }
 
 export function buildCancellation(): CancellationRegistry {
-	const upstash = upstashRedis();
-	if (upstash) {
-		return createUpstashCancellationRegistry(upstash);
-	}
 	return env.REDIS_URL
 		? createRedisCancellationRegistry(new Redis(env.REDIS_URL))
 		: createInMemoryCancellationRegistry();

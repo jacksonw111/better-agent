@@ -6,20 +6,13 @@ interface RedeemResult {
 	reason?: string;
 }
 
-// A Cloudflare service binding (worker-to-worker). Same-account workers can't
-// reliably reach each other over their public URLs, so on Workers we call authz
-// through this binding; on Node we fall back to a normal fetch of AUTHZ_URL.
-export interface ServiceBinding {
-	fetch(request: Request): Promise<Response>;
-}
-
-// Calls the standalone authz service. OFF (everything allowed) when neither a
-// binding nor AUTHZ_URL is configured. When configured, errors fail CLOSED — the
-// 60s cache means a transient outage only affects entries that have gone stale.
-export function buildAuthzClient(binding?: ServiceBinding): AuthzClient {
+// Calls the standalone authz service over HTTP. OFF (everything allowed) when
+// AUTHZ_URL is not configured. When configured, errors fail CLOSED — the 60s
+// cache means a transient outage only affects entries that have gone stale.
+export function buildAuthzClient(): AuthzClient {
 	const url = env.AUTHZ_URL;
 	const secret = env.AUTHZ_SERVICE_SECRET;
-	const enabled = Boolean((binding || url) && secret);
+	const enabled = Boolean(url && secret);
 
 	const call = async <T>(path: string, body: unknown): Promise<T> => {
 		const init: RequestInit = {
@@ -30,9 +23,7 @@ export function buildAuthzClient(binding?: ServiceBinding): AuthzClient {
 			},
 			body: JSON.stringify(body),
 		};
-		const res = binding
-			? await binding.fetch(new Request(`https://authz.internal${path}`, init))
-			: await fetch(`${url}${path}`, init);
+		const res = await fetch(`${url}${path}`, init);
 		if (!res.ok) {
 			throw new Error(`authz ${path} → ${res.status}`);
 		}
