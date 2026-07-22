@@ -2,15 +2,20 @@ import { expect, it } from "vitest";
 import { AGENT_KIND, ALICE, build } from "./bridge-test-helpers";
 
 // Server-side size caps for the local agent bridge (spec §3.1: truncate
-// oversized lines + bound the window). See packages/api/src/routers/bridge.ts
-// for MAX_PUSH_BATCH / MAX_EVENT_BYTES / MAX_INPUT_CHARS.
+// oversized lines + bound the window). See
+// packages/api/src/routers/bridge-size-limits.ts for MAX_EVENT_BYTES (262_144)
+// / MAX_INPUT_CHARS (100_000), and bridge.ts for MAX_PUSH_BATCH.
 
 const OVER_BATCH_LIMIT = 51;
 const BYTES_PER_KB = 1024;
-const OVERSIZED_EVENT_KB = 40;
-const OVERSIZED_INPUT_KB = 10;
+// Over the raised 256 KiB event cap.
+const OVERSIZED_EVENT_KB = 300;
+// Over the raised 100_000-char input cap.
+const OVERSIZED_INPUT_KB = 120;
 const OVERSIZED_EVENT_BYTES = OVERSIZED_EVENT_KB * BYTES_PER_KB;
 const OVERSIZED_INPUT_CHARS = OVERSIZED_INPUT_KB * BYTES_PER_KB;
+// Just under the 100_000-char input cap — must be accepted.
+const UNDER_CAP_INPUT_CHARS = 99_000;
 
 async function startSession() {
 	const { bridgeClientFor, userClientFor } = build();
@@ -57,4 +62,13 @@ it("sendInput rejects a data string over the char cap with BAD_REQUEST", async (
 	await expect(
 		alice.bridge.sendInput({ sessionId, data: oversizedInput })
 	).rejects.toMatchObject({ code: "BAD_REQUEST" });
+});
+
+it("sendInput accepts a long data string under the raised char cap", async () => {
+	const { sessionId, alice } = await startSession();
+	const longInput = "x".repeat(UNDER_CAP_INPUT_CHARS);
+
+	await expect(
+		alice.bridge.sendInput({ sessionId, data: longInput })
+	).resolves.toEqual({ ok: true });
 });

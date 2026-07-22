@@ -17,7 +17,7 @@ import { truncateEvent } from "./truncate-event";
  * is killed (see `killGroup`) and the event settles `failed`. */
 const DEFAULT_TIMEOUT_MS = 60_000;
 /** Memory bound on collected output — tail-kept (oldest chunks dropped first).
- * The final event is separately shrunk to `MAX_EVENT_TEXT_CHARS` by
+ * The final event is separately shrunk to `MAX_EVENT_TEXT_BYTES` by
  * `truncateEvent` before it's pushed, so this only bounds in-process memory. */
 const MAX_OUTPUT_BYTES = 64 * 1024;
 /** Streaming-preview push cadence while the command runs — a running `tool`

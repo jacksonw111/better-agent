@@ -14,10 +14,10 @@ import { shrinkOversizedStatusEvent } from "./truncate-status-shrink";
 // capability handshake every Git/Files/Shell gate hangs off) the same
 // never-degrade guarantee by dropping its bulky list fields first.
 
-const LONG_DESCRIPTION_CHARS = 400;
+const LONG_DESCRIPTION_CHARS = 2000;
 const CATALOG_COMMAND_COUNT = 162;
 const PATHOLOGICAL_COMMAND_COUNT = 20_000;
-const HUGE_LIST_ITEM_COUNT = 4000;
+const HUGE_LIST_ITEM_COUNT = 12_000;
 const OVERSIZE_FACTOR = 2;
 
 function byteSizeOf(value: unknown): number {
@@ -43,7 +43,8 @@ interface CatalogDetail {
 
 describe("shrinkOversizedStatusEvent — command_catalog", () => {
 	it("keeps every command name when trimming descriptions is enough", () => {
-		// 162 × 400-char descriptions ≈ 70KB — the real-machine shape, scaled up.
+		// 162 × 2000-char descriptions ≈ 330 KiB — real-machine shape scaled past
+		// the raised 256 KiB cap.
 		const event = catalogEvent(CATALOG_COMMAND_COUNT, LONG_DESCRIPTION_CHARS);
 		expect(byteSizeOf(event)).toBeGreaterThan(MAX_EVENT_BYTES);
 

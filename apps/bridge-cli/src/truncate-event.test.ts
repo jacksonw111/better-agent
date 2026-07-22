@@ -9,80 +9,118 @@ import type {
 } from "./normalize/types";
 import {
 	MAX_APPROVAL_OPTIONS,
-	MAX_EVENT_TEXT_CHARS,
+	MAX_EVENT_TEXT_BYTES,
 	truncateEvent,
 	truncateEvents,
 } from "./truncate-event";
 
-const MAX_EVENT_BYTES = 32_768;
-const OVERFLOW_CHARS = 500;
-const EMOJI_REPEAT_COUNT = 9000; // 2 UTF-16 units each → 18_000 units, over the cap
+const MAX_EVENT_BYTES = 262_144;
+/** The pre-raise 32 KiB cap — used to make the CJK-pass-through regression
+ * explicit: these events would have degraded to `event_truncated` before the
+ * cap was raised, and now flow through untouched. */
+const OLD_EVENT_BYTES = 32_768;
+const OVERFLOW_BYTES = 1000;
 const NON_EVENT_NUMBER = 42;
 const HUGE_APPROVAL_TEXT_CHARS = 50_000;
-const PATHOLOGICAL_OPTION_COUNT = 5000;
+/** 12_000 short options ≈ 420 KiB — over the raised 256 KiB cap on count
+ * alone, so the array itself must be capped. */
+const PATHOLOGICAL_OPTION_COUNT = 12_000;
+/** Enough CJK characters to blow past the OLD 32 KiB cap (3 bytes each) while
+ * staying well under the raised 256 KiB one — the exact shape that used to be
+ * degraded for heavy-CJK users. */
+const CJK_COUNT_SMALL = 11_000;
+const CJK_COUNT_LARGE = 16_000;
+/** A structured (non-string) payload with no truncatable text field, sized
+ * past the raised cap: ~60_000 integers ≈ 350 KiB of JSON. */
+const STRUCTURAL_NUMBER_COUNT = 60_000;
+const CJK_CHAR = "中";
 
 function byteSizeOf(value: unknown): number {
 	return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
 }
 
 function truncatesAnOverLongOutputEventsText(): void {
-	const text = "a".repeat(MAX_EVENT_TEXT_CHARS + OVERFLOW_CHARS);
+	const text = "a".repeat(MAX_EVENT_TEXT_BYTES + OVERFLOW_BYTES);
 	const event: OutputEvent = { kind: "output", text };
 
 	const result = truncateEvent(event) as OutputEvent;
 
 	expect(result.kind).toBe("output");
 	expect(result.text).toBe(
-		`${"a".repeat(MAX_EVENT_TEXT_CHARS)}… [+${OVERFLOW_CHARS} chars truncated]`
+		`${"a".repeat(MAX_EVENT_TEXT_BYTES)}… [+${OVERFLOW_BYTES} chars truncated]`
 	);
 	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
 }
 
 function truncatesAnOverLongMessageEventsText(): void {
-	const text = "b".repeat(MAX_EVENT_TEXT_CHARS + OVERFLOW_CHARS);
+	const text = "b".repeat(MAX_EVENT_TEXT_BYTES + OVERFLOW_BYTES);
 	const event: MessageEvent = { kind: "message", role: "assistant", text };
 
 	const result = truncateEvent(event) as MessageEvent;
 
-	expect(result.text.endsWith(`… [+${OVERFLOW_CHARS} chars truncated]`)).toBe(
+	expect(result.text.endsWith(`… [+${OVERFLOW_BYTES} chars truncated]`)).toBe(
 		true
 	);
 	expect(result.text.length).toBeLessThan(text.length);
+	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
 }
 
-function truncatesAToolEventsHugeStringResult(): void {
-	const output = "c".repeat(MAX_EVENT_TEXT_CHARS + OVERFLOW_CHARS);
+/** Heavy-CJK output that clears the OLD 32 KiB cap but is comfortably under the
+ * raised one now flows through UNTOUCHED (same object identity) — the whole
+ * point of raising the cap. */
+function passesThroughAModestCjkMessageUntouched(): void {
+	const text = CJK_CHAR.repeat(CJK_COUNT_SMALL);
+	const event: MessageEvent = { kind: "message", role: "assistant", text };
+
+	expect(byteSizeOf(event)).toBeGreaterThan(OLD_EVENT_BYTES);
+	expect(truncateEvent(event)).toBe(event);
+}
+
+function passesThroughALargerCjkMessageUntouched(): void {
+	const text = CJK_CHAR.repeat(CJK_COUNT_LARGE);
+	const event: MessageEvent = { kind: "message", role: "assistant", text };
+
+	expect(byteSizeOf(event)).toBeGreaterThan(OLD_EVENT_BYTES);
+	expect(truncateEvent(event)).toBe(event);
+}
+
+/** A tool event with TWO string fields each on its own over the byte budget:
+ * primary field truncation caps each at MAX_EVENT_TEXT_BYTES, but two of those
+ * still exceed the whole-event cap, so the backstop re-truncates harder — it
+ * must stay a tool event (never degrade), since it carries truncatable text. */
+function reTruncatesAToolEventWithTwoHugeStringFields(): void {
+	const huge = "c".repeat(MAX_EVENT_TEXT_BYTES + OVERFLOW_BYTES);
 	const event: ToolEvent = {
 		id: "t1",
+		input: huge,
 		kind: "tool",
 		name: "shell",
-		output,
+		output: huge,
 		status: "completed",
 	};
 
 	const result = truncateEvent(event) as ToolEvent;
 
 	expect(result.kind).toBe("tool");
-	expect(typeof result.output).toBe("string");
-	expect((result.output as string).length).toBeLessThan(output.length);
+	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
+	expect((result.input as string).length).toBeLessThan(huge.length);
+	expect((result.output as string).length).toBeLessThan(huge.length);
 }
 
-/** Each field truncates to MAX_EVENT_TEXT_CHARS on its own, but an emoji (a
- * 2-unit, 4-byte UTF-8 surrogate pair) is much heavier per character than
- * ASCII — filling *two* fields this way blows past the server's
- * 32_768-byte cap even though each field individually respects
- * MAX_EVENT_TEXT_CHARS, so the whole event must degrade instead. */
-function degradesAnEventStillOverTheByteCapAfterFieldTruncation(): void {
-	const hugeEmoji = "\u{1F600}".repeat(EMOJI_REPEAT_COUNT);
+/** A tool event whose weight is a STRUCTURED payload (a huge number array) with
+ * no truncatable text field can't be shrunk by field truncation, so it's the
+ * one case that still degrades wholesale — the backstop path is preserved. */
+function degradesAPurelyStructuralOversizedEvent(): void {
+	const input = Array.from({ length: STRUCTURAL_NUMBER_COUNT }, (_, i) => i);
 	const event: ToolEvent = {
 		id: "t2",
-		input: hugeEmoji,
+		input,
 		kind: "tool",
 		name: "shell",
-		output: hugeEmoji,
 		status: "completed",
 	};
 
+	expect(byteSizeOf(event)).toBeGreaterThan(MAX_EVENT_BYTES);
 	const result = truncateEvent(event);
 
 	expect(byteSizeOf(result)).toBeLessThanOrEqual(MAX_EVENT_BYTES);
@@ -144,7 +182,7 @@ function capsAPathologicallyLongApprovalOptionsList(): void {
 /** A file event's `path` is just as capable of overflowing as its `diff` —
  * it needs the same truncation treatment. */
 function truncatesAFileEventsOverLongPathWithNoDiff(): void {
-	const path = "/".repeat(MAX_EVENT_TEXT_CHARS + OVERFLOW_CHARS);
+	const path = "/".repeat(MAX_EVENT_TEXT_BYTES + OVERFLOW_BYTES);
 	const event: FileEvent = { change: "created", kind: "file", path };
 
 	const result = truncateEvent(event) as FileEvent;
@@ -181,18 +219,40 @@ describe("truncateEvent", () => {
 	);
 
 	it(
-		"truncates a tool event's huge string result",
-		truncatesAToolEventsHugeStringResult
+		"passes a modest CJK message through untouched (over the old cap, under the new one)",
+		passesThroughAModestCjkMessageUntouched
 	);
 
 	it(
-		"degrades to a status event when fields are individually short enough but the whole event still exceeds the server's byte cap",
-		degradesAnEventStillOverTheByteCapAfterFieldTruncation
+		"passes a larger CJK message through untouched",
+		passesThroughALargerCjkMessageUntouched
+	);
+
+	it(
+		"re-truncates (never degrades) a tool event with two huge string fields",
+		reTruncatesAToolEventWithTwoHugeStringFields
+	);
+
+	it(
+		"truncates a file event's over-long path when there's no diff",
+		truncatesAFileEventsOverLongPathWithNoDiff
 	);
 
 	it(
 		"leaves a short event untouched (same object identity)",
 		leavesAShortEventUntouched
+	);
+
+	it(
+		"passes through values that aren't normalized events",
+		passesThroughNonNormalizedEventValues
+	);
+});
+
+describe("truncateEvent — degrade & approvals", () => {
+	it(
+		"degrades a purely-structural oversized event with no truncatable text field",
+		degradesAPurelyStructuralOversizedEvent
 	);
 
 	it(
@@ -204,16 +264,6 @@ describe("truncateEvent", () => {
 		"caps a pathologically long approval options list instead of degrading the whole event",
 		capsAPathologicallyLongApprovalOptionsList
 	);
-
-	it(
-		"truncates a file event's over-long path when there's no diff",
-		truncatesAFileEventsOverLongPathWithNoDiff
-	);
-
-	it(
-		"passes through values that aren't normalized events",
-		passesThroughNonNormalizedEventValues
-	);
 });
 
 async function* arrayEvents<T>(values: T[]): AsyncGenerator<T> {
@@ -224,7 +274,7 @@ async function* arrayEvents<T>(values: T[]): AsyncGenerator<T> {
 }
 
 async function truncatesEveryEventInTheStream(): Promise<void> {
-	const text = "d".repeat(MAX_EVENT_TEXT_CHARS + OVERFLOW_CHARS);
+	const text = "d".repeat(MAX_EVENT_TEXT_BYTES + OVERFLOW_BYTES);
 	const events: OutputEvent[] = [
 		{ kind: "output", text: "short" },
 		{ kind: "output", text },

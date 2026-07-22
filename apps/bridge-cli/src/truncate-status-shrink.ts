@@ -16,10 +16,23 @@
 
 import { isRecord, type StatusEvent } from "./normalize/types";
 
-/** Mirrors `MAX_EVENT_BYTES` in `packages/api/src/routers/bridge.ts` (the
- * server rejects a whole pushEvents batch over this) — lives here so both
- * this module and truncate-event.ts share one copy. Keep in sync. */
-export const MAX_EVENT_BYTES = 32_768;
+/** Mirrors `MAX_EVENT_BYTES` in
+ * `packages/api/src/routers/bridge-size-limits.ts` (the server rejects a whole
+ * pushEvents batch over this) — lives here so both this module and
+ * truncate-event.ts share one copy. Keep the two values in sync.
+ *
+ * Raised from the original 32_768 to 262_144 (256 KiB). The old 32 KB value was
+ * a conservative guess from the Cloudflare Workers era, where a small per-event
+ * cap mattered; the bridge now runs under Docker with a jsonb store that shrugs
+ * off hundreds of MB, so that constraint no longer applies. The only real cost
+ * of a bigger event is relay-window memory: the replay window holds
+ * `MAX_WINDOW` (= 500, see relay-store.ts) events per session in memory, so the
+ * worst case is 500 × 256 KiB ≈ 128 MiB/session — and that only if every one of
+ * the 500 windowed events is at the absolute cap, which never happens in
+ * practice. The payoff: ordinary long output (a few tens of KB — a file dump, a
+ * long Chinese analysis) now flows through untouched instead of being degraded
+ * to an opaque `event_truncated` placeholder. */
+export const MAX_EVENT_BYTES = 262_144;
 
 /** Serialized size of `value` in UTF-8 bytes, as JSON — mirrors `byteSizeOf`
  * in `packages/api/src/routers/bridge.ts`. */

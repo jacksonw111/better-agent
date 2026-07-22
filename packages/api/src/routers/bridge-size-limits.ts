@@ -5,13 +5,25 @@ import { ORPCError } from "@orpc/server";
 // router file stays under the per-file line cap.
 
 /** Max serialized size (bytes) of a single pushed event before it's rejected.
- * Mirrored in `apps/bridge-cli/src/truncate-event.ts`'s `MAX_EVENT_BYTES` —
- * the CLI truncates event fields down to (comfortably) under this same cap
- * before ever sending an event here, so real oversized batches shouldn't
- * happen in practice. Keep the two values in sync. */
-const MAX_EVENT_BYTES = 32_768;
-/** Max size (characters) of sendInput's `data` before it's rejected. */
-const MAX_INPUT_CHARS = 8192;
+ * Mirrored in `apps/bridge-cli/src/truncate-status-shrink.ts`'s
+ * `MAX_EVENT_BYTES` — the CLI keeps events (comfortably) under this same cap
+ * before ever sending one here, so real oversized batches shouldn't happen in
+ * practice. Keep the two values in sync.
+ *
+ * Raised from the original 32_768 to 262_144 (256 KiB): the 32 KB value was a
+ * Cloudflare-Workers-era conservative guess that no longer applies now the
+ * bridge runs under Docker with a jsonb store that handles hundreds of MB. The
+ * only real cost of a bigger event is relay-window memory (the replay window
+ * holds `MAX_WINDOW` = 500 events/session in memory — worst case
+ * 500 × 256 KiB ≈ 128 MiB/session, never approached in practice), and the
+ * payoff is that ordinary long output flows through instead of being truncated.
+ * See truncate-status-shrink.ts for the full rationale. */
+const MAX_EVENT_BYTES = 262_144;
+/** Max size (characters) of sendInput's `data` before it's rejected. Raised
+ * from the original 8192 to 100_000 so a user pasting a long task brief (a
+ * multi-page spec, a big block of Chinese prose) isn't rejected — 8 K chars was
+ * too tight for real prompts. Well within the event byte cap once relayed. */
+const MAX_INPUT_CHARS = 100_000;
 
 /** Serialized size of `value` in UTF-8 bytes, as JSON. */
 function byteSizeOf(value: unknown): number {

@@ -28,8 +28,8 @@ export interface SessionListItem {
 }
 
 /** Newest-N cap on the pushed list. 50 items × ~250 JSON bytes each sits
- * comfortably under the relay's 32_768-byte `MAX_EVENT_BYTES` cap (see
- * truncate-event.ts) even with every title at `TITLE_MAX_CHARS`. */
+ * comfortably under the relay's `MAX_EVENT_BYTES` cap (see truncate-event.ts)
+ * even with every title at `TITLE_MAX_CHARS`. */
 export const SESSION_LIST_CAP = 50;
 
 const TITLE_MAX_CHARS = 80;
