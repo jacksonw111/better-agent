@@ -175,9 +175,12 @@ services:
       API_DOMAIN: ${API_DOMAIN:?}
       WEB_DOMAIN: ${WEB_DOMAIN:?}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?}
-      MCP_DOMAIN: ${MCP_DOMAIN:?}
-      FINANCE_MCP_DOMAIN: ${FINANCE_MCP_DOMAIN:?}
-      WEREAD_MCP_DOMAIN: ${WEREAD_MCP_DOMAIN:?}
+      # Optional: unset → a `.localhost` placeholder so Caddy serves the MCP
+      # internally (internal cert, no ACME) without failing the whole stack.
+      # Set to a real domain (with an A record) to expose it publicly.
+      MCP_DOMAIN: ${MCP_DOMAIN:-mcp.localhost}
+      FINANCE_MCP_DOMAIN: ${FINANCE_MCP_DOMAIN:-finance-mcp.localhost}
+      WEREAD_MCP_DOMAIN: ${WEREAD_MCP_DOMAIN:-weread-mcp.localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data

@@ -14,7 +14,11 @@
 }
 
 # MCP servers. These also run on Cloudflare Workers; point mcp_servers rows at
-# either the Workers URL or these domains.
+# either the Workers URL or these domains. When the *_MCP_DOMAIN vars are unset,
+# compose defaults them to `*.localhost` — Caddy then serves each with an
+# internal cert (no public ACME, no deploy failure) and it's reachable only in
+# the compose network. Set the real domains (with A records) in .env to expose
+# them publicly.
 {$MCP_DOMAIN} {
 	reverse_proxy mcp:3000
 }
