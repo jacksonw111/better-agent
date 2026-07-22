@@ -249,3 +249,20 @@
 		width: auto;
 	}
 }
+
+/* Shiki dual-theme output (knowledge code preview): light inline styles by
+   default, the --shiki-dark vars take over under the app's dark class. */
+.dark .knowledge-code-preview .shiki,
+.dark .knowledge-code-preview .shiki span {
+	color: var(--shiki-dark) !important;
+	background-color: var(--shiki-dark-bg) !important;
+}
+.knowledge-code-preview .shiki {
+	background-color: transparent !important;
+}
+
+/* docx-preview renders a white "sheet" — keep it page-like in dark mode. */
+.knowledge-docx-preview .docx-wrapper {
+	padding: 0;
+	background: transparent;
+}

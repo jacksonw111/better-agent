@@ -8,6 +8,8 @@ allowBuilds:
   lefthook: true
   unrs-resolver: true
   workerd: true
+  core-js: set this to true or false
+  es5-ext: set this to true or false
 # typescript 7 (catalog) is the native Go compiler with NO JS API — every
 # app/package typechecks on it (~10x faster). Peer-resolved API consumers use
 # the last JS release instead, pinned as a direct devDependency where they
@@ -40,3 +42,7 @@ catalog:
   twitter-openapi-typescript-generated: 0.0.38
 minimumReleaseAgeExclude:
   - shadcn@4.12.0
+ignoredBuiltDependencies:
+  - core-js
+  - es5-ext
+verifyDepsBeforeRun: false

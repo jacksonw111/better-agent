@@ -40,9 +40,16 @@ export function usePdfModule(): PdfModuleState {
 	const [error, setError] = useState(false);
 
 	useEffect(() => {
-		import("react-pdf")
-			.then(({ Document, Page, pdfjs }) => {
-				pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+		// Self-hosted worker: the ?url import makes Vite emit pdfjs-dist's worker
+		// as an asset of our own bundle, so opening a PDF never depends on unpkg
+		// being up (and never pays a cold third-party CDN round trip). pdfjs-dist
+		// is pinned in package.json to react-pdf's own version.
+		Promise.all([
+			import("react-pdf"),
+			import("pdfjs-dist/build/pdf.worker.min.mjs?url"),
+		])
+			.then(([{ Document, Page, pdfjs }, worker]) => {
+				pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
 				setMod({ Document, Page } as PdfModule);
 			})
 			.catch(() => setError(true));
