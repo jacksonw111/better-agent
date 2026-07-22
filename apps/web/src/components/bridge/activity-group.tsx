@@ -2,7 +2,8 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import type { ToolInvocation } from "@better-agent/ui/components/chat/chat-blocks";
 import { ChevronRightIcon } from "lucide-react";
 import { primaryLine } from "./activity-item-header";
-import { categoryOf, renderActivityTool } from "./bridge-tool-card";
+import { renderActivityTool } from "./bridge-tool-card";
+import { categoryOf } from "./tool-category";
 
 // R1-T3 / P1-T2: the collapsed disclosure row a folded tool run renders as
 // (see activity-blocks.ts's `groupTurnBlocks`). Two headers share it: a

@@ -15,6 +15,10 @@ import {
 	type ToolCategory,
 } from "./activity-item-header";
 import { BashCommandCard } from "./bash-command-card";
+import { isMcpToolName, McpToolCard } from "./mcp-tool-card";
+import { ReportFindingsCard } from "./report-findings-card";
+import { parseTodoItems, TodoList } from "./todo-list";
+import { categoryOf } from "./tool-category";
 import {
 	computeErrorLine,
 	computeOutput,
@@ -24,6 +28,9 @@ import {
 	RawParamsSection,
 	TailLine,
 } from "./tool-output-preview";
+import { asRecord, outputRecord } from "./tool-structured-output";
+import { WebFetchCard } from "./web-fetch-card";
+import { WebSearchCard } from "./web-search-card";
 
 // R-refactor (Bug 3) / R1-T3: renders a LOCAL agent's real CLI tool
 // executions — shell commands, file edits, reads, searches — as compact
@@ -32,28 +39,11 @@ import {
 // the default card. The web-agent chat doesn't use this. P1-T3: the command
 // category routes to its own richer `BashCommandCard`; the output-shaping
 // helpers both cards share live in activity-item-header.tsx.
-
-const COMMAND_RE = /bash|shell|\bsh\b|zsh|exec|command|\brun\b|terminal/;
-const FILE_EDIT_RE = /edit|write|create|patch|replace/;
-const FILE_READ_RE = /read|view|\bcat\b|open/;
-const SEARCH_RE = /grep|glob|search|find|ripgrep/;
-
-export function categoryOf(name: string): ToolCategory | null {
-	const n = name.toLowerCase();
-	if (COMMAND_RE.test(n)) {
-		return "command";
-	}
-	if (FILE_EDIT_RE.test(n)) {
-		return "fileEdit";
-	}
-	if (FILE_READ_RE.test(n)) {
-		return "fileRead";
-	}
-	if (SEARCH_RE.test(n)) {
-		return "search";
-	}
-	return null;
-}
+//
+// fix-tool-render-gaps: tool classification (`categoryOf`, the exact built-in
+// name table, the mcp__ short-circuit) lives in tool-category.ts now, and the
+// registry routes `mcp__*`/TodoWrite/WebFetch/WebSearch/ReportFindings to their
+// dedicated cards ahead of the category entry — see `bridgeToolRegistry` below.
 
 /** The disclosure body: the inline diff when one's known, else the plain
  * captured output — split out so `ActivityItem` doesn't nest ternaries. */
@@ -153,13 +143,50 @@ export function ActivityItem({
 	);
 }
 
+/** TodoWrite's checklist, read from the tool INPUT (`todos`), falling back to
+ * the structured OUTPUT (`newTodos`) if the input didn't survive. Empty →
+ * `TodoList` renders null and the registry passes to the generic card. */
+function renderTodoWrite(tool: ToolInvocation) {
+	const fromInput = parseTodoItems(asRecord(tool.args)?.todos);
+	const items =
+		fromInput.length > 0
+			? fromInput
+			: parseTodoItems(outputRecord(tool)?.newTodos);
+	return <TodoList items={items} />;
+}
+
 /** The local-agent terminal's tool-card registry (P1-T1): rich terminal
  * cards for shell/edit/read/search executions; an uncategorized tool is
  * unclaimed (null), so a `ChatRow`/`ToolGroup` given this registry falls
  * back to the default plain collapsible block. P1-T3: a command claims the
  * dedicated `BashCommandCard` ($-prefixed, inline output, late-output
- * auto-expand-once); the other categories keep `ActivityItem`. */
+ * auto-expand-once); the other categories keep `ActivityItem`.
+ *
+ * fix-tool-render-gaps: dedicated cards are registered AHEAD of the category
+ * entry — an `mcp__*` call (unified MCP card), and Claude Code's TodoWrite
+ * (checklist), WebFetch, WebSearch, and ReportFindings, all previously
+ * misfiled or dumped as raw JSON. First match wins (see renderFromRegistry). */
 export const bridgeToolRegistry: ToolRegistry = [
+	{
+		match: (tool) => isMcpToolName(tool.toolName),
+		render: (tool) => <McpToolCard tool={tool} />,
+	},
+	{
+		match: (tool) => tool.toolName === "TodoWrite",
+		render: renderTodoWrite,
+	},
+	{
+		match: (tool) => tool.toolName === "WebFetch",
+		render: (tool) => <WebFetchCard tool={tool} />,
+	},
+	{
+		match: (tool) => tool.toolName === "WebSearch",
+		render: (tool) => <WebSearchCard tool={tool} />,
+	},
+	{
+		match: (tool) => tool.toolName === "ReportFindings",
+		render: (tool) => <ReportFindingsCard tool={tool} />,
+	},
 	{
 		match: (tool) => categoryOf(tool.toolName) !== null,
 		render: (tool) => {
