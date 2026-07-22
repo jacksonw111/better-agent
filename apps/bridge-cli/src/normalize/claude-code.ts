@@ -7,26 +7,6 @@
 import { createToolDurationTracker, withToolDuration } from "./tool-timing";
 import { asString, isRecord, NO_EVENTS, type NormalizedEvent } from "./types";
 
-function normalizeTextBlock(
-	role: "user" | "assistant",
-	block: Record<string, unknown>
-): NormalizedEvent[] {
-	const text = asString(block.text);
-	return text === undefined ? NO_EVENTS : [{ kind: "message", role, text }];
-}
-
-function normalizeThinkingBlock(
-	role: "user" | "assistant",
-	block: Record<string, unknown>
-): NormalizedEvent[] {
-	const text = asString(block.thinking);
-	// Drop empty/whitespace-only reasoning — an empty "thinking" bubble is worse
-	// than none (the SDK emits a placeholder thinking block before content).
-	return text && text.trim() !== ""
-		? [{ kind: "message", role, text, thinking: true }]
-		: NO_EVENTS;
-}
-
 function normalizeToolUseBlock(
 	block: Record<string, unknown>
 ): NormalizedEvent[] {
@@ -55,54 +35,61 @@ function normalizeToolResultBlock(
 	];
 }
 
-function normalizeClaudeContentBlock(
-	role: "user" | "assistant",
-	block: unknown
-): NormalizedEvent[] {
+function normalizeClaudeContentBlock(block: unknown): NormalizedEvent[] {
 	if (!isRecord(block) || typeof block.type !== "string") {
 		return NO_EVENTS;
 	}
 	switch (block.type) {
-		case "text":
-			// Assistant response text AND reasoning both stream live via
-			// `stream_event` (`text_delta` / `thinking_delta`) — see
-			// normalizeClaudeStreamEvent. The final assistant message repeats
-			// both as `text`/`thinking` blocks, so drop them here to avoid
-			// double-rendering (reasoning would otherwise show twice + a spurious
-			// bubble). User-role messages (tool_result echoes) are unaffected.
-			return role === "assistant" ? NO_EVENTS : normalizeTextBlock(role, block);
-		case "thinking":
-			return role === "assistant"
-				? NO_EVENTS
-				: normalizeThinkingBlock(role, block);
 		case "tool_use":
 			return normalizeToolUseBlock(block);
 		case "tool_result":
 			return normalizeToolResultBlock(block);
+		// `text` / `thinking` blocks never render here. On an ASSISTANT frame the
+		// response text and reasoning already stream live via `stream_event`
+		// (`text_delta` / `thinking_delta`, see normalizeClaudeStreamEvent) and
+		// repeat as `text`/`thinking` blocks on the final message — rendering them
+		// again would double up (reasoning twice + a spurious bubble). On a `user`
+		// frame they are SDK-injected subagent/echo internals, never the human's
+		// input (see normalizeClaudeMessage). Only tool_use/tool_result blocks
+		// carry renderable state.
 		default:
 			return NO_EVENTS;
 	}
 }
 
+// A `type:"user"` frame is NEVER the human's live input. The human's own turn
+// is pushed separately as a `userMessageEvent` from the adapter's `send()`
+// (see adapters/claude-code.ts `doSend`), so it never travels this normalize
+// path. Every `type:"user"` frame the SDK emits is injected content: a
+// subagent's task prompt echoed as its first user turn (a byte-for-byte
+// duplicate of the Task/Agent `tool_use` input — `parent_tool_use_id` set), and
+// tool_result echoes. Rendering a user frame's text/string body as a
+// `role:"user"` chat bubble mislabels those internals as messages the human
+// typed — the reported bug, confirmed against real stream-json. So a user frame
+// must yield only tool events (from its tool_result blocks), never a message.
 function normalizeClaudeMessage(
 	raw: Record<string, unknown>,
 	role: "user" | "assistant"
 ): NormalizedEvent[] {
 	const message = raw.message;
 	if (typeof message === "string") {
-		return [{ kind: "message", role, text: message }];
+		return role === "assistant"
+			? [{ kind: "message", role, text: message }]
+			: NO_EVENTS;
 	}
 	if (!isRecord(message)) {
 		return NO_EVENTS;
 	}
 	const content = message.content;
 	if (typeof content === "string") {
-		return [{ kind: "message", role, text: content }];
+		return role === "assistant"
+			? [{ kind: "message", role, text: content }]
+			: NO_EVENTS;
 	}
 	if (!Array.isArray(content)) {
 		return NO_EVENTS;
 	}
-	return content.flatMap((block) => normalizeClaudeContentBlock(role, block));
+	return content.flatMap((block) => normalizeClaudeContentBlock(block));
 }
 
 // Curated session metadata pulled off the init line — the model, resumable

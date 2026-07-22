@@ -194,6 +194,30 @@ describe("normalizeClaudeCode - stream_event and edge cases", () => {
 	});
 });
 
+// A `type:"user"` frame is never the human's live input — that is pushed
+// separately as a userMessageEvent from the adapter's send(). So a user frame
+// must never yield a role:"user" message; its text/string body is SDK-injected
+// content (subagent prompts, tool_result echoes). Own describe block to stay
+// under the repo's max-lines-per-function gate.
+describe("normalizeClaudeCode - user frames never render as human messages", () => {
+	it("drops a user-frame text block (SDK-injected content, not the human's input)", () => {
+		const events = normalizeClaudeCode({
+			type: "user",
+			message: { content: [{ type: "text", text: "hello there" }] },
+		});
+		expect(events).toEqual([]);
+	});
+
+	it("drops a user frame whose whole content is a string (subagent/echo internal)", () => {
+		expect(
+			normalizeClaudeCode({ type: "user", message: { content: "some text" } })
+		).toEqual([]);
+		expect(
+			normalizeClaudeCode({ type: "user", message: "bare string body" })
+		).toEqual([]);
+	});
+});
+
 describe("normalizeClaudeCode - assistant text and thinking blocks", () => {
 	it("drops an assistant text block (already streamed via stream_event)", () => {
 		const events = normalizeClaudeCode({
@@ -201,16 +225,6 @@ describe("normalizeClaudeCode - assistant text and thinking blocks", () => {
 			message: { content: [{ type: "text", text: "hello there" }] },
 		});
 		expect(events).toEqual([]);
-	});
-
-	it("keeps a user text block (tool_result echoes are unaffected)", () => {
-		const events = normalizeClaudeCode({
-			type: "user",
-			message: { content: [{ type: "text", text: "hello there" }] },
-		});
-		expect(events).toEqual([
-			{ kind: "message", role: "user", text: "hello there" },
-		]);
 	});
 
 	it("drops an assistant thinking block (already streamed via thinking_delta)", () => {
