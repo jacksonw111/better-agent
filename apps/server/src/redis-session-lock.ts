@@ -7,24 +7,93 @@ import type { Redis } from "ioredis";
 // crashed instance cannot deadlock a session forever. Release is token-guarded
 // so a turn that outlives the TTL never deletes a successor instance's lock.
 //
-// Known limitation: the TTL is fixed and not refreshed mid-turn. A legitimate
-// turn that runs longer than LOCK_TTL_MS lets the lock auto-expire, so a second
-// concurrent prompt for the same session could be admitted. The token-guard
-// prevents lock corruption but not this concurrency window. If multi-step tool
-// loops routinely approach the TTL in production, add a heartbeat that PEXPIREs
-// the key on a timer while the turn is in flight.
-const LOCK_TTL_MS = 300_000;
+// While a turn is in flight the lock is renewed on a heartbeat timer (PEXPIRE),
+// so a legitimate long-running turn never lets the lock auto-expire and admit a
+// second concurrent prompt for the same session. The TTL remains as the final
+// safety net: if the holding process crashes, its heartbeat stops and the key
+// expires on its own so a successor can take over.
+export const LOCK_TTL_MS = 300_000;
+
+// Renew well inside the TTL (~1/3) so several heartbeats can be missed — GC
+// pauses, transient Redis blips — before the lock is ever at risk of expiring.
+export const LOCK_RENEW_INTERVAL_MS = 100_000;
 
 // KEYS[1]=lock key, ARGV[1]=token. Delete only if we still own it.
 const RELEASE_SCRIPT =
 	"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
+// KEYS[1]=lock key, ARGV[1]=token, ARGV[2]=ttl ms. PEXPIRE only if we still own
+// it, so we never extend a lock a successor has since taken over.
+const RENEW_SCRIPT =
+	"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
+
 function keyFor(sessionId: string): string {
 	return `sessionlock:${sessionId}`;
 }
 
+interface LockState {
+	redis: Redis;
+	timers: Map<string, ReturnType<typeof setInterval>>;
+	tokens: Map<string, string>;
+}
+
+function stopHeartbeat(state: LockState, sessionId: string): void {
+	const timer = state.timers.get(sessionId);
+	if (timer !== undefined) {
+		clearInterval(timer);
+		state.timers.delete(sessionId);
+	}
+}
+
+async function renew(
+	state: LockState,
+	sessionId: string,
+	token: string
+): Promise<void> {
+	try {
+		const renewed = await state.redis.eval(
+			RENEW_SCRIPT,
+			1,
+			keyFor(sessionId),
+			token,
+			String(LOCK_TTL_MS)
+		);
+		// 0 means we no longer own the key (expired then re-taken); stop
+		// heartbeating so we don't keep polling a lock that isn't ours.
+		if (renewed === 0) {
+			state.tokens.delete(sessionId);
+			stopHeartbeat(state, sessionId);
+		}
+	} catch (err) {
+		log.error({
+			action: "redis session-lock renew failed",
+			sessionId,
+			error: String(err),
+		});
+	}
+}
+
+function startHeartbeat(
+	state: LockState,
+	sessionId: string,
+	token: string
+): void {
+	const timer = setInterval(() => {
+		renew(state, sessionId, token).catch((err) => {
+			log.error({
+				action: "redis session-lock heartbeat crashed",
+				sessionId,
+				error: String(err),
+			});
+		});
+	}, LOCK_RENEW_INTERVAL_MS);
+	// Don't let the heartbeat keep the process alive on its own.
+	timer.unref?.();
+	state.timers.set(sessionId, timer);
+}
+
 export function createRedisSessionLock(redis: Redis): SessionLock {
-	const tokens = new Map<string, string>();
+	const state: LockState = { redis, tokens: new Map(), timers: new Map() };
 
 	redis.on("error", (err: Error) => {
 		log.error({ action: "redis session-lock error", error: String(err) });
@@ -41,17 +110,19 @@ export function createRedisSessionLock(redis: Redis): SessionLock {
 				"NX"
 			);
 			if (res === "OK") {
-				tokens.set(sessionId, token);
+				state.tokens.set(sessionId, token);
+				startHeartbeat(state, sessionId, token);
 				return true;
 			}
 			return false;
 		},
 		async release(sessionId) {
-			const token = tokens.get(sessionId);
+			stopHeartbeat(state, sessionId);
+			const token = state.tokens.get(sessionId);
 			if (token === undefined) {
 				return;
 			}
-			tokens.delete(sessionId);
+			state.tokens.delete(sessionId);
 			await redis.eval(RELEASE_SCRIPT, 1, keyFor(sessionId), token);
 		},
 	};
