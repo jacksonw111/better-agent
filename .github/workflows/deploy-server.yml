@@ -15,9 +15,18 @@ name: Deploy server (SSH)
 #   Variable(optional):  SERVER_USER          SSH user      (default: root)
 #   Variable(optional):  SERVER_PORT          SSH port      (default: 22)
 #
+# ── Optional MCP config (synced into the server .env, like VAPID) ──
+#   Variables (non-secret, the public domains — need A records → server IP):
+#     MCP_DOMAIN, FINANCE_MCP_DOMAIN, WEREAD_MCP_DOMAIN
+#     (unset → compose serves that MCP on *.localhost, internal-only)
+#   Secrets (upstream API keys, optional per MCP):
+#     FINANCE_MCP_API_TOKEN, FRED_API_KEY, ADANOS_API_KEY, WEREAD_API_KEY
+#   Each is upserted only when set; unset ones leave the .env line untouched.
+#
 # Assumptions: Docker + compose plugin installed on the server, and it's already
 # logged in to ghcr.io (`docker login ghcr.io` once) so it can pull the private
-# images. `.env` on the server is NEVER touched by this workflow.
+# images. `.env` on the server is NEVER touched by this workflow EXCEPT the
+# idempotent VAPID + MCP-config upserts above.
 
 on:
   workflow_run:
@@ -100,6 +109,52 @@ jobs:
               grep -q "^${key}=" .env && sed -i "s|^${key}=.*|${pair}|" .env || echo "$pair" >> .env
             done
             echo "VAPID keys synced"
+
+      # Same ".env is never touched" exception as VAPID: sync the MCP compose
+      # config (domains + upstream API keys) so adding/rotating an MCP never
+      # requires SSHing to the box. Domains are non-secret → GitHub Variables;
+      # API keys → Secrets. Each value is upserted only when set, so an unset
+      # one leaves any existing .env line intact (and an unset domain lets
+      # compose fall back to its `.localhost` default). Delete-then-append
+      # (not sed) so arbitrary token characters can't break the substitution.
+      # Runs unconditionally — every upsert self-skips on an empty value.
+      - name: Sync MCP config into .env
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          MCP_DOMAIN: ${{ vars.MCP_DOMAIN }}
+          FINANCE_MCP_DOMAIN: ${{ vars.FINANCE_MCP_DOMAIN }}
+          WEREAD_MCP_DOMAIN: ${{ vars.WEREAD_MCP_DOMAIN }}
+          FINANCE_MCP_API_TOKEN: ${{ secrets.FINANCE_MCP_API_TOKEN }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          ADANOS_API_KEY: ${{ secrets.ADANOS_API_KEY }}
+          WEREAD_API_KEY: ${{ secrets.WEREAD_API_KEY }}
+        with:
+          host: ${{ vars.SERVER_HOST || secrets.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER || secrets.SERVER_USER || 'root' }}
+          password: ${{ secrets.SERVER_PASSWD }}
+          port: ${{ vars.SERVER_PORT || secrets.SERVER_PORT || '22' }}
+          envs: MCP_DOMAIN,FINANCE_MCP_DOMAIN,WEREAD_MCP_DOMAIN,FINANCE_MCP_API_TOKEN,FRED_API_KEY,ADANOS_API_KEY,WEREAD_API_KEY
+          script_stop: true
+          script: |
+            set -eu
+            cd "${{ vars.SERVER_DEPLOY_DIR || secrets.SERVER_DEPLOY_DIR }}"
+            touch .env
+            upsert() {
+              key="$1"
+              val="$2"
+              [ -n "$val" ] || return 0
+              grep -v "^${key}=" .env > .env.tmp 2>/dev/null || true
+              printf '%s=%s\n' "$key" "$val" >> .env.tmp
+              mv .env.tmp .env
+            }
+            upsert MCP_DOMAIN "$MCP_DOMAIN"
+            upsert FINANCE_MCP_DOMAIN "$FINANCE_MCP_DOMAIN"
+            upsert WEREAD_MCP_DOMAIN "$WEREAD_MCP_DOMAIN"
+            upsert FINANCE_MCP_API_TOKEN "$FINANCE_MCP_API_TOKEN"
+            upsert FRED_API_KEY "$FRED_API_KEY"
+            upsert ADANOS_API_KEY "$ADANOS_API_KEY"
+            upsert WEREAD_API_KEY "$WEREAD_API_KEY"
+            echo "MCP config synced"
 
       - name: Pull images and restart the stack
         uses: appleboy/ssh-action@v1.2.0
