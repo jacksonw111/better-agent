@@ -42,7 +42,7 @@ catalog:
   twitter-openapi-typescript-generated: 0.0.38
 minimumReleaseAgeExclude:
   - shadcn@4.12.0
-ignoredBuiltDependencies:
+neverBuiltDependencies:
   - core-js
   - es5-ext
 verifyDepsBeforeRun: false
