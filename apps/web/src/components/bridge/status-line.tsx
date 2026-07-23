@@ -10,6 +10,7 @@ import {
 	InfoIcon,
 	PowerOffIcon,
 	RotateCwIcon,
+	WifiOffIcon,
 } from "lucide-react";
 import type { StatusEvent } from "./bridge-events";
 
@@ -115,12 +116,60 @@ const STATUS_NOTICES: Record<string, StatusNotice> = {
 		text: "回复未能匹配到对应问题",
 		tone: "warn",
 	},
+	// The DEFAULT reading of `event_truncated`: a single event whose own bytes
+	// exceeded the relay cap and couldn't be shrunk (detail has no `reason` — see
+	// apps/bridge-cli/src/truncate-event.ts's degradeToTruncatedStatus). The
+	// backlog-overflow reading is resolved dynamically in `resolveNotice`.
 	event_truncated: {
 		icon: AlertTriangleIcon,
 		text: "输出过长，已截断",
 		tone: "warn",
 	},
 };
+
+/** The `detail.reason` a backlog-overflow drop carries (never a size
+ * truncation) — see apps/bridge-cli/src/forward-events-shed.ts's
+ * `droppedDeltaMarker`. Kept as a literal (the CLI isn't an importable
+ * workspace package — see bridge-events.ts's header). */
+const PUSH_BACKLOG_OVERFLOW_REASON = "push_backlog_overflow";
+
+/** The other reading of `event_truncated`: real-time output the CLI had to
+ * DROP because its push channel to the server backed up — a network/congestion
+ * story, not "too long". The text is deliberately about delivery, not size:
+ * this slice of live output didn't make it through (and may be missing from
+ * history too). */
+const PUSH_BACKLOG_OVERFLOW_NOTICE: StatusNotice = {
+	icon: WifiOffIcon,
+	text: "网络拥塞，部分输出未送达",
+	tone: "warn",
+};
+
+/** Pulls a string `reason` off a status event's `detail` (typed `unknown` on
+ * the wire), or `undefined` when absent/non-string. */
+function readDetailReason(detail: unknown): string | undefined {
+	if (typeof detail === "object" && detail !== null && "reason" in detail) {
+		const reason = (detail as { reason: unknown }).reason;
+		if (typeof reason === "string") {
+			return reason;
+		}
+	}
+	// biome-ignore lint/complexity/noUselessUndefined: explicit so every path returns a value (eslint consistent-return)
+	return undefined;
+}
+
+/** Resolves the notice for an event — a plain `STATUS_NOTICES` lookup except
+ * for `event_truncated`, whose copy branches on `detail.reason` so the two
+ * unrelated causes (oversized event vs. dropped-under-backpressure delta) read
+ * differently to the user. */
+function resolveNotice(event: StatusEvent): StatusNotice | undefined {
+	if (
+		event.status === "event_truncated" &&
+		readDetailReason(event.detail) === PUSH_BACKLOG_OVERFLOW_REASON
+	) {
+		return PUSH_BACKLOG_OVERFLOW_NOTICE;
+	}
+	return STATUS_NOTICES[event.status];
+}
 
 /** A status this table doesn't map yet: still readable, not the raw token. */
 function humanizeStatus(status: string): string {
@@ -141,7 +190,7 @@ export const STATUS_NOTICE_KINDS: ReadonlySet<string> = new Set(
 );
 
 export function StatusLine({ event }: { event: StatusEvent }) {
-	const notice = STATUS_NOTICES[event.status];
+	const notice = resolveNotice(event);
 	const Icon = notice?.icon ?? InfoIcon;
 	const tone = notice?.tone ?? "info";
 	const text = notice?.text ?? humanizeStatus(event.status);

@@ -3,9 +3,9 @@ import { render, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { StatusLine } from "./status-line";
 
-function renderStatus(status: string) {
+function renderStatus(status: string, detail?: unknown) {
 	const { container } = render(
-		<StatusLine event={{ kind: "status", status }} />
+		<StatusLine event={{ detail, kind: "status", status }} />
 	);
 	return within(container);
 }
@@ -43,6 +43,30 @@ it("maps resume_failed to the lost-context notice, warn-toned", () => {
 	const text = view.getByText("无法恢复上下文，已开启新会话");
 	expect(text).toBeDefined();
 	expect(text.closest("p")?.className).toContain("amber");
+});
+
+// fix-truncation-reason: the CLI reuses `event_truncated` for two unrelated
+// causes. A size-truncated event's detail has no `reason` (see
+// apps/bridge-cli/src/truncate-event.ts's degradeToTruncatedStatus) and keeps
+// the "output too long" copy...
+it("renders the size-truncation copy for event_truncated with no reason", () => {
+	const view = renderStatus("event_truncated", { originalKind: "message" });
+	expect(view.getByText("输出过长，已截断")).toBeDefined();
+});
+
+// ...while a backlog-overflow drop carries reason: "push_backlog_overflow"
+// (see apps/bridge-cli/src/forward-events-shed.ts's droppedDeltaMarker) — a
+// network-congestion story, NOT a size one — and gets its own warn notice.
+it("renders the network-congestion copy for a push_backlog_overflow drop", () => {
+	const view = renderStatus("event_truncated", {
+		droppedEvents: 3,
+		originalKind: "output",
+		reason: "push_backlog_overflow",
+	});
+	const text = view.getByText("网络拥塞，部分输出未送达");
+	expect(text).toBeDefined();
+	expect(text.closest("p")?.className).toContain("amber");
+	expect(view.queryByText("输出过长，已截断")).toBeNull();
 });
 
 it("falls back to a cleaned (underscore-free) label for an unmapped status", () => {
