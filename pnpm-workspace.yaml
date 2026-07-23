@@ -45,4 +45,9 @@ minimumReleaseAgeExclude:
 neverBuiltDependencies:
   - core-js
   - es5-ext
+# pnpm 11 hard-fails CI installs (CI=true) on any ignored build script even when
+# it's deliberately in neverBuiltDependencies above — ERR_PNPM_IGNORED_BUILDS.
+# We curate that list on purpose (core-js postinstall is an ad, es5-ext a shim),
+# so don't let the CI strictness turn it into a fatal install error.
+strictDepBuilds: false
 verifyDepsBeforeRun: false
