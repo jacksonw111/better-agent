@@ -30,6 +30,7 @@ import type {
 	ModelCacheStore,
 	OpenConnectorAccountStore,
 	PasswordResetStore,
+	ProfileStore,
 	ProviderCatalogStore,
 	ProviderCredentialStore,
 	PushService,
@@ -135,6 +136,7 @@ export interface AgentServices {
 		knowledge: KnowledgeStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
+		profile: ProfileStore;
 		project: ProjectStore;
 		pushSubscription: PushSubscriptionStore;
 		activeSession: ActiveSessionStore;

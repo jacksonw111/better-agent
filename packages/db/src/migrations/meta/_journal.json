@@ -372,6 +372,20 @@
       "when": 1784522221934,
       "tag": "0052_loving_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784799039831,
+      "tag": "0053_petite_tombstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1784799323290,
+      "tag": "0054_fluffy_lady_bullseye",
+      "breakpoints": true
     }
   ]
 }

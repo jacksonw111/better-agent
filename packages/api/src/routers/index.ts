@@ -15,6 +15,7 @@ import { knowledgeBaseRouter } from "./knowledge-base";
 import { mcpRouter } from "./mcp";
 import { memoryRouter } from "./memory";
 import { openConnectorRouter } from "./openconnector";
+import { profilesRouter } from "./profiles";
 import { projectsRouter } from "./projects";
 import { providersRouter } from "./providers";
 import { pushSubscriptionsRouter } from "./push-subscriptions";
@@ -40,6 +41,7 @@ export const appRouter = {
 	mcp: mcpRouter,
 	memory: memoryRouter,
 	openConnector: openConnectorRouter,
+	profiles: profilesRouter,
 	projects: projectsRouter,
 	providers: providersRouter,
 	pushSubscriptions: pushSubscriptionsRouter,

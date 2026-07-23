@@ -11,6 +11,7 @@ export * from "./knowledge";
 export * from "./mcp";
 export * from "./memory";
 export * from "./openconnector";
+export * from "./profiles";
 export * from "./projects";
 export * from "./providers";
 export * from "./push";

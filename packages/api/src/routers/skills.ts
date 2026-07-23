@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
+import { bumpProfileVersion } from "../profile-version";
 
 // The skills router: reusable method/procedure bundles assignable to an
 // agent (web-agent Skills, T1 stored them via SkillStore). Every procedure is
@@ -100,10 +101,15 @@ export const skillsRouter = {
 					input.mcpServerIds
 				);
 			}
-			return context.services.stores.skill.create({
+			const created = await context.services.stores.skill.create({
 				userId: context.authedUser.id,
 				...input,
 			});
+			await bumpProfileVersion(
+				context.services.stores.profile,
+				context.authedUser.id
+			);
+			return created;
 		}),
 
 	list: authorizedUserProcedure.handler(({ context }) =>
@@ -140,6 +146,10 @@ export const skillsRouter = {
 			if (!updated) {
 				throw new ORPCError("NOT_FOUND", { message: "Skill not found" });
 			}
+			await bumpProfileVersion(
+				context.services.stores.profile,
+				context.authedUser.id
+			);
 			return updated;
 		}),
 
@@ -149,6 +159,10 @@ export const skillsRouter = {
 			await requireOwnedSkill(context, context.authedUser.id, input.skillId);
 			await context.services.stores.skill.delete(
 				input.skillId,
+				context.authedUser.id
+			);
+			await bumpProfileVersion(
+				context.services.stores.profile,
 				context.authedUser.id
 			);
 			return { ok: true };

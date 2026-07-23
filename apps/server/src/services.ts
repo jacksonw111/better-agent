@@ -22,6 +22,7 @@ import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
+import { createProfileStore } from "@better-agent/db/repositories/profile-store";
 import { createProjectStore } from "@better-agent/db/repositories/project-store";
 import { createPushSubscriptionStore } from "@better-agent/db/repositories/push-subscription-store";
 import { createRunStore } from "@better-agent/db/repositories/run-store";
@@ -78,6 +79,7 @@ interface StoreParts {
 	memoryStore: ReturnType<typeof createMemoryStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
+	profileStore: ReturnType<typeof createProfileStore>;
 	projectStore: ReturnType<typeof createProjectStore>;
 	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
 	runStore: ReturnType<typeof createRunStore>;
@@ -122,6 +124,7 @@ function buildStores(
 		knowledge: parts.knowledgeStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
+		profile: parts.profileStore,
 		project: parts.projectStore,
 		pushSubscription: parts.pushSubscriptionStore,
 		activeSession: parts.activeSessionStore,
@@ -211,6 +214,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),
 		openConnectorAccount: createOpenConnectorAccountStore(db, secretBox),
+		profileStore: createProfileStore(db),
 		mcpServerStore: createMcpServerStore(db, secretBox),
 		pushSubscriptionStore: createPushSubscriptionStore(db),
 		webAuthzCache: createWebAuthzCacheStore(db),

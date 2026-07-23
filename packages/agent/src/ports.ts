@@ -138,6 +138,7 @@ export type {
 	MemoryItemStore,
 	MemoryRole,
 	MemoryRow,
+	MemoryScope,
 	MemoryStore,
 } from "./memory-ports";
 export type {
@@ -224,6 +225,20 @@ export type {
 	OpenConnectorAccountRow,
 	OpenConnectorAccountStore,
 } from "./open-connector-ports";
+// Profile ports (Phase 1, DP1) live in profile-ports.ts (split out for the
+// 300-line limit) and are re-exported so the public surface is unchanged.
+export type {
+	CreateStandardInput,
+	CreateTemplateInput,
+	ProfileRow,
+	ProfileStandardRow,
+	ProfileStore,
+	ProfileWithRelations,
+	ProjectTemplateRow,
+	TemplateScaffold,
+	UpdateStandardPatch,
+	UpdateTemplatePatch,
+} from "./profile-ports";
 // Web Push ports (P3-T3) live in push-ports.ts (split out for the 300-line
 // limit) and are re-exported so the public surface is unchanged.
 export type {
