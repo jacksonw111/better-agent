@@ -5,6 +5,7 @@ import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
 import { registerBridgeWsRoute } from "./bridge-ws";
 import { registerComputerWsRoute } from "./computer-ws";
+import { registerPtyWsRoutes } from "./pty-ws";
 import { createS3Bucket } from "./s3-bucket";
 import { buildServices } from "./services";
 import { createVncRouteDeps, registerVncRoutes } from "./vnc-proxy";
@@ -43,6 +44,9 @@ const { injectWebSocket, upgradeWebSocket } = registerVncRoutes(
 registerBridgeWsRoute(app, upgradeWebSocket, services);
 // Computer control channel (S2-T2, D4): launch delivery to client-mode CLIs.
 registerComputerWsRoute(app, upgradeWebSocket, services);
+// P2-1 PTY byte-relay plane: CLI daemon (/pty/agent-ws) <-> web viewers
+// (/pty/viewer-ws), pure sessionId-routed binary relay through services.ptyRelay.
+registerPtyWsRoutes(app, upgradeWebSocket, services);
 
 const server = serve(
 	{

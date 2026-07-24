@@ -38,10 +38,16 @@ export interface PtyHandle {
 	onData(cb: (data: Buffer) => void): void;
 	/** Subscribe to broker/child exit. Fires exactly once. */
 	onExit(cb: (exit: PtyExit) => void): void;
+	/** Stop reading pty output — the broker's stdout pipe fills and the child
+	 * blocks on write (natural pty backpressure). Used by the transport's flow
+	 * control (DP-PTY4) when a viewer falls behind. Idempotent. */
+	pause(): void;
 	/** The underlying broker process id (for diagnostics/tests). */
 	readonly pid: number | undefined;
 	/** Resize the pty (cols, rows) — triggers SIGWINCH in the child. */
 	resize(cols: number, rows: number): void;
+	/** Resume reading pty output after `pause()`. Idempotent. */
+	resume(): void;
 	/** Write bytes (keystrokes) into the pty. */
 	write(data: Buffer | string): void;
 }
@@ -124,6 +130,12 @@ function wrapBroker(child: ChildProcess): PtyHandle {
 		},
 		resize: (cols2, rows2) => {
 			ctrlIn?.write(resizeFrame(cols2, rows2));
+		},
+		pause: () => {
+			child.stdout?.pause();
+		},
+		resume: () => {
+			child.stdout?.resume();
 		},
 		kill: (signal: NodeJS.Signals = "SIGTERM") => {
 			child.kill(signal);

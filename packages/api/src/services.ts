@@ -59,6 +59,7 @@ import type { UsageRecordStore } from "@better-agent/db/repositories/usage-recor
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
 import type { CommandBus } from "./bridge/command-bus";
 import type { ComputerControlChannel } from "./computers/control-channel";
+import type { PtyRelayHub } from "./pty/relay-hub";
 
 export interface AgentServices {
 	agentValidator: AgentValidator;
@@ -96,6 +97,9 @@ export interface AgentServices {
 	modelFactory: ModelFactory;
 	openConnector: (accountId: string) => Promise<OpenConnectorService | null>;
 	pendingToolCallStore: PendingToolCallStore;
+	/** P2-1: in-process PTY byte relay pairing a computer's CLI agent WS with its
+	 * web viewer WSs (see pty/relay-hub.ts). In-memory like commandBus. */
+	ptyRelay: PtyRelayHub;
 	/** Web Push (P3-T3) — null when VAPID keys are not configured, which
 	 * disables the whole feature fail-open (subscribe routes error clearly,
 	 * the ingest notify hook no-ops). */

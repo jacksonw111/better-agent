@@ -14,7 +14,10 @@ import { spawnPty } from "./spawn-pty";
 class FakeChild extends EventEmitter {
 	pid = 9001;
 	stdin = { write: vi.fn() };
-	stdout = new EventEmitter();
+	stdout = Object.assign(new EventEmitter(), {
+		pause: vi.fn(),
+		resume: vi.fn(),
+	});
 	ctrlIn = { write: vi.fn() };
 	ctrlOut = new EventEmitter();
 	stdio = [this.stdin, this.stdout, null, this.ctrlIn, this.ctrlOut];
@@ -95,6 +98,14 @@ it("onExit() fires exactly once", () => {
 	child.emit("exit", 0, null);
 	child.emit("exit", 0, null);
 	expect(exits).toHaveLength(1);
+});
+
+it("pause()/resume() gate the broker stdout stream (flow-control backpressure)", () => {
+	const { child, handle } = fakeSetup();
+	handle.pause();
+	expect(child.stdout.pause).toHaveBeenCalledTimes(1);
+	handle.resume();
+	expect(child.stdout.resume).toHaveBeenCalledTimes(1);
 });
 
 it("kill() signals the broker (default SIGTERM)", () => {

@@ -6,6 +6,7 @@ import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import { createCommandBus } from "@better-agent/api/bridge/command-bus";
 import { createComputerControlChannel } from "@better-agent/api/computers/control-channel";
+import { createPtyRelayHub } from "@better-agent/api/pty/relay-hub";
 import { createActiveSessionStore } from "@better-agent/db/repositories/active-session-store";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
@@ -199,6 +200,10 @@ function assembleServices(
 		// single-instance Docker deployment means one process sees them all.
 		computerReplayGuard: createReplayGuard(),
 		computerControl: buildComputerControl(parts),
+		// P2-1: in-process PTY byte relay — pairs one computer's CLI agent WS with
+		// its web viewer WSs and routes binary frames by sessionId. In-memory like
+		// commandBus/computerControl (agent + viewers share one Node process).
+		ptyRelay: createPtyRelayHub(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }
