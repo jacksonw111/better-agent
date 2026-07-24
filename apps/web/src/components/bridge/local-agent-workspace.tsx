@@ -1,6 +1,7 @@
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { PtyTerminal } from "@/components/pty/pty-terminal";
 import type { BridgeSessionRow } from "@/utils/api-types";
 import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
@@ -25,7 +26,10 @@ import {
 	LocalAgentWorkspaceSidebar,
 	WorkspaceSidebarSkeleton,
 } from "./local-agent-workspace-sidebar";
-import { SessionWorkspacePane } from "./session-workspace-pane";
+import {
+	SessionWorkspacePane,
+	type SessionWorkspaceTabContext,
+} from "./session-workspace-pane";
 import {
 	MobileSidebarDrawer,
 	SidebarDrawerToggle,
@@ -39,18 +43,41 @@ import {
 // (`?session=`): the route passes it down and turns sidebar clicks into
 // `navigate({ search })`.
 
+/** The `?pty=<computerId>` feature gate (DP-PTY6): which computer's PTY relay
+ * to attach to, and optionally which sessionId (defaults to the selected bridge
+ * session). Absent = the legacy structured terminal. Removed in P2-3. */
+export interface PtyGate {
+	computerId: string;
+	sessionId?: string;
+}
+
 /** The chat tab's content: the selected session's terminal, or the
  * waiting-for-CLI guide when this token has no session yet. Rendered into
  * `SessionWorkspacePane`'s kept-alive chat slot. */
 function LocalChat({
 	activeSession,
 	entry,
+	pty,
 	userAvatarUrl,
 }: {
 	activeSession: BridgeSessionRow | null;
 	entry: LocalAgentEntry;
+	pty?: PtyGate;
 	userAvatarUrl: string | undefined;
 }) {
+	// P2-2: gated new xterm PTY terminal, coexisting with the legacy renderer so
+	// it can be opened + perf-validated in the real workspace before P2-3 deletes
+	// the old path. Attaches to the selected session unless `?ptySession=` overrides.
+	if (pty && activeSession) {
+		return (
+			<div className="min-h-0 flex-1 p-3 sm:p-4">
+				<PtyTerminal
+					computerId={pty.computerId}
+					sessionId={pty.sessionId ?? activeSession.id}
+				/>
+			</div>
+		);
+	}
 	if (activeSession) {
 		return (
 			<SessionView
@@ -83,6 +110,22 @@ function WorkspaceSkeleton() {
 	);
 }
 
+/** The pane's `companion` slot: /local's ⌘K workspace command bridge, bound to
+ * the live tab state. Extracted so WorkspaceLayout stays within the line cap. */
+function renderWorkspaceCompanion(
+	activeSession: BridgeSessionRow | null,
+	entry: LocalAgentEntry
+) {
+	return ({ setTab, tab }: SessionWorkspaceTabContext) => (
+		<WorkspaceCommandBridge
+			activeSession={activeSession}
+			entry={entry}
+			setTab={setTab}
+			tab={tab}
+		/>
+	);
+}
+
 /** The assembled two-pane layout — the token-bound parts (sidebar, drawer,
  * settings command bridge) around the extracted session-level pane. The <md
  * drawer pattern (overlay + toggle + state trio) is shared with the task
@@ -91,12 +134,14 @@ function WorkspaceLayout({
 	activeSession,
 	entry,
 	onSelectSession,
+	pty,
 	sidebar,
 	userAvatarUrl,
 }: {
 	activeSession: BridgeSessionRow | null;
 	entry: LocalAgentEntry;
 	onSelectSession: (sessionId: string) => void;
+	pty?: PtyGate;
 	sidebar: (onSelect: (sessionId: string) => void) => ReactNode;
 	userAvatarUrl: string | undefined;
 }) {
@@ -111,17 +156,11 @@ function WorkspaceLayout({
 					<LocalChat
 						activeSession={activeSession}
 						entry={entry}
+						pty={pty}
 						userAvatarUrl={userAvatarUrl}
 					/>
 				}
-				companion={({ setTab, tab }) => (
-					<WorkspaceCommandBridge
-						activeSession={activeSession}
-						entry={entry}
-						setTab={setTab}
-						tab={tab}
-					/>
-				)}
+				companion={renderWorkspaceCompanion(activeSession, entry)}
 				headerStart={
 					<SidebarDrawerToggle label="Show sessions" onOpen={drawer.show} />
 				}
@@ -147,10 +186,12 @@ function WorkspaceLayout({
  */
 export function LocalAgentWorkspace({
 	onSelectSession,
+	pty,
 	sessionId,
 	tokenId,
 }: {
 	onSelectSession: (sessionId: string) => void;
+	pty?: PtyGate;
 	sessionId: string | undefined;
 	tokenId: string;
 }) {
@@ -178,6 +219,7 @@ export function LocalAgentWorkspace({
 			activeSession={activeSession}
 			entry={entry}
 			onSelectSession={onSelectSession}
+			pty={pty}
 			sidebar={(onSelect) => (
 				<LocalAgentWorkspaceSidebar
 					activeSessionId={activeSession?.id ?? null}

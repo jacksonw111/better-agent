@@ -7,8 +7,17 @@ export const Route = createFileRoute("/local/$tokenId")({
 	// P2-T2: `?session=` names the selected session; absent means "follow the
 	// newest" (the workspace's default), so plain /local/$tokenId links keep
 	// their old behavior.
-	validateSearch: (search: Record<string, unknown>): { session?: string } => ({
+	// P2-2 (DP-PTY6): `?pty=<computerId>` opens the new xterm PTY terminal in
+	// place of the legacy structured terminal (feature-gated coexistence — the
+	// old renderer is removed in P2-3). `?ptySession=` optionally overrides which
+	// PTY sessionId to attach to; it defaults to the selected bridge session.
+	validateSearch: (
+		search: Record<string, unknown>
+	): { pty?: string; ptySession?: string; session?: string } => ({
 		session: typeof search.session === "string" ? search.session : undefined,
+		pty: typeof search.pty === "string" ? search.pty : undefined,
+		ptySession:
+			typeof search.ptySession === "string" ? search.ptySession : undefined,
 	}),
 });
 
@@ -19,7 +28,7 @@ export const Route = createFileRoute("/local/$tokenId")({
  * that exact session. */
 function LocalAgentWorkspacePage() {
 	const { tokenId } = Route.useParams();
-	const { session } = Route.useSearch();
+	const { session, pty, ptySession } = Route.useSearch();
 	const navigate = useNavigate();
 	return (
 		<LocalAgentWorkspace
@@ -27,10 +36,11 @@ function LocalAgentWorkspacePage() {
 				navigate({
 					params: { tokenId },
 					replace: true,
-					search: { session: sessionId },
+					search: (prev) => ({ ...prev, session: sessionId }),
 					to: "/local/$tokenId",
 				})
 			}
+			pty={pty ? { computerId: pty, sessionId: ptySession } : undefined}
 			sessionId={session}
 			tokenId={tokenId}
 		/>
