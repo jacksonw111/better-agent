@@ -6,17 +6,23 @@ import {
 	OPENCODE_TRANSPORTS,
 	type OpencodeTransport,
 } from "./adapters/types";
+import { parseSyncArgs, type SyncCliArgs } from "./args-sync";
+
+export type { SyncCliArgs } from "./args-sync";
 
 const AGENT_KINDS: AgentKind[] = ["claude-code", "opencode", "codex", "pi"];
 
 export const USAGE = `Usage:
   agent-cli --client --server <url> [--pair <code>] [--name <computer>]
   agent-cli --agent <kind> --server <url> --token <token> [options]
+  agent-cli sync --server <url> --token <bt_token> [--force] [--project <id>]
 (alias: better-agent-bridge — kept for existing scripts)
 
 Modes:
   --client          Keep this Computer registered and connected (starts no Agent)
   --agent <kind>    Run one bridge session: claude-code | opencode | codex | pi
+  sync              Materialize your Profile (standards, skills, MCP) into
+                    ~/.claude — runs automatically before a project session too
 
 Required for both modes:
   --server <url>    Better Agent server URL (or BETTER_AGENT_BRIDGE_SERVER)
@@ -112,7 +118,7 @@ export interface ClientCliArgs {
 	serverUrl: string;
 }
 
-export type CliArgs = SessionCliArgs | ClientCliArgs;
+export type CliArgs = SessionCliArgs | ClientCliArgs | SyncCliArgs;
 
 const FLAG_TO_FIELD = {
 	"--agent": "agentKind",
@@ -124,6 +130,7 @@ const FLAG_TO_FIELD = {
 	"--name": "name",
 	"--opencode-transport": "opencodeTransport",
 	"--pair": "pairCode",
+	"--project": "projectId",
 	"--resume": "resume",
 	"--server": "serverUrl",
 	"--token": "token",
@@ -213,6 +220,9 @@ export function parseArgs(
 ): CliArgs {
 	const flags = collectFlags(argv);
 
+	if (argv[0] === "sync") {
+		return parseSyncArgs(argv, flags, env);
+	}
 	if (argv.includes("--client")) {
 		return parseClientArgs(flags, env);
 	}

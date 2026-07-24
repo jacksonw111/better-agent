@@ -44,7 +44,20 @@ function buildHarness() {
 				userAgent: null,
 			},
 		});
-	return { clientFor };
+	// A bridge-token-authed client — how the sync CLI reaches
+	// `profiles.materializeBundle` (bridgeProcedure, not a web JWT).
+	const bridgeClientFor = (userId: string) =>
+		createRouterClient(appRouter, {
+			context: {
+				authedAgent: null,
+				authedBridgeToken: { tokenId: `bt-${userId}`, userId },
+				authedUser: null,
+				clientIp: "127.0.0.1",
+				services: services as never,
+				userAgent: null,
+			},
+		});
+	return { bridgeClientFor, clientFor };
 }
 
 async function seedUser(email: string): Promise<string> {
@@ -187,4 +200,70 @@ it("adding an MCP server bumps the profile version", async () => {
 	});
 
 	expect((await alice.profiles.get()).version).toBe(2);
+});
+
+it("materializeBundle returns version + standards + skills + mcp + templates", async () => {
+	const { clientFor, bridgeClientFor } = buildHarness();
+	const userId = await seedUser("alice@x.com");
+	const alice = clientFor(userId);
+	const aliceBridge = bridgeClientFor(userId);
+
+	await alice.profiles.standards.create({
+		body: "Remove console.log.",
+		title: "No logs",
+	});
+	await alice.skills.create({
+		description: "Ships it",
+		instructions: "run deploy",
+		name: "Deploy",
+	});
+	await alice.mcp.createServer({
+		name: "Weather",
+		url: "https://mcp.example.test",
+	});
+	await alice.profiles.templates.create({
+		claudeMd: "Use pnpm.",
+		name: "Node",
+	});
+
+	const bundle = await aliceBridge.profiles.materializeBundle();
+	expect(bundle.version).toBeGreaterThan(1);
+	expect(bundle.standards).toEqual([
+		{
+			body: "Remove console.log.",
+			enabled: true,
+			sortOrder: 0,
+			title: "No logs",
+		},
+	]);
+	expect(bundle.skills).toContainEqual({
+		description: "Ships it",
+		instructions: "run deploy",
+		name: "Deploy",
+	});
+	expect(bundle.mcpServers).toContainEqual(
+		expect.objectContaining({
+			headers: {},
+			name: "Weather",
+			url: "https://mcp.example.test",
+		})
+	);
+	expect(bundle.templates).toContainEqual(
+		expect.objectContaining({ claudeMd: "Use pnpm.", name: "Node" })
+	);
+});
+
+it("materializeBundle is owner-scoped: only the token owner's rows appear", async () => {
+	const { clientFor, bridgeClientFor } = buildHarness();
+	const aliceId = await seedUser("alice@x.com");
+	const bobId = await seedUser("bob@x.com");
+	await clientFor(aliceId).mcp.createServer({
+		name: "AliceOnly",
+		url: "https://mcp.example.test",
+	});
+
+	const bobBundle = await bridgeClientFor(bobId).profiles.materializeBundle();
+	expect(bobBundle.mcpServers.map((server) => server.name)).not.toContain(
+		"AliceOnly"
+	);
 });

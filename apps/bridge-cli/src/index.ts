@@ -9,6 +9,7 @@ import {
 	handleInfoFlags,
 	parseArgs,
 	type SessionCliArgs,
+	type SyncCliArgs,
 } from "./args";
 import { dispatchCli } from "./cli-dispatch";
 import { createHeartbeatWait, runComputerClient } from "./computer-client";
@@ -19,6 +20,9 @@ import {
 } from "./computer-transport";
 import { createCuaController } from "./cua/cua-controller";
 import { detectComputerInventory } from "./detect-inventory";
+import { createBundleFetcher } from "./profile-sync/bundle-client";
+import { defaultSyncFs, defaultSyncRoots } from "./profile-sync/fs-ports";
+import { syncProfile } from "./profile-sync/sync";
 import { createRelayTransport } from "./relay-transport";
 import { runRestartLoop } from "./restart-loop";
 import { createTaskLaunchRuntime } from "./task-launch/launch-wiring";
@@ -66,13 +70,58 @@ async function startAgentSession(
 	return { sessionId, handle };
 }
 
+/** P1-C: land the user's Profile (standards → CLAUDE.md managed block, skills →
+ * SKILL.md, MCP → .mcp.json + memory entry) into `~/.claude`, idempotently. The
+ * `sync` subcommand and (best-effort) the pre-session auto-sync both call this. */
+function runProfileSync(config: {
+	force?: boolean;
+	projectId?: string;
+	serverUrl: string;
+	token: string;
+}): Promise<{ changed: boolean; version: number }> {
+	return syncProfile({
+		bridgeToken: config.token,
+		fetchBundle: createBundleFetcher({
+			serverUrl: config.serverUrl,
+			token: config.token,
+		}),
+		force: config.force,
+		fs: defaultSyncFs(),
+		log: (message) => process.stdout.write(`[sync] ${message}\n`),
+		projectId: config.projectId,
+		roots: defaultSyncRoots(),
+		serverUrl: config.serverUrl,
+	});
+}
+
+/** `sync` mode: land the Profile and exit. */
+async function startSync(args: SyncCliArgs): Promise<void> {
+	await runProfileSync({
+		force: args.force,
+		projectId: args.projectId,
+		serverUrl: args.serverUrl,
+		token: args.token,
+	});
+}
+
 /** The pre-existing session mode, verbatim — extracted from `main` so the
- * mode dispatch stays a pure seam with zero session behavior change. */
+ * mode dispatch stays a pure seam with zero session behavior change. P1-C adds
+ * one best-effort auto-sync before the adapter starts, so a project session
+ * always launches against the freshest Profile; a sync failure never blocks the
+ * session (the server-forwarded skills/MCP still apply). */
 async function startSessionClient(args: SessionCliArgs): Promise<void> {
 	const adapter = selectAdapter(args.agentKind, {
 		opencodeTransport: args.opencodeTransport,
 	});
 	requireAgentCli(args.agentKind);
+
+	try {
+		await runProfileSync({ serverUrl: args.serverUrl, token: args.token });
+	} catch (error) {
+		process.stderr.write(
+			`[sync] Profile sync skipped: ${error instanceof Error ? error.message : String(error)}\n`
+		);
+	}
 
 	const transport = createRelayTransport({
 		serverUrl: args.serverUrl,
@@ -168,6 +217,7 @@ async function main(): Promise<void> {
 	await dispatchCli(args, {
 		startClient: startComputerClient,
 		startSession: startSessionClient,
+		startSync,
 	});
 }
 

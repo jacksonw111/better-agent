@@ -1,8 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
-import { authorizedUserProcedure } from "../index";
+import { authorizedUserProcedure, bridgeProcedure } from "../index";
 import { bumpProfileVersion } from "../profile-version";
+import { resolveProfileBundle } from "./profile-materialize";
 
 // The profiles router (Phase 1, DP1): a user's server-side source of truth —
 // coding standards + project templates — with a `version` that any write bumps
@@ -55,6 +56,17 @@ async function filterOwnedMcpServerIds(
 
 const get = authorizedUserProcedure.handler(({ context }) =>
 	context.services.stores.profile.getProfile(context.authedUser.id)
+);
+
+// P1-C: the read-only sync bundle a client CLI pulls. It is a `bridgeProcedure`
+// — not `authorizedUserProcedure` — because the CLI authenticates to the server
+// with its long-lived bridge token (`bt_…`), the SAME credential the memory MCP
+// endpoint requires and the one the sync writes into the landed `.mcp.json`; the
+// CLI never holds a web JWT. Owner scoping still holds: the bundle is resolved
+// from the token's own `userId`, so a token only ever materializes its owner's
+// Profile. Read-only — it never touches the P1-A write path.
+const materializeBundle = bridgeProcedure.handler(({ context }) =>
+	resolveProfileBundle(context, context.authedBridgeToken.userId)
 );
 
 const standardsRouter = {
@@ -168,6 +180,7 @@ const templatesRouter = {
 
 export const profilesRouter = {
 	get,
+	materializeBundle,
 	standards: standardsRouter,
 	templates: templatesRouter,
 };

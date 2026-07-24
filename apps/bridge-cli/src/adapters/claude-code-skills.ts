@@ -15,7 +15,7 @@ import type { ResolvedSkill } from "./types";
 const UNSAFE_NAME_CHARS = /[^a-zA-Z0-9._-]+/g;
 const LEADING_DOTS_DASHES = /^[-.]+/;
 
-function safeSkillDirName(name: string): string {
+export function safeSkillDirName(name: string): string {
 	return (
 		name.replace(UNSAFE_NAME_CHARS, "-").replace(LEADING_DOTS_DASHES, "") ||
 		"skill"
@@ -26,7 +26,7 @@ function safeSkillDirName(name: string): string {
  * two fields the SDK reads to list a skill) followed by the instructions as
  * the markdown body. `description` is quoted so a colon or `#` in it can't
  * break the YAML. */
-function skillMarkdown(skill: ResolvedSkill): string {
+export function skillMarkdown(skill: ResolvedSkill): string {
 	const description = JSON.stringify(skill.description);
 	return `---\nname: ${safeSkillDirName(skill.name)}\ndescription: ${description}\n---\n\n${skill.instructions}\n`;
 }

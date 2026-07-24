@@ -243,3 +243,51 @@ describe("parseArgs - rejected input", () => {
 		).toThrow("--dir does not exist: /nonexistent-path-for-test");
 	});
 });
+
+describe("parseArgs - sync mode", () => {
+	it("parses sync with token + server and optional force/project", () => {
+		const args = parseArgs(
+			[
+				"sync",
+				"--server",
+				"https://s",
+				"--token",
+				"bt_abc",
+				"--force",
+				"--project",
+				"proj-1",
+			],
+			{}
+		);
+		expect(args).toEqual({
+			force: true,
+			mode: "sync",
+			projectId: "proj-1",
+			serverUrl: "https://s",
+			token: "bt_abc",
+		});
+	});
+
+	it("defaults force to false and projectId to undefined", () => {
+		const args = parseArgs(["sync", "--server", "s", "--token", "bt_abc"], {});
+		expect(args).toMatchObject({
+			force: false,
+			mode: "sync",
+			projectId: undefined,
+		});
+	});
+
+	it("falls back to env vars for token and server", () => {
+		const args = parseArgs(["sync"], {
+			BETTER_AGENT_BRIDGE_SERVER: "https://env",
+			BETTER_AGENT_BRIDGE_TOKEN: "bt_env",
+		});
+		expect(args).toMatchObject({ serverUrl: "https://env", token: "bt_env" });
+	});
+
+	it("rejects sync without a token", () => {
+		expect(() => parseArgs(["sync", "--server", "s"], {})).toThrow(
+			"--token is required"
+		);
+	});
+});
