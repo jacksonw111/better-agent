@@ -46,6 +46,7 @@ export function createFakeMemoryStore(
 		get: notImplemented,
 		getMany: notImplemented,
 		listByUser: notImplemented,
+		setScope: notImplemented,
 	};
 }
 
@@ -107,6 +108,8 @@ export function fakeMemoryRow(overrides: Partial<MemoryRow> = {}): MemoryRow {
 		userId: "user-1",
 		name: "fake memory",
 		description: null,
+		scope: "global",
+		projectId: null,
 		createdAt: now,
 		updatedAt: now,
 		...overrides,

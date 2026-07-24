@@ -11,6 +11,11 @@
 /** Whether a linked agent may only read a memory or also write to it. */
 export type MemoryRole = "read" | "read_write";
 
+/** A memory's reach (P1-B, decision DP2). `global` memories are visible in
+ * every session; `project` memories only in a session bound to their
+ * `projectId` — a project memory is never surfaced to another project. */
+export type MemoryScope = "global" | "project";
+
 /** How a memory item came to be. M1 only writes `user`; the rest are for the
  * later auto-capture / reflection phases. */
 export type MemoryItemSource = "user" | "extracted" | "reflection";
@@ -21,6 +26,10 @@ export interface MemoryRow {
 	description: string | null;
 	id: string;
 	name: string;
+	/** DP2 reach. `project` rows carry a non-null `projectId`; `global` rows
+	 * always have `projectId === null`. */
+	projectId: string | null;
+	scope: MemoryScope;
 	updatedAt: Date;
 	userId: string;
 }
@@ -72,6 +81,10 @@ export interface MemoryStore {
 		userId: string;
 		name: string;
 		description?: string;
+		/** DP2 reach; defaults to "global". Must pair with `projectId` when
+		 * "project". */
+		scope?: MemoryScope;
+		projectId?: string | null;
 	}): Promise<MemoryRow>;
 	/** Owner-scoped delete: only removes the row when it belongs to `userId`. */
 	delete(id: string, userId: string): Promise<void>;
@@ -87,6 +100,15 @@ export interface MemoryStore {
 	listByUser(userId: string): Promise<MemoryRow[]>;
 	/** The memory ids (+role) assigned to a local/bridge agent. */
 	listTokenMemories(tokenId: string): Promise<AgentMemoryRow[]>;
+	/** Owner-scoped scope change (DP2): re-homes a memory to "global"
+	 * (clearing projectId) or to a "project" (setting it). Returns the updated
+	 * row, or null when the memory isn't owned by `userId`. */
+	setScope(input: {
+		id: string;
+		userId: string;
+		scope: MemoryScope;
+		projectId: string | null;
+	}): Promise<MemoryRow | null>;
 	unassignAgent(agentId: string, memoryId: string): Promise<void>;
 	unassignToken(tokenId: string, memoryId: string): Promise<void>;
 }

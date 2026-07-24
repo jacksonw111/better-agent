@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { MemoryCardList } from "./memory-card-list";
 import type { MemoryRow } from "./memory-types";
@@ -20,15 +22,27 @@ function makeMemory(overrides: Partial<MemoryRow> = {}): MemoryRow {
 		userId: "user-1",
 		name: "runbooks",
 		description: "ops runbooks",
+		scope: "global",
+		projectId: null,
 		createdAt: new Date("2026-07-04T12:00:00Z"),
 		updatedAt: new Date("2026-07-04T12:00:00Z"),
 		...overrides,
 	};
 }
 
+function withClient(children: ReactNode) {
+	return (
+		<QueryClientProvider client={new QueryClient()}>
+			{children}
+		</QueryClientProvider>
+	);
+}
+
 function renderList(onDelete: (id: string) => void, memories = [makeMemory()]) {
 	const { container } = render(
-		<MemoryCardList memories={memories} onDelete={onDelete} />
+		withClient(
+			<MemoryCardList memories={memories} onDelete={onDelete} projects={[]} />
+		)
 	);
 	return {
 		body: within(container.ownerDocument.body),

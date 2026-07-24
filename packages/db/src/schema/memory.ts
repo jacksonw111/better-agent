@@ -1,4 +1,8 @@
-import type { MemoryItemSource, MemoryRole } from "@better-agent/agent/ports";
+import type {
+	MemoryItemSource,
+	MemoryRole,
+	MemoryScope,
+} from "@better-agent/agent/ports";
 import { sql } from "drizzle-orm";
 import {
 	index,
@@ -14,6 +18,7 @@ import {
 import { agents } from "./agents";
 import { users } from "./auth";
 import { bridgeTokens } from "./bridge";
+import { projects } from "./projects";
 
 // SiliconFlow `BAAI/bge-m3` output width (decision D1, self-hosted-compatible
 // provider). The embedding table is split from memory_items so switching models
@@ -34,6 +39,11 @@ export const memories = pgTable(
 			.references(() => users.id),
 		name: text("name").notNull(),
 		description: text("description"),
+		// DP2 reach: "global" (visible in every session) vs "project" (only in a
+		// session bound to `projectId`). A project memory is never returned to
+		// another project. `projectId` is non-null exactly when scope="project".
+		scope: text("scope").$type<MemoryScope>().notNull().default("global"),
+		projectId: uuid("project_id").references(() => projects.id),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -41,7 +51,17 @@ export const memories = pgTable(
 			.notNull()
 			.defaultNow(),
 	},
-	(table) => [index("memories_user_id_idx").on(table.userId)]
+	(table) => [
+		index("memories_user_id_idx").on(table.userId),
+		// Backs the scoped read paths: a session filters its owner's memories to
+		// global ∪ (project = current), so (user_id, scope, project_id) is the
+		// natural covering order.
+		index("memories_user_scope_idx").on(
+			table.userId,
+			table.scope,
+			table.projectId
+		),
+	]
 );
 
 // Many-to-many agent↔memory link with a per-link role (decision C2): one

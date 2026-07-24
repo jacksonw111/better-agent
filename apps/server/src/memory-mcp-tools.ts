@@ -3,80 +3,47 @@ import type {
 	EmbeddingClient,
 	MemoryItemRow,
 	MemoryItemStore,
+	MemoryRow,
+	MemoryScope,
 	MemoryStore,
 } from "@better-agent/agent/ports";
+import type { ProjectStore } from "@better-agent/agent/project-ports";
 import {
 	embedAndAddItem,
 	embedAndSearchItems,
 } from "@better-agent/api/routers/memory-support";
+import {
+	DEFAULT_K,
+	MAX_IMPORTANCE,
+	MAX_K,
+	MIN_IMPORTANCE,
+} from "./memory-mcp-tool-defs";
 
-// The memory MCP tools (defs + implementations), split out of memory-mcp.ts
-// (which keeps the JSON-RPC + auth plumbing) so both files stay under the
-// per-file line cap — mirroring apps/mcp's x-tool-defs.ts/mcp-server.ts split.
-// Both tools are scoped to the authenticated bridge token: memory_search reads
-// across every assigned memory, memory_add writes only through a link whose
-// role is 'read_write'.
-
-const DEFAULT_K = 5;
-const MAX_K = 20;
-const MIN_IMPORTANCE = 0;
-const MAX_IMPORTANCE = 1;
+// The memory MCP tool implementations, split from memory-mcp-tool-defs.ts (the
+// schemas) and memory-mcp.ts (the JSON-RPC + auth plumbing) so each file stays
+// under the per-file line cap. Both tools are scoped to the authenticated
+// bridge token: memory_search reads across every assigned memory, memory_add
+// writes only through a link whose role is 'read_write'.
+//
+// DP2 scope: the connection may carry a project context (the projectId the CLI
+// bound this session to — see memory-mcp.ts). When present, memory_search only
+// surfaces global memories plus the CURRENT project's memories (never another
+// project's), and memory_add defaults to writing the current project's memory;
+// an explicit `scope:"global"` argument overrides that. With no project
+// context every read/write falls back to global memories only.
 
 // The narrow slice of the server's services this endpoint needs — the full
 // AgentServices object satisfies it structurally, and tests can wire just
-// these three stores plus the fake embedding client.
+// these stores plus the fake embedding client.
 export interface MemoryMcpServices {
 	embeddingClient: EmbeddingClient | null;
 	stores: {
 		bridgeToken: Pick<BridgeTokenStore, "findByHash">;
-		memory: Pick<MemoryStore, "get" | "listTokenMemories">;
+		memory: Pick<MemoryStore, "getMany" | "listTokenMemories">;
 		memoryItem: Pick<MemoryItemStore, "add" | "search">;
+		project: Pick<ProjectStore, "getById">;
 	};
 }
-
-export const MEMORY_TOOLS = [
-	{
-		name: "memory_search",
-		description:
-			"Search the memories assigned to this agent for relevant saved facts. " +
-			"Use it before answering anything that could depend on stored knowledge or preferences.",
-		inputSchema: {
-			type: "object",
-			properties: {
-				query: { type: "string", description: "What to look up." },
-				k: {
-					type: "number",
-					description: `How many items to return (default ${DEFAULT_K}, max ${MAX_K}).`,
-				},
-			},
-			required: ["query"],
-			additionalProperties: false,
-		},
-	},
-	{
-		name: "memory_add",
-		description:
-			"Save a new fact into one of this agent's writable memories. " +
-			"Requires a memory assigned with the read_write role.",
-		inputSchema: {
-			type: "object",
-			properties: {
-				content: { type: "string", description: "The fact to remember." },
-				importance: {
-					type: "number",
-					description: "How important the fact is, 0-1 (default 0.5).",
-				},
-				memory_name: {
-					type: "string",
-					description:
-						"Which memory to write to — only needed when several writable memories are assigned.",
-				},
-			},
-			required: ["content"],
-			additionalProperties: false,
-		},
-	},
-] as const;
 
 export function toolText(text: string, isError = false) {
 	return { content: [{ type: "text", text }], isError };
@@ -92,6 +59,11 @@ function num(args: Record<string, unknown>, key: string): number | undefined {
 	return typeof value === "number" ? value : undefined;
 }
 
+function scopeArg(args: Record<string, unknown>): MemoryScope | undefined {
+	const value = args.scope;
+	return value === "global" || value === "project" ? value : undefined;
+}
+
 function clampK(k: number | undefined): number {
 	if (k === undefined || Number.isNaN(k)) {
 		return DEFAULT_K;
@@ -105,18 +77,13 @@ function clampImportance(value: number | undefined): number | undefined {
 		: Math.min(Math.max(value, MIN_IMPORTANCE), MAX_IMPORTANCE);
 }
 
-async function memoryNames(
-	services: MemoryMcpServices,
-	memoryIds: string[]
-): Promise<Map<string, string>> {
-	const unique = [...new Set(memoryIds)];
-	const entries = await Promise.all(
-		unique.map(async (id) => {
-			const memory = await services.stores.memory.get(id);
-			return [id, memory?.name ?? "memory"] as const;
-		})
-	);
-	return new Map(entries);
+// A memory is in scope for a session when it is global, or it is a project
+// memory bound to the session's current project — never another project's.
+function inScope(row: MemoryRow, projectContext: string | null): boolean {
+	if (row.scope === "global") {
+		return true;
+	}
+	return projectContext !== null && row.projectId === projectContext;
 }
 
 function formatItem(item: MemoryItemRow, names: Map<string, string>): string {
@@ -124,9 +91,27 @@ function formatItem(item: MemoryItemRow, names: Map<string, string>): string {
 	return `[${name}] (importance ${item.importance}) ${item.content}`;
 }
 
+// The token's assigned memory rows, hydrated to full rows so their scope +
+// project binding can be filtered on. Optionally narrowed to writable links.
+async function assignedRows(
+	services: MemoryMcpServices,
+	tokenId: string,
+	writableOnly: boolean
+): Promise<MemoryRow[]> {
+	const links = await services.stores.memory.listTokenMemories(tokenId);
+	const kept = writableOnly
+		? links.filter((link) => link.role === "read_write")
+		: links;
+	if (kept.length === 0) {
+		return [];
+	}
+	return services.stores.memory.getMany(kept.map((link) => link.memoryId));
+}
+
 export async function runSearch(
 	services: MemoryMcpServices,
 	tokenId: string,
+	projectContext: string | null,
 	args: Record<string, unknown>
 ) {
 	const query = str(args, "query").trim();
@@ -137,22 +122,23 @@ export async function runSearch(
 	if (!client) {
 		return toolText("Embedding provider not configured on the server.", true);
 	}
-	const links = await services.stores.memory.listTokenMemories(tokenId);
-	if (links.length === 0) {
+	const rows = await assignedRows(services, tokenId, false);
+	if (rows.length === 0) {
 		return toolText("No memories are assigned to this agent.");
+	}
+	const visible = rows.filter((row) => inScope(row, projectContext));
+	if (visible.length === 0) {
+		return toolText("No matching memory items.");
 	}
 	const items = await embedAndSearchItems(client, services.stores.memoryItem, {
 		query,
-		memoryIds: links.map((link) => link.memoryId),
+		memoryIds: visible.map((row) => row.id),
 		k: clampK(num(args, "k")),
 	});
 	if (items.length === 0) {
 		return toolText("No matching memory items.");
 	}
-	const names = await memoryNames(
-		services,
-		items.map((item) => item.memoryId)
-	);
+	const names = new Map(visible.map((row) => [row.id, row.name]));
 	return {
 		content: items.map((item) => ({
 			type: "text",
@@ -164,52 +150,69 @@ export async function runSearch(
 
 type WritableTarget = { memoryId: string; name: string } | { error: string };
 
-// Picks the memory a memory_add lands in: the single read_write link when
-// there is exactly one, else the one matching `memory_name` — every other
-// case is an actionable error listing the writable options by name.
+function noWritableError(scope: MemoryScope): string {
+	if (scope === "project") {
+		return (
+			"This agent has no writable memory for the current project. Ask the " +
+			'owner to assign one scoped to this project (or pass scope:"global").'
+		);
+	}
+	return (
+		"This agent has no writable global memory. Ask the owner to assign one " +
+		"with the read_write role."
+	);
+}
+
+// Picks the memory a memory_add lands in among the writable memories that match
+// the resolved scope: the single one when there is exactly one, else the one
+// matching `memory_name` — every other case is an actionable error listing the
+// writable options by name.
 async function resolveWritable(
 	services: MemoryMcpServices,
 	tokenId: string,
-	requestedName: string
+	requestedName: string,
+	scope: MemoryScope,
+	projectContext: string | null
 ): Promise<WritableTarget> {
-	const links = await services.stores.memory.listTokenMemories(tokenId);
-	const writable = links.filter((link) => link.role === "read_write");
-	if (writable.length === 0) {
-		return {
-			error:
-				"This agent has no writable memory. Ask the owner to assign one with the read_write role.",
-		};
-	}
-	const names = await memoryNames(
-		services,
-		writable.map((link) => link.memoryId)
+	const rows = (await assignedRows(services, tokenId, true)).filter((row) =>
+		scope === "project"
+			? row.scope === "project" && row.projectId === projectContext
+			: row.scope === "global"
 	);
-	const options = [...names.values()].join(", ");
-	if (requestedName) {
-		for (const [memoryId, name] of names) {
-			if (name === requestedName) {
-				return { memoryId, name };
-			}
-		}
-		return {
-			error: `No writable memory named "${requestedName}". Writable memories: ${options}.`,
-		};
+	if (rows.length === 0) {
+		return { error: noWritableError(scope) };
 	}
-	const first = writable[0];
-	if (writable.length === 1 && first) {
-		return {
-			memoryId: first.memoryId,
-			name: names.get(first.memoryId) ?? "memory",
-		};
+	const options = rows.map((row) => row.name).join(", ");
+	if (requestedName) {
+		const match = rows.find((row) => row.name === requestedName);
+		return match
+			? { memoryId: match.id, name: match.name }
+			: {
+					error: `No writable memory named "${requestedName}". Writable memories: ${options}.`,
+				};
+	}
+	const first = rows[0];
+	if (rows.length === 1 && first) {
+		return { memoryId: first.id, name: first.name };
 	}
 	return {
 		error: `Multiple writable memories are assigned — pass memory_name to pick one of: ${options}.`,
 	};
 }
 
+// The scope a memory_add lands in: an explicit `scope` argument wins, else the
+// project when the session is bound to one, else global.
+function resolveAddScope(
+	args: Record<string, unknown>,
+	projectContext: string | null
+): MemoryScope {
+	return scopeArg(args) ?? (projectContext ? "project" : "global");
+}
+
 export async function runAdd(
 	services: MemoryMcpServices,
 	tokenId: string,
+	projectContext: string | null,
 	args: Record<string, unknown>
 ) {
 	const content = str(args, "content").trim();
@@ -220,10 +223,20 @@ export async function runAdd(
 	if (!client) {
 		return toolText("Embedding provider not configured on the server.", true);
 	}
+	const scope = resolveAddScope(args, projectContext);
+	if (scope === "project" && projectContext === null) {
+		return toolText(
+			'scope:"project" needs a project session — this connection has none. ' +
+				'Save it globally with scope:"global" instead.',
+			true
+		);
+	}
 	const target = await resolveWritable(
 		services,
 		tokenId,
-		str(args, "memory_name").trim()
+		str(args, "memory_name").trim(),
+		scope,
+		projectContext
 	);
 	if ("error" in target) {
 		return toolText(target.error, true);

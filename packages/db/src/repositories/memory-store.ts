@@ -13,6 +13,8 @@ function toRow(row: typeof schema.memories.$inferSelect): MemoryRow {
 		userId: row.userId,
 		name: row.name,
 		description: row.description ?? null,
+		scope: row.scope,
+		projectId: row.projectId ?? null,
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
@@ -134,6 +136,47 @@ async function deleteMemoryWithChildren(
 	});
 }
 
+// The create + scope-change writes, in their own factory so createMemoryStore
+// stays under the max-lines-per-function gate (same pattern as the link ops).
+function makeWriteOps(db: Db): Pick<MemoryStore, "create" | "setScope"> {
+	return {
+		async create({ userId, name, description, scope, projectId }) {
+			const rows = await db
+				.insert(schema.memories)
+				.values({
+					userId,
+					name,
+					description,
+					scope: scope ?? "global",
+					// Guard the invariant at the write edge: a global memory never
+					// keeps a projectId, whatever the caller passes.
+					projectId: scope === "project" ? (projectId ?? null) : null,
+				})
+				.returning();
+			const row = rows[0];
+			if (!row) {
+				throw new Error("Failed to create memory");
+			}
+			return toRow(row);
+		},
+		async setScope({ id, userId, scope, projectId }) {
+			const rows = await db
+				.update(schema.memories)
+				.set({
+					scope,
+					projectId: scope === "project" ? projectId : null,
+					updatedAt: new Date(),
+				})
+				.where(
+					and(eq(schema.memories.id, id), eq(schema.memories.userId, userId))
+				)
+				.returning();
+			const row = rows[0];
+			return row ? toRow(row) : null;
+		},
+	};
+}
+
 function selectMemoriesByIds(db: Db, ids: string[]): Promise<MemoryRow[]> {
 	if (ids.length === 0) {
 		return Promise.resolve([]);
@@ -149,19 +192,9 @@ export function createMemoryStore(db: Db): MemoryStore {
 	return {
 		...makeAgentLinkOps(db),
 		...makeTokenLinkOps(db),
+		...makeWriteOps(db),
 		deleteWithChildren: (id, userId) =>
 			deleteMemoryWithChildren(db, id, userId),
-		async create({ userId, name, description }) {
-			const rows = await db
-				.insert(schema.memories)
-				.values({ userId, name, description })
-				.returning();
-			const row = rows[0];
-			if (!row) {
-				throw new Error("Failed to create memory");
-			}
-			return toRow(row);
-		},
 		async get(id) {
 			const rows = await db
 				.select()

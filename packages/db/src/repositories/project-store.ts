@@ -34,7 +34,7 @@ function toRow(row: typeof schema.projects.$inferSelect): ProjectRow {
 
 function makeProjectReads(
 	db: Db
-): Pick<ProjectStore, "getById" | "listByComputer"> {
+): Pick<ProjectStore, "getById" | "listByComputer" | "listByUser"> {
 	return {
 		// Owner-scoped: a Project never leaks across users.
 		async getById(id, userId) {
@@ -47,6 +47,14 @@ function makeProjectReads(
 				.limit(1);
 			const row = rows[0];
 			return row ? toRow(row) : null;
+		},
+		async listByUser(userId) {
+			const rows = await db
+				.select()
+				.from(schema.projects)
+				.where(eq(schema.projects.userId, userId))
+				.orderBy(desc(schema.projects.createdAt));
+			return rows.map(toRow);
 		},
 		async listByComputer(userId, computerId) {
 			const rows = await db

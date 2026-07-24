@@ -8,12 +8,15 @@ import {
 	embedAndSearchItems,
 	idInput,
 	itemIdInput,
+	listMemoriesInput,
 	memoryIdInput,
 	mutateAssignment,
 	requireEmbedding,
 	requireOwnedMemory,
+	resolveScope,
 	resolveTargetLinks,
 	searchInput,
+	setScopeInput,
 	targetInput,
 } from "./memory-support";
 
@@ -24,17 +27,55 @@ import {
 export const memoryRouter = {
 	createMemory: userProcedure
 		.input(createMemoryInput)
-		.handler(({ input, context }) =>
-			context.services.stores.memory.create({
+		.handler(async ({ input, context }) => {
+			const { scope, projectId } = await resolveScope(
+				context,
+				context.authedUser.id,
+				input
+			);
+			return context.services.stores.memory.create({
 				userId: context.authedUser.id,
 				name: input.name,
 				description: input.description,
-			})
-		),
+				scope,
+				projectId,
+			});
+		}),
 
-	listMemories: userProcedure.handler(({ context }) =>
-		context.services.stores.memory.listByUser(context.authedUser.id)
-	),
+	listMemories: userProcedure
+		.input(listMemoriesInput)
+		.handler(async ({ input, context }) => {
+			const rows = await context.services.stores.memory.listByUser(
+				context.authedUser.id
+			);
+			return input?.scope
+				? rows.filter((row) => row.scope === input.scope)
+				: rows;
+		}),
+
+	// DP2: re-home a memory between global and a project (project↔global). The
+	// store clears/sets project_id to keep the invariant; NOT_FOUND when the
+	// memory isn't the caller's.
+	setMemoryScope: userProcedure
+		.input(setScopeInput)
+		.handler(async ({ input, context }) => {
+			await requireOwnedMemory(context, context.authedUser.id, input.id);
+			const { scope, projectId } = await resolveScope(
+				context,
+				context.authedUser.id,
+				input
+			);
+			const updated = await context.services.stores.memory.setScope({
+				id: input.id,
+				userId: context.authedUser.id,
+				scope,
+				projectId,
+			});
+			if (!updated) {
+				throw new ORPCError("NOT_FOUND", { message: "Memory not found" });
+			}
+			return updated;
+		}),
 
 	getMemory: userProcedure
 		.input(idInput)

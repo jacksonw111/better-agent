@@ -9,12 +9,23 @@ function makeFakeProjectReads(
 	map: Map<string, ProjectRow>
 ): Pick<
 	ProjectStore,
-	"getById" | "getByIdForComputer" | "listByComputer" | "listCreatedByComputer"
+	| "getById"
+	| "getByIdForComputer"
+	| "listByComputer"
+	| "listByUser"
+	| "listCreatedByComputer"
 > {
 	return {
 		getById(id, userId) {
 			const row = map.get(id);
 			return Promise.resolve(row && row.userId === userId ? row : null);
+		},
+		listByUser(userId) {
+			return Promise.resolve(
+				[...map.values()]
+					.filter((row) => row.userId === userId)
+					.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+			);
 		},
 		getByIdForComputer(id, computerId) {
 			const row = map.get(id);

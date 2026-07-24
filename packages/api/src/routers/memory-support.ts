@@ -5,6 +5,7 @@ import type {
 	MemoryItemSource,
 	MemoryItemStore,
 	MemoryRow,
+	MemoryScope,
 } from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
 import { log } from "evlog";
@@ -36,10 +37,25 @@ export const targetInput = z.object({
 
 export type Target = z.infer<typeof targetInput>;
 
+// DP2 scope inputs. `scope` defaults to "global"; a "project" memory must name
+// the owning project. A global memory never carries a projectId (enforced by
+// resolveScope below), so the two fields can't drift out of sync.
+export const scopeFields = {
+	scope: z.enum(["global", "project"]).default("global"),
+	projectId: z.uuid().optional(),
+};
+
 export const createMemoryInput = z.object({
 	name: z.string().min(1),
 	description: z.string().min(1).optional(),
+	...scopeFields,
 });
+
+export const setScopeInput = z.object({ id: z.uuid(), ...scopeFields });
+
+export const listMemoriesInput = z
+	.object({ scope: z.enum(["global", "project"]).optional() })
+	.optional();
 
 export const addItemInput = z.object({
 	memoryId: z.uuid(),
@@ -80,6 +96,32 @@ export async function requireOwnedMemory(
 		throw new ORPCError("NOT_FOUND", { message: "Memory not found" });
 	}
 	return memory;
+}
+
+// Validates a DP2 scope choice against the owner and normalizes the pair: a
+// "project" memory must name a project the caller owns; a "global" memory
+// always drops any projectId so the invariant (global ⇒ projectId null) holds.
+export async function resolveScope(
+	context: Context,
+	userId: string,
+	input: { scope: MemoryScope; projectId?: string }
+): Promise<{ scope: MemoryScope; projectId: string | null }> {
+	if (input.scope !== "project") {
+		return { scope: "global", projectId: null };
+	}
+	if (!input.projectId) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "A project-scoped memory needs a projectId",
+		});
+	}
+	const project = await context.services.stores.project.getById(
+		input.projectId,
+		userId
+	);
+	if (!project) {
+		throw new ORPCError("NOT_FOUND", { message: "Project not found" });
+	}
+	return { scope: "project", projectId: project.id };
 }
 
 // The embedding client must be wired (a real provider is chosen post-slice; the

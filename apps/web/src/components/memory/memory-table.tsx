@@ -9,18 +9,25 @@ import {
 import { DeleteConfirm } from "@/components/list/delete-confirm";
 import { MemoryIdentity } from "./memory-identity";
 import {
+	ChangeScopeMenu,
+	MemoryScopeBadge,
+	type ProjectOption,
+} from "./memory-scope";
+import {
 	type MemoryRow,
 	memoryCreatedFormatter,
 	memoryDescription,
 } from "./memory-types";
 
-const COLUMN_COUNT = 4;
+const COLUMN_COUNT = 5;
 
 function MemoryTableRow({
 	memory,
+	projects,
 	onDelete,
 }: {
 	memory: MemoryRow;
+	projects: ProjectOption[];
 	onDelete: (id: string) => void;
 }) {
 	return (
@@ -31,14 +38,20 @@ function MemoryTableRow({
 			<TableCell className="max-w-64 truncate text-muted-foreground">
 				{memoryDescription(memory)}
 			</TableCell>
+			<TableCell>
+				<MemoryScopeBadge memory={memory} projects={projects} />
+			</TableCell>
 			<TableCell className="text-muted-foreground tabular-nums">
 				{memoryCreatedFormatter.format(new Date(memory.createdAt))}
 			</TableCell>
 			<TableCell className="text-right">
-				<DeleteConfirm
-					label={`Delete ${memory.name}? All of its items and agent assignments are removed.`}
-					onConfirm={() => onDelete(memory.id)}
-				/>
+				<div className="flex items-center justify-end gap-1">
+					<ChangeScopeMenu memory={memory} projects={projects} />
+					<DeleteConfirm
+						label={`Delete ${memory.name}? All of its items and agent assignments are removed.`}
+						onConfirm={() => onDelete(memory.id)}
+					/>
+				</div>
 			</TableCell>
 		</TableRow>
 	);
@@ -49,9 +62,11 @@ function MemoryTableRow({
  * deletes the memory (after confirm — the API cascades items + assignments). */
 export function MemoryTable({
 	memories,
+	projects,
 	onDelete,
 }: {
 	memories: MemoryRow[];
+	projects: ProjectOption[];
 	onDelete: (id: string) => void;
 }) {
 	return (
@@ -60,6 +75,7 @@ export function MemoryTable({
 				<TableRow>
 					<TableHead>Name</TableHead>
 					<TableHead>Description</TableHead>
+					<TableHead>Scope</TableHead>
 					<TableHead>Created</TableHead>
 					<TableHead className="text-right">Actions</TableHead>
 				</TableRow>
@@ -81,6 +97,7 @@ export function MemoryTable({
 							key={memory.id}
 							memory={memory}
 							onDelete={onDelete}
+							projects={projects}
 						/>
 					))
 				)}

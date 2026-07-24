@@ -157,6 +157,9 @@ export interface ProjectStore {
 	insert(input: ProjectInsert): Promise<ProjectRow>;
 	/** The owner's Projects on one Computer, newest first. */
 	listByComputer(userId: string, computerId: string): Promise<ProjectRow[]>;
+	/** All the owner's Projects across every Computer, newest first. Backs the
+	 * memory scope picker (DP2), which is not computer-scoped. */
+	listByUser(userId: string): Promise<ProjectRow[]>;
 	/** The Computer's clone-delivery queue (D4): its still-`created` Projects,
 	 * oldest first. A Project leaves this list when its ack flips it to
 	 * `cloning`. */

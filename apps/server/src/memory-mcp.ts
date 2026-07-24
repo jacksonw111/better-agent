@@ -1,8 +1,8 @@
 import { hashToken } from "@better-agent/agent/crypto/auth-tokens";
 import { log } from "evlog";
 import { Hono } from "hono";
+import { MEMORY_TOOLS } from "./memory-mcp-tool-defs";
 import {
-	MEMORY_TOOLS,
 	type MemoryMcpServices,
 	runAdd,
 	runSearch,
@@ -65,15 +65,16 @@ async function callTool(
 	id: JsonRpcResponse["id"],
 	params: Record<string, unknown> | undefined,
 	services: MemoryMcpServices,
-	tokenId: string
+	principal: Principal
 ): Promise<JsonRpcResponse> {
 	const { name, args } = parseToolParams(params);
+	const { tokenId, projectContext } = principal;
 	try {
 		if (name === "memory_search") {
-			return ok(id, await runSearch(services, tokenId, args));
+			return ok(id, await runSearch(services, tokenId, projectContext, args));
 		}
 		if (name === "memory_add") {
-			return ok(id, await runAdd(services, tokenId, args));
+			return ok(id, await runAdd(services, tokenId, projectContext, args));
 		}
 		return ok(id, toolText(`Unknown tool: ${name}`, true));
 	} catch (err) {
@@ -85,11 +86,20 @@ async function callTool(
 	}
 }
 
+// The authenticated caller: the bridge-token principal plus the project this
+// connection is scoped to (DP2). `projectContext` is null for a stand-alone
+// (non-project) session; when set it has been validated to belong to the
+// token's owner.
+interface Principal {
+	projectContext: string | null;
+	tokenId: string;
+}
+
 /** Handle one JSON-RPC message; null = notification (no response body). */
 export function handleMemoryMcpMessage(
 	message: JsonRpcRequest,
 	services: MemoryMcpServices,
-	tokenId: string
+	principal: Principal
 ): Promise<JsonRpcResponse | null> {
 	const id = message.id ?? null;
 	if (message.method.startsWith("notifications/")) {
@@ -109,7 +119,7 @@ export function handleMemoryMcpMessage(
 		case "tools/list":
 			return Promise.resolve(ok(id, { tools: MEMORY_TOOLS }));
 		case "tools/call":
-			return callTool(id, message.params, services, tokenId);
+			return callTool(id, message.params, services, principal);
 		default:
 			return Promise.resolve({
 				jsonrpc: "2.0",
@@ -122,12 +132,21 @@ export function handleMemoryMcpMessage(
 	}
 }
 
-// Resolves the Bearer credential to a live (non-revoked) bridge-token id via
-// the same hash lookup the bridge plane uses; null = respond 401.
-async function resolveTokenId(
+// The HTTP header the CLI sets on the memory-MCP connection to bind a project
+// session's writes/reads to one project (DP2). Absent = a stand-alone session.
+const PROJECT_HEADER = "x-better-agent-project-id";
+
+interface TokenPrincipal {
+	tokenId: string;
+	userId: string;
+}
+
+// Resolves the Bearer credential to a live (non-revoked) bridge token via the
+// same hash lookup the bridge plane uses; null = respond 401.
+async function resolveTokenPrincipal(
 	services: MemoryMcpServices,
 	header: string | undefined
-): Promise<string | null> {
+): Promise<TokenPrincipal | null> {
 	if (!header?.startsWith(BEARER_PREFIX)) {
 		return null;
 	}
@@ -139,7 +158,24 @@ async function resolveTokenId(
 	if (!found || found.revokedAt) {
 		return null;
 	}
-	return found.id;
+	return { tokenId: found.id, userId: found.userId };
+}
+
+// Validates the connection's project header against the token owner: a project
+// scopes reads/writes only when it actually belongs to this user, so a spoofed
+// or stale id silently degrades to a stand-alone (global-only) context rather
+// than erroring or leaking.
+async function resolveProjectContext(
+	services: MemoryMcpServices,
+	userId: string,
+	header: string | undefined
+): Promise<string | null> {
+	const projectId = header?.trim();
+	if (!projectId) {
+		return null;
+	}
+	const project = await services.stores.project.getById(projectId, userId);
+	return project ? project.id : null;
 }
 
 /** The memory MCP sub-app; mounted at /mcp/memory by the server's buildApp. */
@@ -147,16 +183,21 @@ export function buildMemoryMcpApp(services: MemoryMcpServices): Hono {
 	const app = new Hono();
 	app.get("/", (c) => c.text("better-agent-memory-mcp OK"));
 	app.post("/", async (c) => {
-		const tokenId = await resolveTokenId(
+		const token = await resolveTokenPrincipal(
 			services,
 			c.req.header("authorization")
 		);
-		if (!tokenId) {
+		if (!token) {
 			return c.json(
 				{ error: "Unauthorized: pass a valid bridge token (bt_…) as Bearer." },
 				HTTP_UNAUTHORIZED
 			);
 		}
+		const projectContext = await resolveProjectContext(
+			services,
+			token.userId,
+			c.req.header(PROJECT_HEADER)
+		);
 		let message: JsonRpcRequest;
 		try {
 			message = await c.req.json();
@@ -170,7 +211,10 @@ export function buildMemoryMcpApp(services: MemoryMcpServices): Hono {
 				HTTP_BAD_REQUEST
 			);
 		}
-		const response = await handleMemoryMcpMessage(message, services, tokenId);
+		const response = await handleMemoryMcpMessage(message, services, {
+			tokenId: token.tokenId,
+			projectContext,
+		});
 		if (response === null) {
 			return c.body(null, HTTP_ACCEPTED);
 		}

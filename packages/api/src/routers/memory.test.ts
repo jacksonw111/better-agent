@@ -4,6 +4,7 @@ import {
 	buildHarness,
 	type Harness,
 	seedAgent,
+	seedProject,
 	seedToken,
 	seedUser,
 } from "./memory-test-helpers";
@@ -155,6 +156,73 @@ it("deleteItem soft-deletes so the item drops out of search + listItems", async 
 	expect(
 		await c.memory.search({ agentId, query: "typescript rocks" })
 	).toHaveLength(0);
+});
+
+it("createMemory defaults to global; a project scope requires an owned project", async () => {
+	const alice = await seedUser(h.db, "alice");
+	const projectId = await seedProject(h.db, alice, "alpha");
+	const c = h.clientFor(alice);
+
+	const global = await c.memory.createMemory({ name: "Global" });
+	expect(global.scope).toBe("global");
+	expect(global.projectId).toBeNull();
+
+	const project = await c.memory.createMemory({
+		name: "A-notes",
+		scope: "project",
+		projectId,
+	});
+	expect(project.scope).toBe("project");
+	expect(project.projectId).toBe(projectId);
+
+	// A project scope without a projectId is rejected.
+	await expect(
+		c.memory.createMemory({ name: "Bad", scope: "project" })
+	).rejects.toThrow();
+	// Another user's project can't be targeted.
+	const bob = await seedUser(h.db, "bob");
+	const bobProject = await seedProject(h.db, bob, "beta");
+	await expect(
+		c.memory.createMemory({
+			name: "X",
+			scope: "project",
+			projectId: bobProject,
+		})
+	).rejects.toThrow();
+});
+
+it("setMemoryScope re-homes between global and project and filters listMemories", async () => {
+	const alice = await seedUser(h.db, "alice");
+	const projectId = await seedProject(h.db, alice, "alpha");
+	const c = h.clientFor(alice);
+	const memory = await c.memory.createMemory({ name: "Prefs" });
+
+	const toProject = await c.memory.setMemoryScope({
+		id: memory.id,
+		scope: "project",
+		projectId,
+	});
+	expect(toProject.scope).toBe("project");
+	expect(toProject.projectId).toBe(projectId);
+
+	// Scope filter narrows the list to the requested reach.
+	await c.memory.createMemory({ name: "AnotherGlobal" });
+	expect(await c.memory.listMemories({ scope: "project" })).toHaveLength(1);
+	expect(await c.memory.listMemories({ scope: "global" })).toHaveLength(1);
+	expect(await c.memory.listMemories()).toHaveLength(2);
+
+	const back = await c.memory.setMemoryScope({
+		id: memory.id,
+		scope: "global",
+	});
+	expect(back.scope).toBe("global");
+	expect(back.projectId).toBeNull();
+
+	// A non-owner cannot change scope.
+	const bob = await seedUser(h.db, "bob");
+	await expect(
+		h.clientFor(bob).memory.setMemoryScope({ id: memory.id, scope: "global" })
+	).rejects.toThrow();
 });
 
 it("rejects assign/search targeting an agent the caller does not own", async () => {

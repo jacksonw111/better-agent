@@ -126,6 +126,15 @@ const list = authorizedUserProcedure
 		return rows.map(toListedProject);
 	});
 
+// All the caller's Projects across every Computer, newest first — backs the
+// memory scope picker (DP2), which is not scoped to a single Computer.
+const listMine = authorizedUserProcedure.handler(async ({ context }) => {
+	const rows = await context.services.stores.project.listByUser(
+		context.authedUser.id
+	);
+	return rows.map(toListedProject);
+});
+
 const get = authorizedUserProcedure
 	.input(z.object({ projectId: z.uuid() }))
 	.handler(async ({ input, context }) => {
@@ -229,6 +238,7 @@ export const projectsRouter = {
 	delete: deleteProject,
 	get,
 	list,
+	listMine,
 	// Q2: the read-only query loop (projects-query.ts) — user-plane `query`
 	// round-trips through the computer-plane `submitQueryResult`.
 	query,
