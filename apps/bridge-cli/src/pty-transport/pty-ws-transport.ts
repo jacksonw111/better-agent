@@ -13,6 +13,7 @@
 
 import { signComputerRequest } from "@better-agent/agent/crypto/computer-signature";
 import { decodeFrame } from "@better-agent/api/pty/frame-decode";
+import WebSocket from "ws";
 import type { ComputerSigningIdentity } from "../computer-transport";
 import { createMonotonicTimestamp } from "../computer-transport";
 import { reconnectDelayMs } from "../ws-duplex-backoff";
@@ -38,6 +39,15 @@ export type PtyWsFactory = (
 	url: string,
 	headers: Record<string, string>
 ) => PtyWsLike;
+
+/** Production `PtyWsFactory`: a real `ws` client socket. Unlike the
+ * string-only `defaultWsFactory` (ws-duplex-socket.ts), `send` here carries
+ * binary frames — `ws` emits inbound binary as a Buffer, which the transport's
+ * `toBytes` already coerces. Auth rides in the URL's query params (a WS upgrade
+ * can't set headers), so no headers are actually needed, but the signature is
+ * kept uniform with the other factory. */
+export const defaultPtyWsFactory: PtyWsFactory = (url, headers) =>
+	new WebSocket(url, { headers }) as unknown as PtyWsLike;
 
 export interface PtyTransportConfig {
 	identity: ComputerSigningIdentity;

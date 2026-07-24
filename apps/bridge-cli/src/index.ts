@@ -23,6 +23,10 @@ import { detectComputerInventory } from "./detect-inventory";
 import { createBundleFetcher } from "./profile-sync/bundle-client";
 import { defaultSyncFs, defaultSyncRoots } from "./profile-sync/fs-ports";
 import { syncProfile } from "./profile-sync/sync";
+import {
+	defaultPtyWsFactory,
+	runPtyTransport,
+} from "./pty-transport/pty-ws-transport";
 import { createRelayTransport } from "./relay-transport";
 import { runRestartLoop } from "./restart-loop";
 import { createTaskLaunchRuntime } from "./task-launch/launch-wiring";
@@ -200,6 +204,23 @@ async function startComputerClient(args: ClientCliArgs): Promise<void> {
 			platform: platform(),
 		},
 		startControlChannel: launch.startControlChannel,
+		// P2-3a: the binary PTY plane. Fire-and-forget like the control channel —
+		// it reconnects (with backoff) until the shutdown signal aborts, and
+		// serves a viewer's OPEN by spawning/attaching a real pty on this machine.
+		startPtyTransport: (identity) => {
+			runPtyTransport({
+				identity,
+				log: (message) => process.stderr.write(`${message}\n`),
+				nextTimestamp: clock,
+				serverUrl: args.serverUrl,
+				signal: controller.signal,
+				wsFactory: defaultPtyWsFactory,
+			}).catch((error: unknown) => {
+				process.stderr.write(
+					`pty transport stopped: ${error instanceof Error ? error.message : String(error)}\n`
+				);
+			});
+		},
 		transport,
 		wait: createHeartbeatWait(controller.signal),
 	});

@@ -6,6 +6,7 @@
 // separation is the entire reason this can match a native terminal's feel.
 
 import "@xterm/xterm/css/xterm.css";
+import type { PtyOpenSpec } from "@better-agent/api/pty/frame";
 import { useEffect, useRef, useState } from "react";
 import {
 	type PtyConnectionStatus,
@@ -59,13 +60,20 @@ export function PtyTerminal({
 	className,
 	computerId,
 	sessionId,
+	spec,
 }: {
 	active?: boolean;
 	className?: string;
 	computerId: string;
 	sessionId: string;
+	/** Spawn spec for a fresh session (from `pty.createSession`). Read at connect
+	 * time via a ref so a new object identity never restarts the session — the
+	 * effect only re-runs on computerId/sessionId/active. */
+	spec?: PtyOpenSpec | null;
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
+	const specRef = useRef(spec);
+	specRef.current = spec;
 	const [status, setStatus] = useState<PtyConnectionStatus>("connecting");
 	const [exitCode, setExitCode] = useState<number | null>(null);
 
@@ -82,6 +90,7 @@ export function PtyTerminal({
 			container,
 			onStatus: setStatus,
 			onExit: setExitCode,
+			spec: specRef.current,
 		});
 		return () => session.dispose();
 	}, [computerId, sessionId, active]);

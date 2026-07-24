@@ -18,6 +18,7 @@ import { openConnectorRouter } from "./openconnector";
 import { profilesRouter } from "./profiles";
 import { projectsRouter } from "./projects";
 import { providersRouter } from "./providers";
+import { ptyRouter } from "./pty";
 import { pushSubscriptionsRouter } from "./push-subscriptions";
 import { runsRouter } from "./runs";
 import { sessionsRouter } from "./sessions";
@@ -44,6 +45,7 @@ export const appRouter = {
 	profiles: profilesRouter,
 	projects: projectsRouter,
 	providers: providersRouter,
+	pty: ptyRouter,
 	pushSubscriptions: pushSubscriptionsRouter,
 	agents: agentsRouter,
 	runs: runsRouter,

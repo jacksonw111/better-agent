@@ -9,6 +9,7 @@ import {
 	peekSessionId,
 	peekType,
 } from "@better-agent/api/pty/frame";
+import { decodeFrame } from "@better-agent/api/pty/frame-decode";
 import { beforeEach, expect, it, vi } from "vitest";
 import {
 	createPtyTerminalDriver,
@@ -126,6 +127,29 @@ it("sends an OPEN (attach) frame with cols/rows on open()", () => {
 	);
 	expect(view.getUint16(0)).toBe(120); // cols
 	expect(view.getUint16(2)).toBe(40); // rows
+});
+
+it("carries the spawn spec on open() so the CLI spawns a fresh session", () => {
+	const { driver, s } = makeDriver();
+	driver.open(80, 24, { args: ["--flag"], command: "claude", cwd: "/work" });
+	const decoded = decodeFrame(s.frames[0]);
+	expect(decoded?.type).toBe(PtyFrameType.OPEN);
+	if (decoded?.type === PtyFrameType.OPEN) {
+		expect(decoded.spec).toEqual({
+			args: ["--flag"],
+			command: "claude",
+			cwd: "/work",
+		});
+	}
+});
+
+it("sends OPEN with no spec (attach) when none is given", () => {
+	const { driver, s } = makeDriver();
+	driver.open(80, 24);
+	const decoded = decodeFrame(s.frames[0]);
+	if (decoded?.type === PtyFrameType.OPEN) {
+		expect(decoded.spec).toBeNull();
+	}
 });
 
 it("resends OPEN on a reconnect so the CLI replays from the ACK cursor", () => {

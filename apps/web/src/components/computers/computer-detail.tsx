@@ -1,5 +1,6 @@
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
+import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import {
 	AgentListSkeleton,
 	ComputerAgentList,
@@ -8,11 +9,14 @@ import { computerMeta, ToolFacts } from "@/components/computers/computer-facts";
 import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
 import { NewProjectDialog } from "@/components/projects/new-project-dialog";
 import { ComputerProjectList } from "@/components/projects/project-list";
+import { OpenPtyTerminalButton } from "@/components/pty/open-pty-terminal-button";
 import { orpc } from "@/utils/orpc";
 
 /** Matches COMPUTER_HEARTBEAT_INTERVAL_MS — Connected/Offline stays fresh
  * while the page is open. */
 const LIST_REFETCH_INTERVAL_MS = 10_000;
+
+type AgentKind = keyof typeof AGENT_LABELS;
 
 function ComputerDetailSkeleton() {
 	return (
@@ -81,6 +85,40 @@ export function ComputerDetail({ computerId }: { computerId: string }) {
 				<h2 className="font-medium text-sm">Agents</h2>
 				<ComputerAgentList computer={computer} />
 			</section>
+			<TerminalSection computer={computer} />
 		</div>
+	);
+}
+
+/** P2-3a: the BETA entry into a live PTY terminal — one button per installed
+ * runtime, each opening that runtime in the computer's home directory. Runs
+ * alongside (does not replace) the legacy structured terminal. */
+function TerminalSection({
+	computer,
+}: {
+	computer: { id: string; runtimeInventory: { agentKind: AgentKind }[] };
+}) {
+	if (computer.runtimeInventory.length === 0) {
+		return null;
+	}
+	return (
+		<section className="flex flex-col gap-2">
+			<h2 className="font-medium text-sm">Terminal</h2>
+			<p className="text-muted-foreground text-xs">
+				Open a live terminal on this computer running the selected runtime in
+				your home directory.
+			</p>
+			<div className="flex flex-wrap gap-2">
+				{computer.runtimeInventory.map((runtime) => (
+					<OpenPtyTerminalButton
+						agentKind={runtime.agentKind}
+						computerId={computer.id}
+						key={runtime.agentKind}
+					>
+						{`${AGENT_LABELS[runtime.agentKind]} terminal`}
+					</OpenPtyTerminalButton>
+				))}
+			</div>
+		</section>
 	);
 }

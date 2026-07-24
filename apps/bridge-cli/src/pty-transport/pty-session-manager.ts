@@ -10,6 +10,7 @@
 //   • DP-PTY4 flow control — in-flight = produced − acked; pause the pty past
 //     HIGH_WATER, resume under LOW_WATER, so a slow/absent viewer can't OOM us.
 
+import { homedir } from "node:os";
 import {
 	encodeClose,
 	encodeData,
@@ -80,8 +81,11 @@ interface ManagerCtx {
 	spawn: PtySpawnFn;
 }
 
+// An empty `cwd` means "the computer's default" — a session started with no
+// project (P2-3a's home-directory terminal) carries `cwd: ""`, which we resolve
+// to the user's home so the pty-broker never spawns against a bad directory.
 const defaultSpawn: PtySpawnFn = (spec, cols, rows) =>
-	spawnPty(spec.command, spec.args, spec.cwd, cols, rows);
+	spawnPty(spec.command, spec.args, spec.cwd || homedir(), cols, rows);
 
 function inFlight(session: Session): number {
 	return session.ring.producedOffset - session.acked;

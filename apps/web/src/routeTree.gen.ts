@@ -27,6 +27,7 @@ import { Route as IntegrationsIndexRouteImport } from './routes/integrations.ind
 import { Route as ComputersIndexRouteImport } from './routes/computers.index'
 import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
+import { Route as TerminalComputerIdRouteImport } from './routes/terminal.$computerId'
 import { Route as TasksNewRouteImport } from './routes/tasks.new'
 import { Route as TasksTaskIdRouteImport } from './routes/tasks.$taskId'
 import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryId'
@@ -131,6 +132,11 @@ const AgentsIndexRoute = AgentsIndexRouteImport.update({
   path: '/agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TerminalComputerIdRoute = TerminalComputerIdRouteImport.update({
+  id: '/terminal/$computerId',
+  path: '/terminal/$computerId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TasksNewRoute = TasksNewRouteImport.update({
   id: '/tasks/new',
   path: '/tasks/new',
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
   '/tasks/$taskId': typeof TasksTaskIdRoute
   '/tasks/new': typeof TasksNewRoute
+  '/terminal/$computerId': typeof TerminalComputerIdRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/computers/': typeof ComputersIndexRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
   '/tasks/$taskId': typeof TasksTaskIdRoute
   '/tasks/new': typeof TasksNewRoute
+  '/terminal/$computerId': typeof TerminalComputerIdRoute
   '/agents': typeof AgentsIndexRoute
   '/bridge': typeof BridgeIndexRoute
   '/computers': typeof ComputersIndexRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
   '/tasks/$taskId': typeof TasksTaskIdRoute
   '/tasks/new': typeof TasksNewRoute
+  '/terminal/$computerId': typeof TerminalComputerIdRoute
   '/agents/': typeof AgentsIndexRoute
   '/bridge/': typeof BridgeIndexRoute
   '/computers/': typeof ComputersIndexRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/memories/$memoryId'
     | '/tasks/$taskId'
     | '/tasks/new'
+    | '/terminal/$computerId'
     | '/agents/'
     | '/bridge/'
     | '/computers/'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/memories/$memoryId'
     | '/tasks/$taskId'
     | '/tasks/new'
+    | '/terminal/$computerId'
     | '/agents'
     | '/bridge'
     | '/computers'
@@ -384,6 +395,7 @@ export interface FileRouteTypes {
     | '/memories/$memoryId'
     | '/tasks/$taskId'
     | '/tasks/new'
+    | '/terminal/$computerId'
     | '/agents/'
     | '/bridge/'
     | '/computers/'
@@ -418,6 +430,7 @@ export interface RootRouteChildren {
   MemoriesMemoryIdRoute: typeof MemoriesMemoryIdRoute
   TasksTaskIdRoute: typeof TasksTaskIdRoute
   TasksNewRoute: typeof TasksNewRoute
+  TerminalComputerIdRoute: typeof TerminalComputerIdRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
   BridgeIndexRoute: typeof BridgeIndexRoute
   ComputersIndexRoute: typeof ComputersIndexRoute
@@ -563,6 +576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terminal/$computerId': {
+      id: '/terminal/$computerId'
+      path: '/terminal/$computerId'
+      fullPath: '/terminal/$computerId'
+      preLoaderRoute: typeof TerminalComputerIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tasks/new': {
       id: '/tasks/new'
       path: '/tasks/new'
@@ -674,6 +694,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoriesMemoryIdRoute: MemoriesMemoryIdRoute,
   TasksTaskIdRoute: TasksTaskIdRoute,
   TasksNewRoute: TasksNewRoute,
+  TerminalComputerIdRoute: TerminalComputerIdRoute,
   AgentsIndexRoute: AgentsIndexRoute,
   BridgeIndexRoute: BridgeIndexRoute,
   ComputersIndexRoute: ComputersIndexRoute,

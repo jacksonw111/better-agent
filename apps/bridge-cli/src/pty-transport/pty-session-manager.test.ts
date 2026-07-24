@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import {
 	encodeAck,
 	encodeClose,
@@ -10,10 +11,15 @@ import {
 import { decodeFrame } from "@better-agent/api/pty/frame-decode";
 import { describe, expect, it, vi } from "vitest";
 import type { PtyHandle } from "../pty/spawn-pty";
+import { spawnPty } from "../pty/spawn-pty";
 import {
 	createPtySessionManager,
 	type PtySpawnFn,
 } from "./pty-session-manager";
+
+vi.mock("../pty/spawn-pty", () => ({
+	spawnPty: vi.fn(),
+}));
 
 const SID = "0f8fad5b-d9cb-469f-a165-70867728950e";
 const SPEC = { command: "cat", args: [], cwd: "/tmp" };
@@ -192,5 +198,25 @@ describe("pty session manager — reconnect & teardown", () => {
 		feed(encodeOpen(SID, 80, 24, null));
 		expect(spawn).not.toHaveBeenCalled();
 		expect(manager.sessionCount).toBe(0);
+	});
+});
+
+describe("pty session manager — default spawn (P2-3a)", () => {
+	it("resolves an empty cwd to the user's home directory", () => {
+		const mockedSpawn = vi.mocked(spawnPty);
+		mockedSpawn.mockReturnValue({
+			onData: () => undefined,
+			onExit: () => undefined,
+		} as unknown as PtyHandle);
+		// No `spawn` override → the manager uses its real defaultSpawn, which must
+		// turn `cwd: ""` (a home-directory terminal) into an absolute home path.
+		const manager = createPtySessionManager({ send: () => undefined });
+		const decoded = decodeFrame(
+			encodeOpen(SID, 80, 24, { command: "claude", args: [], cwd: "" })
+		);
+		if (decoded) {
+			manager.handleFrame(decoded);
+		}
+		expect(mockedSpawn).toHaveBeenCalledWith("claude", [], homedir(), 80, 24);
 	});
 });

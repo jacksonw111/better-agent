@@ -7,6 +7,7 @@
 // the "data arrival → term.write, never React" invariant be true by construction
 // and lets the whole path be driven by a fake Terminal + fake WebSocket in tests.
 
+import type { PtyOpenSpec } from "@better-agent/api/pty/frame";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
@@ -33,6 +34,10 @@ export interface PtyTerminalSessionOptions {
 	onExit: (exitCode: number) => void;
 	onStatus: (status: PtyConnectionStatus) => void;
 	sessionId: string;
+	/** The spawn spec (command/args/cwd) for a NEW session, from
+	 * `pty.createSession`. Sent on every OPEN — the CLI spawns only if the session
+	 * doesn't exist yet, otherwise attaches. Omit/null to attach-only. */
+	spec?: PtyOpenSpec | null;
 }
 
 export interface PtyTerminalSession {
@@ -84,6 +89,7 @@ interface SessionRuntime {
 	fit: FitAddon;
 	onStatus: (status: PtyConnectionStatus) => void;
 	reconnectTimer: ReturnType<typeof setTimeout> | null;
+	spec: PtyOpenSpec | null;
 	term: Terminal;
 	ws: WebSocket | null;
 }
@@ -115,9 +121,11 @@ function connect(rt: SessionRuntime): void {
 		rt.attempt = 0;
 		rt.onStatus("connected");
 		rt.fit.fit();
-		// OPEN = attach: the CLI replays scrollback from our ACK cursor as a bulk
-		// DATA burst, then goes live (DP-PTY3 reattach).
-		rt.driver.open(rt.term.cols, rt.term.rows);
+		// OPEN carries the spawn spec: on the first connect it tells the CLI to
+		// SPAWN this session; on a reconnect (or attach-only, spec null) the CLI
+		// finds the live session and replays scrollback from our ACK cursor as a
+		// bulk DATA burst before going live (DP-PTY3 reattach).
+		rt.driver.open(rt.term.cols, rt.term.rows, rt.spec);
 	};
 	socket.onmessage = (event) => {
 		// HOT PATH — bytes go straight to the driver → term.write; no React.
@@ -182,7 +190,7 @@ function attachResizeObserver(rt: SessionRuntime): ResizeObserver {
 export function startPtyTerminalSession(
 	options: PtyTerminalSessionOptions
 ): PtyTerminalSession {
-	const { computerId, sessionId, container, onStatus, onExit } = options;
+	const { computerId, sessionId, container, onStatus, onExit, spec } = options;
 	const { term, fit } = createTerminal(container);
 	const rt: SessionRuntime = {
 		attempt: 0,
@@ -192,6 +200,7 @@ export function startPtyTerminalSession(
 		fit,
 		onStatus,
 		reconnectTimer: null,
+		spec: spec ?? null,
 		term,
 		ws: null,
 		driver: undefined as unknown as PtyTerminalDriver,

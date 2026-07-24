@@ -64,10 +64,26 @@ vi.mock("@tanstack/react-router", () => ({
 			{children}
 		</a>
 	),
+	useNavigate: () => vi.fn(),
 }));
 
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
+		pty: {
+			createSession: {
+				mutationOptions: (opts: Record<string, unknown>) => ({
+					mutationFn: () =>
+						Promise.resolve({
+							args: [],
+							command: "claude",
+							computerId: "computer-1",
+							cwd: "/work",
+							sessionId: "session-1",
+						}),
+					...opts,
+				}),
+			},
+		},
 		projects: {
 			delete: {
 				mutationOptions: (opts: Record<string, unknown>) => ({

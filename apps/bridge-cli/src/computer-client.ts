@@ -72,6 +72,11 @@ export interface ComputerClientDeps {
 	 * known. Optional — heartbeat `pendingCommands` alone must (and does)
 	 * deliver every launch, just with up to one beat of latency. */
 	startControlChannel?: (identity: ComputerIdentity) => void;
+	/** P2-3a: opens the binary `/pty/agent-ws` PTY transport once the identity
+	 * is known, so a viewer's OPEN frame can spawn/attach a real pty on this
+	 * computer. Optional — a client without it is a pure register+heartbeat
+	 * (+launch) daemon, exactly as before the PTY plane existed. */
+	startPtyTransport?: (identity: ComputerIdentity) => void;
 	transport: ComputerTransport;
 	wait: HeartbeatWait;
 }
@@ -212,6 +217,7 @@ export async function runComputerClient(
 	await deps.transport.register(attributes);
 	deps.log(`Computer connected: ${identity.computerId}`);
 	deps.startControlChannel?.(identity);
+	deps.startPtyTransport?.(identity);
 	while (await deps.wait()) {
 		try {
 			const { pendingCommands } = await deps.transport.heartbeat();

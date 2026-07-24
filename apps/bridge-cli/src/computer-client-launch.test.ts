@@ -57,6 +57,17 @@ describe("runComputerClient - launch delivery (S25-T1)", () => {
 		);
 	});
 
+	it("opens the PTY transport with the resolved identity (P2-3a)", async () => {
+		const startPtyTransport = vi.fn();
+		await runComputerClient(
+			clientArgs(),
+			fakeDeps({ startPtyTransport, wait: waitTimes(0) })
+		);
+		expect(startPtyTransport).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ computerId: "computer-9" })
+		);
+	});
+
 	it("keeps heartbeating without launch deps (heartbeat-only degradation)", async () => {
 		const transport = fakeTransport();
 		transport.heartbeat.mockResolvedValue({

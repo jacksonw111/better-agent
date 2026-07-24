@@ -20,6 +20,7 @@ import {
 	encodeOpen,
 	encodeResize,
 	PtyFrameType,
+	type PtyOpenSpec,
 } from "@better-agent/api/pty/frame";
 import { decodeFrame } from "@better-agent/api/pty/frame-decode";
 
@@ -69,9 +70,12 @@ export interface PtyTerminalDriver {
 	dispose(): void;
 	/** Route one inbound binary frame (DATA → write, CLOSE → onExit, …). */
 	handleFrame(frame: Uint8Array): void;
-	/** (Re)subscribe/attach: sent on every socket (re)connect. The CLI replays
-	 * scrollback from our last ACK cursor, so a reconnect resumes with no gap. */
-	open(cols: number, rows: number): void;
+	/** (Re)subscribe/attach: sent on every socket (re)connect. With a `spec` the
+	 * CLI SPAWNS the session if it doesn't exist yet (a fresh terminal), else —
+	 * and always on an attach/reconnect (`spec` null) — it just replays scrollback
+	 * from our last ACK cursor, so a reconnect resumes with no gap. Passing the
+	 * spec every time is safe: an existing session ignores it. */
+	open(cols: number, rows: number, spec?: PtyOpenSpec | null): void;
 	/** Report a new terminal size to the CLI (fit addon → SIGWINCH). */
 	resize(rows: number, cols: number): void;
 }
@@ -194,13 +198,13 @@ export function createPtyTerminalDriver(
 
 	return {
 		handleFrame: (frame) => dispatchFrame(frame, sink),
-		open: (cols, rows) => {
+		open: (cols, rows, spec = null) => {
 			// On a reconnect the CLI replays from the last absolute offset we ACKed
 			// (its scrollback ring is addressed by that cursor), so rewind any
 			// un-ACKed progress and let those bytes be re-counted as they arrive
 			// again — no gap, at most one ACK window of duplicated display.
 			cursor.rewind();
-			socket.send(encodeOpen(sessionId, cols, rows, null));
+			socket.send(encodeOpen(sessionId, cols, rows, spec));
 		},
 		resize: (rows, cols) => {
 			socket.send(encodeResize(sessionId, rows, cols));
