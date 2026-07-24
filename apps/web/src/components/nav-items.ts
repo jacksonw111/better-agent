@@ -5,6 +5,7 @@ import {
 	Laptop,
 	Library,
 	Plug,
+	UserCog,
 	Wand2,
 } from "lucide-react";
 
@@ -24,6 +25,10 @@ export const WEB_NAV_ITEMS = [
 	{ icon: Bot, label: "Agents", match: ["/chat"], to: "/agents" },
 	{ icon: BookMarked, label: "Memories", to: "/memories" },
 	{ icon: Library, label: "Knowledge", to: "/knowledge" },
+	// Profile is the umbrella over a user's development spec — standards,
+	// templates, skills, MCP — so it sits directly above Skills/Integrations,
+	// the two pieces it reuses (see /profile's overview narrative).
+	{ icon: UserCog, label: "Profile", to: "/profile" },
 	{ icon: Wand2, label: "Skills", to: "/skills" },
 	{ icon: Plug, label: "Integrations", to: "/integrations" },
 ] as const;

@@ -18,6 +18,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as SkillsIndexRouteImport } from './routes/skills.index'
+import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as MemoriesIndexRouteImport } from './routes/memories.index'
 import { Route as LocalIndexRouteImport } from './routes/local.index'
 import { Route as LocalAgentsIndexRouteImport } from './routes/local-agents.index'
@@ -83,6 +84,11 @@ const TasksIndexRoute = TasksIndexRouteImport.update({
 const SkillsIndexRoute = SkillsIndexRouteImport.update({
   id: '/skills/',
   path: '/skills/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileIndexRoute = ProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemoriesIndexRoute = MemoriesIndexRouteImport.update({
@@ -218,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/local-agents/': typeof LocalAgentsIndexRoute
   '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
+  '/profile/': typeof ProfileIndexRoute
   '/skills/': typeof SkillsIndexRoute
   '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/local-agents': typeof LocalAgentsIndexRoute
   '/local': typeof LocalIndexRoute
   '/memories': typeof MemoriesIndexRoute
+  '/profile': typeof ProfileIndexRoute
   '/skills': typeof SkillsIndexRoute
   '/tasks': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/local-agents/': typeof LocalAgentsIndexRoute
   '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
+  '/profile/': typeof ProfileIndexRoute
   '/skills/': typeof SkillsIndexRoute
   '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/local-agents/'
     | '/local/'
     | '/memories/'
+    | '/profile/'
     | '/skills/'
     | '/tasks/'
     | '/auth/google/callback'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/local-agents'
     | '/local'
     | '/memories'
+    | '/profile'
     | '/skills'
     | '/tasks'
     | '/auth/google/callback'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/local-agents/'
     | '/local/'
     | '/memories/'
+    | '/profile/'
     | '/skills/'
     | '/tasks/'
     | '/auth/google/callback'
@@ -414,6 +426,7 @@ export interface RootRouteChildren {
   LocalAgentsIndexRoute: typeof LocalAgentsIndexRoute
   LocalIndexRoute: typeof LocalIndexRoute
   MemoriesIndexRoute: typeof MemoriesIndexRoute
+  ProfileIndexRoute: typeof ProfileIndexRoute
   SkillsIndexRoute: typeof SkillsIndexRoute
   TasksIndexRoute: typeof TasksIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
@@ -485,6 +498,13 @@ declare module '@tanstack/react-router' {
       path: '/skills'
       fullPath: '/skills/'
       preLoaderRoute: typeof SkillsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/': {
+      id: '/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof ProfileIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memories/': {
@@ -662,6 +682,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalAgentsIndexRoute: LocalAgentsIndexRoute,
   LocalIndexRoute: LocalIndexRoute,
   MemoriesIndexRoute: MemoriesIndexRoute,
+  ProfileIndexRoute: ProfileIndexRoute,
   SkillsIndexRoute: SkillsIndexRoute,
   TasksIndexRoute: TasksIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,

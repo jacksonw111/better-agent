@@ -12,6 +12,7 @@ it("orders the nav Dashboard-first with Computers second and no Tasks entry", ()
 		"Agents",
 		"Memories",
 		"Knowledge",
+		"Profile",
 		"Skills",
 		"Integrations",
 	]);

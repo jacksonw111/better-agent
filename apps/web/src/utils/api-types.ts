@@ -73,3 +73,12 @@ export type CloudAgentUsageServerRow = Awaited<
 export type CloudAgentUsageRow = Omit<CloudAgentUsageServerRow, "costCents"> & {
 	costUsd: number;
 };
+
+/** The user's profile envelope: version + standards + templates, resolved. */
+export type ProfileData = Awaited<ReturnType<Client["profiles"]["get"]>>;
+
+export type ProfileStandard = ProfileData["standards"][number];
+
+export type ProjectTemplate = ProfileData["templates"][number];
+
+export type TemplateScaffold = ProjectTemplate["scaffold"];
