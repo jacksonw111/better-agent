@@ -193,7 +193,7 @@ dashboard 跨机每 session 一行:`电脑·runtime·项目 | 状态 | 最近活
 
 ## 14. 风险与开放问题
 
-- **node-pty 在 bun 编译产物里的原生绑定**:CLI 现在 `bun build --compile` 出单二进制;node-pty 有原生模块,需确认在 bun 打包下可用,或换纯 JS pty 实现/预编译多平台二进制。**阶段 2 第一件事先验证。**
+- ~~**node-pty 在 bun 编译产物里的原生绑定**~~ **已验证并定案（spike `08b1e71`，`docs/research/2026-07-23-node-pty-bun-spike.md`）**：node-pty 在 Bun 下**完全不可用**（tty 读不出 pty master、`.node` 打不进单二进制），FFI forkpty 段错误、`bun:ffi` 不支持 ioctl 变参无法 resize。**定案方案**：内嵌一个 ~50KB 原生 C **pty-broker**（forkpty 持有 pty、数据走普通管道、resize 走控制 fd 在 C 里 ioctl）——已端到端验证：单二进制编译、无依赖运行、双向数据 / resize / SIGWINCH / 退出码 / 干净 kill 全通过，**对单二进制分发零影响**（CI 加一步为 4 target 交叉编译这个无依赖 C 小程序并内嵌）。约 2.5–3 人日。阶段 2 的 pty 层按此实现。
 - **重绘密集 TUI 的带宽**:帧合并压掉多数;慢网下极端刷屏仍可能抖,可加"降帧率"档。
 - **审批体验**:审批在终端内原生操作(不是按钮);dashboard 显示"等审批"状态提示你回去。可接受度待真机体验。
 - **完整历史留档**:终端只留滚屏;若需可搜索历史,CLI 本地把 hook 事件/`stream-json` 写本地日志留档(不参与渲染)——阶段 3 可选。
