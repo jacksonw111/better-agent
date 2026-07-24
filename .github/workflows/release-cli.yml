@@ -52,10 +52,21 @@ jobs:
             echo "::notice::New version ${version} → releasing ${tag}."
           fi
 
-  release:
+  # Each OS/arch's native pty-broker (native/pty-broker.c) must be compiled on a
+  # runner that can produce that OS's binary, then embedded (base64) into the
+  # Bun `--compile` bundle. macOS binaries build on a macOS runner (`cc -arch`);
+  # Linux binaries build on Ubuntu (native x64 + `gcc-aarch64-linux-gnu` cross).
+  build:
     needs: gate
     if: needs.gate.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - runner: macos-14
+            targets: "darwin-arm64 darwin-x64"
+          - runner: ubuntu-latest
+            targets: "linux-x64 linux-arm64"
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -65,38 +76,64 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - uses: oven-sh/setup-bun@v2
-      - name: Build cross-platform binaries (Bun --compile)
+      - name: Install aarch64 cross-compiler (Linux runner only)
+        if: matrix.runner == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Compile broker, embed, and build binaries (Bun --compile)
         run: |
-          for entry in \
-            "bun-darwin-arm64 agent-cli-darwin-arm64" \
-            "bun-darwin-x64   agent-cli-darwin-x64" \
-            "bun-linux-x64    agent-cli-linux-x64" \
-            "bun-linux-arm64  agent-cli-linux-arm64"; do
-            set -- $entry
-            target="$1"
-            out="$2"
-            echo "::group::Build ${target} → ${out}"
-            bun build --compile --target="${target}" apps/bridge-cli/src/index.ts --outfile "${out}"
-            ls -lh "${out}"
+          mkdir -p apps/bridge-cli/.broker-build
+          for target in ${{ matrix.targets }}; do
+            echo "::group::Build ${target}"
+            # 1. Cross-compile the native pty-broker for this OS/arch.
+            apps/bridge-cli/scripts/build-broker.sh "${target}" \
+              "apps/bridge-cli/.broker-build/pty-broker-${target}"
+            # 2. Embed it (base64) into the source asset.
+            node apps/bridge-cli/scripts/embed-broker.mjs "${target}" \
+              "apps/bridge-cli/.broker-build/pty-broker-${target}"
+            # 3. Compile the standalone CLI carrying that embedded broker.
+            bun build --compile --target="bun-${target}" \
+              apps/bridge-cli/src/index.ts --outfile "agent-cli-${target}"
+            # 4. Restore the placeholder before the next target.
+            node apps/bridge-cli/scripts/embed-broker.mjs --restore
+            ls -lh "agent-cli-${target}"
             # Also publish under the pre-0.2.0 binary name so existing
             # install.sh copies / docs pointing at better-agent-bridge-<os>-<arch>
             # keep working for one major version.
-            cp "${out}" "${out/agent-cli/better-agent-bridge}"
+            cp "agent-cli-${target}" "better-agent-bridge-${target}"
             echo "::endgroup::"
           done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-binaries-${{ matrix.runner }}
+          path: |
+            agent-cli-*
+            better-agent-bridge-*
+          if-no-files-found: error
+
+  release:
+    needs: [gate, build]
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-binaries-*
+          merge-multiple: true
+          path: bins
       - name: Create GitHub Release with binaries + installer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "${{ needs.gate.outputs.tag }}" \
-            agent-cli-darwin-arm64 \
-            agent-cli-darwin-x64 \
-            agent-cli-linux-x64 \
-            agent-cli-linux-arm64 \
-            better-agent-bridge-darwin-arm64 \
-            better-agent-bridge-darwin-x64 \
-            better-agent-bridge-linux-x64 \
-            better-agent-bridge-linux-arm64 \
+            bins/agent-cli-darwin-arm64 \
+            bins/agent-cli-darwin-x64 \
+            bins/agent-cli-linux-x64 \
+            bins/agent-cli-linux-arm64 \
+            bins/better-agent-bridge-darwin-arm64 \
+            bins/better-agent-bridge-darwin-x64 \
+            bins/better-agent-bridge-linux-x64 \
+            bins/better-agent-bridge-linux-arm64 \
             apps/bridge-cli/install.sh \
             --repo "${{ github.repository }}" \
             --target "${{ github.sha }}" \
