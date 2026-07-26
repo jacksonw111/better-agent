@@ -31,8 +31,9 @@ import { isRunPresumedDead } from "./tasks-run-status";
 type Services = Context["services"];
 
 /** Wire shape of one active session. Dates are ISO strings: this is a polled
- * list the web sorts and renders directly. */
-interface ActiveSessionEntry {
+ * list the web sorts and renders directly. Exported so the client package's
+ * declaration emit (tsc --build) can name it in the appRouter's .d.ts. */
+export interface ActiveSessionEntry {
 	agentKind: BridgeAgentKind;
 	computerId: string;
 	computerName: string;
