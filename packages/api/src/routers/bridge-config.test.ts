@@ -66,7 +66,7 @@ it("startSession returns the token's persisted startup config", async () => {
 // call mints a new sessionId).
 
 it("restartSession appends a control:restart command and does not end the session", async () => {
-	const { userClientFor, bridgeClientFor, bridgeSession } = build();
+	const { userClientFor, bridgeClientFor, bridgeSession, services } = build();
 	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
 	const { sessionId } = await cli.bridge.startSession({
 		agentKind: AGENT_KIND,
@@ -77,7 +77,7 @@ it("restartSession appends a control:restart command and does not end the sessio
 		ok: true,
 	});
 
-	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	const commands = await services.relayStore.read(sessionId, "commands", 0);
 	expect(commands).toHaveLength(1);
 	expect(commands[0]?.data).toEqual({ type: "control", action: "restart" });
 

@@ -1,7 +1,3 @@
-import {
-	observeBridgeEvents,
-	resolveStreamAuth,
-} from "@better-agent/api/bridge/stream";
 import { createContext } from "@better-agent/api/context";
 import { appRouter } from "@better-agent/api/routers/index";
 import { env } from "@better-agent/env/server";
@@ -14,8 +10,6 @@ import { log } from "evlog";
 import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { streamSSE } from "hono/streaming";
-import { runBridgeEventStream } from "./bridge-stream-run";
 import { applyKnowledgeContentRoute } from "./knowledge-content";
 import { buildMemoryMcpApp } from "./memory-mcp";
 import { createPdfProxyHandler } from "./pdf-proxy";
@@ -28,31 +22,18 @@ const PDF_PROXY_PATH = "/pdf-proxy";
 // Streaming (event-iterator) endpoints must skip the logging middleware: it
 // buffers the response, which locks the body stream and makes the streamed
 // response throw "ReadableStream is locked". The agent plane
-// (sessions/prompt), the user/web plane (userSessions/prompt), and the bridge
-// SSE observe stream (/bridge/sessions/:id/stream) all stream.
+// (sessions/prompt) and the user/web plane (userSessions/prompt) stream.
 const STREAMING_PATHS = new Set([
 	"/rpc/sessions/prompt",
 	"/rpc/userSessions/prompt",
 ]);
-const BRIDGE_STREAM_PATH = /^\/bridge\/sessions\/[^/]+\/stream$/;
 
 function isStreamingPath(path: string): boolean {
-	return (
-		path === PDF_PROXY_PATH ||
-		STREAMING_PATHS.has(path) ||
-		BRIDGE_STREAM_PATH.test(path)
-	);
+	return path === PDF_PROXY_PATH || STREAMING_PATHS.has(path);
 }
 
 const HTTP_INTERNAL_SERVER_ERROR = 500;
 const HTTP_FORBIDDEN = 403;
-const HTTP_UNAUTHORIZED = 401;
-const HTTP_NOT_FOUND = 404;
-
-// Keeps the SSE connection alive through idle proxies (most close a
-// connection with no bytes flowing after ~30-60s).
-const HEARTBEAT_MS = 15_000;
-const DEFAULT_AFTER_ID = 0;
 
 const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
@@ -149,79 +130,6 @@ function applyInternalRoutes(
 	});
 }
 
-function parseAfterId(raw: string | undefined): number {
-	if (!raw) {
-		return DEFAULT_AFTER_ID;
-	}
-	const parsed = Number(raw);
-	return Number.isFinite(parsed) ? parsed : DEFAULT_AFTER_ID;
-}
-
-function streamAuthErrorMessage(
-	status:
-		| typeof HTTP_UNAUTHORIZED
-		| typeof HTTP_FORBIDDEN
-		| typeof HTTP_NOT_FOUND
-): string {
-	if (status === HTTP_UNAUTHORIZED) {
-		return "Unauthorized";
-	}
-	if (status === HTTP_FORBIDDEN) {
-		return "Forbidden";
-	}
-	return "Not Found";
-}
-
-// Long-lived observe stream for a bridge session's `events↑` channel. A plain
-// Hono route (not an oRPC procedure) so the response is genuine
-// `text/event-stream`, consumable by a browser EventSource with automatic
-// reconnect via Last-Event-ID. Auth + ownership + replay/live-dedupe logic
-// live in the tested @better-agent/api/bridge/stream helpers — this stays a
-// thin transport shim over them.
-function applyBridgeStreamRoute(
-	app: Hono<EvlogVariables>,
-	services: AgentServices
-): void {
-	app.get("/bridge/sessions/:id/stream", async (c) => {
-		const context = await createContext({ context: c, services });
-		const sessionId = c.req.param("id");
-		const auth = await resolveStreamAuth(context, sessionId);
-		if (!auth.ok) {
-			const message = streamAuthErrorMessage(auth.status);
-			return c.text(message, auth.status);
-		}
-		const afterId = parseAfterId(
-			c.req.query("afterId") ?? c.req.header("last-event-id")
-		);
-		// C3 loss fix: a failed SSE write now tears the stream down instead of
-		// being swallowed, so the client reconnects and replays the gap — see
-		// bridge-stream-run.ts.
-		return streamSSE(c, (stream) =>
-			runBridgeEventStream({
-				heartbeatMs: HEARTBEAT_MS,
-				io: {
-					onAbort: (handler) => stream.onAbort(handler),
-					writeEvent: (event) =>
-						stream.writeSSE({
-							data: JSON.stringify(event.data),
-							id: String(event.id),
-						}),
-					writePing: async () => {
-						await stream.write(":ping\n\n");
-					},
-				},
-				subscribe: (onEvent) =>
-					observeBridgeEvents({
-						relayStore: services.relayStore,
-						sessionId,
-						afterId,
-						onEvent,
-					}),
-			})
-		);
-	});
-}
-
 // Public, host-allow-listed proxy for report/research PDFs. Registered before
 // the oRPC catch-all so it terminates here without paying an oRPC dispatch.
 function applyPdfProxyRoute(app: Hono<EvlogVariables>): void {
@@ -231,7 +139,6 @@ function applyPdfProxyRoute(app: Hono<EvlogVariables>): void {
 export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	const app = new Hono<EvlogVariables>();
 	applyMiddleware(app);
-	applyBridgeStreamRoute(app, services);
 	applyKnowledgeContentRoute(app, services);
 	applyPdfProxyRoute(app);
 	applyInternalRoutes(app, services);

@@ -94,27 +94,3 @@ export interface BridgeSessionStore {
 	setVncEndpoint(id: string, vncEndpoint: string | null): Promise<void>;
 	touch(id: string): Promise<void>;
 }
-
-/** A persisted bridge event, keyed by the relay's own SERVER-assigned seq. */
-export interface BridgeMessageRow {
-	event: unknown;
-	seq: number;
-}
-
-export interface BridgeMessageStore {
-	/** Persists one relayed event under its relay-assigned seq. */
-	append(sessionId: string, seq: number, event: unknown): Promise<void>;
-	/** Persists a batch of relayed events under their own seq, in one round trip. */
-	appendMany(sessionId: string, rows: BridgeMessageRow[]): Promise<void>;
-	/** Returns persisted events with seq > afterSeq, in ascending seq order. */
-	list(
-		sessionId: string,
-		afterSeq: number,
-		limit: number
-	): Promise<BridgeMessageRow[]>;
-	/** Returns the LAST `limit` persisted events (highest seqs), in ascending
-	 * seq order — the bounded backward scan `bridge.pendingRequests` (P5-1)
-	 * uses to find still-open approval/question events near the stream's tail
-	 * without paging the whole history forward. */
-	listTail(sessionId: string, limit: number): Promise<BridgeMessageRow[]>;
-}

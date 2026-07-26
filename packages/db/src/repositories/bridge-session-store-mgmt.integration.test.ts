@@ -6,7 +6,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { users } from "../schema/auth";
-import { bridgeMessages, bridgeSessions } from "../schema/bridge";
+import { bridgeSessions } from "../schema/bridge";
 import { createTestDb, type TestDb } from "../testing/test-db";
 import { createBridgeSessionStore } from "./bridge-session-store";
 import { createBridgeTokenStore } from "./bridge-token-store";
@@ -99,25 +99,17 @@ it("setStarred flips the flag, owner-only", async () => {
 	expect((await store.get(id))?.starred).toBe(false);
 });
 
-it("deleteHard removes the session and its messages, owner-only", async () => {
+it("deleteHard removes the session, owner-only", async () => {
 	const store = createBridgeSessionStore(db);
 	const alice = await seedUser("alice@x.com");
 	const bob = await seedUser("bob@x.com");
 	const id = await seedSession(alice);
-	await db
-		.insert(bridgeMessages)
-		.values([{ sessionId: id, seq: 1, event: { kind: "message" } }]);
 
 	await store.deleteHard(id, bob);
 	expect(await store.get(id)).not.toBeNull();
 
 	await store.deleteHard(id, alice);
 	expect(await store.get(id)).toBeNull();
-	const orphaned = await db
-		.select()
-		.from(bridgeMessages)
-		.where(eq(bridgeMessages.sessionId, id));
-	expect(orphaned).toHaveLength(0);
 });
 
 it("listPageByUser excludes archived rows by default and pages only them with archived: true", async () => {

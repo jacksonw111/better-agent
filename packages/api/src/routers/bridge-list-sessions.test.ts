@@ -6,6 +6,31 @@ import { AGENT_KIND, ALICE, build } from "./bridge-test-helpers";
 
 const STALE_MS = 6 * 60 * 1000;
 
+type Rig = ReturnType<typeof build>;
+
+/** The structured push/send endpoints are gone (PTY rewrite): the attention
+ * signal still folds over the session's relay tails, so tests seed those tails
+ * directly through the relay store the same way a writer would. */
+function pushEvents(
+	services: Rig["services"],
+	sessionId: string,
+	events: unknown[]
+): Promise<unknown> {
+	return Promise.all(
+		events.map((event) =>
+			services.relayStore.append(sessionId, "events", event)
+		)
+	);
+}
+
+function sendCommand(
+	services: Rig["services"],
+	sessionId: string,
+	data: unknown
+): Promise<unknown> {
+	return services.relayStore.append(sessionId, "commands", data);
+}
+
 async function startSessions(count: number) {
 	const rig = build();
 	const cli = rig.bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
@@ -138,73 +163,65 @@ it("rows carry name/starred/archivedAt for the web", async () => {
 });
 
 it("flags an unanswered approval as attention: 'approval'", async () => {
-	const { alice, cli, ids } = await startSessions(1);
-	await cli.bridge.pushEvents({
-		sessionId: ids[0] ?? "",
-		events: [
-			{
-				kind: "approval",
-				requestId: "req-1",
-				title: "Run?",
-				options: [{ id: "yes", label: "Yes" }],
-			},
-		],
-	});
+	const { alice, ids, services } = await startSessions(1);
+	await pushEvents(services, ids[0] ?? "", [
+		{
+			kind: "approval",
+			requestId: "req-1",
+			title: "Run?",
+			options: [{ id: "yes", label: "Yes" }],
+		},
+	]);
 	const { sessions } = await alice.bridge.listSessions();
 	expect(sessions[0]?.attention).toBe("approval");
 });
 
 it("an answered approval stops flagging 'approval'", async () => {
-	const { alice, cli, ids } = await startSessions(1);
+	const { alice, ids, services } = await startSessions(1);
 	const sessionId = ids[0] ?? "";
-	await cli.bridge.pushEvents({
-		sessionId,
-		events: [
-			{
-				kind: "approval",
-				requestId: "req-1",
-				title: "Run?",
-				options: [{ id: "yes", label: "Yes" }],
-			},
-		],
-	});
-	await alice.bridge.sendInput({
-		sessionId,
-		data: { type: "approval", requestId: "req-1", optionId: "yes" },
+	await pushEvents(services, sessionId, [
+		{
+			kind: "approval",
+			requestId: "req-1",
+			title: "Run?",
+			options: [{ id: "yes", label: "Yes" }],
+		},
+	]);
+	await sendCommand(services, sessionId, {
+		type: "approval",
+		requestId: "req-1",
+		optionId: "yes",
 	});
 	const { sessions } = await alice.bridge.listSessions();
 	expect(sessions[0]?.attention).toBeNull();
 });
 
 it("flags an in-flight turn (trailing user message) as 'processing'", async () => {
-	const { alice, cli, ids } = await startSessions(1);
-	await cli.bridge.pushEvents({
-		sessionId: ids[0] ?? "",
-		events: [{ kind: "message", role: "user", text: "go" }],
-	});
+	const { alice, ids, services } = await startSessions(1);
+	await pushEvents(services, ids[0] ?? "", [
+		{ kind: "message", role: "user", text: "go" },
+	]);
 	const { sessions } = await alice.bridge.listSessions();
 	expect(sessions[0]?.attention).toBe("processing");
 });
 
 it("an ended session never reports attention, even with in-flight-looking events", async () => {
-	const { alice, cli, ids } = await startSessions(1);
+	const { alice, ids, services } = await startSessions(1);
 	const sessionId = ids[0] ?? "";
-	await cli.bridge.pushEvents({
-		sessionId,
-		events: [{ kind: "message", role: "user", text: "go" }],
-	});
+	await pushEvents(services, sessionId, [
+		{ kind: "message", role: "user", text: "go" },
+	]);
 	await alice.bridge.endSession({ sessionId });
 	const { sessions } = await alice.bridge.listSessions();
 	expect(sessions[0]?.attention).toBeNull();
 });
 
 it("a session not seen recently gets attention: null without a relay read", async () => {
-	const { alice, cli, ids, services } = await startSessions(1);
+	const { alice, ids, services } = await startSessions(1);
 	const sessionId = ids[0] ?? "";
-	await cli.bridge.pushEvents({
-		sessionId,
-		events: [{ kind: "message", role: "user", text: "go" }],
-	});
+	await pushEvents(services, sessionId, [
+		{ kind: "message", role: "user", text: "go" },
+	]);
 	// Back-date lastSeenAt past the recency window (the store has no setter, so
 	// intercept the page read) and make any relay read blow up — proving the
 	// stale row short-circuits before touching the relay.

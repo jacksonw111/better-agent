@@ -15,7 +15,6 @@ import type {
 	AgentStore,
 	AttachmentStore,
 	AuthzClient,
-	BridgeMessageStore,
 	BridgeSessionStore,
 	BridgeTokenStore,
 	ComposioAccountStore,
@@ -57,7 +56,6 @@ import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-stor
 import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
 import type { UsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
-import type { CommandBus } from "./bridge/command-bus";
 import type { ComputerControlChannel } from "./computers/control-channel";
 import type { PtyRelayHub } from "./pty/relay-hub";
 
@@ -74,9 +72,6 @@ export interface AgentServices {
 	authz: AuthzClient;
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
-	/** In-process pub/sub notifying a live bridge WS connection that a new
-	 * relay command was appended for its session (see command-bus.ts). */
-	commandBus: CommandBus;
 	composio: (accountId: string) => Promise<ComposioService | null>;
 	/** S2-T2 (D4): the /computer-ws registry + launch push path. In-process on
 	 * purpose (same rationale as commandBus); heartbeat pendingCommands is the
@@ -133,7 +128,6 @@ export interface AgentServices {
 		webAuthzCache: WebAuthzCacheStore;
 		bridgeToken: BridgeTokenStore;
 		bridgeSession: BridgeSessionStore;
-		bridgeMessage: BridgeMessageStore;
 		bridgeUsage: BridgeUsageStore;
 		computer: ComputerStore;
 		githubConnection: GithubConnectionStore;

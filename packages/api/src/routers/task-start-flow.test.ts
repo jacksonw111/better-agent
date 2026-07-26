@@ -193,30 +193,6 @@ it("failure chain: real error recorded, task intact, retry launches a fresh cred
 	expect(mustGet(rig.run.rows, runId)).toEqual(failedRun);
 });
 
-it("no hop of the chain — success or failure — writes lifecycle chat messages", async () => {
-	const rig = buildComputerRig();
-	const { client, runId, taskId } = await startTask(rig);
-	expect(rig.bridgeMessages.size).toBe(0);
-
-	const launch = await heartbeatLaunch(client);
-	await ackAndRunToRunning(client, runId);
-	expect(rig.bridgeMessages.size).toBe(0);
-
-	const cli = await bridgeClientFromCredential(rig, launch.sessionCredential);
-	await cli.bridge.startSession({ agentKind: "claude-code", runId });
-	expect(rig.bridgeMessages.size).toBe(0);
-
-	// Failure + retry don't narrate into chat either.
-	await client().runs.updateStatus({
-		errorMessage: REAL_ERROR,
-		runId,
-		status: "failed",
-	});
-	await rig.userClientFor(ALICE).tasks.retry({ taskId });
-	await client().computers.heartbeat();
-	expect(rig.bridgeMessages.size).toBe(0);
-});
-
 it("the task name never reaches the agent: absent from the launch payload's instructions", async () => {
 	const rig = buildComputerRig();
 	const { client, taskId } = await startTask(rig);

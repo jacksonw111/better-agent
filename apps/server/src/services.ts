@@ -4,13 +4,11 @@ import { createGithubClient } from "@better-agent/agent/github/github-client";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
-import { createCommandBus } from "@better-agent/api/bridge/command-bus";
 import { createComputerControlChannel } from "@better-agent/api/computers/control-channel";
 import { createPtyRelayHub } from "@better-agent/api/pty/relay-hub";
 import { createActiveSessionStore } from "@better-agent/db/repositories/active-session-store";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
-import { createBridgeMessageStore } from "@better-agent/db/repositories/bridge-message-store";
 import { createBridgeSessionStore } from "@better-agent/db/repositories/bridge-session-store";
 import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-token-store";
 import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usage-store";
@@ -64,7 +62,6 @@ interface StoreParts {
 	activeSessionStore: ReturnType<typeof createActiveSessionStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
-	bridgeMessageStore: ReturnType<typeof createBridgeMessageStore>;
 	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
 	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
 	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
@@ -118,7 +115,6 @@ function buildStores(
 		webAuthzCache: parts.webAuthzCache,
 		bridgeToken: parts.bridgeTokenStore,
 		bridgeSession: parts.bridgeSessionStore,
-		bridgeMessage: parts.bridgeMessageStore,
 		bridgeUsage: parts.bridgeUsageStore,
 		computer: parts.computerStore,
 		githubConnection: parts.githubConnectionStore,
@@ -190,11 +186,6 @@ function assembleServices(
 		push: buildPushService(parts.pushSubscriptionStore),
 		rateLimiter: buildRateLimiter(),
 		relayStore: buildRelayStore(),
-		// In-process pub/sub "bell" waking a live bridge WS connection to re-read
-		// the commands relay for its session — see command-bus.ts. Deliberately
-		// NOT persisted/shared across processes: a WS connection always lives on
-		// the same Node process as the CommandBus instance that can notify it.
-		commandBus: createCommandBus(),
 		// Computer-plane anti-replay (S1-T2, design D1). In-memory on purpose:
 		// signature timestamps must strictly increase per computer, and the
 		// single-instance Docker deployment means one process sees them all.
@@ -225,7 +216,6 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		webAuthzCache: createWebAuthzCacheStore(db),
 		bridgeTokenStore: createBridgeTokenStore(db),
 		bridgeSessionStore: createBridgeSessionStore(db),
-		bridgeMessageStore: createBridgeMessageStore(db),
 		bridgeUsageStore: createBridgeUsageStore(db),
 		computerStore: createComputerStore(db),
 		githubConnectionStore: createGithubConnectionStore(db),

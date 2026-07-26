@@ -6,7 +6,6 @@ import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { users } from "../schema/auth";
 import { createTestDb, type TestDb } from "../testing/test-db";
-import { createBridgeMessageStore } from "./bridge-message-store";
 import { createBridgeSessionStore } from "./bridge-session-store";
 import { createBridgeTokenStore } from "./bridge-token-store";
 
@@ -107,10 +106,9 @@ it("listByUser scopes tokens per owner", async () => {
 	expect(await store.listByUser(bob)).toHaveLength(1);
 });
 
-it("deleteAgent removes the token and all of its sessions + messages", async () => {
+it("deleteAgent removes the token and all of its sessions", async () => {
 	const store = createBridgeTokenStore(db);
 	const sessionStore = createBridgeSessionStore(db);
-	const messageStore = createBridgeMessageStore(db);
 	const userId = await seedUser("alice@x.com");
 	const token = await store.create(createInput(userId));
 	const session = await sessionStore.create({
@@ -118,8 +116,6 @@ it("deleteAgent removes the token and all of its sessions + messages", async () 
 		tokenId: token.id,
 		agentKind: "claude-code",
 	});
-	const APPENDED_SEQ = 1;
-	await messageStore.append(session.id, APPENDED_SEQ, { type: "stdout" });
 
 	await store.deleteAgent(token.id, userId);
 

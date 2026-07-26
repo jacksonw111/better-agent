@@ -62,36 +62,21 @@ async function updateOwnedSession(
 		);
 }
 
-/** P3-T1 hard delete: removes the session row AND its persisted bridge
- * messages (the bridge_messages → bridge_sessions FK has no cascade), in one
- * transaction, only when the session belongs to `userId` — same shape as
- * bridge-token-store's deleteAgentAndSessions. */
+/** P3-T1 hard delete: removes the session row, only when the session belongs
+ * to `userId` — same shape as bridge-token-store's deleteAgentAndSessions. */
 async function deleteSessionHard(
 	db: Db,
 	id: string,
 	userId: string
 ): Promise<void> {
-	await db.transaction(async (tx) => {
-		const owned = await tx
-			.select({ id: schema.bridgeSessions.id })
-			.from(schema.bridgeSessions)
-			.where(
-				and(
-					eq(schema.bridgeSessions.id, id),
-					eq(schema.bridgeSessions.userId, userId)
-				)
+	await db
+		.delete(schema.bridgeSessions)
+		.where(
+			and(
+				eq(schema.bridgeSessions.id, id),
+				eq(schema.bridgeSessions.userId, userId)
 			)
-			.limit(1);
-		if (owned.length === 0) {
-			return;
-		}
-		await tx
-			.delete(schema.bridgeMessages)
-			.where(eq(schema.bridgeMessages.sessionId, id));
-		await tx
-			.delete(schema.bridgeSessions)
-			.where(eq(schema.bridgeSessions.id, id));
-	});
+		);
 }
 
 // A single guarded UPDATE (not a read-then-write) so the throttle check and

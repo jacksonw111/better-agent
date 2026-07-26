@@ -2,7 +2,7 @@ import type {
 	BridgeTokenRow,
 	BridgeTokenStore,
 } from "@better-agent/agent/ports";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 // biome-ignore lint/performance/noNamespaceImport: drizzle 需要整个 schema 命名空间对象
 import * as schema from "../schema";
@@ -25,28 +25,17 @@ function toRow(row: typeof schema.bridgeTokens.$inferSelect): BridgeTokenRow {
 	};
 }
 
-/** Deletes every session (and its messages) belonging to `tokenId`, within the
- * caller's transaction, so the token can then be removed without violating the
+/** Deletes every session belonging to `tokenId`, within the caller's
+ * transaction, so the token can then be removed without violating the
  * bridge_sessions → bridge_tokens FK. */
 async function deleteSessionsForToken(tx: Tx, tokenId: string): Promise<void> {
-	const sessions = await tx
-		.select({ id: schema.bridgeSessions.id })
-		.from(schema.bridgeSessions)
-		.where(eq(schema.bridgeSessions.tokenId, tokenId));
-	const sessionIds = sessions.map((session) => session.id);
-	if (sessionIds.length === 0) {
-		return;
-	}
-	await tx
-		.delete(schema.bridgeMessages)
-		.where(inArray(schema.bridgeMessages.sessionId, sessionIds));
 	await tx
 		.delete(schema.bridgeSessions)
-		.where(inArray(schema.bridgeSessions.id, sessionIds));
+		.where(eq(schema.bridgeSessions.tokenId, tokenId));
 }
 
-/** Hard-deletes `id` (and all of its sessions + messages) if it belongs to
- * `userId`, in one transaction. A no-op when the token isn't the caller's. */
+/** Hard-deletes `id` (and all of its sessions) if it belongs to `userId`, in
+ * one transaction. A no-op when the token isn't the caller's. */
 async function deleteAgentAndSessions(
 	db: Db,
 	id: string,

@@ -39,7 +39,6 @@ async function sendStopControl(
 			"commands",
 			STOP_CONTROL_COMMAND
 		);
-		context.services.commandBus.notify(sessionId);
 	} catch {
 		// swallow — see doc comment above.
 	}

@@ -100,66 +100,6 @@ it("startSession accepts every documented agentKind, including pi", async () => 
 	expect(sessionId).toBeTruthy();
 });
 
-it("a bridge-token session pushes events the owner can observe via poll", async () => {
-	const { userClientFor, bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-
-	await cli.bridge.pushEvents({
-		sessionId,
-		events: [{ type: "stdout", chunk: "hello" }],
-	});
-
-	const alice = userClientFor(ALICE);
-	const events = await alice.bridge.observe({ sessionId, afterId: 0 });
-	expect(events).toHaveLength(1);
-	expect(events[0]?.data).toEqual({ type: "stdout", chunk: "hello" });
-});
-
-it("observe rejects a non-owner with NOT_FOUND", async () => {
-	const { userClientFor, bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-	await cli.bridge.pushEvents({ sessionId, events: [{ ok: true }] });
-
-	const bob = userClientFor(BOB);
-	await expect(
-		bob.bridge.observe({ sessionId, afterId: 0 })
-	).rejects.toMatchObject({ code: "NOT_FOUND" });
-});
-
-it("pushEvents rejects a non-owner bridge token with NOT_FOUND", async () => {
-	const { bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-
-	const otherCli = bridgeClientFor({ tokenId: "tok-2", userId: BOB.id });
-	await expect(
-		otherCli.bridge.pushEvents({ sessionId, events: [{ ok: true }] })
-	).rejects.toMatchObject({ code: "NOT_FOUND" });
-});
-
-it("sendInput lands in pollCommands", async () => {
-	const { userClientFor, bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-
-	const alice = userClientFor(ALICE);
-	await alice.bridge.sendInput({ sessionId, data: { keys: "y\n" } });
-
-	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
-	expect(commands).toHaveLength(1);
-	expect(commands[0]?.data).toEqual({ keys: "y\n" });
-});
-
 it("listSessions and endSession are scoped to the caller", async () => {
 	const { userClientFor, bridgeClientFor } = build();
 	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
@@ -204,8 +144,8 @@ it("endSession still ends the session when the relay append fails", async () => 
 	expect(row?.status).toBe("ended");
 });
 
-it("endSession appends a control:stop command the CLI's poll would see", async () => {
-	const { userClientFor, bridgeClientFor } = build();
+it("endSession appends a control:stop command to the session's commands relay", async () => {
+	const { userClientFor, bridgeClientFor, services } = build();
 	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
 	const { sessionId } = await cli.bridge.startSession({
 		agentKind: AGENT_KIND,
@@ -214,86 +154,7 @@ it("endSession appends a control:stop command the CLI's poll would see", async (
 	const alice = userClientFor(ALICE);
 	await alice.bridge.endSession({ sessionId });
 
-	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	const commands = await services.relayStore.read(sessionId, "commands", 0);
 	expect(commands).toHaveLength(1);
 	expect(commands[0]?.data).toEqual({ type: "control", action: "stop" });
-});
-
-it("pushEvents persists events; history returns them in order for the owner", async () => {
-	const { userClientFor, bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-
-	await cli.bridge.pushEvents({
-		sessionId,
-		events: [
-			{ type: "message", text: "hi" },
-			{ type: "output", text: "ok" },
-		],
-	});
-
-	const alice = userClientFor(ALICE);
-	const history = await alice.bridge.history({ sessionId });
-	expect(history).toHaveLength(2);
-	expect(history[0]?.event).toEqual({ type: "message", text: "hi" });
-	expect(history[1]?.event).toEqual({ type: "output", text: "ok" });
-	expect(history[1]?.seq).toBeGreaterThan(history[0]?.seq ?? 0);
-});
-
-it("history is owner-scoped: a non-owner gets NOT_FOUND", async () => {
-	const { userClientFor, bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-	await cli.bridge.pushEvents({ sessionId, events: [{ ok: true }] });
-
-	const bob = userClientFor(BOB);
-	await expect(bob.bridge.history({ sessionId })).rejects.toMatchObject({
-		code: "NOT_FOUND",
-	});
-});
-
-it("history paginates via afterSeq", async () => {
-	const { userClientFor, bridgeClientFor } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-	await cli.bridge.pushEvents({
-		sessionId,
-		events: [{ i: 1 }, { i: 2 }, { i: 3 }],
-	});
-
-	const alice = userClientFor(ALICE);
-	const all = await alice.bridge.history({ sessionId });
-	expect(all).toHaveLength(3);
-
-	const afterFirst = await alice.bridge.history({
-		sessionId,
-		afterSeq: all[0]?.seq ?? 0,
-	});
-	expect(afterFirst).toHaveLength(2);
-	expect(afterFirst.map((row) => row.event)).toEqual([{ i: 2 }, { i: 3 }]);
-});
-
-it("pushEvents still succeeds live when message persistence fails", async () => {
-	const { userClientFor, bridgeClientFor, services } = build();
-	const cli = bridgeClientFor({ tokenId: "tok-1", userId: ALICE.id });
-	const { sessionId } = await cli.bridge.startSession({
-		agentKind: AGENT_KIND,
-	});
-
-	services.stores.bridgeMessage.appendMany = () =>
-		Promise.reject(new Error("db unavailable"));
-
-	await expect(
-		cli.bridge.pushEvents({ sessionId, events: [{ ok: true }] })
-	).resolves.toEqual({ ok: true });
-
-	const alice = userClientFor(ALICE);
-	const events = await alice.bridge.observe({ sessionId, afterId: 0 });
-	expect(events).toHaveLength(1);
 });

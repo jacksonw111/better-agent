@@ -58,26 +58,26 @@ it("starSession sets and clears the flag", async () => {
 });
 
 it("archiving an ACTIVE session ends it and sends the stop control", async () => {
-	const { alice, bridgeSession, cli, sessionId } = await startOne();
+	const { alice, bridgeSession, services, sessionId } = await startOne();
 
 	await alice.bridge.archiveSession({ sessionId });
 
 	const row = await bridgeSession.get(sessionId);
 	expect(row?.status).toBe("ended");
 	expect(row?.archivedAt).toBeInstanceOf(Date);
-	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	const commands = await services.relayStore.read(sessionId, "commands", 0);
 	expect(commands[0]?.data).toEqual({ type: "control", action: "stop" });
 });
 
 it("archiving an already-ended session skips the stop control", async () => {
-	const { alice, bridgeSession, cli, sessionId } = await startOne();
+	const { alice, bridgeSession, services, sessionId } = await startOne();
 	await alice.bridge.endSession({ sessionId });
-	const afterEnd = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	const afterEnd = await services.relayStore.read(sessionId, "commands", 0);
 
 	await alice.bridge.archiveSession({ sessionId });
 
 	expect((await bridgeSession.get(sessionId))?.archivedAt).toBeInstanceOf(Date);
-	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	const commands = await services.relayStore.read(sessionId, "commands", 0);
 	expect(commands).toHaveLength(afterEnd.length);
 });
 
@@ -93,8 +93,7 @@ it("restoreSession clears archivedAt but keeps the session ended", async () => {
 });
 
 it("deleteSession hard-deletes the row and stops a still-active agent", async () => {
-	const { alice, bridgeSession, cli, sessionId } = await startOne();
-	await cli.bridge.pushEvents({ sessionId, events: [{ ok: true }] });
+	const { alice, bridgeSession, services, sessionId } = await startOne();
 
 	await alice.bridge.deleteSession({ sessionId });
 
@@ -102,7 +101,7 @@ it("deleteSession hard-deletes the row and stops a still-active agent", async ()
 	expect((await alice.bridge.listSessions()).sessions).toHaveLength(0);
 	// The stop control was appended before the delete; the relay window (and
 	// the ownership cache) outlive the DB row, so the CLI's poll still sees it.
-	const commands = await cli.bridge.pollCommands({ sessionId, afterId: 0 });
+	const commands = await services.relayStore.read(sessionId, "commands", 0);
 	expect(commands[0]?.data).toEqual({ type: "control", action: "stop" });
 });
 

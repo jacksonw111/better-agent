@@ -3,7 +3,6 @@ import { env } from "@better-agent/env/server";
 import { serve } from "@hono/node-server";
 import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
-import { registerBridgeWsRoute } from "./bridge-ws";
 import { registerComputerWsRoute } from "./computer-ws";
 import { registerPtyWsRoutes } from "./pty-ws";
 import { createS3Bucket } from "./s3-bucket";
@@ -38,10 +37,6 @@ const { injectWebSocket, upgradeWebSocket } = registerVncRoutes(
 	app,
 	createVncRouteDeps(services)
 );
-// CLI<->server command/event duplex channel (R0-T1). Reuses the same
-// `upgradeWebSocket` instance as the VNC routes above — see bridge-ws.ts's
-// top comment for why a second `createNodeWebSocket({app})` isn't safe here.
-registerBridgeWsRoute(app, upgradeWebSocket, services);
 // Computer control channel (S2-T2, D4): launch delivery to client-mode CLIs.
 registerComputerWsRoute(app, upgradeWebSocket, services);
 // P2-1 PTY byte-relay plane: CLI daemon (/pty/agent-ws) <-> web viewers

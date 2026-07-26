@@ -1,8 +1,6 @@
 import { createInMemoryRelayStore } from "@better-agent/agent/bridge/relay-store";
 import type {
 	BridgeAgentKind,
-	BridgeMessageRow,
-	BridgeMessageStore,
 	BridgeSessionRow,
 	BridgeSessionStore,
 	BridgeTokenRow,
@@ -21,7 +19,6 @@ import { createFakeSkillStore } from "@better-agent/agent/testing/fake-skill-sto
 import { createFakeRunStore } from "@better-agent/agent/testing/fake-task-stores";
 import { createFakeUsageRecordStore } from "@better-agent/agent/testing/fake-usage-record-store";
 import { createRouterClient } from "@orpc/server";
-import { createCommandBus } from "../bridge/command-bus";
 import type { AuthedBridgeToken } from "../context";
 import {
 	type MemoryAttachmentStore,
@@ -30,17 +27,16 @@ import {
 import { memoryMcpServerStore } from "./bridge-test-helpers-mcp";
 import {
 	cascadeDeleteSessions,
-	memoryBridgeMessageStore,
 	memoryBridgeSessionStore,
 	memoryBridgeTokenStore,
 } from "./bridge-test-helpers-stores";
 import { appRouter } from "./index";
 
-// Shared fixtures for the bridge router tests (bridge.test.ts and
-// bridge-limits.test.ts), kept in one place so both stay under the
-// per-file line cap without duplicating the in-memory store wiring. The
-// in-memory store fakes themselves live in bridge-test-helpers-stores.ts /
-// bridge-test-helpers-mcp.ts, split out for the same reason.
+// Shared fixtures for the bridge router tests (bridge.test.ts), kept in one
+// place so tests stay under the per-file line cap without duplicating the
+// in-memory store wiring. The in-memory store fakes themselves live in
+// bridge-test-helpers-stores.ts / bridge-test-helpers-mcp.ts, split out for
+// the same reason.
 
 export function fakeHonoRequest(authHeader?: string) {
 	const header = (name: string) =>
@@ -84,14 +80,12 @@ function capturingPushService(sends: CapturedPush[]): PushService {
 }
 
 interface TestServices {
-	commandBus: ReturnType<typeof createCommandBus>;
 	push: PushService | null;
 	relayStore: ReturnType<typeof createInMemoryRelayStore>;
 	stores: {
 		attachment: MemoryAttachmentStore;
 		bridgeToken: BridgeTokenStore;
 		bridgeSession: BridgeSessionStore;
-		bridgeMessage: BridgeMessageStore;
 		mcpServer: McpServerStore;
 		pushSubscription: FakePushSubscriptionStore;
 		/** S2-T2: startSession's optional runId binds against this store. */
@@ -134,39 +128,33 @@ function buildMemoryBridgeStores() {
 	const tokenRows = new Map<string, BridgeTokenRow>();
 	const tokenHashes = new Map<string, string>();
 	const sessionRows = new Map<string, BridgeSessionRow>();
-	const messageRowsBySession = new Map<string, BridgeMessageRow[]>();
 	const mcpServerRows = new Map<string, McpServerRow>();
 	const mcpServerAuthHeaders = new Map<string, string>();
 	return {
 		bridgeSession: memoryBridgeSessionStore(sessionRows),
-		bridgeMessage: memoryBridgeMessageStore(messageRowsBySession),
 		bridgeToken: memoryBridgeTokenStore(tokenRows, tokenHashes, (tokenId) =>
-			cascadeDeleteSessions(sessionRows, messageRowsBySession, tokenId)
+			cascadeDeleteSessions(sessionRows, tokenId)
 		),
 		mcpServer: memoryMcpServerStore(mcpServerRows, mcpServerAuthHeaders),
 	};
 }
 
 export function build() {
-	const { bridgeSession, bridgeMessage, bridgeToken, mcpServer } =
-		buildMemoryBridgeStores();
+	const { bridgeSession, bridgeToken, mcpServer } = buildMemoryBridgeStores();
 	const skill = createFakeSkillStore();
 	const relayStore = createInMemoryRelayStore();
-	const commandBus = createCommandBus();
 	const usageRecord = createFakeUsageRecordStore();
 	const attachment = memoryAttachmentStore();
 	const pushSubscription = createFakePushSubscriptionStore();
 	const run = createFakeRunStore();
 	const pushSends: CapturedPush[] = [];
 	const services: TestServices = {
-		commandBus,
 		push: capturingPushService(pushSends),
 		relayStore,
 		stores: {
 			attachment,
 			bridgeToken,
 			bridgeSession,
-			bridgeMessage,
 			mcpServer,
 			pushSubscription,
 			run,
@@ -179,7 +167,6 @@ export function build() {
 		attachment,
 		bridgeToken,
 		bridgeSession,
-		bridgeMessage,
 		mcpServer,
 		pushSends,
 		pushSubscription,

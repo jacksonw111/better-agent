@@ -208,8 +208,6 @@ export interface ComposioAccountStore {
 // Bridge-session/message ports live in bridge-session-ports.ts (split out for
 // the 300-line limit) and are re-exported so the public surface is unchanged.
 export type {
-	BridgeMessageRow,
-	BridgeMessageStore,
 	BridgeSessionCursor,
 	BridgeSessionRow,
 	BridgeSessionStatus,

@@ -92,19 +92,6 @@ it("create yields exactly one idempotent launch delivery, gone after ack", async
 	expect((await client().computers.heartbeat()).pendingCommands).toEqual([]);
 });
 
-it("the whole start flow writes no lifecycle chat messages", async () => {
-	const rig = buildComputerRig();
-	const { client, computerId } = await pairClaudeComputer(rig);
-
-	const { runId } = await rig
-		.userClientFor(ALICE)
-		.tasks.create(createInput(computerId));
-	await client().computers.heartbeat();
-	await client().runs.ackLaunch({ runId });
-
-	expect(rig.bridgeMessages.size).toBe(0);
-});
-
 it("rejects starting on another user's computer and leaves no rows", async () => {
 	const rig = buildComputerRig();
 	const { computerId } = await pairClaudeComputer(rig);

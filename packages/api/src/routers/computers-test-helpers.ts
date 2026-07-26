@@ -13,10 +13,7 @@ import type {
 	GithubIssueDetail,
 	GithubRepositorySummary,
 } from "@better-agent/agent/github/github-ports";
-import type {
-	BridgeMessageRow,
-	BridgeSessionRow,
-} from "@better-agent/agent/ports";
+import type { BridgeSessionRow } from "@better-agent/agent/ports";
 import { createFakeActiveSessionStore } from "@better-agent/agent/testing/fake-active-session-store";
 import { createFakeProjectStore } from "@better-agent/agent/testing/fake-project-store";
 import {
@@ -27,17 +24,14 @@ import { createRouterClient } from "@orpc/server";
 import { createComputerControlChannel } from "../computers/control-channel";
 import type { AuthedBridgeToken, ComputerAuthHeaders } from "../context";
 import {
-	memoryBridgeMessageStore,
 	memoryBridgeSessionStore,
 	memoryBridgeTokenStore,
 } from "./bridge-test-helpers-stores";
 import { memoryConnectionStore } from "./github-test-helpers";
 import { appRouter } from "./index";
 
-// Shared fixtures for the computers router tests — in-memory ComputerStore +
-// replay guard wired into a minimal services object, plus the three client
-// flavors the router serves: public (pair), user-plane (createPairingCode/
-// list/delete) and computer-plane (signed register/heartbeat).
+// Shared fixtures for the computers router tests — in-memory stores wired into
+// a minimal services object, plus the public/user/computer client flavors.
 
 export const ALICE = {
 	id: "alice-uid",
@@ -134,8 +128,7 @@ function memoryComputerRows(
 	};
 }
 
-/** A signed computer-auth header triple for one request; pass an explicit
- * timestamp to exercise the window/replay paths deterministically. */
+/** A signed computer-auth header triple; pass a timestamp for window/replay. */
 export function signedAuth(
 	computerId: string,
 	privateKeyPem: string,
@@ -148,11 +141,9 @@ export function signedAuth(
 	};
 }
 
-/** Seedable fake GitHub for the rig (S4-T2, §19.6): repositories by fullName,
- * issue details by `fullName#number`. Numbers in `failingIssues` make getIssue
- * throw a transport error; an unknown key resolves null (deleted/inaccessible/
- * PR — exactly the real client's contract). The client ignores the token: the
- * connection gate is the memory connection store, not the credential. */
+/** Seedable fake GitHub for the rig (S4-T2, §19.6): repos by fullName, issues
+ * by `fullName#number`. Keys in `failingIssues` make getIssue throw; unknown
+ * keys resolve null. Gate is the memory connection store, not the credential. */
 function buildFakeGithub() {
 	const repositories = new Map<string, GithubRepositorySummary>();
 	const issues = new Map<string, GithubIssueDetail>();
@@ -186,9 +177,8 @@ function buildGithubRig() {
 	};
 }
 
-/** S2-T2/S2-T3: the launch-delivery stores heartbeat/ackLaunch/tasks.create
- * read alongside the computer store — empty by default. Q1 adds the project
- * store feeding the clone_project half of the pending queue. */
+/** S2-T2/S2-T3: launch-delivery stores heartbeat/ackLaunch/tasks.create read
+ * alongside the computer store — empty by default. */
 function buildDeliveryStores() {
 	return {
 		bridgeToken: memoryBridgeTokenStore(new Map(), new Map(), () => undefined),
@@ -205,19 +195,14 @@ function buildRigStores() {
 		...memoryPairingCodes([]),
 		...memoryComputerRows(rows),
 	};
-	// Recorded so tests can assert that Task Start never writes lifecycle chat
-	// messages (§19.2) — the map must stay empty through the whole flow.
-	const bridgeMessages = new Map<string, BridgeMessageRow[]>();
-	// S25-T2: lets the cross-layer flow tests drive bridge.startSession(runId)
-	// with the launch payload's sessionCredential inside the SAME rig.
+	// S25-T2: lets flow tests drive bridge.startSession(runId) in the SAME rig.
 	const bridgeSessionRows = new Map<string, BridgeSessionRow>();
 	const bridgeSession = memoryBridgeSessionStore(bridgeSessionRows);
 	const delivery = buildDeliveryStores();
 	return {
 		...buildGithubRig(),
 		...delivery,
-		// The multi-session view's read port: the same join the DB store does
-		// in one statement, composed here from the sibling fakes.
+		// The multi-session view's read port, composed from the sibling fakes.
 		activeSession: createFakeActiveSessionStore({
 			bridgeSession,
 			computer,
@@ -225,12 +210,9 @@ function buildRigStores() {
 			run: delivery.run,
 			task: delivery.task,
 		}),
-		bridgeMessages,
 		bridgeSession,
 		bridgeSessionRows,
 		computer,
-		// tasks.listActive derives "needs attention" from the relay tails, the
-		// same way bridge.listSessions does.
 		relayStore: createInMemoryRelayStore(),
 		rows,
 	};
@@ -240,7 +222,6 @@ function buildRigServices(options: RigOptions = {}) {
 	const stores = buildRigStores();
 	const {
 		activeSession,
-		bridgeMessages,
 		bridgeSession,
 		bridgeToken,
 		computer,
@@ -252,9 +233,8 @@ function buildRigServices(options: RigOptions = {}) {
 		secretBox,
 		task,
 	} = stores;
-	// Real channel, no registered sockets by default — delivery falls back to
-	// heartbeat pendingCommands like a no-WS production computer (D4). Q2 query
-	// tests register a fake socket on it and shorten the park timeout.
+	// Real channel, no sockets by default — delivery falls back to heartbeat
+	// pendingCommands like a no-WS production computer (D4).
 	const computerControl = createComputerControlChannel(
 		{ bridgeToken, computer, project, run, secretBox, task },
 		{ projectQueryTimeoutMs: options.projectQueryTimeoutMs }
@@ -268,7 +248,6 @@ function buildRigServices(options: RigOptions = {}) {
 		secretBox,
 		stores: {
 			activeSession,
-			bridgeMessage: memoryBridgeMessageStore(bridgeMessages),
 			bridgeSession,
 			bridgeToken,
 			computer,
@@ -305,8 +284,7 @@ export function buildComputerRig(options: RigOptions = {}) {
 		createRouterClient(appRouter, { context: { ...base, authedUser: user } });
 	const computerClientFor = (auth: ComputerAuthHeaders) =>
 		createRouterClient(appRouter, { context: { ...base, computerAuth: auth } });
-	// S25-T2: the CLI plane — a bridge-token client for the run's pre-issued
-	// session credential, so flow tests can close the chain at startSession.
+	// S25-T2: the CLI plane — a bridge-token client for flow tests.
 	const bridgeClientFor = (bridgeAuth: AuthedBridgeToken) =>
 		createRouterClient(appRouter, {
 			context: { ...base, authedBridgeToken: bridgeAuth },

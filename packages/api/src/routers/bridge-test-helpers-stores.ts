@@ -1,16 +1,14 @@
 import type {
-	BridgeMessageRow,
-	BridgeMessageStore,
 	BridgeSessionRow,
 	BridgeSessionStore,
 	BridgeTokenRow,
 	BridgeTokenStore,
 } from "@better-agent/agent/ports";
 
-// In-memory bridgeToken/bridgeSession/bridgeMessage store fakes for the
-// bridge router tests — split out of bridge-test-helpers.ts to keep that
-// file under the per-file line cap (mirrors bridge-test-helpers-mcp.ts's
-// split for the mcpServer store fake).
+// In-memory bridgeToken/bridgeSession store fakes for the bridge router
+// tests — split out of bridge-test-helpers.ts to keep that file under the
+// per-file line cap (mirrors bridge-test-helpers-mcp.ts's split for the
+// mcpServer store fake).
 
 type CreateTokenInput = Parameters<BridgeTokenStore["create"]>[0];
 
@@ -30,13 +28,11 @@ function newTokenRow(input: CreateTokenInput): BridgeTokenRow {
 
 export function cascadeDeleteSessions(
 	sessionRows: Map<string, BridgeSessionRow>,
-	messageRowsBySession: Map<string, BridgeMessageRow[]>,
 	tokenId: string
 ): void {
 	for (const [sessionId, session] of sessionRows) {
 		if (session.tokenId === tokenId) {
 			sessionRows.delete(sessionId);
-			messageRowsBySession.delete(sessionId);
 		}
 	}
 }
@@ -257,39 +253,5 @@ export function memoryBridgeSessionStore(
 			return Promise.resolve();
 		},
 		...memorySessionMutators(rows),
-	};
-}
-
-export function memoryBridgeMessageStore(
-	rowsBySession: Map<string, BridgeMessageRow[]>
-): BridgeMessageStore {
-	return {
-		append(sessionId, seq, event) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			rows.push({ seq, event });
-			rowsBySession.set(sessionId, rows);
-			return Promise.resolve();
-		},
-		appendMany(sessionId, newRows) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			rows.push(...newRows);
-			rowsBySession.set(sessionId, rows);
-			return Promise.resolve();
-		},
-		list(sessionId, afterSeq, limit) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			return Promise.resolve(
-				rows
-					.filter((row) => row.seq > afterSeq)
-					.sort((a, b) => a.seq - b.seq)
-					.slice(0, limit)
-			);
-		},
-		listTail(sessionId, limit) {
-			const rows = rowsBySession.get(sessionId) ?? [];
-			return Promise.resolve(
-				[...rows].sort((a, b) => a.seq - b.seq).slice(-limit)
-			);
-		},
 	};
 }
