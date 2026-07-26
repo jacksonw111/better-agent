@@ -23,6 +23,7 @@ import { createMessageStore } from "@better-agent/db/repositories/message-store"
 import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
 import { createProfileStore } from "@better-agent/db/repositories/profile-store";
 import { createProjectStore } from "@better-agent/db/repositories/project-store";
+import { createPtySessionStore } from "@better-agent/db/repositories/pty-session-store";
 import { createPushSubscriptionStore } from "@better-agent/db/repositories/push-subscription-store";
 import { createRunStore } from "@better-agent/db/repositories/run-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
@@ -79,6 +80,7 @@ interface StoreParts {
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
 	profileStore: ReturnType<typeof createProfileStore>;
 	projectStore: ReturnType<typeof createProjectStore>;
+	ptySessionStore: ReturnType<typeof createPtySessionStore>;
 	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
 	runStore: ReturnType<typeof createRunStore>;
 	secretBox: ReturnType<typeof getSecretBox>;
@@ -123,6 +125,7 @@ function buildStores(
 		memoryItem: parts.memoryItemStore,
 		profile: parts.profileStore,
 		project: parts.projectStore,
+		ptySession: parts.ptySessionStore,
 		pushSubscription: parts.pushSubscriptionStore,
 		activeSession: parts.activeSessionStore,
 		run: parts.runStore,
@@ -220,6 +223,7 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		computerStore: createComputerStore(db),
 		githubConnectionStore: createGithubConnectionStore(db),
 		projectStore: createProjectStore(db),
+		ptySessionStore: createPtySessionStore(db),
 		taskStore: createTaskStore(db),
 		runStore: createRunStore(db),
 		activeSessionStore: createActiveSessionStore(db),

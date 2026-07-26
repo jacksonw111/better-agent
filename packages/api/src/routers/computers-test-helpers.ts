@@ -29,9 +29,9 @@ import {
 } from "./bridge-test-helpers-stores";
 import { memoryConnectionStore } from "./github-test-helpers";
 import { appRouter } from "./index";
+import { buildPtyRig } from "./pty-rig-helpers";
 
-// Shared fixtures for the computers router tests — in-memory stores wired into
-// a minimal services object, plus the public/user/computer client flavors.
+// Shared fixtures for the computers router tests — in-memory stores + clients.
 
 export const ALICE = {
 	id: "alice-uid",
@@ -142,8 +142,7 @@ export function signedAuth(
 }
 
 /** Seedable fake GitHub for the rig (S4-T2, §19.6): repos by fullName, issues
- * by `fullName#number`. Keys in `failingIssues` make getIssue throw; unknown
- * keys resolve null. Gate is the memory connection store, not the credential. */
+ * by `fullName#number`; `failingIssues` keys make getIssue throw, else null. */
 function buildFakeGithub() {
 	const repositories = new Map<string, GithubRepositorySummary>();
 	const issues = new Map<string, GithubIssueDetail>();
@@ -167,8 +166,7 @@ function buildFakeGithub() {
 	return { client, failingIssues, issueKey, issues, repositories };
 }
 
-/** S4-T2: GitHub context at Task Start — a seedable fake client behind the
- * real connection-store gate (no connection row = PRECONDITION_FAILED). */
+/** S4-T2: GitHub context at Task Start, behind the real connection-store gate. */
 function buildGithubRig() {
 	return {
 		github: buildFakeGithub(),
@@ -177,8 +175,7 @@ function buildGithubRig() {
 	};
 }
 
-/** S2-T2/S2-T3: launch-delivery stores heartbeat/ackLaunch/tasks.create read
- * alongside the computer store — empty by default. */
+/** S2-T2/S2-T3: launch-delivery stores read alongside the computer store. */
 function buildDeliveryStores() {
 	return {
 		bridgeToken: memoryBridgeTokenStore(new Map(), new Map(), () => undefined),
@@ -202,7 +199,6 @@ function buildRigStores() {
 	return {
 		...buildGithubRig(),
 		...delivery,
-		// The multi-session view's read port, composed from the sibling fakes.
 		activeSession: createFakeActiveSessionStore({
 			bridgeSession,
 			computer,
@@ -233,6 +229,7 @@ function buildRigServices(options: RigOptions = {}) {
 		secretBox,
 		task,
 	} = stores;
+	const { ptySession, ptyRelay, ptyKills } = buildPtyRig();
 	// Real channel, no sockets by default — delivery falls back to heartbeat
 	// pendingCommands like a no-WS production computer (D4).
 	const computerControl = createComputerControlChannel(
@@ -244,6 +241,7 @@ function buildRigServices(options: RigOptions = {}) {
 		computerControl,
 		computerReplayGuard: createReplayGuard(),
 		githubClient: () => github.client,
+		ptyRelay,
 		relayStore,
 		secretBox,
 		stores: {
@@ -253,11 +251,12 @@ function buildRigServices(options: RigOptions = {}) {
 			computer,
 			githubConnection,
 			project,
+			ptySession,
 			run,
 			task,
 		},
 	} as never;
-	return { ...stores, computerControl, services };
+	return { ...stores, computerControl, ptyKills, services };
 }
 
 /** Q2: lets query tests shrink the park timeout. */

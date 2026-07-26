@@ -45,6 +45,7 @@ import type {
 import type { ProjectStore } from "@better-agent/agent/project-ports";
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
+import type { PtySessionStore } from "@better-agent/agent/pty-session-ports";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
 import type { ActiveSessionStore } from "@better-agent/agent/task/active-session-ports";
@@ -136,6 +137,7 @@ export interface AgentServices {
 		memoryItem: MemoryItemStore;
 		profile: ProfileStore;
 		project: ProjectStore;
+		ptySession: PtySessionStore;
 		pushSubscription: PushSubscriptionStore;
 		activeSession: ActiveSessionStore;
 		run: RunStore;

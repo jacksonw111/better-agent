@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	bytesToUuid,
+	decodeLivenessSessionIds,
 	encodeAck,
+	encodeActivity,
 	encodeClose,
 	encodeData,
+	encodeKill,
+	encodeLiveness,
 	encodeOpen,
 	encodeResize,
 	encodeState,
@@ -15,6 +19,7 @@ import {
 import { decodeFrame } from "./frame-decode";
 
 const SID = "0f8fad5b-d9cb-469f-a165-70867728950e";
+const SID_B = "1a1a1a1a-2b2b-3c3c-4d4d-5e5e5e5e5e5e";
 
 describe("uuid <-> bytes", () => {
 	it("round-trips a UUID through 16 raw bytes", () => {
@@ -126,6 +131,38 @@ describe("STATE frame", () => {
 			sessionId: SID,
 			state: "running",
 		});
+	});
+});
+
+describe("KILL frame", () => {
+	it("round-trips as a header-only frame", () => {
+		const decoded = decodeFrame(encodeKill(SID));
+		expect(decoded).toEqual({ type: PtyFrameType.KILL, sessionId: SID });
+	});
+});
+
+describe("ACTIVITY frame", () => {
+	it("round-trips as a header-only frame", () => {
+		const decoded = decodeFrame(encodeActivity(SID));
+		expect(decoded).toEqual({ type: PtyFrameType.ACTIVITY, sessionId: SID });
+	});
+});
+
+describe("LIVENESS frame", () => {
+	it("packs and unpacks a list of held sessionIds", () => {
+		const frame = encodeLiveness([SID, SID_B]);
+		expect(peekType(frame)).toBe(PtyFrameType.LIVENESS);
+		expect(decodeLivenessSessionIds(frame)).toEqual([SID, SID_B]);
+	});
+
+	it("round-trips an empty list (CLI holds no ptys)", () => {
+		expect(decodeLivenessSessionIds(encodeLiveness([]))).toEqual([]);
+	});
+
+	it("returns [] for a non-LIVENESS frame", () => {
+		expect(
+			decodeLivenessSessionIds(encodeData(SID, new Uint8Array(0)))
+		).toEqual([]);
 	});
 });
 

@@ -14,6 +14,7 @@ export * from "./openconnector";
 export * from "./profiles";
 export * from "./projects";
 export * from "./providers";
+export * from "./pty";
 export * from "./push";
 export * from "./sessions";
 export * from "./settings";

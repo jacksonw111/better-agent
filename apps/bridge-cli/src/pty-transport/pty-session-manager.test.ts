@@ -1,97 +1,24 @@
 import { homedir } from "node:os";
 import {
+	decodeLivenessSessionIds,
 	encodeAck,
 	encodeClose,
 	encodeData,
+	encodeKill,
 	encodeOpen,
 	encodeResize,
-	type PtyFrame,
 	PtyFrameType,
 } from "@better-agent/api/pty/frame";
 import { decodeFrame } from "@better-agent/api/pty/frame-decode";
 import { describe, expect, it, vi } from "vitest";
 import type { PtyHandle } from "../pty/spawn-pty";
 import { spawnPty } from "../pty/spawn-pty";
-import {
-	createPtySessionManager,
-	type PtySpawnFn,
-} from "./pty-session-manager";
+import { bytes, SID, SPEC, setup } from "./pty-session-harness";
+import { createPtySessionManager } from "./pty-session-manager";
 
 vi.mock("../pty/spawn-pty", () => ({
 	spawnPty: vi.fn(),
 }));
-
-const SID = "0f8fad5b-d9cb-469f-a165-70867728950e";
-const SPEC = { command: "cat", args: [], cwd: "/tmp" };
-
-function createFakePty() {
-	let dataCb: ((chunk: Uint8Array) => void) | null = null;
-	let exitCb: ((exit: { code: number | null }) => void) | null = null;
-	const handle = {
-		onData: (cb: (chunk: Uint8Array) => void) => {
-			dataCb = cb;
-		},
-		onExit: (cb: (exit: { code: number | null }) => void) => {
-			exitCb = cb;
-		},
-		write: vi.fn(),
-		resize: vi.fn(),
-		pause: vi.fn(),
-		resume: vi.fn(),
-		kill: vi.fn(),
-		pid: 1,
-	} as unknown as PtyHandle & {
-		write: ReturnType<typeof vi.fn>;
-		resize: ReturnType<typeof vi.fn>;
-		pause: ReturnType<typeof vi.fn>;
-		resume: ReturnType<typeof vi.fn>;
-		kill: ReturnType<typeof vi.fn>;
-	};
-	return {
-		handle,
-		emitData: (chunk: Uint8Array) => dataCb?.(chunk),
-		emitExit: (code: number | null) => exitCb?.({ code }),
-	};
-}
-
-/** A pass-through coalescer so DATA routing is observable without timers. */
-function syncCoalescer(onFlush: (m: Uint8Array) => void) {
-	return {
-		push: (chunk: Uint8Array) => onFlush(chunk),
-		flush: () => undefined,
-		dispose: () => undefined,
-	};
-}
-
-function setup(
-	overrides: { highWaterBytes?: number; lowWaterBytes?: number } = {}
-) {
-	const fake = createFakePty();
-	const spawn = vi.fn(() => fake.handle) as unknown as PtySpawnFn;
-	const sent: PtyFrame[] = [];
-	const manager = createPtySessionManager({
-		send: (frame) => {
-			const decoded = decodeFrame(frame);
-			if (decoded) {
-				sent.push(decoded);
-			}
-		},
-		spawn,
-		makeCoalescer: syncCoalescer,
-		...overrides,
-	});
-	const feed = (frame: Uint8Array) => {
-		const decoded = decodeFrame(frame);
-		if (decoded) {
-			manager.handleFrame(decoded);
-		}
-	};
-	return { fake, spawn, sent, manager, feed };
-}
-
-function bytes(str: string): Uint8Array {
-	return new TextEncoder().encode(str);
-}
 
 describe("pty session manager — open & io", () => {
 	it("OPEN with a spec spawns a pty at the requested winsize", () => {
@@ -186,11 +113,27 @@ describe("pty session manager — reconnect & teardown", () => {
 		}
 	});
 
-	it("CLOSE from the viewer kills the pty", () => {
-		const { fake, feed } = setup();
+	it("CLOSE from the viewer is a DETACH — the pty stays alive (P25-A)", () => {
+		const { fake, feed, manager } = setup();
 		feed(encodeOpen(SID, 80, 24, SPEC));
 		feed(encodeClose(SID, 0));
+		expect(fake.handle.kill).not.toHaveBeenCalled();
+		expect(manager.sessionCount).toBe(1);
+	});
+
+	it("KILL tears the pty down (endSession)", () => {
+		const { fake, feed } = setup();
+		feed(encodeOpen(SID, 80, 24, SPEC));
+		feed(encodeKill(SID));
 		expect(fake.handle.kill).toHaveBeenCalledTimes(1);
+	});
+
+	it("a second OPEN reattaches the existing pty — no respawn (P25-A)", () => {
+		const { spawn, feed, manager } = setup();
+		feed(encodeOpen(SID, 80, 24, SPEC));
+		feed(encodeOpen(SID, 80, 24, null));
+		expect(spawn).toHaveBeenCalledTimes(1);
+		expect(manager.sessionCount).toBe(1);
 	});
 
 	it("ignores an attach to a session that was never opened", () => {
@@ -198,6 +141,68 @@ describe("pty session manager — reconnect & teardown", () => {
 		feed(encodeOpen(SID, 80, 24, null));
 		expect(spawn).not.toHaveBeenCalled();
 		expect(manager.sessionCount).toBe(0);
+	});
+});
+
+describe("pty session manager — activity (P25-A)", () => {
+	it("emits an ACTIVITY frame on first output, then throttles", () => {
+		let clock = 1000;
+		const { fake, feed, sent } = setup({
+			activityThrottleMs: 5000,
+			now: () => clock,
+		});
+		feed(encodeOpen(SID, 80, 24, SPEC));
+		fake.emitData(bytes("a"));
+		fake.emitData(bytes("b")); // same instant → throttled
+		expect(sent.filter((f) => f.type === PtyFrameType.ACTIVITY)).toHaveLength(
+			1
+		);
+		clock += 6000; // past the throttle window
+		fake.emitData(bytes("c"));
+		expect(sent.filter((f) => f.type === PtyFrameType.ACTIVITY)).toHaveLength(
+			2
+		);
+	});
+
+	it("emits ACTIVITY on reattach regardless of the throttle", () => {
+		const clock = 1000;
+		const { fake, feed, sent } = setup({
+			activityThrottleMs: 5000,
+			now: () => clock,
+		});
+		feed(encodeOpen(SID, 80, 24, SPEC));
+		fake.emitData(bytes("a")); // 1st ACTIVITY
+		// Reattach immediately (within the throttle) still counts as activity.
+		feed(encodeOpen(SID, 80, 24, null));
+		expect(
+			sent.filter((f) => f.type === PtyFrameType.ACTIVITY).length
+		).toBeGreaterThanOrEqual(2);
+		expect(clock).toBe(1000);
+	});
+});
+
+describe("pty session manager — liveness (P25-A)", () => {
+	it("reportLiveness lists exactly the sessions holding a pty", () => {
+		const { feed, raw, manager } = setup();
+		feed(encodeOpen(SID, 80, 24, SPEC));
+		const before = raw.length;
+		manager.reportLiveness();
+		const frame = raw[before];
+		if (!frame) {
+			throw new Error("expected a LIVENESS frame");
+		}
+		expect(decodeLivenessSessionIds(frame)).toEqual([SID]);
+		expect(manager.liveSessionIds()).toEqual([SID]);
+	});
+
+	it("reportLiveness is empty when the CLI holds no ptys (post-restart)", () => {
+		const { raw, manager } = setup();
+		manager.reportLiveness();
+		const frame = raw.at(-1);
+		if (!frame) {
+			throw new Error("expected a LIVENESS frame");
+		}
+		expect(decodeLivenessSessionIds(frame)).toEqual([]);
 	});
 });
 

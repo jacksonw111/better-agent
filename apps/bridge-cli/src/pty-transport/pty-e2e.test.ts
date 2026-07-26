@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	encodeClose,
 	encodeData,
+	encodeKill,
 	encodeOpen,
 	type PtyFrame,
 	PtyFrameType,
@@ -146,6 +146,6 @@ describe("pty transport E2E (real broker)", () => {
 		viewer.handleFrame(encodeData(SID, new TextEncoder().encode("ping\n")));
 		await waitFor(() => dataText(received).includes("ping"));
 		expect(dataText(received)).toContain("ping");
-		viewer.handleFrame(encodeClose(SID, 0)); // kill the cat pty
+		viewer.handleFrame(encodeKill(SID)); // tear the cat pty down (endSession)
 	}, 15_000);
 });

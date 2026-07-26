@@ -15,6 +15,15 @@
 //   0x04 CLOSE   payload = [exitCode:i32]  (-1 = unknown) (CLI → web)
 //   0x05 ACK     payload = [consumedBytes:u64]            (web → CLI, flow ctl)
 //   0x06 STATE   payload = UTF-8 status string            (CLI → web, phase 3)
+//   0x07 KILL    payload = (none)                         (server → CLI, P25-A)
+//                 an explicit endSession: kill this session's pty (detach never
+//                 does — the pty is backgrounded until this arrives).
+//   0x08 ACTIVITY payload = (none)                        (CLI → server, P25-A)
+//                 the pty produced output / was attached; the server bumps the
+//                 session's last-activity (the CLI throttles these).
+//   0x09 LIVENESS sessionId = zero; payload = N×16 raw    (CLI → server, P25-A)
+//                 the sessionIds the CLI still holds a pty for; sent on every
+//                 (re)connect so the server reconciles restarted-away zombies.
 
 export const PTY_SESSION_ID_LEN = 16;
 export const PTY_FRAME_HEADER_LEN = 1 + PTY_SESSION_ID_LEN;
@@ -26,6 +35,9 @@ export const PtyFrameType = {
 	CLOSE: 0x04,
 	ACK: 0x05,
 	STATE: 0x06,
+	KILL: 0x07,
+	ACTIVITY: 0x08,
+	LIVENESS: 0x09,
 } as const;
 export type PtyFrameTypeValue =
 	(typeof PtyFrameType)[keyof typeof PtyFrameType];
@@ -65,7 +77,13 @@ export type PtyFrame =
 	  }
 	| { type: typeof PtyFrameType.CLOSE; sessionId: string; exitCode: number }
 	| { type: typeof PtyFrameType.ACK; sessionId: string; consumedBytes: number }
-	| { type: typeof PtyFrameType.STATE; sessionId: string; state: string };
+	| { type: typeof PtyFrameType.STATE; sessionId: string; state: string }
+	| { type: typeof PtyFrameType.KILL; sessionId: string }
+	| { type: typeof PtyFrameType.ACTIVITY; sessionId: string };
+
+/** The all-zero UUID a LIVENESS frame carries in its header slot — its real
+ * payload is the list of held sessionIds, not one session. */
+export const PTY_ZERO_SESSION_ID = "00000000-0000-0000-0000-000000000000";
 
 function clampU16(n: number): number {
 	return Math.max(0, Math.min(MAX_U16, Math.trunc(n)));
@@ -189,6 +207,59 @@ export function encodeState(sessionId: string, state: string): Uint8Array {
 	);
 	bytes.set(stateBytes, payloadAt);
 	return bytes;
+}
+
+/** A header-only frame (no payload): KILL and ACTIVITY both carry only their
+ * type + sessionId. */
+function encodeHeaderOnly(
+	type: PtyFrameTypeValue,
+	sessionId: string
+): Uint8Array {
+	return withHeader(type, sessionId, 0).bytes;
+}
+
+/** endSession → kill this session's pty (server → CLI). */
+export function encodeKill(sessionId: string): Uint8Array {
+	return encodeHeaderOnly(PtyFrameType.KILL, sessionId);
+}
+
+/** The pty produced output / was attached (CLI → server, throttled). */
+export function encodeActivity(sessionId: string): Uint8Array {
+	return encodeHeaderOnly(PtyFrameType.ACTIVITY, sessionId);
+}
+
+/** The sessionIds the CLI still holds a live pty for, packed as N×16 raw UUID
+ * bytes after a zero-sessionId header (CLI → server, on every (re)connect). */
+export function encodeLiveness(sessionIds: string[]): Uint8Array {
+	const { bytes, payloadAt } = withHeader(
+		PtyFrameType.LIVENESS,
+		PTY_ZERO_SESSION_ID,
+		sessionIds.length * PTY_SESSION_ID_LEN
+	);
+	let at = payloadAt;
+	for (const sessionId of sessionIds) {
+		bytes.set(uuidToBytes(sessionId), at);
+		at += PTY_SESSION_ID_LEN;
+	}
+	return bytes;
+}
+
+/** Decodes a LIVENESS frame's packed sessionId list. Returns [] for anything
+ * whose payload isn't a whole number of 16-byte UUIDs (a malformed frame is
+ * treated as "holds nothing"). */
+export function decodeLivenessSessionIds(frame: Uint8Array): string[] {
+	if (peekType(frame) !== PtyFrameType.LIVENESS) {
+		return [];
+	}
+	const payload = frame.subarray(PTY_FRAME_HEADER_LEN);
+	if (payload.length % PTY_SESSION_ID_LEN !== 0) {
+		return [];
+	}
+	const ids: string[] = [];
+	for (let at = 0; at < payload.length; at += PTY_SESSION_ID_LEN) {
+		ids.push(bytesToUuid(payload.subarray(at, at + PTY_SESSION_ID_LEN)));
+	}
+	return ids;
 }
 
 /** The frame's type byte, or null if the buffer is too short to be a frame. */

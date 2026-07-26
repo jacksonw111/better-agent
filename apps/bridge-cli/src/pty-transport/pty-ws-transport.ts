@@ -183,6 +183,10 @@ export async function runPtyTransport(
 			onOpen: (live) => {
 				socket = live;
 				everOpened = true;
+				// P25-A: report the ptys this CLI still holds so the server can
+				// reconcile away zombies (a fresh start holds none → the server ends
+				// that computer's stale active sessions). Sent on every (re)connect.
+				manager.reportLiveness();
 				// A re-open (not the very first): resume each session from its ACK
 				// cursor now that a live socket exists to carry the burst.
 				if (reconnecting) {

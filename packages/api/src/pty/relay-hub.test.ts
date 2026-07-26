@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { encodeClose, encodeData, encodeOpen, encodeResize } from "./frame";
+import { describe, expect, it, vi } from "vitest";
+import {
+	encodeActivity,
+	encodeClose,
+	encodeData,
+	encodeKill,
+	encodeLiveness,
+	encodeOpen,
+	encodeResize,
+} from "./frame";
 import { createPtyRelayHub, type PtyRelaySocket } from "./relay-hub";
 
 const COMPUTER = "computer-1";
@@ -69,6 +77,44 @@ describe("pty relay hub — subscription lifecycle", () => {
 		expect(hub.viewerCount(COMPUTER)).toBe(0);
 		agentConn.handleFrame(encodeData(SID_A, new TextEncoder().encode("x")));
 		expect(viewer.frames).toEqual([]);
+	});
+});
+
+describe("pty relay hub — server-originated + control frames", () => {
+	it("sendToAgent pushes a frame to the computer's CLI socket", () => {
+		const hub = createPtyRelayHub();
+		const agent = recordingSocket();
+		hub.connectAgent(COMPUTER, agent.socket);
+		const kill = encodeKill(SID_A);
+		hub.sendToAgent(COMPUTER, kill);
+		expect(agent.frames).toEqual([kill]);
+	});
+
+	it("sendToAgent is a no-op when no CLI is connected", () => {
+		const hub = createPtyRelayHub();
+		expect(() => hub.sendToAgent(COMPUTER, encodeKill(SID_A))).not.toThrow();
+	});
+
+	it("intercepts ACTIVITY frames (never fans them to viewers)", () => {
+		const hub = createPtyRelayHub();
+		const agent = recordingSocket();
+		const viewer = recordingSocket();
+		const onActivity = vi.fn();
+		const agentConn = hub.connectAgent(COMPUTER, agent.socket, { onActivity });
+		const viewerConn = hub.connectViewer(COMPUTER, viewer.socket);
+		viewerConn.handleFrame(encodeOpen(SID_A, 80, 24, SPEC));
+		agentConn.handleFrame(encodeActivity(SID_A));
+		expect(onActivity).toHaveBeenCalledWith(COMPUTER, SID_A);
+		expect(viewer.frames).toEqual([]);
+	});
+
+	it("intercepts LIVENESS frames and decodes the held session list", () => {
+		const hub = createPtyRelayHub();
+		const agent = recordingSocket();
+		const onLiveness = vi.fn();
+		const agentConn = hub.connectAgent(COMPUTER, agent.socket, { onLiveness });
+		agentConn.handleFrame(encodeLiveness([SID_A, SID_B]));
+		expect(onLiveness).toHaveBeenCalledWith(COMPUTER, [SID_A, SID_B]);
 	});
 });
 

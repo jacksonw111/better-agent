@@ -7,6 +7,7 @@
     "./ports": "./src/ports.ts",
     "./computer-ports": "./src/computer-ports.ts",
     "./project-ports": "./src/project-ports.ts",
+    "./pty-session-ports": "./src/pty-session-ports.ts",
     "./knowledge-ports": "./src/knowledge-ports.ts",
     "./task-ports": "./src/task/task-ports.ts",
     "./agent/*": "./src/agent/*.ts",

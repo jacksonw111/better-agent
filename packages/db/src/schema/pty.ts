@@ -1,0 +1,45 @@
+import type { PtySessionStatus } from "@better-agent/agent/pty-session-ports";
+import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { users } from "./auth";
+import { computers } from "./computers";
+import { projects } from "./projects";
+
+// A persistent PTY session (P25-A, DP-S1): the server's stable record of one
+// long-lived terminal on a Computer. The `id` is the sessionId every pty frame
+// is multiplexed by; it is minted here BEFORE any pty exists (createSession),
+// so re-entering the terminal reattaches the SAME pty instead of spawning a new
+// one. Viewer detach never changes this row — only an explicit endSession or
+// the CLI-restart reconciliation (endStaleExcept) flips `status` to `ended`.
+// `lastActivityAt` is bumped by the CLI's throttled activity signal; the list
+// orders by it so the freshest terminal surfaces first.
+export const ptySessions = pgTable(
+	"pty_sessions",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		userId: uuid("user_id")
+			.notNull()
+			.references(() => users.id),
+		computerId: uuid("computer_id")
+			.notNull()
+			.references(() => computers.id),
+		projectId: uuid("project_id").references(() => projects.id),
+		agentKind: text("agent_kind").notNull(),
+		title: text("title").notNull(),
+		status: text("status")
+			.$type<PtySessionStatus>()
+			.notNull()
+			.default("active"),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		lastActivityAt: timestamp("last_activity_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [
+		index("pty_sessions_user_id_computer_id_idx").on(
+			table.userId,
+			table.computerId
+		),
+	]
+);

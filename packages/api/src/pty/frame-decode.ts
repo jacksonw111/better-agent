@@ -127,6 +127,10 @@ export function decodeFrame(frame: Uint8Array): PtyFrame | null {
 			return decodeAckFrame(sessionId, view, payload);
 		case PtyFrameType.STATE:
 			return { type, sessionId, state: decoder.decode(payload) };
+		case PtyFrameType.KILL:
+			return { type, sessionId };
+		case PtyFrameType.ACTIVITY:
+			return { type, sessionId };
 		default:
 			return null;
 	}

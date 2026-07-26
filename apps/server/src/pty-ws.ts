@@ -68,6 +68,26 @@ function deferredSocket(): {
 	};
 }
 
+// P25-A control frames: the CLI's per-session activity signal bumps
+// last-activity (throttled CLI-side), and its held-session list on (re)connect
+// reconciles sessions the CLI no longer holds a pty for (e.g. after a CLI
+// restart) to `ended`. Fire-and-forget — the byte relay must never block on a
+// DB write.
+function agentControlHandlers(services: AgentServices) {
+	return {
+		onActivity: (id: string, sessionId: string) => {
+			services.stores.ptySession
+				.touchActivity(id, sessionId)
+				.catch(() => undefined);
+		},
+		onLiveness: (id: string, sessionIds: string[]) => {
+			services.stores.ptySession
+				.endStaleExcept(id, sessionIds)
+				.catch(() => undefined);
+		},
+	};
+}
+
 function registerAgentRoute(
 	app: Hono<EvlogVariables>,
 	upgradeWebSocket: ReturnType<typeof createNodeWebSocket>["upgradeWebSocket"],
@@ -86,34 +106,45 @@ function registerAgentRoute(
 			}
 			return next();
 		},
-		upgradeWebSocket((c) => {
-			const computerId = c.req.query("computerId") ?? "";
-			const socket = deferredSocket();
-			let connection: PtyRelayConnection | null = null;
-			let stopHeartbeat: (() => void) | null = null;
-			return {
-				onOpen: (_evt, ws) => {
-					socket.bind(ws);
-					connection = services.ptyRelay.connectAgent(computerId, socket);
-					stopHeartbeat = attachHeartbeat(ws.raw as HeartbeatRaw, () => {
-						services.stores.computer
-							.touch(computerId, new Date())
-							.catch(() => undefined);
-					});
-				},
-				onMessage: (evt) => {
-					const bytes = toBytes(evt.data);
-					if (bytes) {
-						connection?.handleFrame(bytes);
-					}
-				},
-				onClose: () => {
-					stopHeartbeat?.();
-					connection?.close();
-				},
-			};
-		})
+		upgradeWebSocket((c) => agentSocketHandlers(services, c))
 	);
+}
+
+// The agent WS lifecycle for one CLI connection: bind the relay + activity/
+// liveness control handlers on open, forward inbound frames, tear down on close.
+function agentSocketHandlers(
+	services: AgentServices,
+	c: { req: { query(name: string): string | undefined } }
+) {
+	const computerId = c.req.query("computerId") ?? "";
+	const socket = deferredSocket();
+	let connection: PtyRelayConnection | null = null;
+	let stopHeartbeat: (() => void) | null = null;
+	return {
+		onOpen: (_evt: unknown, ws: WSContext) => {
+			socket.bind(ws);
+			connection = services.ptyRelay.connectAgent(
+				computerId,
+				socket,
+				agentControlHandlers(services)
+			);
+			stopHeartbeat = attachHeartbeat(ws.raw as HeartbeatRaw, () => {
+				services.stores.computer
+					.touch(computerId, new Date())
+					.catch(() => undefined);
+			});
+		},
+		onMessage: (evt: { data: unknown }) => {
+			const bytes = toBytes(evt.data);
+			if (bytes) {
+				connection?.handleFrame(bytes);
+			}
+		},
+		onClose: () => {
+			stopHeartbeat?.();
+			connection?.close();
+		},
+	};
 }
 
 function registerViewerRoute(
