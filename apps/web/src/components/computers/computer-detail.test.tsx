@@ -21,6 +21,12 @@ const store = vi.hoisted(() => ({
 	computers: [] as unknown[],
 }));
 
+// The shared orpc.pty stub, loaded in a hoisted async import so the non-async
+// orpc mock factory below can reference it.
+const { ptyOrpcStub } = await vi.hoisted(
+	async () => await import("@/components/pty/pty-orpc-test-stub")
+);
+
 vi.mock("@tanstack/react-router", () => ({
 	Link: ({
 		children,
@@ -57,21 +63,7 @@ vi.mock("@/utils/orpc", () => ({
 				}),
 			},
 		},
-		pty: {
-			createSession: {
-				mutationOptions: (opts: Record<string, unknown>) => ({
-					mutationFn: () =>
-						Promise.resolve({
-							args: [],
-							command: "claude",
-							computerId: "computer-1",
-							cwd: "",
-							sessionId: "session-1",
-						}),
-					...opts,
-				}),
-			},
-		},
+		pty: ptyOrpcStub,
 		projects: {
 			create: {
 				mutationOptions: (opts: Record<string, unknown>) => ({

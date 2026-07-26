@@ -7,7 +7,8 @@ import { RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ComputerStatusChip } from "@/components/computers/computer-status-chip";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
-import type { ProjectListItem } from "@/utils/api-types";
+import { PtySessionList } from "@/components/pty/pty-session-list";
+import type { ComputerListItem, ProjectListItem } from "@/utils/api-types";
 import { orpc } from "@/utils/orpc";
 import { EditProjectDialog } from "./edit-project-dialog";
 import { ProjectFilesCard } from "./project-files-card";
@@ -178,6 +179,40 @@ function ProjectCards({
 	);
 }
 
+/** The loaded body: header, the one-click Terminal sessions list, the chat
+ * Start work block, then the Git/Files cards. */
+function ProjectBody({
+	computer,
+	onDelete,
+	online,
+	project,
+}: {
+	computer: ComputerListItem | undefined;
+	onDelete: () => void;
+	online: boolean;
+	project: ProjectListItem;
+}) {
+	return (
+		<div className="flex flex-col gap-6">
+			<ProjectHeader onDelete={onDelete} online={online} project={project} />
+			<PtySessionList
+				computerId={project.computerId}
+				online={online && project.status === "ready"}
+				projectId={project.id}
+				runtimes={(computer?.runtimeInventory ?? []).map(
+					(runtime) => runtime.agentKind
+				)}
+			/>
+			<ProjectStartWork computer={computer} online={online} project={project} />
+			<ProjectCards
+				online={online}
+				projectId={project.id}
+				status={project.status}
+			/>
+		</div>
+	);
+}
+
 export function ProjectDetail({
 	computerId,
 	projectId,
@@ -206,20 +241,12 @@ export function ProjectDetail({
 	const computer = (computersQuery.data ?? []).find(
 		(item) => item.id === computerId
 	);
-	const online = computer?.connected ?? false;
 	return (
-		<div className="flex flex-col gap-6">
-			<ProjectHeader
-				onDelete={() => deleteProject.mutate({ projectId })}
-				online={online}
-				project={project}
-			/>
-			<ProjectStartWork computer={computer} online={online} project={project} />
-			<ProjectCards
-				online={online}
-				projectId={projectId}
-				status={project.status}
-			/>
-		</div>
+		<ProjectBody
+			computer={computer}
+			onDelete={() => deleteProject.mutate({ projectId })}
+			online={computer?.connected ?? false}
+			project={project}
+		/>
 	);
 }

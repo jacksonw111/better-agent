@@ -1,14 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeftIcon } from "lucide-react";
-import { PtyTerminal } from "@/components/pty/pty-terminal";
+import { createFileRoute } from "@tanstack/react-router";
+import { PtyTerminalScreen } from "@/components/pty/pty-terminal-screen";
 
-// P2-3a: the standalone PTY terminal page. Unlike the `/local/$tokenId?pty=`
-// gate (which attaches to an existing bridge session), this route owns a fresh
-// PTY session minted by `pty.createSession`: `?session=` is the sessionId and
-// `?cmd`/`?cwd` are the spawn spec the terminal replays in its OPEN frame so
-// the CLI spawns the runtime. Reaching it with the same params re-attaches to
-// the live session (or respawns if it exited). Reached via the "Open terminal
-// (beta)" entry on the Computer detail page.
+// P25-B: the standalone PTY terminal page. `?session=` is the STABLE sessionId
+// (from `pty.createSession`); reaching this page REATTACHES to that background
+// session — the CLI replays its scrollback (running agent + history intact).
+// `?cmd`/`?cwd` are present ONLY when this navigation minted a fresh session
+// (New session): they form the spawn spec the terminal sends on first OPEN. A
+// one-click reattach from the session list carries just `?session=` and the CLI
+// attaches, never respawns. Entry: the Terminal sessions list on the Computer /
+// Project detail pages.
 export const Route = createFileRoute("/terminal/$computerId")({
 	component: TerminalPage,
 	validateSearch: (
@@ -23,8 +23,8 @@ export const Route = createFileRoute("/terminal/$computerId")({
 function MissingSession() {
 	return (
 		<p className="rounded-lg bg-muted/40 p-6 text-center text-muted-foreground text-sm">
-			This terminal link is missing its session — open a fresh terminal from the
-			computer's page.
+			This terminal link is missing its session — open one from the Terminal
+			sessions list on the computer's page.
 		</p>
 	);
 }
@@ -33,25 +33,21 @@ function TerminalPage() {
 	const { computerId } = Route.useParams();
 	const { cmd, cwd, session } = Route.useSearch();
 
-	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
-			<Link
-				className="flex w-fit items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
-				params={{ computerId }}
-				to="/computers/$computerId"
-			>
-				<ArrowLeftIcon className="size-4" />
-				Back to computer
-			</Link>
-			{session && cmd ? (
-				<PtyTerminal
-					computerId={computerId}
-					sessionId={session}
-					spec={{ args: [], command: cmd, cwd: cwd ?? "" }}
-				/>
-			) : (
+	if (!session) {
+		return (
+			<div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
 				<MissingSession />
-			)}
-		</div>
+			</div>
+		);
+	}
+	// A spec only when this navigation minted the session (cmd present); a
+	// reattach carries none so the CLI attaches to the live pty.
+	const spec = cmd ? { args: [], command: cmd, cwd: cwd ?? "" } : null;
+	return (
+		<PtyTerminalScreen
+			computerId={computerId}
+			sessionId={session}
+			spec={spec}
+		/>
 	);
 }

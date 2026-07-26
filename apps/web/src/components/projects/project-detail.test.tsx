@@ -12,11 +12,7 @@ import { makeComputer } from "@/components/tasks/wizard-test-fixtures";
 import { ProjectDetail } from "./project-detail";
 import { erroredProject, makeProject, readyProject } from "./project-fixtures";
 
-// Q3: the project detail header — one compact row with name, repo, chip
-// (plus Retry beside a failed clone), the copyable local path once ready and
-// the Edit/Delete actions on the right; the Start work block renders BEFORE
-// the Git/Files cards (main action first). The Git/Files/Start-work/Edit
-// blocks have their own suites; here they're stubbed to their gate props.
+// Q3: the project detail header + gates; child blocks stubbed to gate props.
 
 const NOT_FOUND_PATTERN = /wasn't found/;
 const CHECKOUT_KEPT_PATTERN = /local checkout directory .* is not deleted/;
@@ -32,6 +28,11 @@ const store = vi.hoisted(() => ({
 	retryError: null as Error | null,
 	toasts: [] as string[],
 }));
+
+// Shared orpc.pty stub, hoisted so the non-async orpc factory can reference it.
+const { ptyOrpcStub } = await vi.hoisted(
+	async () => await import("@/components/pty/pty-orpc-test-stub")
+);
 
 vi.mock("sonner", () => ({
 	toast: {
@@ -87,6 +88,7 @@ vi.mock("@/utils/orpc", () => ({
 				}),
 			},
 		},
+		pty: ptyOrpcStub,
 		projects: {
 			delete: {
 				mutationOptions: (opts: Record<string, unknown>) => ({
