@@ -24,11 +24,6 @@ vi.mock("@/utils/orpc", async () => {
 	return mocks.buildOrpcMock();
 });
 
-vi.mock("./bridge-transport", async () => {
-	const utils = await import("./local-agent-workspace-test-utils");
-	return utils.buildTransportMock();
-});
-
 const NOW_MS = Date.now();
 const MINUTE_MS = 60_000;
 const MINUTES_2 = 120_000;
@@ -93,19 +88,32 @@ it("renders one signal per sidebar row: approval pulse, working spinner, live, e
 	}
 });
 
+/** The active session row carries `aria-current="true"` — the observable that
+ * replaced the deleted terminal's connect signal (P2-3). Finds the row button
+ * (not its "Rename …" pencil, which carries an aria-label). */
+function activeRow(view: ReturnType<typeof renderApp>["view"]) {
+	return view
+		.getAllByRole("button")
+		.find(
+			(button) =>
+				button.getAttribute("aria-current") === "true" &&
+				!button.hasAttribute("aria-label")
+		);
+}
+
 it("selects the session named by ?session= instead of the newest", async () => {
 	const { view } = renderApp("/local/token-1?session=s-live");
 	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("s-live");
+		expect(activeRow(view)?.textContent).toContain("still-live");
 	});
-	expect(store.connectedSessionIds).not.toContain("s-approval");
+	expect(activeRow(view)?.textContent).not.toContain("needs-approval");
 	expect(view.getByText("needs-approval")).toBeDefined();
 });
 
-it("clicking a sidebar row writes ?session= and remounts the terminal onto it", async () => {
+it("clicking a sidebar row writes ?session= and marks it active", async () => {
 	const { router, view } = renderApp();
 	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("s-approval");
+		expect(activeRow(view)?.textContent).toContain("needs-approval");
 	});
 
 	// Two buttons mention the label: the row itself and its "Rename …" pencil
@@ -119,9 +127,9 @@ it("clicking a sidebar row writes ?session= and remounts the terminal onto it", 
 	fireEvent.click(row);
 
 	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("s-live");
+		expect(router.state.location.search).toEqual({ session: "s-live" });
 	});
-	expect(router.state.location.search).toEqual({ session: "s-live" });
+	expect(activeRow(view)?.textContent).toContain("still-live");
 });
 
 it("Load more appends the older page and hides the button once exhausted", async () => {
@@ -178,7 +186,7 @@ it("rename persists via the renameSession mutation and updates the row", async (
 	);
 });
 
-it("renders the tab row with Chat active and Shell/Files/Git enabled (P4-T4)", async () => {
+it("renders only the Chat tab — Files/Git/Shell gated pending thin-RPC rewire (P2-3)", async () => {
 	const { view } = renderApp();
 	await waitFor(() => {
 		expect(view.getByRole("tab", { name: "Chat" })).toBeDefined();
@@ -186,12 +194,10 @@ it("renders the tab row with Chat active and Shell/Files/Git enabled (P4-T4)", a
 	expect(
 		view.getByRole("tab", { name: "Chat" }).getAttribute("aria-selected")
 	).toBe("true");
-	// Shell (P4-T2), Files (P4-T3) and Git (P4-T4) are live tabs — enabled,
-	// no P4 pill left.
-	for (const liveName of ["Shell", "Files", "Git"]) {
-		const live = view.getByRole("tab", { name: liveName });
-		expect(live.hasAttribute("disabled")).toBe(false);
-		expect(live.getAttribute("aria-disabled")).not.toBe("true");
+	// The inspection panes were fed by the deleted structured channel; their
+	// tabs stay hidden until rewired onto a thin RPC transport.
+	for (const gatedName of ["Shell", "Files", "Git"]) {
+		expect(view.queryByRole("tab", { name: gatedName })).toBeNull();
 	}
 });
 

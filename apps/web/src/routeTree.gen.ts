@@ -34,7 +34,6 @@ import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryI
 import { Route as LocalTokenIdRouteImport } from './routes/local.$tokenId'
 import { Route as LocalAgentsTokenIdRouteImport } from './routes/local-agents.$tokenId'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
-import { Route as DebugRemoteRouteImport } from './routes/debug.remote'
 import { Route as ComputersComputerIdRouteImport } from './routes/computers.$computerId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as IntegrationsOcAccountIdRouteImport } from './routes/integrations.oc.$accountId'
@@ -167,11 +166,6 @@ const IntegrationsAccountIdRoute = IntegrationsAccountIdRouteImport.update({
   path: '/integrations/$accountId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DebugRemoteRoute = DebugRemoteRouteImport.update({
-  id: '/debug/remote',
-  path: '/debug/remote',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ComputersComputerIdRoute = ComputersComputerIdRouteImport.update({
   id: '/computers/$computerId',
   path: '/computers/$computerId',
@@ -215,7 +209,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/computers/$computerId': typeof ComputersComputerIdRoute
-  '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/local/$tokenId': typeof LocalTokenIdRoute
@@ -249,7 +242,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/computers/$computerId': typeof ComputersComputerIdRoute
-  '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/local/$tokenId': typeof LocalTokenIdRoute
@@ -284,7 +276,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
   '/computers/$computerId': typeof ComputersComputerIdRoute
-  '/debug/remote': typeof DebugRemoteRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
   '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
   '/local/$tokenId': typeof LocalTokenIdRoute
@@ -320,7 +311,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/auth/verify'
     | '/computers/$computerId'
-    | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
     | '/local/$tokenId'
@@ -354,7 +344,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/auth/verify'
     | '/computers/$computerId'
-    | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
     | '/local/$tokenId'
@@ -388,7 +377,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/auth/verify'
     | '/computers/$computerId'
-    | '/debug/remote'
     | '/integrations/$accountId'
     | '/local-agents/$tokenId'
     | '/local/$tokenId'
@@ -423,7 +411,6 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
   ComputersComputerIdRoute: typeof ComputersComputerIdRoute
-  DebugRemoteRoute: typeof DebugRemoteRoute
   IntegrationsAccountIdRoute: typeof IntegrationsAccountIdRoute
   LocalAgentsTokenIdRoute: typeof LocalAgentsTokenIdRoute
   LocalTokenIdRoute: typeof LocalTokenIdRoute
@@ -625,13 +612,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsAccountIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/debug/remote': {
-      id: '/debug/remote'
-      path: '/debug/remote'
-      fullPath: '/debug/remote'
-      preLoaderRoute: typeof DebugRemoteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/computers/$computerId': {
       id: '/computers/$computerId'
       path: '/computers/$computerId'
@@ -687,7 +667,6 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   AuthVerifyRoute: AuthVerifyRoute,
   ComputersComputerIdRoute: ComputersComputerIdRoute,
-  DebugRemoteRoute: DebugRemoteRoute,
   IntegrationsAccountIdRoute: IntegrationsAccountIdRoute,
   LocalAgentsTokenIdRoute: LocalAgentsTokenIdRoute,
   LocalTokenIdRoute: LocalTokenIdRoute,

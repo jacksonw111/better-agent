@@ -3,14 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { PtyTerminal } from "@/components/pty/pty-terminal";
 import type { BridgeSessionRow } from "@/utils/api-types";
-import { userAvatar } from "@/utils/avatar";
 import { orpc } from "@/utils/orpc";
-import { useCurrentUser } from "@/utils/use-current-user";
-import {
-	LocalAgentNotFound,
-	SessionView,
-	WaitingForCli,
-} from "./local-agent-detail";
+import { LocalAgentNotFound, WaitingForCli } from "./local-agent-detail";
 import { LocalAgentDetailSkeleton } from "./local-agent-detail-skeleton";
 import {
 	deriveLocalAgentEntries,
@@ -51,23 +45,44 @@ export interface PtyGate {
 	sessionId?: string;
 }
 
-/** The chat tab's content: the selected session's terminal, or the
- * waiting-for-CLI guide when this token has no session yet. Rendered into
+/** The notice shown for a legacy bridge session opened without a `?pty=`
+ * computer. P2-3 deleted the structured terminal renderer; the live terminal is
+ * now the native PTY xterm, which needs the owning computer id (a bridge
+ * session row doesn't carry one). New terminals open from the Computer page's
+ * "Open terminal" entry. */
+function LegacyTerminalNotice() {
+	return (
+		<div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+			<div className="rounded-lg bg-muted/40 p-6">
+				<p className="font-medium text-sm">
+					Terminal moved to the PTY terminal
+				</p>
+				<p className="text-muted-foreground text-sm">
+					The legacy in-page terminal has been replaced by the native PTY
+					terminal. Open one from your computer's page, or open this workspace
+					with a <code className="font-mono">?pty=&lt;computerId&gt;</code> link
+					to attach here.
+				</p>
+			</div>
+		</div>
+	);
+}
+
+/** The chat tab's content: the selected session's PTY terminal (when the URL
+ * names a computer via `?pty=`), a moved-terminal notice for legacy sessions,
+ * or the waiting-for-CLI guide when this token has no session yet. Rendered into
  * `SessionWorkspacePane`'s kept-alive chat slot. */
 function LocalChat({
 	activeSession,
 	entry,
 	pty,
-	userAvatarUrl,
 }: {
 	activeSession: BridgeSessionRow | null;
 	entry: LocalAgentEntry;
 	pty?: PtyGate;
-	userAvatarUrl: string | undefined;
 }) {
-	// P2-2: gated new xterm PTY terminal, coexisting with the legacy renderer so
-	// it can be opened + perf-validated in the real workspace before P2-3 deletes
-	// the old path. Attaches to the selected session unless `?ptySession=` overrides.
+	// The native xterm PTY terminal, attached to the selected session unless
+	// `?ptySession=` overrides. Needs the owning computer id from `?pty=`.
 	if (pty && activeSession) {
 		return (
 			<div className="min-h-0 flex-1 p-3 sm:p-4">
@@ -79,13 +94,7 @@ function LocalChat({
 		);
 	}
 	if (activeSession) {
-		return (
-			<SessionView
-				activeSession={activeSession}
-				token={entry.token}
-				userAvatarUrl={userAvatarUrl}
-			/>
-		);
+		return <LegacyTerminalNotice />;
 	}
 	return (
 		<div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
@@ -136,14 +145,12 @@ function WorkspaceLayout({
 	onSelectSession,
 	pty,
 	sidebar,
-	userAvatarUrl,
 }: {
 	activeSession: BridgeSessionRow | null;
 	entry: LocalAgentEntry;
 	onSelectSession: (sessionId: string) => void;
 	pty?: PtyGate;
 	sidebar: (onSelect: (sessionId: string) => void) => ReactNode;
-	userAvatarUrl: string | undefined;
 }) {
 	const drawer = useSidebarDrawer(onSelectSession);
 	return (
@@ -153,12 +160,7 @@ function WorkspaceLayout({
 			</aside>
 			<SessionWorkspacePane
 				chat={
-					<LocalChat
-						activeSession={activeSession}
-						entry={entry}
-						pty={pty}
-						userAvatarUrl={userAvatarUrl}
-					/>
+					<LocalChat activeSession={activeSession} entry={entry} pty={pty} />
 				}
 				companion={renderWorkspaceCompanion(activeSession, entry)}
 				headerStart={
@@ -197,7 +199,6 @@ export function LocalAgentWorkspace({
 }) {
 	const tokens = useQuery(orpc.bridge.listTokens.queryOptions());
 	const paged = useWorkspaceSessions(tokenId);
-	const { email } = useCurrentUser();
 
 	if (tokens.isPending || paged.isPending) {
 		return <WorkspaceSkeleton />;
@@ -231,7 +232,6 @@ export function LocalAgentWorkspace({
 					sessions={tokenSessions}
 				/>
 			)}
-			userAvatarUrl={email ? userAvatar(email) : undefined}
 		/>
 	);
 }

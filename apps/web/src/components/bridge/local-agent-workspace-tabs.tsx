@@ -1,21 +1,16 @@
 import { Tabs, TabsList, TabsTrigger } from "@better-agent/ui/components/tabs";
 
-// P2-T2: the workspace content pane's pill tab row. Chat is live; P4-T2 added
-// Shell (the runShell one-shot command runner); P4-T3 added Files (the
-// read-only fsList/fsRead tree); P4-T4 added Git (the minimal
-// status/diff/commit panel). The row scrolls horizontally on narrow screens.
+// P2-T2: the workspace content pane's pill tab row. Chat is the only live tab.
+// TODO(P2-3 / Appendix A.4 #2): Shell/Files/Git were removed here because their
+// panes were fed by the deleted structured event channel; they return once
+// rewired onto a thin RPC transport. The WorkspaceTabId union keeps all four
+// members so the ⌘K command palette (which lists Files/Git/Shell as disabled
+// entries) still type-checks. The row scrolls horizontally on narrow screens.
 
 export type WorkspaceTabId = "chat" | "files" | "git" | "shell";
 
-/** Enabled non-chat tabs (P4-T2: Shell; P4-T3: Files; P4-T4: Git). The pane
- * itself handles the "capability absent / no active session" empty state, so
- * the tab stays enabled unconditionally rather than gating on caps the tab
- * row can't see. */
-const LIVE_TABS: { id: WorkspaceTabId; label: string }[] = [
-	{ id: "files", label: "Files" },
-	{ id: "git", label: "Git" },
-	{ id: "shell", label: "Shell" },
-];
+/** Enabled non-chat tabs — none while the inspection panes are gated (P2-3). */
+const LIVE_TABS: { id: WorkspaceTabId; label: string }[] = [];
 
 /** Controlled pill tab group. The CONTENT is deliberately not rendered via
  * tab panels — the workspace keeps the chat pane mounted in a hidden/block

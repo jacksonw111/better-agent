@@ -12,18 +12,30 @@ import {
 } from "./local-agent-workspace-test-utils";
 
 // Flow-level coverage of the /local/$tokenId workspace (P2-T2 shell around
-// the old LocalAgentDetail behaviors): latest-session mount, waiting-for-CLI,
-// revoked-token not-found, and remount when the poll surfaces a newer session.
+// the old LocalAgentDetail behaviors): latest-session selection, waiting-for-CLI,
+// revoked-token not-found, and re-selection when the poll surfaces a newer
+// session. P2-3 deleted the structured terminal — a legacy session (opened
+// without a `?pty=` computer) now renders the "terminal moved" notice, and the
+// selected session is observed via the sidebar row's `aria-current` marker.
 
 vi.mock("@/utils/orpc", async () => {
 	const mocks = await import("./local-agent-workspace-test-mocks");
 	return mocks.buildOrpcMock();
 });
 
-vi.mock("./bridge-transport", async () => {
-	const utils = await import("./local-agent-workspace-test-utils");
-	return utils.buildTransportMock();
-});
+const MOVED_NOTICE_PATTERN = /Terminal moved to the PTY terminal/;
+
+/** The active session row carries `aria-current="true"` (not the "Rename …"
+ * pencil, which has an aria-label). */
+function activeRowText(view: ReturnType<typeof renderApp>["view"]) {
+	return view
+		.getAllByRole("button")
+		.find(
+			(button) =>
+				button.getAttribute("aria-current") === "true" &&
+				!button.hasAttribute("aria-label")
+		)?.textContent;
+}
 
 const BASE_MS = new Date("2026-07-04T12:00:00Z").getTime();
 const OLDER_MS = -1000;
@@ -78,33 +90,16 @@ beforeEach(() => {
 	];
 });
 
-it("connects the terminal to the token's latest session on load", async () => {
+it("selects the token's latest session on load and shows the moved-terminal notice", async () => {
 	const { view } = renderApp();
 
-	// The terminal mounted on the token's LATEST session (session-a), not the
-	// older ended session-b.
+	// The workspace selected the token's LATEST session (session-a / alpha),
+	// not the older ended session-b, and renders the PTY-moved notice for it.
 	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("session-a");
+		expect(view.getByText(MOVED_NOTICE_PATTERN)).toBeDefined();
 	});
-	expect(store.connectedSessionIds).not.toContain("session-b");
-	expect(view.getByText("Connecting…")).toBeDefined();
-});
-
-it("gives the SessionView root the fill-height flex classes so the terminal's feed stays the sole scroller", async () => {
-	const { container } = renderApp();
-
-	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("session-a");
-	});
-
-	// SessionView's root wraps the (optional) remote-desktop panel + Terminal;
-	// it must participate in the flex chain (min-h-0 flex-1) or the composer
-	// can end up below the fold instead of pinned to the viewport bottom — see
-	// Task 10.
-	const sessionViewRoot = container.querySelector(
-		".flex.min-h-0.flex-1.flex-col.gap-4"
-	);
-	expect(sessionViewRoot).not.toBeNull();
+	expect(activeRowText(view)).toContain("alpha");
+	expect(activeRowText(view)).not.toContain("beta");
 });
 
 it("shows the waiting-for-CLI panel when the token has no session yet", async () => {
@@ -114,7 +109,7 @@ it("shows the waiting-for-CLI panel when the token has no session yet", async ()
 	await waitFor(() => {
 		expect(view.getByText("Waiting for the CLI to connect")).toBeDefined();
 	});
-	expect(store.connectedSessionIds).toEqual([]);
+	expect(view.queryByText(MOVED_NOTICE_PATTERN)).toBeNull();
 });
 
 it("treats a revoked token as not found (keyed by token, excluded from entries)", async () => {
@@ -129,21 +124,20 @@ it("treats a revoked token as not found (keyed by token, excluded from entries)"
 	});
 });
 
-it("remounts the terminal onto a newer session when the poll picks one up for the same token", async () => {
-	const { queryClient } = renderApp();
+it("re-selects onto a newer session when the poll picks one up for the same token", async () => {
+	const { queryClient, view } = renderApp();
 
 	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("session-a");
+		expect(activeRowText(view)).toContain("alpha");
 	});
-	expect(store.connectedSessionIds).not.toContain("session-c");
 
 	// The CLI relaunched: a newer session appears for the same token.
 	store.sessions = [...store.sessions, NEWER_SESSION];
 	await queryClient.refetchQueries({ queryKey: ["bridge", "listSessions"] });
 
-	// The terminal must remount onto session-c (new SSE connect), abandoning
-	// the now-dead session-a.
+	// Selection follows the newest session (session-c / gamma), abandoning the
+	// now-dead session-a.
 	await waitFor(() => {
-		expect(store.connectedSessionIds).toContain("session-c");
+		expect(activeRowText(view)).toContain("gamma");
 	});
 });

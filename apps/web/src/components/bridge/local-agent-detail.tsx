@@ -1,31 +1,13 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import type { BridgeSessionRow, BridgeTokenRow } from "@/utils/api-types";
-import { orpc } from "@/utils/orpc";
-import { createBridgeTransport } from "./bridge-transport";
+import type { BridgeTokenRow } from "@/utils/api-types";
 import { LocalAgentConnectionPanel } from "./local-agent-connection-panel";
-import { RemoteDesktopPanel } from "./remote-desktop-panel";
-import { Terminal } from "./terminal";
 
 // P2-T2 (docs/local-agent-workspace-plan.md): the workspace content pane's
 // building blocks. `LocalAgentDetail` (which owned the queries + session
 // selection) is gone — `LocalAgentWorkspace` owns those now, shares them with
-// the session sidebar, and feeds the CONTROLLED `SessionView` below.
-
-function useEndSession() {
-	const queryClient = useQueryClient();
-	return useMutation(
-		orpc.bridge.endSession.mutationOptions({
-			onSuccess: () => {
-				queryClient.invalidateQueries({
-					queryKey: orpc.bridge.listSessions.key(),
-				});
-			},
-			onError: (error) => toast.error(error.message),
-		})
-	);
-}
+// the session sidebar. P2-3 deleted the legacy structured `SessionView`
+// terminal (and its bridge transport / remote-desktop panel): the live
+// terminal is now the native PTY xterm (`components/pty/`), which the workspace
+// renders directly. Only the non-terminal states survive here.
 
 /** Friendly state for a token whose CLI has never connected: the identity
  * panel above a status note. S3-T3 retired the connect flow (the panel no
@@ -52,57 +34,5 @@ export function LocalAgentNotFound() {
 			This local agent wasn't found — it may have been removed, or the link is
 			wrong.
 		</p>
-	);
-}
-
-/** The terminal (plus the optional remote-desktop panel) for the session the
- * workspace selected. Controlled: `activeSession` comes from the workspace's
- * URL-synced selection (sidebar rows write `?session=`), so the header no
- * longer needs its own session-picker dropdown — `sessions`/`onSelectSession`
- * are deliberately NOT passed to `Terminal`, which hides that picker. The
- * terminal stays keyed by session id so switching remounts it onto the chosen
- * session instead of re-polling the previous one. */
-export function SessionView({
-	activeSession,
-	token,
-	userAvatarUrl,
-}: {
-	activeSession: BridgeSessionRow;
-	token: BridgeTokenRow;
-	userAvatarUrl: string | undefined;
-}) {
-	const endSession = useEndSession();
-	const transport = useMemo(() => createBridgeTransport(), []);
-	// A session is CUA-capable once we've seen it expose a VNC endpoint. Latched
-	// so the Start/Stop panel stays after the VM is stopped (endpoint clears),
-	// and never shows for a plain (non-`--cua`) session.
-	const [cuaSeen, setCuaSeen] = useState(false);
-	const vncEndpoint = activeSession.vncEndpoint ?? null;
-	useEffect(() => {
-		if (vncEndpoint) {
-			setCuaSeen(true);
-		}
-	}, [vncEndpoint]);
-
-	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-4">
-			{cuaSeen ? (
-				<RemoteDesktopPanel
-					sessionId={activeSession.id}
-					transport={transport}
-					vncEndpoint={vncEndpoint}
-				/>
-			) : null}
-			<Terminal
-				activeSessionId={activeSession.id}
-				ending={endSession.isPending}
-				key={activeSession.id}
-				onEnd={() => endSession.mutate({ sessionId: activeSession.id })}
-				session={activeSession}
-				token={token}
-				transport={transport}
-				userAvatarUrl={userAvatarUrl}
-			/>
-		</div>
 	);
 }
