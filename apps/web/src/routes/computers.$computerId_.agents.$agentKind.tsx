@@ -1,14 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "lucide-react";
 import {
-	AgentSessionList,
+	AGENT_LABELS,
 	parseAgentKind,
-} from "@/components/computers/agent-session-list";
+} from "@/components/computers/agent-labels";
 import { PageContainer } from "@/components/layout/page-container";
+import { PtySessionList } from "@/components/pty/pty-session-list";
 
 // P3: one agent runtime's sessions on one computer. The `$computerId_`
 // segment opts out of nesting under /computers/$computerId (that page is a
-// leaf, not a layout).
+// leaf, not a layout). P25-B fix: this renders the one-click PtySessionList
+// scoped to the runtime — clicking the agent lands straight on its live
+// sessions (each row reattaches in a click) instead of the old task-based
+// list that detoured through a chat page and an "Open terminal" landing.
 
 export const Route = createFileRoute(
 	"/computers/$computerId_/agents/$agentKind"
@@ -38,7 +42,10 @@ function AgentSessionsPage() {
 				Computer
 			</Link>
 			{kind ? (
-				<AgentSessionList agentKind={kind} computerId={computerId} />
+				<div className="flex flex-col gap-3">
+					<h1 className="font-semibold text-lg">{AGENT_LABELS[kind]}</h1>
+					<PtySessionList agentKind={kind} computerId={computerId} />
+				</div>
 			) : (
 				<UnknownAgent />
 			)}

@@ -4,7 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { PlusIcon, TerminalIcon } from "lucide-react";
 import { toast } from "sonner";
-import { AGENT_LABELS } from "@/components/computers/agent-labels";
+import {
+	AGENT_LABELS,
+	type AgentKind,
+} from "@/components/computers/agent-labels";
 import { EmptyState } from "@/components/layout/empty-state";
 import { orpc } from "@/utils/orpc";
 import { type PtySessionRow, SessionRow } from "./pty-session-row";
@@ -17,8 +20,12 @@ import { type PtySessionRow, SessionRow } from "./pty-session-row";
 // fresh session and opens it in one step. There is no select→start detour: the
 // list IS the entry. A projectId scopes both the list and New (cwd = the
 // checkout); without one the sessions run in the computer's home directory.
-
-type AgentKind = keyof typeof AGENT_LABELS;
+//
+// P25-B fix: an `agentKind` narrows the list to ONE runtime — the agent entry
+// (/computers/$id/agents/$agentKind) reuses this same one-click list instead of
+// the old task-based landing page. With it the list shows only that runtime's
+// sessions and New is a single button for that runtime; without it the whole
+// computer/project is shown with a New button per installed runtime.
 
 /** Poll cadence for the live-session list — brisk enough that a session you
  * just opened (or one that just ended elsewhere) shows up without a refresh. */
@@ -169,23 +176,41 @@ function SessionListBody({
 	);
 }
 
+interface PtySessionListProps {
+	agentKind?: AgentKind;
+	computerId: string;
+	online?: boolean;
+	projectId?: string;
+	runtimes?: readonly AgentKind[];
+}
+
+/** With an agentKind, narrow the list to that one runtime (client-side); the
+ * server returns every runtime's sessions on the computer/project. */
+function selectSessions(
+	sessions: PtySessionRow[] | undefined,
+	agentKind: AgentKind | undefined
+): PtySessionRow[] | undefined {
+	if (!(sessions && agentKind)) {
+		return sessions;
+	}
+	return sessions.filter((session) => session.agentKind === agentKind);
+}
+
 /**
  * The live PTY sessions on a computer (optionally scoped to a project), each
  * row a one-click reattach and a New-session control per runtime. Placed on
  * the Computer detail (home-dir sessions) and Project detail (checkout-dir
  * sessions) so entering either surface lands straight on "reattach or start".
+ * An `agentKind` narrows both the list and New to that single runtime — the
+ * agent entry page reuses this list for its one runtime.
  */
 export function PtySessionList({
+	agentKind,
 	computerId,
 	online = true,
 	projectId,
 	runtimes,
-}: {
-	computerId: string;
-	online?: boolean;
-	projectId?: string;
-	runtimes: readonly AgentKind[];
-}) {
+}: PtySessionListProps) {
 	const sessionsQuery = useQuery({
 		...orpc.pty.listSessions.queryOptions({
 			input: { computerId, projectId },
@@ -195,28 +220,34 @@ export function PtySessionList({
 	const { pendingKind, start } = useNewSession(computerId, projectId);
 	const { end, endingId } = useEndSession();
 
+	// Scoped to one runtime → a single New button for it, and only its sessions.
+	const effectiveRuntimes = agentKind ? [agentKind] : (runtimes ?? []);
+	const sessions = selectSessions(
+		sessionsQuery.data?.sessions as PtySessionRow[] | undefined,
+		agentKind
+	);
+
 	const newControl = (
 		<NewSessionButtons
 			disabled={!online}
 			onNew={start}
 			pendingKind={pendingKind}
-			runtimes={runtimes}
+			runtimes={effectiveRuntimes}
 		/>
 	);
-	const sessions = sessionsQuery.data?.sessions as PtySessionRow[] | undefined;
 
 	return (
 		<section className="flex flex-col gap-3">
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<h2 className="font-medium text-sm">Terminal sessions</h2>
-				{runtimes.length > 0 && newControl}
+				{effectiveRuntimes.length > 0 && newControl}
 			</div>
 			<SessionListBody
 				computerId={computerId}
 				endingId={endingId}
 				newControl={newControl}
 				onEnd={end}
-				runtimes={runtimes}
+				runtimes={effectiveRuntimes}
 				sessions={sessions}
 			/>
 		</section>

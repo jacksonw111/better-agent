@@ -6,7 +6,6 @@ import { ChevronRightIcon, FolderGit2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/layout/empty-state";
 import { DeleteConfirm } from "@/components/list/delete-confirm";
-import { OpenPtyTerminalButton } from "@/components/pty/open-pty-terminal-button";
 import {
 	type ActiveSessionsSummary,
 	countActiveByProject,
@@ -105,15 +104,6 @@ function ProjectRow({
 			</span>
 			{activeSummary && <ActiveSessionsBadge summary={activeSummary} />}
 			<ProjectStatusChip status={project.status} />
-			{project.status === "ready" && (
-				<span className="relative flex items-center">
-					<OpenPtyTerminalButton
-						agentKind="claude-code"
-						computerId={project.computerId}
-						projectId={project.id}
-					/>
-				</span>
-			)}
 			<span className="relative flex items-center">
 				<DeleteConfirm
 					label={deleteProjectLabel(project.name)}

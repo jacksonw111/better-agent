@@ -218,3 +218,54 @@ it("guides an empty list toward New session", async () => {
 	// Header + empty-state both offer it.
 	expect(buttons.length).toBeGreaterThan(1);
 });
+
+it("with agentKind, shows only that runtime's sessions and a single New button", async () => {
+	store.sessions = [
+		makeSession({ agentKind: "claude-code", title: "Claude session" }),
+		makeSession({
+			agentKind: "opencode",
+			sessionId: "session-oc",
+			title: "OpenCode session",
+		}),
+	];
+	const { view } = renderList({
+		agentKind: "claude-code",
+		runtimes: undefined,
+	});
+
+	await waitFor(() => {
+		expect(view.getByText("Claude session")).toBeDefined();
+	});
+	// The other runtime's session is filtered out client-side.
+	expect(view.queryByText("OpenCode session")).toBeNull();
+	// A single New button (the header one), labelled "New session".
+	expect(view.getAllByRole("button", { name: NEW_SESSION })).toHaveLength(1);
+});
+
+it("with agentKind, New session mints that runtime in one step", async () => {
+	store.sessions = [makeSession({ agentKind: "claude-code" })];
+	const { view } = renderList({
+		agentKind: "claude-code",
+		runtimes: undefined,
+	});
+
+	fireEvent.click(
+		await waitFor(() => view.getByRole("button", { name: NEW_SESSION }))
+	);
+	await waitFor(() => {
+		expect(store.createInput).toEqual({
+			agentKind: "claude-code",
+			computerId: "computer-1",
+			projectId: undefined,
+		});
+	});
+	await waitFor(() => {
+		expect(store.navigations).toEqual([
+			{
+				params: { computerId: "computer-1" },
+				search: { cmd: "claude", cwd: "/work/proj", session: "session-new" },
+				to: "/terminal/$computerId",
+			},
+		]);
+	});
+});
