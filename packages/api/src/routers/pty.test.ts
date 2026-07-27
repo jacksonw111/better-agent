@@ -51,6 +51,69 @@ it("leaves the agent session id null for a capture-based runtime (codex)", async
 	expect(result.agentSessionStarted).toBe(false);
 });
 
+it("getSession rebuilds the reattach spawn spec from the persisted row", async () => {
+	const rig = buildComputerRig();
+	const { computerId } = await pairComputer(rig, ALICE);
+	const alice = rig.userClientFor(ALICE);
+	const created = await alice.pty.createSession({
+		agentKind: "claude-code",
+		computerId,
+	});
+
+	// A reattach (URL carries only the session id) fetches the current spec.
+	const spec = await alice.pty.getSession({ sessionId: created.sessionId });
+
+	expect(spec.sessionId).toBe(created.sessionId);
+	expect(spec.computerId).toBe(computerId);
+	expect(spec.command).toBe("claude");
+	expect(spec.args).toEqual([]);
+	expect(spec.cwd).toBe("");
+	expect(spec.agentKind).toBe("claude-code");
+	// claude resumes under OUR pty id; the conversation isn't created yet.
+	expect(spec.agentSessionId).toBe(created.sessionId);
+	expect(spec.agentSessionStarted).toBe(false);
+});
+
+it("getSession resolves cwd from the session's ready project", async () => {
+	const rig = buildComputerRig();
+	const { client, computerId } = await pairComputer(rig, ALICE);
+	const localPath = "/Users/alice/.better-agent/projects/abcd1234-x";
+	const alice = rig.userClientFor(ALICE);
+	const project = await alice.projects.create({
+		computerId,
+		name: "X",
+		repoFullName: "acme/x",
+		token: undefined,
+	});
+	await client().projects.ackClone({ projectId: project.id });
+	await client().projects.reportCloneResult({
+		localPath,
+		projectId: project.id,
+		status: "ready",
+	});
+	const created = await alice.pty.createSession({
+		agentKind: "claude-code",
+		computerId,
+		projectId: project.id,
+	});
+
+	const spec = await alice.pty.getSession({ sessionId: created.sessionId });
+	expect(spec.cwd).toBe(localPath);
+});
+
+it("getSession rejects another user's session", async () => {
+	const rig = buildComputerRig();
+	const { computerId } = await pairComputer(rig, ALICE);
+	const created = await rig.userClientFor(ALICE).pty.createSession({
+		agentKind: "claude-code",
+		computerId,
+	});
+
+	await expect(
+		rig.userClientFor(BOB).pty.getSession({ sessionId: created.sessionId })
+	).rejects.toThrow(NOT_FOUND_RE);
+});
+
 it("persists the session so it shows up in listSessions (stable id)", async () => {
 	const rig = buildComputerRig();
 	const { computerId } = await pairComputer(rig, ALICE);

@@ -17,8 +17,10 @@ const END_SESSION = /End session/;
 
 const store = vi.hoisted(() => ({
 	endInput: null as Record<string, unknown> | null,
+	getSessionInput: null as Record<string, unknown> | null,
 	navigations: [] as Record<string, unknown>[],
 	sessions: [] as unknown[],
+	spec: null as Record<string, unknown> | null,
 	terminalProps: null as Record<string, unknown> | null,
 }));
 
@@ -70,6 +72,15 @@ vi.mock("@/utils/orpc", () => ({
 					...opts,
 				}),
 			},
+			getSession: {
+				queryOptions: (opts?: { input?: Record<string, unknown> }) => ({
+					queryKey: ["pty", "getSession", opts?.input],
+					queryFn: () => {
+						store.getSessionInput = opts?.input ?? null;
+						return Promise.resolve(store.spec);
+					},
+				}),
+			},
 			listSessions: {
 				queryOptions: (opts?: { input?: unknown }) => ({
 					queryKey: ["pty", "listSessions", opts?.input],
@@ -80,7 +91,7 @@ vi.mock("@/utils/orpc", () => ({
 	},
 }));
 
-function renderScreen(spec?: unknown) {
+function renderScreen(fallbackSpec?: unknown) {
 	const queryClient = new QueryClient({
 		defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
 	});
@@ -88,8 +99,8 @@ function renderScreen(spec?: unknown) {
 		<QueryClientProvider client={queryClient}>
 			<PtyTerminalScreen
 				computerId="computer-1"
+				fallbackSpec={fallbackSpec as never}
 				sessionId="session-1"
-				spec={spec as never}
 			/>
 		</QueryClientProvider>
 	);
@@ -98,8 +109,10 @@ function renderScreen(spec?: unknown) {
 
 afterEach(() => {
 	store.endInput = null;
+	store.getSessionInput = null;
 	store.navigations.length = 0;
 	store.sessions = [];
+	store.spec = null;
 	store.terminalProps = null;
 	cleanup();
 });
@@ -120,10 +133,52 @@ it("titles the terminal from the live session and reattaches the id", async () =
 	await waitFor(() => {
 		expect(view.getByText("Session 7/26 14:05")).toBeDefined();
 	});
-	// The terminal attaches to the same id (no spec on a reattach).
-	expect(store.terminalProps).toMatchObject({
-		computerId: "computer-1",
-		sessionId: "session-1",
+	await waitFor(() => {
+		expect(store.terminalProps).toMatchObject({
+			computerId: "computer-1",
+			sessionId: "session-1",
+		});
+	});
+});
+
+it("reattach sends the fetched spawn spec (not null) so a dead pty resumes", async () => {
+	// A bare reattach: no fallbackSpec, but getSession returns the bound spec.
+	store.spec = {
+		agentKind: "claude-code",
+		agentSessionId: "session-1",
+		agentSessionStarted: true,
+		args: [],
+		command: "claude",
+		cwd: "/repo",
+	};
+
+	renderScreen();
+
+	await waitFor(() => {
+		expect(store.terminalProps).not.toBeNull();
+	});
+	// getSession was fetched for this session, and its spec (with the resumable
+	// binding) rode down to the terminal instead of spec:null.
+	expect(store.getSessionInput).toEqual({ sessionId: "session-1" });
+	expect(store.terminalProps?.spec).toMatchObject({
+		agentKind: "claude-code",
+		agentSessionId: "session-1",
+		agentSessionStarted: true,
+		command: "claude",
+		cwd: "/repo",
+	});
+});
+
+it("falls back to the URL spec when getSession yields nothing", async () => {
+	store.spec = null; // getSession produced no spec
+	renderScreen({ args: [], command: "codex", cwd: "/fallback" });
+
+	await waitFor(() => {
+		expect(store.terminalProps).not.toBeNull();
+	});
+	expect(store.terminalProps?.spec).toMatchObject({
+		command: "codex",
+		cwd: "/fallback",
 	});
 });
 

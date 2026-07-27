@@ -1,3 +1,4 @@
+import type { PtySessionRow } from "@better-agent/agent/pty-session-ports";
 import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
@@ -36,6 +37,29 @@ function defaultTitle(now: Date): string {
 	const hh = String(now.getHours()).padStart(2, "0");
 	const mm = String(now.getMinutes()).padStart(2, "0");
 	return `Session ${month}/${day} ${hh}:${mm}`;
+}
+
+/** Assemble the spawn spec the CLI needs from a persisted session row plus its
+ * resolved cwd. Shared by `createSession` (a fresh row) and `getSession` (a
+ * reattach): claude/pi resume under OUR pty id, while codex/opencode resume
+ * under the id the CLI bound (null until then). `agentSessionStarted` is the bit
+ * that drives create-vs-resume — false on a fresh row, true once the underlying
+ * conversation has been created, so a respawn after the pty died resumes it. */
+function toSpawnSpec(session: PtySessionRow, cwd: string) {
+	const usesOwnId =
+		session.agentKind === "claude-code" || session.agentKind === "pi";
+	return {
+		agentKind: session.agentKind,
+		agentSessionId: usesOwnId ? session.id : session.agentSessionId,
+		agentSessionStarted: session.agentSessionStarted,
+		args: [] as string[],
+		command:
+			AGENT_BINARY[session.agentKind as (typeof AGENT_KINDS)[number]] ??
+			session.agentKind,
+		computerId: session.computerId,
+		cwd,
+		sessionId: session.id,
+	};
 }
 
 async function authorizeComputer(
@@ -98,19 +122,41 @@ const createSession = authorizedUserProcedure
 		// own, captured by the CLI after the first spawn (null until then). The
 		// conversation hasn't been created yet, so `agentSessionStarted` is false —
 		// the CLI creates on the first spawn and resumes on a later respawn.
-		const usesOwnId =
-			input.agentKind === "claude-code" || input.agentKind === "pi";
+		return toSpawnSpec(session, cwd);
+	});
 
-		return {
-			agentKind: input.agentKind,
-			agentSessionId: usesOwnId ? session.id : null,
-			agentSessionStarted: session.agentSessionStarted,
-			args: [] as string[],
-			command: AGENT_BINARY[input.agentKind],
-			computerId: input.computerId,
-			cwd,
-			sessionId: session.id,
-		};
+/** `getSession` — the reattach spec source (P25-C web). Returns the SAME spawn
+ * spec shape `createSession` mints, rebuilt from the persisted row, so a viewer
+ * reattaching (its URL carries only the session id) can still put a full spec on
+ * the OPEN frame: a LIVE pty ignores it, but a pty that DIED (process exit / CLI
+ * restart) is RESUMED — `agentSessionStarted` sends the CLI down its resume
+ * command instead of losing the conversation. Owner-scoped; cwd re-resolved from
+ * the session's project (best-effort — a missing/uncloned project falls back to
+ * the home directory rather than blocking the reattach). */
+const getSession = authorizedUserProcedure
+	.input(z.object({ sessionId: z.uuid() }))
+	.handler(async ({ input, context }) => {
+		const userId = context.authedUser.id;
+		const session = await context.services.stores.ptySession.getById(
+			input.sessionId,
+			userId
+		);
+		if (!session) {
+			throw new ORPCError("NOT_FOUND", { message: "Session not found" });
+		}
+
+		let cwd = "";
+		if (session.projectId) {
+			const project = await context.services.stores.project.getById(
+				session.projectId,
+				userId
+			);
+			if (project?.localPath) {
+				cwd = project.localPath;
+			}
+		}
+
+		return toSpawnSpec(session, cwd);
 	});
 
 /** `listSessions` — the computer's active sessions (optionally scoped to a
@@ -188,6 +234,7 @@ const renameSession = authorizedUserProcedure
 
 export const ptyRouter = {
 	createSession,
+	getSession,
 	listSessions,
 	endSession,
 	renameSession,
