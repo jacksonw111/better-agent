@@ -1,5 +1,7 @@
 import {
 	PROJECT_FS_LIST_MAX_ENTRIES,
+	type ProjectFsListResult,
+	type ProjectGitStatusResult,
 	type ProjectQueryOutcome,
 	type ProjectRow,
 } from "@better-agent/agent/project-ports";
@@ -18,14 +20,14 @@ import { authorizedUserProcedure, computerProcedure } from "../index";
 // (PROJECT_QUERY_TIMEOUT_MS) instead of lingering. Split out of projects.ts
 // for the repo's 300-line cap (same precedent as bridge-pending-requests.ts).
 
-const QUERY_PATH_MAX_LENGTH = 1024;
+export const QUERY_PATH_MAX_LENGTH = 1024;
 const PATH_SEPARATORS = /[/\\]/;
 
 /** fs_list paths are project-relative by contract: no absolute paths, no
  * `..` segments (checked on both separators so `..\` can't slip through on a
  * Windows computer). The CLI re-checks with realpath-level confinement
  * (workspace-path.ts) — this is the cheap server-side first gate. */
-function isSafeRelativePath(path: string): boolean {
+export function isSafeRelativePath(path: string): boolean {
 	if (path.startsWith("/") || path.startsWith("\\")) {
 		return false;
 	}
@@ -126,7 +128,9 @@ export const query = authorizedUserProcedure
 			// The CLI's execution error, verbatim (path escape, git failure, …).
 			throw new ORPCError("BAD_REQUEST", { message: outcome.errorMessage });
 		}
-		return outcome.result;
+		// `projects.query` only ever runs fs_list/git_status, so its result is the
+		// read-only pair — never the shared union's `shell` member (pty.query's).
+		return outcome.result as ProjectFsListResult | ProjectGitStatusResult;
 	});
 
 const FS_LIST_RESULT = z.object({
@@ -148,6 +152,23 @@ const GIT_STATUS_RESULT = z.object({
 	lastCommit: z.object({ hash: z.string(), subject: z.string() }).nullable(),
 });
 
+// DP-WS: the `shell` op result — session-workspace queries (pty.query) answer
+// through this SAME endpoint + hub, so the result union accepts it too.
+const SHELL_RESULT = z.object({
+	exitCode: z.number().nullable(),
+	stderr: z.string(),
+	stdout: z.string(),
+	truncated: z.boolean(),
+});
+
+/** The result union both `projects.query` (fs/git) and `pty.query`
+ * (fs/git/shell) answers validate against — one endpoint, one hub. */
+export const QUERY_RESULT = z.union([
+	FS_LIST_RESULT,
+	GIT_STATUS_RESULT,
+	SHELL_RESULT,
+]);
+
 // The Computer's answer for one parked query. A late (post-timeout) or
 // duplicate submit — and one naming a request another computer owns — is an
 // idempotent ok:false, never an error (no oracle across computers).
@@ -157,7 +178,7 @@ export const submitQueryResult = computerProcedure
 			z.object({
 				ok: z.literal(true),
 				requestId: z.uuid(),
-				result: z.union([FS_LIST_RESULT, GIT_STATUS_RESULT]),
+				result: QUERY_RESULT,
 			}),
 			z.object({
 				errorMessage: z.string().min(1),

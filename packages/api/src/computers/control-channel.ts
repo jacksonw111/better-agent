@@ -1,5 +1,8 @@
 import type { ComputerStore } from "@better-agent/agent/computer-ports";
-import type { ProjectQueryCommand } from "@better-agent/agent/project-ports";
+import type {
+	ProjectQueryCommand,
+	WorkspaceQueryCommand,
+} from "@better-agent/agent/project-ports";
 import {
 	buildPendingCommands,
 	type PendingCommandDeps,
@@ -44,6 +47,13 @@ export interface ComputerControlChannel {
 	 * pendingCommands derivation, never redelivered. False when the Computer
 	 * has no live control socket (the caller fails fast instead of queueing). */
 	sendProjectQuery(computerId: string, command: ProjectQueryCommand): boolean;
+	/** DP-WS: pushes one real-time workspace_query frame (pty.query) — same
+	 * WS-only contract as sendProjectQuery. False when the Computer has no live
+	 * control socket. */
+	sendWorkspaceQuery(
+		computerId: string,
+		command: WorkspaceQueryCommand
+	): boolean;
 	/** Removes the socket — only if it is still the registered one, so a
 	 * stale (already-replaced) connection closing can't drop a live one. */
 	unregister(computerId: string, socket: ComputerControlSocket): void;
@@ -59,6 +69,14 @@ export function createComputerControlChannel(
 			timeoutMs: options.projectQueryTimeoutMs,
 		}),
 		sendProjectQuery(computerId, command) {
+			const socket = sockets.get(computerId);
+			if (!socket) {
+				return false;
+			}
+			socket.send(JSON.stringify(command));
+			return true;
+		},
+		sendWorkspaceQuery(computerId, command) {
 			const socket = sockets.get(computerId);
 			if (!socket) {
 				return false;

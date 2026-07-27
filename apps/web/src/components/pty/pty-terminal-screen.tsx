@@ -11,7 +11,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, SquareIcon } from "lucide-react";
 import { toast } from "sonner";
 import { orpc } from "@/utils/orpc";
-import { PtyTerminal } from "./pty-terminal";
+import { PtyWorkspaceTabs } from "./pty-workspace-tabs";
 
 // P25-B: the terminal page body. It reattaches to `sessionId` (the CLI replays
 // scrollback), shows that session's title, and offers the one explicit stop:
@@ -131,7 +131,11 @@ export function PtyTerminalScreen({
 					sessionId={sessionId}
 				/>
 			</div>
-			<PtyTerminal computerId={computerId} sessionId={sessionId} spec={spec} />
+			<PtyWorkspaceTabs
+				computerId={computerId}
+				sessionId={sessionId}
+				spec={spec}
+			/>
 		</div>
 	);
 }

@@ -63,7 +63,7 @@ async function fileSize(filePath: string): Promise<number | undefined> {
 
 /** Dirs first then files, alpha within each half, `.git` omitted, capped at
  * PROJECT_FS_LIST_MAX_ENTRIES — sizes stat'd only for the kept files. */
-async function listProjectEntries(
+export async function listProjectEntries(
 	root: string,
 	relPath: string
 ): Promise<ProjectFsListResult> {
@@ -112,7 +112,7 @@ async function readLastCommit(
 	return { hash, subject: subject ?? "" };
 }
 
-async function readGitStatus(
+export async function readGitStatus(
 	exec: GitExec,
 	root: string
 ): Promise<ProjectGitStatusResult> {
@@ -135,7 +135,7 @@ async function readGitStatus(
 	};
 }
 
-function errorText(error: unknown): string {
+export function errorText(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 

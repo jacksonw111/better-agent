@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
 import { encodeKill } from "../pty/frame";
+import { query, workspace } from "./pty-query";
 
 // PTY router (P2-3a → P25-A). Sessions are now PERSISTENT: `createSession`
 // mints a STABLE sessionId backed by a `pty_sessions` row and returns the spawn
@@ -179,4 +180,7 @@ export const ptyRouter = {
 	listSessions,
 	endSession,
 	renameSession,
+	// DP-WS: the terminal page's Files/Git/Shell side panes (pty-query.ts).
+	query,
+	workspace,
 };

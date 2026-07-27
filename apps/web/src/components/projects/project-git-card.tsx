@@ -123,7 +123,7 @@ function ChangeList({ changes }: { changes: ProjectGitStatus["changes"] }) {
 	);
 }
 
-function GitStatusView({ git }: { git: ProjectGitStatus }) {
+export function GitStatusView({ git }: { git: ProjectGitStatus }) {
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-wrap items-center gap-2">

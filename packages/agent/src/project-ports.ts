@@ -133,7 +133,57 @@ export interface ProjectGitStatusResult {
 	lastCommit: { hash: string; subject: string } | null;
 }
 
-export type ProjectQueryResult = ProjectFsListResult | ProjectGitStatusResult;
+/** The `shell` op result (session-workspace queries only — `pty.query`). One
+ * bounded command run inside the session's workspace cwd; `exitCode` is null
+ * when the run was killed (timeout/signal) rather than exiting on its own, and
+ * `truncated` is true once either stream hit WORKSPACE_SHELL_MAX_OUTPUT_BYTES. */
+export interface WorkspaceShellResult {
+	exitCode: number | null;
+	stderr: string;
+	stdout: string;
+	truncated: boolean;
+}
+
+/** The read-only+shell ops a session's workspace query can run (pty.query,
+ * DP-WS). fs_list/git_status are the same read-only pair `projects.query`
+ * exposes; `shell` additionally runs one bounded command in the workspace. */
+export type WorkspaceQueryOp = "fs_list" | "git_status" | "shell";
+
+/** Per-stream output cap for a `shell` op — output past this is dropped and the
+ * result marked `truncated`, so a runaway command can never flood the relay. */
+export const WORKSPACE_SHELL_MAX_OUTPUT_BYTES = 65_536;
+
+/** Wall-clock limit for one `shell` command; the CLI kills it past this and
+ * answers with whatever it captured (exitCode null). Kept BELOW the server's
+ * park timeout (PROJECT_QUERY_TIMEOUT_MS, shared by pty.query) so the CLI always
+ * answers — even a timeout-kill — before the parked call would itself expire. */
+export const WORKSPACE_SHELL_TIMEOUT_MS = 8000;
+
+/** The real-time session-workspace query frame pushed over the computer control
+ * WS (DP-WS). Like ProjectQueryCommand it is WS-only (never queued): the server
+ * resolves the session's workspace root and the CLI runs the op inside it.
+ * `workspaceRoot` is an absolute path, or `""` meaning the CLI's home dir (a
+ * session with no project). */
+export interface WorkspaceQueryCommand {
+	/** shell only — the command line to run in the workspace cwd. */
+	cmd?: string;
+	kind: "workspace_query";
+	op: WorkspaceQueryOp;
+	/** fs_list only — a workspace-relative path; `""`/absent means the root. */
+	path?: string;
+	requestId: string;
+	/** Absolute workspace root, or `""` → the CLI's home directory. */
+	workspaceRoot: string;
+}
+
+/** One parked query's result. Now shared by both `projects.query` (fs_list |
+ * git_status) and `pty.query` (which adds the `shell` result), so a single
+ * in-process hub (project-query-hub.ts) parks both — nothing here is
+ * project-specific but the fs/git shapes. */
+export type ProjectQueryResult =
+	| ProjectFsListResult
+	| ProjectGitStatusResult
+	| WorkspaceShellResult;
 
 /** What the Computer reports back for one parked query — the CLI's execution
  * error travels verbatim in `errorMessage`, never synthesized server-side. */

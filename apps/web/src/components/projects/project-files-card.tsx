@@ -39,7 +39,7 @@ export function sortedEntries(entries: ProjectFsEntry[]): ProjectFsEntry[] {
 	});
 }
 
-function Breadcrumbs({
+export function Breadcrumbs({
 	onNavigate,
 	path,
 }: {
@@ -117,7 +117,7 @@ function EntryRow({
 	);
 }
 
-function FilesCardBody({
+export function FilesCardBody({
 	entries,
 	error,
 	onOpenDir,

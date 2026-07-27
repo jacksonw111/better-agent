@@ -10,7 +10,7 @@ import {
 } from "./args";
 import { dispatchCli } from "./cli-dispatch";
 import { createHeartbeatWait, runComputerClient } from "./computer-client";
-import { createIdentityFile } from "./computer-identity";
+import { type ComputerIdentity, createIdentityFile } from "./computer-identity";
 import {
 	createComputerTransport,
 	createMonotonicTimestamp,
@@ -23,7 +23,10 @@ import {
 	defaultPtyWsFactory,
 	runPtyTransport,
 } from "./pty-transport/pty-ws-transport";
+import { runControlChannel } from "./task-launch/control-ws";
 import { createCloneHandler } from "./task-launch/project-clone";
+import { createProjectQueryHandler } from "./task-launch/project-query";
+import { createWorkspaceQueryHandler } from "./task-launch/workspace-query";
 import { BRIDGE_CLI_VERSION } from "./version";
 
 // `process.argv` is `[nodeExecutable, scriptPath, ...userArgs]`.
@@ -83,6 +86,69 @@ function startSessionClient(_args: SessionCliArgs): Promise<void> {
  * pipeline that drove structured agent sessions is gone (P2-3); what remains is
  * project clone processing (delivered via heartbeat `pendingCommands`) and the
  * binary PTY plane, which spawns/attaches real ptys on a viewer's OPEN. */
+/** Everything after `--client` is wired here; the log seam is shared. */
+const logStderr = (message: string) => process.stderr.write(`${message}\n`);
+
+interface ClientChannelDeps {
+	args: ClientCliArgs;
+	clock: () => number;
+	signal: AbortSignal;
+	transport: ReturnType<typeof createComputerTransport>;
+}
+
+/** DP-WS: the JSON control channel starter — fire-and-forget like the PTY
+ * plane; it reconnects with backoff until shutdown and dispatches the real-time
+ * project_query / workspace_query frames to their executors (both answering over
+ * the SAME oRPC submit path). */
+function makeStartControlChannel(deps: ClientChannelDeps) {
+	const projectQueryHandler = createProjectQueryHandler({
+		log: logStderr,
+		submitResult: (input) => deps.transport.submitProjectQueryResult(input),
+	});
+	const workspaceQueryHandler = createWorkspaceQueryHandler({
+		log: logStderr,
+		submitResult: (input) => deps.transport.submitProjectQueryResult(input),
+	});
+	return (identity: ComputerIdentity) => {
+		runControlChannel({
+			identity,
+			log: logStderr,
+			nextTimestamp: deps.clock,
+			onProjectQuery: (command) => {
+				projectQueryHandler.handle(command).catch(() => undefined);
+			},
+			onWorkspaceQuery: (command) => {
+				workspaceQueryHandler.handle(command).catch(() => undefined);
+			},
+			serverUrl: deps.args.serverUrl,
+			signal: deps.signal,
+		}).catch((error: unknown) => {
+			logStderr(
+				`control channel stopped: ${error instanceof Error ? error.message : String(error)}`
+			);
+		});
+	};
+}
+
+/** P2-3a: the binary PTY plane starter — serves a viewer's OPEN by
+ * spawning/attaching a real pty on this machine; reconnects until shutdown. */
+function makeStartPtyTransport(deps: ClientChannelDeps) {
+	return (identity: ComputerIdentity) => {
+		runPtyTransport({
+			identity,
+			log: logStderr,
+			nextTimestamp: deps.clock,
+			serverUrl: deps.args.serverUrl,
+			signal: deps.signal,
+			wsFactory: defaultPtyWsFactory,
+		}).catch((error: unknown) => {
+			logStderr(
+				`pty transport stopped: ${error instanceof Error ? error.message : String(error)}`
+			);
+		});
+	};
+}
+
 async function startComputerClient(args: ClientCliArgs): Promise<void> {
 	const controller = new AbortController();
 	process.once("SIGINT", () => controller.abort());
@@ -95,12 +161,18 @@ async function startComputerClient(args: ClientCliArgs): Promise<void> {
 		now: clock,
 		serverUrl: args.serverUrl,
 	});
+	const channelDeps: ClientChannelDeps = {
+		args,
+		clock,
+		signal: controller.signal,
+		transport,
+	};
 	// Q2 clone_project processing — delivered through the heartbeat's
 	// `pendingCommands` (the WS control channel that also carried it went away
 	// with the structured launch pipeline).
 	const cloneHandler = createCloneHandler({
 		ackClone: (projectId) => transport.ackClone(projectId),
-		log: (message) => process.stderr.write(`${message}\n`),
+		log: logStderr,
 		reportCloneResult: (input) => transport.reportCloneResult(input),
 	});
 	await runComputerClient(args, {
@@ -116,23 +188,8 @@ async function startComputerClient(args: ClientCliArgs): Promise<void> {
 			clientVersion: BRIDGE_CLI_VERSION,
 			platform: platform(),
 		},
-		// P2-3a: the binary PTY plane. Fire-and-forget like the heartbeat loop —
-		// it reconnects (with backoff) until the shutdown signal aborts, and
-		// serves a viewer's OPEN by spawning/attaching a real pty on this machine.
-		startPtyTransport: (identity) => {
-			runPtyTransport({
-				identity,
-				log: (message) => process.stderr.write(`${message}\n`),
-				nextTimestamp: clock,
-				serverUrl: args.serverUrl,
-				signal: controller.signal,
-				wsFactory: defaultPtyWsFactory,
-			}).catch((error: unknown) => {
-				process.stderr.write(
-					`pty transport stopped: ${error instanceof Error ? error.message : String(error)}\n`
-				);
-			});
-		},
+		startControlChannel: makeStartControlChannel(channelDeps),
+		startPtyTransport: makeStartPtyTransport(channelDeps),
 		transport,
 		wait: createHeartbeatWait(controller.signal),
 	});
