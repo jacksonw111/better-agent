@@ -48,6 +48,27 @@ function makeReads(
 	};
 }
 
+function makeBinding(
+	rows: Rows
+): Pick<PtySessionStore, "setAgentSession" | "markStarted"> {
+	return {
+		setAgentSession(id, agentSessionId) {
+			const row = rows.get(id);
+			if (row) {
+				rows.set(id, { ...row, agentSessionId, agentSessionStarted: true });
+			}
+			return Promise.resolve();
+		},
+		markStarted(id) {
+			const row = rows.get(id);
+			if (row) {
+				rows.set(id, { ...row, agentSessionStarted: true });
+			}
+			return Promise.resolve();
+		},
+	};
+}
+
 function makeMutations(
 	rows: Rows
 ): Pick<PtySessionStore, "create" | "markEnded" | "rename"> {
@@ -60,6 +81,8 @@ function makeMutations(
 				computerId: input.computerId,
 				projectId: input.projectId,
 				agentKind: input.agentKind,
+				agentSessionId: null,
+				agentSessionStarted: false,
 				title: input.title,
 				status: "active",
 				createdAt: now,
@@ -122,6 +145,7 @@ export function createFakePtySessionStore(): PtySessionStore {
 	return {
 		...makeReads(rows),
 		...makeMutations(rows),
+		...makeBinding(rows),
 		...makeReconcile(rows),
 	};
 }

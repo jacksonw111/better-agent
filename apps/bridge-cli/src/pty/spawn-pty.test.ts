@@ -49,6 +49,24 @@ it("spawns the broker with rows/cols/command/args and the 5-slot stdio", () => {
 	);
 });
 
+it("passes a cleaned env through to the broker when provided (P25-C)", () => {
+	const child = new FakeChild();
+	const spawnImpl = vi.fn(
+		() => child
+	) as unknown as typeof import("node:child_process").spawn;
+	spawnPty("claude", ["--resume", "id"], "/work", 80, 24, {
+		brokerPath: "/fake/broker",
+		spawnImpl,
+		env: { PATH: "/bin" },
+	});
+	const spy = spawnImpl as unknown as ReturnType<typeof vi.fn>;
+	expect(spy).toHaveBeenCalledWith(
+		"/fake/broker",
+		["24", "80", "claude", "--resume", "id"],
+		expect.objectContaining({ env: { PATH: "/bin" } })
+	);
+});
+
 it("write() forwards bytes to the broker stdin (pty input)", () => {
 	const { child, handle } = fakeSetup();
 	handle.write("ls\n");

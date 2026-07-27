@@ -161,6 +161,34 @@ it("touchActivity is computer-scoped and advances last activity", async () => {
 	expect(after).toBeGreaterThan(before);
 });
 
+it("create defaults the agent-session binding to unbound + not-started", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	expect(row.agentSessionId).toBeNull();
+	expect(row.agentSessionStarted).toBe(false);
+});
+
+it("setAgentSession binds the id and flips started", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	await store.setAgentSession(row.id, "captured-codex-id");
+	const bound = await store.getById(row.id, USER_1);
+	expect(bound?.agentSessionId).toBe("captured-codex-id");
+	expect(bound?.agentSessionStarted).toBe(true);
+});
+
+it("markStarted flips started without touching the bound id", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	await store.markStarted(row.id);
+	const started = await store.getById(row.id, USER_1);
+	expect(started?.agentSessionStarted).toBe(true);
+	expect(started?.agentSessionId).toBeNull();
+});
+
 it("rename is owner-scoped", async () => {
 	await seedGraph();
 	const store = createPtySessionStore(db);

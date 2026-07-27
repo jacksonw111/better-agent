@@ -17,6 +17,7 @@ import {
 	peekSessionId,
 	peekType,
 } from "./frame";
+import { decodeFrame } from "./frame-decode";
 
 /** The one thing the hub needs from a live WS: send a binary frame. */
 export interface PtyRelaySocket {
@@ -36,6 +37,9 @@ export interface PtyRelayConnection {
 export interface PtyAgentControlHandlers {
 	/** One session produced output / was attached → bump its last-activity. */
 	onActivity?(computerId: string, sessionId: string): void;
+	/** The CLI bound a session to the underlying agent's resumable id (P25-C) →
+	 * persist it and mark the conversation started. */
+	onBind?(computerId: string, sessionId: string, agentSessionId: string): void;
 	/** The CLI's held-session list on (re)connect → reconcile zombies. */
 	onLiveness?(computerId: string, sessionIds: string[]): void;
 }
@@ -106,26 +110,41 @@ function trackViewerSubscription(viewer: ViewerState, frame: Uint8Array): void {
 	}
 }
 
-// The CLI's out-of-band control frames (ACTIVITY/LIVENESS) are consumed by the
-// server, never forwarded to a viewer. Returns true when the frame was one.
+function handleBindFrame(
+	computerId: string,
+	frame: Uint8Array,
+	handlers: PtyAgentControlHandlers | undefined
+): void {
+	const decoded = decodeFrame(frame);
+	if (decoded?.type === PtyFrameType.BIND) {
+		handlers?.onBind?.(computerId, decoded.sessionId, decoded.agentSessionId);
+	}
+}
+
+// The CLI's out-of-band control frames (ACTIVITY/LIVENESS/BIND) are consumed by
+// the server, never forwarded to a viewer. Returns true when the frame was one.
 function handleAgentControlFrame(
 	computerId: string,
 	frame: Uint8Array,
 	handlers: PtyAgentControlHandlers | undefined
 ): boolean {
-	const type = peekType(frame);
-	if (type === PtyFrameType.ACTIVITY) {
-		const sessionId = peekSessionId(frame);
-		if (sessionId) {
-			handlers?.onActivity?.(computerId, sessionId);
+	switch (peekType(frame)) {
+		case PtyFrameType.ACTIVITY: {
+			const sessionId = peekSessionId(frame);
+			if (sessionId) {
+				handlers?.onActivity?.(computerId, sessionId);
+			}
+			return true;
 		}
-		return true;
+		case PtyFrameType.LIVENESS:
+			handlers?.onLiveness?.(computerId, decodeLivenessSessionIds(frame));
+			return true;
+		case PtyFrameType.BIND:
+			handleBindFrame(computerId, frame, handlers);
+			return true;
+		default:
+			return false;
 	}
-	if (type === PtyFrameType.LIVENESS) {
-		handlers?.onLiveness?.(computerId, decodeLivenessSessionIds(frame));
-		return true;
-	}
-	return false;
 }
 
 function connectAgent(

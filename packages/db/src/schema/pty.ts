@@ -1,5 +1,12 @@
 import type { PtySessionStatus } from "@better-agent/agent/pty-session-ports";
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	index,
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+} from "drizzle-orm/pg-core";
 import { users } from "./auth";
 import { computers } from "./computers";
 import { projects } from "./projects";
@@ -24,6 +31,17 @@ export const ptySessions = pgTable(
 			.references(() => computers.id),
 		projectId: uuid("project_id").references(() => projects.id),
 		agentKind: text("agent_kind").notNull(),
+		// The underlying agent's resumable conversation session id (P25-C). For
+		// claude/pi it equals `id` (the CLI passes `--session-id <id>`); for
+		// codex/opencode it is the id the CLI captures from the agent's own output
+		// after the first spawn, so it is null until captured.
+		agentSessionId: text("agent_session_id"),
+		// Whether the underlying agent conversation has been created at least once.
+		// Drives the CLI's create-vs-resume choice on reattach after the pty died
+		// (started → `claude --resume` / `codex resume`; not → first-time create).
+		agentSessionStarted: boolean("agent_session_started")
+			.notNull()
+			.default(false),
 		title: text("title").notNull(),
 		status: text("status")
 			.$type<PtySessionStatus>()

@@ -13,6 +13,7 @@
 import { homedir } from "node:os";
 import {
 	encodeActivity,
+	encodeBind,
 	encodeClose,
 	encodeData,
 	encodeLiveness,
@@ -22,6 +23,13 @@ import {
 } from "@better-agent/api/pty/frame";
 import type { PtyExit, PtyHandle } from "../pty/spawn-pty";
 import { spawnPty } from "../pty/spawn-pty";
+import {
+	agentSpawnEnv,
+	buildAgentCommand,
+	createSessionIdCapturer,
+	immediateBindId,
+	needsSessionCapture,
+} from "./agent-command";
 import { createFrameCoalescer, type FrameCoalescer } from "./frame-coalescer";
 import {
 	createScrollbackRing,
@@ -102,8 +110,15 @@ interface ManagerCtx {
 // An empty `cwd` means "the computer's default" — a session started with no
 // project (P2-3a's home-directory terminal) carries `cwd: ""`, which we resolve
 // to the user's home so the pty-broker never spawns against a bad directory.
-const defaultSpawn: PtySpawnFn = (spec, cols, rows) =>
-	spawnPty(spec.command, spec.args, spec.cwd || homedir(), cols, rows);
+// P25-C: the actual command is create-vs-resume-resolved from the spec's
+// binding fields, and claude/pi spawn under an env with the child-session
+// markers stripped (or `--resume` silently gets no transcript).
+const defaultSpawn: PtySpawnFn = (spec, cols, rows) => {
+	const { command, args } = buildAgentCommand(spec);
+	return spawnPty(command, args, spec.cwd || homedir(), cols, rows, {
+		env: agentSpawnEnv(spec),
+	});
+};
 
 function inFlight(session: Session): number {
 	return session.ring.producedOffset - session.acked;
@@ -160,12 +175,28 @@ function openSession(
 		ring,
 	};
 	ctx.sessions.set(sessionId, session);
+	// P25-C: sniff the codex/opencode startup banner for the id it generated so
+	// a later respawn can `resume` it (a one-shot scan over the raw bytes we are
+	// already passing straight through — never parses structured output).
+	const capture = needsSessionCapture(spec)
+		? createSessionIdCapturer((agentSessionId) =>
+				ctx.send(encodeBind(sessionId, agentSessionId))
+			)
+		: null;
 	session.handle.onData((chunk) => {
 		ring.append(chunk);
+		capture?.(chunk);
 		applyBackpressure(ctx, session);
 		emitActivity(ctx, sessionId, session, false);
 		coalescer.push(chunk);
 	});
+	// claude/pi already know their resumable id (= our pty id) on the first
+	// spawn — report it now so the server persists it + marks the conversation
+	// started, flipping the next respawn onto the `--resume` path.
+	const bindNow = immediateBindId(spec);
+	if (bindNow) {
+		ctx.send(encodeBind(sessionId, bindNow));
+	}
 	session.handle.onExit((exit: PtyExit) => {
 		coalescer.flush();
 		coalescer.dispose();

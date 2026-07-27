@@ -24,6 +24,8 @@ function toRow(row: typeof schema.ptySessions.$inferSelect): PtySessionRow {
 		computerId: row.computerId,
 		projectId: row.projectId ?? null,
 		agentKind: row.agentKind,
+		agentSessionId: row.agentSessionId ?? null,
+		agentSessionStarted: row.agentSessionStarted,
 		title: row.title,
 		status: row.status,
 		createdAt: row.createdAt,
@@ -109,8 +111,25 @@ function makeCreate(db: Db): Pick<PtySessionStore, "create"> {
 	};
 }
 
-function makeMutations(db: Db): Pick<PtySessionStore, "markEnded" | "rename"> {
+function makeMutations(
+	db: Db
+): Pick<
+	PtySessionStore,
+	"markEnded" | "rename" | "setAgentSession" | "markStarted"
+> {
 	return {
+		async setAgentSession(id, agentSessionId) {
+			await db
+				.update(schema.ptySessions)
+				.set({ agentSessionId, agentSessionStarted: true })
+				.where(eq(schema.ptySessions.id, id));
+		},
+		async markStarted(id) {
+			await db
+				.update(schema.ptySessions)
+				.set({ agentSessionStarted: true })
+				.where(eq(schema.ptySessions.id, id));
+		},
 		async markEnded(id, userId) {
 			const rows = await db
 				.update(schema.ptySessions)

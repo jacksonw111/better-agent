@@ -24,6 +24,11 @@
 //   0x09 LIVENESS sessionId = zero; payload = N×16 raw    (CLI → server, P25-A)
 //                 the sessionIds the CLI still holds a pty for; sent on every
 //                 (re)connect so the server reconciles restarted-away zombies.
+//   0x0a BIND    payload = UTF-8 agentSessionId          (CLI → server, P25-C)
+//                 the underlying agent's resumable conversation id for this
+//                 session (claude: the id itself; codex: the captured id); the
+//                 server persists it and marks the conversation started, so a
+//                 later respawn resumes the real conversation.
 
 export const PTY_SESSION_ID_LEN = 16;
 export const PTY_FRAME_HEADER_LEN = 1 + PTY_SESSION_ID_LEN;
@@ -38,6 +43,7 @@ export const PtyFrameType = {
 	KILL: 0x07,
 	ACTIVITY: 0x08,
 	LIVENESS: 0x09,
+	BIND: 0x0a,
 } as const;
 export type PtyFrameTypeValue =
 	(typeof PtyFrameType)[keyof typeof PtyFrameType];
@@ -52,9 +58,17 @@ const CLOSE_UNKNOWN = -1;
 const HEX_BYTE = /[0-9a-fA-F]{2}/g;
 const encoder = new TextEncoder();
 
-/** The spawn parameters an OPEN frame carries when it starts a NEW session
- * (absent on an attach — the CLI then just replays scrollback). */
+/** The spawn parameters an OPEN frame carries when it starts a session (absent
+ * on an attach to a LIVE pty — the CLI then just replays scrollback). The P25-C
+ * binding fields let the CLI pick create-vs-resume for the underlying agent:
+ * `agentKind` names the runtime, `agentSessionStarted` says the conversation
+ * already exists (→ resume), and `agentSessionId` is the resumable id to resume
+ * (claude: the pty id; codex: the captured id). All optional so an OPEN from an
+ * older client still decodes — the CLI falls back to a plain spawn. */
 export interface PtyOpenSpec {
+	agentKind?: string;
+	agentSessionId?: string | null;
+	agentSessionStarted?: boolean;
 	args: string[];
 	command: string;
 	cwd: string;
@@ -79,7 +93,12 @@ export type PtyFrame =
 	| { type: typeof PtyFrameType.ACK; sessionId: string; consumedBytes: number }
 	| { type: typeof PtyFrameType.STATE; sessionId: string; state: string }
 	| { type: typeof PtyFrameType.KILL; sessionId: string }
-	| { type: typeof PtyFrameType.ACTIVITY; sessionId: string };
+	| { type: typeof PtyFrameType.ACTIVITY; sessionId: string }
+	| {
+			type: typeof PtyFrameType.BIND;
+			sessionId: string;
+			agentSessionId: string;
+	  };
 
 /** The all-zero UUID a LIVENESS frame carries in its header slot — its real
  * payload is the list of held sessionIds, not one session. */
@@ -226,6 +245,22 @@ export function encodeKill(sessionId: string): Uint8Array {
 /** The pty produced output / was attached (CLI → server, throttled). */
 export function encodeActivity(sessionId: string): Uint8Array {
 	return encodeHeaderOnly(PtyFrameType.ACTIVITY, sessionId);
+}
+
+/** Bind this session to the underlying agent's resumable conversation id
+ * (CLI → server, P25-C). The id rides as the UTF-8 payload. */
+export function encodeBind(
+	sessionId: string,
+	agentSessionId: string
+): Uint8Array {
+	const idBytes = encoder.encode(agentSessionId);
+	const { bytes, payloadAt } = withHeader(
+		PtyFrameType.BIND,
+		sessionId,
+		idBytes.length
+	);
+	bytes.set(idBytes, payloadAt);
+	return bytes;
 }
 
 /** The sessionIds the CLI still holds a live pty for, packed as N×16 raw UUID

@@ -206,6 +206,68 @@ describe("pty session manager — liveness (P25-A)", () => {
 	});
 });
 
+describe("pty session manager — agent session binding (P25-C)", () => {
+	const CLAUDE_CREATE_SPEC = {
+		command: "claude",
+		args: [],
+		cwd: "/repo",
+		agentKind: "claude-code",
+		agentSessionId: SID,
+		agentSessionStarted: false,
+	};
+
+	it("reports a BIND for claude on the first spawn (id = pty id)", () => {
+		const { feed, sent } = setup();
+		feed(encodeOpen(SID, 80, 24, CLAUDE_CREATE_SPEC));
+		const bind = sent.find((f) => f.type === PtyFrameType.BIND);
+		expect(bind).toEqual({
+			type: PtyFrameType.BIND,
+			sessionId: SID,
+			agentSessionId: SID,
+		});
+	});
+
+	it("does not re-BIND claude on a resume spawn (already started)", () => {
+		const { feed, sent } = setup();
+		feed(
+			encodeOpen(SID, 80, 24, {
+				...CLAUDE_CREATE_SPEC,
+				agentSessionStarted: true,
+			})
+		);
+		expect(sent.filter((f) => f.type === PtyFrameType.BIND)).toHaveLength(0);
+	});
+});
+
+describe("pty session manager — codex capture (P25-C)", () => {
+	it("captures the codex-generated id from output and BINDs it", () => {
+		const { fake, feed, sent } = setup();
+		feed(
+			encodeOpen(SID, 80, 24, {
+				command: "codex",
+				args: [],
+				cwd: "/repo",
+				agentKind: "codex",
+				agentSessionId: null,
+				agentSessionStarted: false,
+			})
+		);
+		// No BIND until the banner shows the id.
+		expect(sent.filter((f) => f.type === PtyFrameType.BIND)).toHaveLength(0);
+		fake.emitData(
+			bytes(
+				"OpenAI Codex\nsession id: 019fa2b0-f899-7493-bc33-e2855323cbd4\n---\n"
+			)
+		);
+		const bind = sent.find((f) => f.type === PtyFrameType.BIND);
+		expect(bind).toEqual({
+			type: PtyFrameType.BIND,
+			sessionId: SID,
+			agentSessionId: "019fa2b0-f899-7493-bc33-e2855323cbd4",
+		});
+	});
+});
+
 describe("pty session manager — default spawn (P2-3a)", () => {
 	it("resolves an empty cwd to the user's home directory", () => {
 		const mockedSpawn = vi.mocked(spawnPty);
@@ -222,6 +284,15 @@ describe("pty session manager — default spawn (P2-3a)", () => {
 		if (decoded) {
 			manager.handleFrame(decoded);
 		}
-		expect(mockedSpawn).toHaveBeenCalledWith("claude", [], homedir(), 80, 24);
+		// A bare spec (no binding fields) → a plain claude spawn, but under a
+		// cleaned env (child-session markers stripped, P25-C).
+		expect(mockedSpawn).toHaveBeenCalledWith(
+			"claude",
+			[],
+			homedir(),
+			80,
+			24,
+			expect.objectContaining({ env: expect.any(Object) })
+		);
 	});
 });

@@ -85,6 +85,14 @@ function agentControlHandlers(services: AgentServices) {
 				.endStaleExcept(id, sessionIds)
 				.catch(() => undefined);
 		},
+		// P25-C: the CLI captured/knows the underlying agent's resumable session id
+		// for this pty — persist it and mark the conversation started so a later
+		// respawn resumes the real conversation. Fire-and-forget like the others.
+		onBind: (_id: string, sessionId: string, agentSessionId: string) => {
+			services.stores.ptySession
+				.setAgentSession(sessionId, agentSessionId)
+				.catch(() => undefined);
+		},
 	};
 }
 

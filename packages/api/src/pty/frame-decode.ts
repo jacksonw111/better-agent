@@ -10,12 +10,31 @@ import {
 	PTY_FRAME_HEADER_LEN,
 	type PtyFrame,
 	PtyFrameType,
+	type PtyFrameTypeValue,
 	type PtyOpenSpec,
 	peekType,
 	RESIZE_PAYLOAD_LEN,
 } from "./frame";
 
 const decoder = new TextDecoder();
+
+// P25-C binding fields — optional, copied onto the spec only when present so a
+// bare spec from an older client still decodes to just command/args/cwd.
+function withBindingFields(
+	spec: PtyOpenSpec,
+	parsed: Record<string, unknown>
+): PtyOpenSpec {
+	if (typeof parsed.agentKind === "string") {
+		spec.agentKind = parsed.agentKind;
+	}
+	if (typeof parsed.agentSessionId === "string") {
+		spec.agentSessionId = parsed.agentSessionId;
+	}
+	if (typeof parsed.agentSessionStarted === "boolean") {
+		spec.agentSessionStarted = parsed.agentSessionStarted;
+	}
+	return spec;
+}
 
 function decodeOpenSpec(payload: Uint8Array): PtyOpenSpec | null {
 	if (payload.length <= OPEN_HEAD_LEN) {
@@ -29,11 +48,14 @@ function decodeOpenSpec(payload: Uint8Array): PtyOpenSpec | null {
 			typeof parsed.cwd === "string" &&
 			Array.isArray(parsed.args)
 		) {
-			return {
-				command: parsed.command,
-				args: parsed.args.map(String),
-				cwd: parsed.cwd,
-			};
+			return withBindingFields(
+				{
+					command: parsed.command,
+					args: parsed.args.map(String),
+					cwd: parsed.cwd,
+				},
+				parsed
+			);
 		}
 	} catch {
 		return null;
@@ -100,6 +122,30 @@ function decodeAckFrame(
 	};
 }
 
+// The payload-light frames: DATA/STATE/BIND carry only a decoded payload, and
+// KILL/ACTIVITY are header-only. Split from decodeFrame's dispatch so neither
+// function trips the cyclomatic-complexity cap.
+function decodeSimpleFrame(
+	type: PtyFrameTypeValue,
+	sessionId: string,
+	payload: Uint8Array
+): PtyFrame | null {
+	switch (type) {
+		case PtyFrameType.DATA:
+			return { type, sessionId, data: payload };
+		case PtyFrameType.STATE:
+			return { type, sessionId, state: decoder.decode(payload) };
+		case PtyFrameType.KILL:
+			return { type, sessionId };
+		case PtyFrameType.ACTIVITY:
+			return { type, sessionId };
+		case PtyFrameType.BIND:
+			return { type, sessionId, agentSessionId: decoder.decode(payload) };
+		default:
+			return null;
+	}
+}
+
 /** Decodes one whole frame, or null for anything malformed (too short for its
  * type, bad payload length) — the transport drops a bad frame, never throws. */
 export function decodeFrame(frame: Uint8Array): PtyFrame | null {
@@ -115,8 +161,6 @@ export function decodeFrame(frame: Uint8Array): PtyFrame | null {
 		payload.length
 	);
 	switch (type) {
-		case PtyFrameType.DATA:
-			return { type, sessionId, data: payload };
 		case PtyFrameType.RESIZE:
 			return decodeResizeFrame(sessionId, view, payload);
 		case PtyFrameType.OPEN:
@@ -125,13 +169,7 @@ export function decodeFrame(frame: Uint8Array): PtyFrame | null {
 			return decodeCloseFrame(sessionId, view, payload);
 		case PtyFrameType.ACK:
 			return decodeAckFrame(sessionId, view, payload);
-		case PtyFrameType.STATE:
-			return { type, sessionId, state: decoder.decode(payload) };
-		case PtyFrameType.KILL:
-			return { type, sessionId };
-		case PtyFrameType.ACTIVITY:
-			return { type, sessionId };
 		default:
-			return null;
+			return decodeSimpleFrame(type, sessionId, payload);
 	}
 }

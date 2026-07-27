@@ -93,7 +93,18 @@ const createSession = authorizedUserProcedure
 			title: defaultTitle(new Date()),
 		});
 
+		// P25-C: claude/pi accept OUR id as their session id (`--session-id <id>`),
+		// so the resumable id is the pty id itself; codex/opencode generate their
+		// own, captured by the CLI after the first spawn (null until then). The
+		// conversation hasn't been created yet, so `agentSessionStarted` is false —
+		// the CLI creates on the first spawn and resumes on a later respawn.
+		const usesOwnId =
+			input.agentKind === "claude-code" || input.agentKind === "pi";
+
 		return {
+			agentKind: input.agentKind,
+			agentSessionId: usesOwnId ? session.id : null,
+			agentSessionStarted: session.agentSessionStarted,
 			args: [] as string[],
 			command: AGENT_BINARY[input.agentKind],
 			computerId: input.computerId,

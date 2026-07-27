@@ -4,6 +4,7 @@ import {
 	decodeLivenessSessionIds,
 	encodeAck,
 	encodeActivity,
+	encodeBind,
 	encodeClose,
 	encodeData,
 	encodeKill,
@@ -90,6 +91,34 @@ describe("OPEN frame", () => {
 			cols: 100,
 			rows: 30,
 			spec: null,
+		});
+	});
+
+	it("round-trips the P25-C binding fields (create-vs-resume)", () => {
+		const spec = {
+			command: "codex",
+			args: [],
+			cwd: "/repo",
+			agentKind: "codex",
+			agentSessionId: "cap-123",
+			agentSessionStarted: true,
+		};
+		const decoded = decodeFrame(encodeOpen(SID, 80, 24, spec));
+		if (decoded?.type === PtyFrameType.OPEN) {
+			expect(decoded.spec).toEqual(spec);
+		} else {
+			throw new Error("expected an OPEN frame");
+		}
+	});
+});
+
+describe("BIND frame", () => {
+	it("round-trips the underlying agent's resumable id", () => {
+		const decoded = decodeFrame(encodeBind(SID, "019fa2b0-f899-7493"));
+		expect(decoded).toEqual({
+			type: PtyFrameType.BIND,
+			sessionId: SID,
+			agentSessionId: "019fa2b0-f899-7493",
 		});
 	});
 });

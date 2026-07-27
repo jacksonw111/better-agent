@@ -22,6 +22,12 @@ export interface PtySessionInsert {
 
 export interface PtySessionRow {
 	agentKind: string;
+	/** The underlying agent's resumable conversation id (P25-C): equals `id` for
+	 * claude/pi, the captured id for codex/opencode, null until bound. */
+	agentSessionId: string | null;
+	/** Whether the underlying agent conversation was created at least once —
+	 * drives create-vs-resume when the pty is respawned after death. */
+	agentSessionStarted: boolean;
 	computerId: string;
 	createdAt: Date;
 	id: string;
@@ -62,12 +68,21 @@ export interface PtySessionStore {
 	 * read its computerId to tell the CLI to kill the pty), or null when the row
 	 * isn't the caller's. Idempotent. */
 	markEnded(id: string, userId: string): Promise<PtySessionRow | null>;
+	/** Mark the underlying agent conversation as created (P25-C), so a later
+	 * respawn after the pty died resumes it instead of starting a new one. */
+	markStarted(id: string): Promise<void>;
 	/** Owner-scoped rename; null when the row isn't the caller's. */
 	rename(
 		id: string,
 		userId: string,
 		title: string
 	): Promise<PtySessionRow | null>;
+	/** Bind the underlying agent's resumable session id (P25-C). Called by the CLI
+	 * (via the BIND control frame) once claude/codex has a conversation: for
+	 * claude/pi it is the pty id itself; for codex/opencode it is the id captured
+	 * from the agent's startup output. Also implies the conversation now exists —
+	 * pair with `markStarted`. */
+	setAgentSession(id: string, agentSessionId: string): Promise<void>;
 	/** Bump last-activity for one session on a Computer (CLI liveness signal).
 	 * Computer-scoped so a Computer can only touch its own sessions. */
 	touchActivity(computerId: string, id: string): Promise<void>;

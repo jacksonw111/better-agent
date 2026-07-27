@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	encodeActivity,
+	encodeBind,
 	encodeClose,
 	encodeData,
 	encodeKill,
@@ -115,6 +116,19 @@ describe("pty relay hub — server-originated + control frames", () => {
 		const agentConn = hub.connectAgent(COMPUTER, agent.socket, { onLiveness });
 		agentConn.handleFrame(encodeLiveness([SID_A, SID_B]));
 		expect(onLiveness).toHaveBeenCalledWith(COMPUTER, [SID_A, SID_B]);
+	});
+
+	it("intercepts BIND frames and surfaces the agent session id (P25-C)", () => {
+		const hub = createPtyRelayHub();
+		const agent = recordingSocket();
+		const viewer = recordingSocket();
+		const onBind = vi.fn();
+		const agentConn = hub.connectAgent(COMPUTER, agent.socket, { onBind });
+		const viewerConn = hub.connectViewer(COMPUTER, viewer.socket);
+		viewerConn.handleFrame(encodeOpen(SID_A, 80, 24, SPEC));
+		agentConn.handleFrame(encodeBind(SID_A, "cap-123"));
+		expect(onBind).toHaveBeenCalledWith(COMPUTER, SID_A, "cap-123");
+		expect(viewer.frames).toEqual([]);
 	});
 });
 

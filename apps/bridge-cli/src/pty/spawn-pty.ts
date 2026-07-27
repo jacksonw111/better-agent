@@ -52,9 +52,13 @@ export interface PtyHandle {
 	write(data: Buffer | string): void;
 }
 
-/** Injectable seams for tests (fake spawn, explicit broker path). */
+/** Injectable seams for tests (fake spawn, explicit broker path) plus the
+ * spawn environment. `env` overrides the child's environment — used to strip
+ * claude's child-session markers before a claude/pi spawn (P25-C); when
+ * omitted the broker inherits the CLI's own `process.env`. */
 export interface SpawnPtyDeps {
 	brokerPath?: string;
+	env?: NodeJS.ProcessEnv;
 	spawnImpl?: typeof spawn;
 }
 
@@ -165,7 +169,9 @@ export function spawnPty(
 	const child = spawnImpl(
 		brokerPath,
 		[String(rows), String(cols), command, ...args],
-		{ cwd, stdio: [...BROKER_STDIO] }
+		// `env: undefined` makes node inherit the parent env (the default); a
+		// cleaned env is passed only for claude/pi (see agent-command.ts).
+		{ cwd, env: deps.env, stdio: [...BROKER_STDIO] }
 	);
 	return wrapBroker(child);
 }

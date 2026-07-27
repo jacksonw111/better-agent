@@ -30,6 +30,25 @@ it("mints a sessionId and resolves the runtime binary for a home terminal", asyn
 	expect(result.cwd).toBe("");
 	expect(result.computerId).toBe(computerId);
 	expect(result.sessionId).toMatch(UUID_RE);
+	// P25-C: claude uses OUR id as its resumable session id, unstarted at first.
+	expect(result.agentKind).toBe("claude-code");
+	expect(result.agentSessionId).toBe(result.sessionId);
+	expect(result.agentSessionStarted).toBe(false);
+});
+
+it("leaves the agent session id null for a capture-based runtime (codex)", async () => {
+	const rig = buildComputerRig();
+	const { computerId } = await pairComputer(rig, ALICE);
+
+	const result = await rig.userClientFor(ALICE).pty.createSession({
+		agentKind: "codex",
+		computerId,
+	});
+
+	// codex generates its own id — captured after spawn, so null up front.
+	expect(result.agentKind).toBe("codex");
+	expect(result.agentSessionId).toBeNull();
+	expect(result.agentSessionStarted).toBe(false);
 });
 
 it("persists the session so it shows up in listSessions (stable id)", async () => {
