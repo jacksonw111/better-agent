@@ -256,7 +256,7 @@ function buildRigServices(options: RigOptions = {}) {
 			task,
 		},
 	} as never;
-	return { ...stores, computerControl, ptyKills, services };
+	return { ...stores, computerControl, ptySession, ptyKills, services };
 }
 
 /** Q2: lets query tests shrink the park timeout. */

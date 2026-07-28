@@ -407,6 +407,13 @@
       "when": 1785141921103,
       "tag": "0057_brief_white_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1785229608803,
+      "tag": "0058_hot_flatman",
+      "breakpoints": true
     }
   ]
 }

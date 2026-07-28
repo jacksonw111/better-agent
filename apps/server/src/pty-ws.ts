@@ -93,6 +93,19 @@ function agentControlHandlers(services: AgentServices) {
 				.setAgentSession(sessionId, agentSessionId)
 				.catch(() => undefined);
 		},
+		// Observability slice A: the CLI's fine-grained per-session activity state.
+		// Persist it verbatim (version-tolerant — no white-list, so an evolving
+		// upstream state machine is never dropped); only trim and ignore an empty
+		// string. Fire-and-forget like the other control handlers.
+		onState: (_id: string, sessionId: string, state: string) => {
+			const trimmed = state.trim();
+			if (!trimmed) {
+				return;
+			}
+			services.stores.ptySession
+				.setActivityState(sessionId, trimmed, new Date())
+				.catch(() => undefined);
+		},
 	};
 }
 

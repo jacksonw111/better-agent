@@ -8,6 +8,7 @@ import {
 	encodeLiveness,
 	encodeOpen,
 	encodeResize,
+	encodeState,
 } from "./frame";
 import { createPtyRelayHub, type PtyRelaySocket } from "./relay-hub";
 
@@ -128,6 +129,21 @@ describe("pty relay hub — server-originated + control frames", () => {
 		viewerConn.handleFrame(encodeOpen(SID_A, 80, 24, SPEC));
 		agentConn.handleFrame(encodeBind(SID_A, "cap-123"));
 		expect(onBind).toHaveBeenCalledWith(COMPUTER, SID_A, "cap-123");
+		expect(viewer.frames).toEqual([]);
+	});
+});
+
+describe("pty relay hub — STATE frames (observability slice A)", () => {
+	it("intercepts STATE frames and surfaces the activity state", () => {
+		const hub = createPtyRelayHub();
+		const agent = recordingSocket();
+		const viewer = recordingSocket();
+		const onState = vi.fn();
+		const agentConn = hub.connectAgent(COMPUTER, agent.socket, { onState });
+		const viewerConn = hub.connectViewer(COMPUTER, viewer.socket);
+		viewerConn.handleFrame(encodeOpen(SID_A, 80, 24, SPEC));
+		agentConn.handleFrame(encodeState(SID_A, "working"));
+		expect(onState).toHaveBeenCalledWith(COMPUTER, SID_A, "working");
 		expect(viewer.frames).toEqual([]);
 	});
 });

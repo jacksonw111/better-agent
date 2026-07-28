@@ -10,6 +10,18 @@
 
 export type PtySessionStatus = "active" | "ended";
 
+// Fine-grained, live-period activity of the underlying agent (observability
+// slice A). `status` (active/ended) stays the authoritative lifecycle; this is
+// the CLI's per-turn signal — reported via the STATE frame (0x06), driven by
+// the agent's hooks. Deliberately a plain string, NOT a closed enum: the
+// upstream state machine may grow new values, and the server persists whatever
+// the CLI sends (version-tolerant). These are the values the first machine
+// emits — `starting` (session boot), `working` (a turn is running), `idle` (a
+// turn finished, awaiting input), `ended` (the session is gone). `ended` is
+// also stamped by the server when `status` flips to `ended`, keeping the two in
+// sync.
+export type PtyActivityState = "starting" | "working" | "idle" | "ended";
+
 export interface PtySessionInsert {
 	agentKind: string;
 	computerId: string;
@@ -21,6 +33,13 @@ export interface PtySessionInsert {
 }
 
 export interface PtySessionRow {
+	/** Fine-grained live activity (observability slice A). Null until the CLI
+	 * reports the first STATE frame; a plain string so an evolving upstream state
+	 * machine is never rejected. See {@link PtyActivityState} for the first-version
+	 * values. */
+	activityState: string | null;
+	/** When {@link activityState} was last set. Null until the first report. */
+	activityStateAt: Date | null;
 	agentKind: string;
 	/** The underlying agent's resumable conversation id (P25-C): equals `id` for
 	 * claude/pi, the captured id for codex/opencode, null until bound. */
@@ -77,6 +96,12 @@ export interface PtySessionStore {
 		userId: string,
 		title: string
 	): Promise<PtySessionRow | null>;
+	/** Persist the session's fine-grained activity state (observability slice A),
+	 * reported by the CLI via the STATE frame. Idempotent, keyed by `id` alone
+	 * (the CLI is the trusted source). `state` is stored verbatim — the caller is
+	 * responsible for trimming/dropping empties; unknown values are accepted so an
+	 * evolving upstream state machine is never rejected. */
+	setActivityState(id: string, state: string, at: Date): Promise<void>;
 	/** Bind the underlying agent's resumable session id (P25-C). Called by the CLI
 	 * (via the BIND control frame) once claude/codex has a conversation: for
 	 * claude/pi it is the pty id itself; for codex/opencode it is the id captured

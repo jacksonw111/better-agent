@@ -227,3 +227,70 @@ it("endStaleExcept spares sessions created within the grace window", async () =>
 	await store.endStaleExcept(COMPUTER_1, []);
 	expect((await store.getById(fresh.id, USER_1))?.status).toBe("active");
 });
+
+it("create leaves the fine-grained activity state unset", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	expect(row.activityState).toBeNull();
+	expect(row.activityStateAt).toBeNull();
+});
+
+it("setActivityState persists the state + timestamp, keyed by id", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	const at = new Date("2026-07-28T10:00:00.000Z");
+	await store.setActivityState(row.id, "working", at);
+	const read = await store.getById(row.id, USER_1);
+	expect(read?.activityState).toBe("working");
+	expect(read?.activityStateAt?.getTime()).toBe(at.getTime());
+});
+
+it("setActivityState is idempotent and overwrites the prior state", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	await store.setActivityState(row.id, "working", new Date());
+	const idleAt = new Date("2026-07-28T11:00:00.000Z");
+	await store.setActivityState(row.id, "idle", idleAt);
+	const read = await store.getById(row.id, USER_1);
+	expect(read?.activityState).toBe("idle");
+	expect(read?.activityStateAt?.getTime()).toBe(idleAt.getTime());
+});
+
+it("setActivityState accepts an unknown state verbatim (version-tolerant)", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	await store.setActivityState(row.id, "future-state", new Date());
+	expect((await store.getById(row.id, USER_1))?.activityState).toBe(
+		"future-state"
+	);
+});
+
+it("markEnded stamps the activity state ended in lockstep", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const row = await store.create(baseInsert());
+	await store.setActivityState(row.id, "working", new Date());
+	await store.markEnded(row.id, USER_1);
+	const read = await store.getById(row.id, USER_1);
+	expect(read?.status).toBe("ended");
+	expect(read?.activityState).toBe("ended");
+	expect(read?.activityStateAt).toBeInstanceOf(Date);
+});
+
+it("endStaleExcept stamps reconciled zombies' activity state ended", async () => {
+	await seedGraph();
+	const store = createPtySessionStore(db);
+	const stale = await store.create(baseInsert());
+	await store.setActivityState(stale.id, "working", new Date());
+	await db
+		.update(ptySessions)
+		.set({ createdAt: new Date(Date.now() - 60_000) });
+	await store.endStaleExcept(COMPUTER_1, []);
+	const read = await store.getById(stale.id, USER_1);
+	expect(read?.status).toBe("ended");
+	expect(read?.activityState).toBe("ended");
+});

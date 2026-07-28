@@ -26,6 +26,8 @@ function toRow(row: typeof schema.ptySessions.$inferSelect): PtySessionRow {
 		agentKind: row.agentKind,
 		agentSessionId: row.agentSessionId ?? null,
 		agentSessionStarted: row.agentSessionStarted,
+		activityState: row.activityState ?? null,
+		activityStateAt: row.activityStateAt ?? null,
 		title: row.title,
 		status: row.status,
 		createdAt: row.createdAt,
@@ -111,12 +113,23 @@ function makeCreate(db: Db): Pick<PtySessionStore, "create"> {
 	};
 }
 
-function makeMutations(
+function makeActivity(db: Db): Pick<PtySessionStore, "setActivityState"> {
+	return {
+		// Observability slice A: idempotent, keyed by id alone (the CLI is trusted).
+		// The state string is stored verbatim — trimming/empty-dropping is the
+		// caller's job, and unknown values are accepted (version-tolerant).
+		async setActivityState(id, state, at) {
+			await db
+				.update(schema.ptySessions)
+				.set({ activityState: state, activityStateAt: at })
+				.where(eq(schema.ptySessions.id, id));
+		},
+	};
+}
+
+function makeBinding(
 	db: Db
-): Pick<
-	PtySessionStore,
-	"markEnded" | "rename" | "setAgentSession" | "markStarted"
-> {
+): Pick<PtySessionStore, "setAgentSession" | "markStarted"> {
 	return {
 		async setAgentSession(id, agentSessionId) {
 			await db
@@ -130,10 +143,21 @@ function makeMutations(
 				.set({ agentSessionStarted: true })
 				.where(eq(schema.ptySessions.id, id));
 		},
+	};
+}
+
+function makeMutations(db: Db): Pick<PtySessionStore, "markEnded" | "rename"> {
+	return {
 		async markEnded(id, userId) {
 			const rows = await db
 				.update(schema.ptySessions)
-				.set({ status: "ended" })
+				// Stamp the fine-grained state `ended` in lockstep with the lifecycle
+				// so a dashboard never shows a working/idle dot for a dead session.
+				.set({
+					status: "ended",
+					activityState: "ended",
+					activityStateAt: new Date(),
+				})
 				.where(
 					and(
 						eq(schema.ptySessions.id, id),
@@ -191,7 +215,13 @@ function makeReconcile(
 			}
 			await db
 				.update(schema.ptySessions)
-				.set({ status: "ended" })
+				// Match markEnded: reconciled zombies also get the terminal fine-grained
+				// state so the dashboard reflects them as ended, not stuck working.
+				.set({
+					status: "ended",
+					activityState: "ended",
+					activityStateAt: new Date(),
+				})
 				.where(and(...filters));
 		},
 	};
@@ -201,7 +231,9 @@ export function createPtySessionStore(db: Db): PtySessionStore {
 	return {
 		...makeReads(db),
 		...makeCreate(db),
+		...makeBinding(db),
 		...makeMutations(db),
+		...makeActivity(db),
 		...makeReconcile(db),
 	};
 }

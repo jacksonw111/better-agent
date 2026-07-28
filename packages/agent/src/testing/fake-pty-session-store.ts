@@ -50,8 +50,18 @@ function makeReads(
 
 function makeBinding(
 	rows: Rows
-): Pick<PtySessionStore, "setAgentSession" | "markStarted"> {
+): Pick<
+	PtySessionStore,
+	"setAgentSession" | "markStarted" | "setActivityState"
+> {
 	return {
+		setActivityState(id, state, at) {
+			const row = rows.get(id);
+			if (row) {
+				rows.set(id, { ...row, activityState: state, activityStateAt: at });
+			}
+			return Promise.resolve();
+		},
 		setAgentSession(id, agentSessionId) {
 			const row = rows.get(id);
 			if (row) {
@@ -83,6 +93,8 @@ function makeMutations(
 				agentKind: input.agentKind,
 				agentSessionId: null,
 				agentSessionStarted: false,
+				activityState: null,
+				activityStateAt: null,
 				title: input.title,
 				status: "active",
 				createdAt: now,
@@ -96,7 +108,12 @@ function makeMutations(
 			if (!row || row.userId !== userId) {
 				return Promise.resolve(null);
 			}
-			const ended: PtySessionRow = { ...row, status: "ended" };
+			const ended: PtySessionRow = {
+				...row,
+				status: "ended",
+				activityState: "ended",
+				activityStateAt: new Date(),
+			};
 			rows.set(id, ended);
 			return Promise.resolve(ended);
 		},
@@ -132,7 +149,12 @@ function makeReconcile(
 					row.createdAt.getTime() < cutoff &&
 					!aliveSessionIds.includes(row.id)
 				) {
-					rows.set(row.id, { ...row, status: "ended" });
+					rows.set(row.id, {
+						...row,
+						status: "ended",
+						activityState: "ended",
+						activityStateAt: new Date(),
+					});
 				}
 			}
 			return Promise.resolve();

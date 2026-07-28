@@ -52,6 +52,11 @@ function toSpawnSpec(session: PtySessionRow, cwd: string) {
 		agentKind: session.agentKind,
 		agentSessionId: usesOwnId ? session.id : session.agentSessionId,
 		agentSessionStarted: session.agentSessionStarted,
+		// Observability slice A: the reattach spec also carries the current
+		// fine-grained activity so the web can render a status dot on reattach
+		// without a second round-trip (web slice C).
+		activityState: session.activityState,
+		activityStateAt: session.activityStateAt,
 		args: [] as string[],
 		command:
 			AGENT_BINARY[session.agentKind as (typeof AGENT_KINDS)[number]] ??
@@ -185,6 +190,8 @@ const listSessions = authorizedUserProcedure
 				status: s.status,
 				agentKind: s.agentKind,
 				projectId: s.projectId,
+				activityState: s.activityState,
+				activityStateAt: s.activityStateAt,
 				lastActivityAt: s.lastActivityAt,
 				createdAt: s.createdAt,
 			})),

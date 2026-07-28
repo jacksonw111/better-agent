@@ -47,6 +47,14 @@ export const ptySessions = pgTable(
 			.$type<PtySessionStatus>()
 			.notNull()
 			.default("active"),
+		// Fine-grained live activity (observability slice A), reported by the CLI
+		// via the STATE frame (0x06). Plain nullable text — NOT an enum — so an
+		// evolving upstream state machine is never rejected (starting/working/idle/
+		// ended today). `status` stays the authoritative lifecycle; this is the
+		// per-turn signal during the live period, also stamped `ended` when the row
+		// ends so the two stay consistent.
+		activityState: text("activity_state"),
+		activityStateAt: timestamp("activity_state_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

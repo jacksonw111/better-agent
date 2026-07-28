@@ -42,6 +42,10 @@ export interface PtyAgentControlHandlers {
 	onBind?(computerId: string, sessionId: string, agentSessionId: string): void;
 	/** The CLI's held-session list on (re)connect → reconcile zombies. */
 	onLiveness?(computerId: string, sessionIds: string[]): void;
+	/** A session's fine-grained activity state (observability slice A): the CLI
+	 * maps the agent's hook events to a state string and ships it as a STATE
+	 * frame. The server persists it verbatim (version-tolerant). */
+	onState?(computerId: string, sessionId: string, state: string): void;
 }
 
 interface ViewerState {
@@ -121,8 +125,20 @@ function handleBindFrame(
 	}
 }
 
-// The CLI's out-of-band control frames (ACTIVITY/LIVENESS/BIND) are consumed by
-// the server, never forwarded to a viewer. Returns true when the frame was one.
+function handleStateFrame(
+	computerId: string,
+	frame: Uint8Array,
+	handlers: PtyAgentControlHandlers | undefined
+): void {
+	const decoded = decodeFrame(frame);
+	if (decoded?.type === PtyFrameType.STATE) {
+		handlers?.onState?.(computerId, decoded.sessionId, decoded.state);
+	}
+}
+
+// The CLI's out-of-band control frames (ACTIVITY/LIVENESS/BIND/STATE) are
+// consumed by the server, never forwarded to a viewer. Returns true when the
+// frame was one.
 function handleAgentControlFrame(
 	computerId: string,
 	frame: Uint8Array,
@@ -141,6 +157,9 @@ function handleAgentControlFrame(
 			return true;
 		case PtyFrameType.BIND:
 			handleBindFrame(computerId, frame, handlers);
+			return true;
+		case PtyFrameType.STATE:
+			handleStateFrame(computerId, frame, handlers);
 			return true;
 		default:
 			return false;
