@@ -8,6 +8,7 @@ import {
 	DEFAULT_WINDOW,
 	type WindowDays,
 } from "@/components/dashboard/dashboard-constants";
+import { LiveSessions } from "@/components/dashboard/live-sessions";
 import { StatsPanel } from "@/components/dashboard/stats-panel";
 import { UsageOverview } from "@/components/dashboard/usage-overview";
 import { useUsageData } from "@/components/dashboard/use-usage-data";
@@ -94,6 +95,7 @@ function DashboardBody({
 				<ActivityHeatmap />
 			</div>
 			<div className="flex flex-col gap-4 lg:col-span-1">
+				<LiveSessions />
 				<UsageOverview windowDays={windowDays} />
 				<CloudAgentUsage windowDays={windowDays} />
 			</div>

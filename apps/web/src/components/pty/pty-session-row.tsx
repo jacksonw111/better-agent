@@ -15,6 +15,7 @@ import { SquareIcon } from "lucide-react";
 import { AgentKindIcon } from "@/components/bridge/local-agent-kind-icon";
 import { AGENT_LABELS } from "@/components/computers/agent-labels";
 import { relativeTime } from "@/utils/relative-time";
+import { ActivityDot } from "./activity-state-badge";
 
 // P25-B: one live-session row + its End control, split out of the list so both
 // files stay under the 300-line cap. The row IS the reattach: its whole left
@@ -25,6 +26,7 @@ import { relativeTime } from "@/utils/relative-time";
 type AgentKind = keyof typeof AGENT_LABELS;
 
 export interface PtySessionRow {
+	activityState: string | null;
 	agentKind: AgentKind;
 	lastActivityAt: string | Date;
 	projectId: string | null;
@@ -117,10 +119,7 @@ export function SessionRow({
 				/>
 				<span className="flex min-w-0 flex-1 flex-col">
 					<span className="flex min-w-0 items-center gap-2">
-						<span
-							aria-hidden
-							className="size-1.5 shrink-0 rounded-full bg-emerald-500"
-						/>
+						<ActivityDot state={session.activityState} />
 						<span className="truncate font-medium text-sm">
 							{session.title}
 						</span>

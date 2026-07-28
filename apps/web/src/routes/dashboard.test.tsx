@@ -29,8 +29,31 @@ const cloudAgentUsage = {
 	byAgent: [],
 };
 
+// LiveSessions reattaches via the router; give it a no-op navigate while
+// keeping the real createFileRoute the route module needs.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-router")>()),
+	useNavigate: () => vi.fn(),
+}));
+
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
+		computers: {
+			list: {
+				queryOptions: () => ({
+					queryKey: ["computers", "list"],
+					queryFn: () => Promise.resolve([]),
+				}),
+			},
+		},
+		pty: {
+			listSessions: {
+				queryOptions: () => ({
+					queryKey: ["pty", "listSessions"],
+					queryFn: () => Promise.resolve({ sessions: [] }),
+				}),
+			},
+		},
 		usage: {
 			summary: {
 				queryOptions: () => ({
