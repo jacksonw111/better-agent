@@ -16,6 +16,7 @@ import {
 	createMonotonicTimestamp,
 } from "./computer-transport";
 import { detectComputerInventory } from "./detect-inventory";
+import { defaultHookEmitDeps, runHookEmit } from "./hooks/hook-emit";
 import { createBundleFetcher } from "./profile-sync/bundle-client";
 import { defaultSyncFs, defaultSyncRoots } from "./profile-sync/fs-ports";
 import { syncProfile } from "./profile-sync/sync";
@@ -49,6 +50,11 @@ function runProfileSync(config: {
 		}),
 		force: config.force,
 		fs: defaultSyncFs(),
+		// Slice B: the running executable is what the injected hooks re-invoke as
+		// `<exe> hook-emit <Event>`. For the compiled single-binary CLI this is the
+		// binary itself; in dev (`tsx`/node) it's the node runtime, which still
+		// resolves — the hook just won't carry the script path, acceptable off-prod.
+		hookCommandPath: process.execPath,
 		log: (message) => process.stdout.write(`[sync] ${message}\n`),
 		projectId: config.projectId,
 		roots: defaultSyncRoots(),
@@ -197,6 +203,17 @@ async function startComputerClient(args: ClientCliArgs): Promise<void> {
 
 async function main(): Promise<void> {
 	const rawArgv = process.argv.slice(CLI_ARGS_START_INDEX);
+
+	// Slice B: `agent-cli hook-emit <Event>` — the short-lived subprocess claude
+	// spawns per hook event. It reads the hook JSON on stdin and hands one line
+	// to the daemon's local socket, then exits. Strictly fire-and-forget (never
+	// throws / never writes stderr), so it can never disturb claude — handled
+	// before arg parsing since it takes a bare positional, not the flag grammar.
+	if (rawArgv[0] === "hook-emit") {
+		await runHookEmit(rawArgv[1] ?? "", defaultHookEmitDeps());
+		return;
+	}
+
 	const infoOutput = handleInfoFlags(rawArgv, BRIDGE_CLI_VERSION);
 	if (infoOutput !== undefined) {
 		process.stdout.write(`${infoOutput}\n`);

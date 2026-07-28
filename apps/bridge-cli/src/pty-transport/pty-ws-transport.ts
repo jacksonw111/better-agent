@@ -12,10 +12,13 @@
 // continues without a gap (DP-PTY3).
 
 import { signComputerRequest } from "@better-agent/agent/crypto/computer-signature";
+import { encodeState } from "@better-agent/api/pty/frame";
 import { decodeFrame } from "@better-agent/api/pty/frame-decode";
 import WebSocket from "ws";
 import type { ComputerSigningIdentity } from "../computer-transport";
 import { createMonotonicTimestamp } from "../computer-transport";
+import { type HookListener, startHookListener } from "../hooks/hook-listener";
+import { hookSocketPath } from "../hooks/hook-paths";
 import { reconnectDelayMs } from "../ws-duplex-backoff";
 import type { WsEventMap } from "../ws-duplex-socket";
 import {
@@ -49,7 +52,16 @@ export type PtyWsFactory = (
 export const defaultPtyWsFactory: PtyWsFactory = (url, headers) =>
 	new WebSocket(url, { headers }) as unknown as PtyWsLike;
 
+/** Slice B: starts the daemon's hook-event listener (unix socket → STATE
+ * frames). Injectable so tests skip binding a real socket. */
+export type HookListenerFactory = (deps: {
+	sendState: (sessionId: string, state: string) => void;
+	socketPath: string;
+}) => HookListener;
+
 export interface PtyTransportConfig {
+	/** Injectable hook listener factory — defaults to the real unix-socket one. */
+	hookListener?: HookListenerFactory;
 	identity: ComputerSigningIdentity;
 	log?: (message: string) => void;
 	nextTimestamp?: () => number;
@@ -167,6 +179,16 @@ export async function runPtyTransport(
 		send: (frame) => socket?.send(frame),
 		spawn: config.spawn,
 	});
+	// Slice B: hook events (from claude, via the local socket) become STATE
+	// frames on the SAME multiplexed WS. `socket` is whichever connection is
+	// currently live — a STATE frame while disconnected is simply dropped (the
+	// next event re-reports), which is fine for a coarse activity indicator.
+	const makeHookListener = config.hookListener ?? startHookListener;
+	const hookListener = makeHookListener({
+		sendState: (sessionId, state) =>
+			socket?.send(encodeState(sessionId, state)),
+		socketPath: hookSocketPath(),
+	});
 
 	let everOpened = false;
 	let failedAttempts = 0;
@@ -204,5 +226,6 @@ export async function runPtyTransport(
 		);
 		await sleep(reconnectDelayMs(opened ? 0 : failedAttempts - 1));
 	}
+	hookListener.close();
 	manager.closeAll();
 }

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import type { ProfileBundle } from "./bundle";
 import { mergeManagedBlock, renderManagedBlock } from "./claude-md";
+import { hookCommand, mergeHookSettings } from "./claude-settings";
 import type { SyncFs, SyncRoots } from "./fs-ports";
 import { buildMemoryEntry, landMcpServers } from "./mcp-land";
 import { readProfileState, writeProfileState } from "./profile-state";
@@ -15,6 +16,7 @@ import { landSkills } from "./skills-land";
 // then records the version + manifests in `~/.better-agent/profile-state.json`.
 
 const CLAUDE_MD = "CLAUDE.md";
+const CLAUDE_SETTINGS = "settings.json";
 
 export interface SyncDeps {
 	/** Optional bridge token so the landed memory MCP entry can authenticate
@@ -26,6 +28,10 @@ export interface SyncDeps {
 	/** Re-land even when the version is unchanged. */
 	force?: boolean;
 	fs: SyncFs;
+	/** Slice B: the CLI's own executable path — used to build the hook commands
+	 * injected into `~/.claude/settings.json`. Absent → hook injection is skipped
+	 * (e.g. a caller with no stable executable path). */
+	hookCommandPath?: string;
 	log?(message: string): void;
 	/** A project session binds the memory MCP to this project (P1-B). */
 	projectId?: string;
@@ -54,6 +60,38 @@ async function landClaudeMd(
 	await deps.fs.writeFile(path, merged);
 }
 
+/** Slice B: inject our hooks into `~/.claude/settings.json`, preserving every
+ * other setting and any user-defined hooks. Skipped when no executable path is
+ * given; a settings.json that isn't a JSON object is left untouched (we never
+ * clobber a file we can't safely merge into). */
+async function landClaudeSettings(deps: SyncDeps): Promise<void> {
+	if (!deps.hookCommandPath) {
+		return;
+	}
+	const path = join(deps.roots.claudeDir, CLAUDE_SETTINGS);
+	const existing = await deps.fs.readFile(path);
+	let parsed: Record<string, unknown> | null = null;
+	if (existing !== null && existing.trim() !== "") {
+		try {
+			const value: unknown = JSON.parse(existing);
+			if (typeof value !== "object" || value === null || Array.isArray(value)) {
+				deps.log?.("settings.json is not a JSON object — skipping hooks.");
+				return;
+			}
+			parsed = value as Record<string, unknown>;
+		} catch {
+			deps.log?.("settings.json is not valid JSON — skipping hooks.");
+			return;
+		}
+	}
+	const executablePath = deps.hookCommandPath;
+	const merged = mergeHookSettings(parsed, (event) =>
+		hookCommand(executablePath, event)
+	);
+	await deps.fs.mkdir(deps.roots.claudeDir);
+	await deps.fs.writeFile(path, `${JSON.stringify(merged, null, 2)}\n`);
+}
+
 /**
  * Runs one sync. When the bundle's `version` equals the last landed version and
  * `force` is not set, it returns `changed:false` without writing — the fast,
@@ -68,6 +106,7 @@ export async function syncProfile(deps: SyncDeps): Promise<SyncResult> {
 		return { changed: false, version: bundle.version };
 	}
 	await landClaudeMd(deps, bundle);
+	await landClaudeSettings(deps);
 	const skills = await landSkills(
 		deps.fs,
 		deps.roots,

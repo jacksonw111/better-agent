@@ -73,6 +73,14 @@ function createFakePty() {
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const bytes = (str: string) => new TextEncoder().encode(str);
 
+/** A hook listener that binds no real socket — the default for tests that don't
+ * exercise the STATE path. */
+const noopHookListener = () => ({
+	close() {
+		// no-op listener
+	},
+});
+
 /** The n-th created socket, asserting it exists — keeps the tests free of
  * optional chaining (which would push them over the complexity gate). */
 function socketAt(created: FakeSocket[], index: number): FakeSocket {
@@ -109,6 +117,7 @@ describe("runPtyTransport — open & stream", () => {
 		const fake = createFakePty();
 		const spawn = vi.fn(() => fake.handle);
 		const run = runPtyTransport({
+			hookListener: noopHookListener,
 			identity: identity(),
 			serverUrl: "http://x",
 			signal: controller.signal,
@@ -142,6 +151,51 @@ describe("runPtyTransport — open & stream", () => {
 	});
 });
 
+describe("runPtyTransport — hook state", () => {
+	it("emits a STATE frame on the live socket when the hook listener reports", async () => {
+		const controller = new AbortController();
+		const created: FakeSocket[] = [];
+		const ref: { fn?: (sessionId: string, state: string) => void } = {};
+		const run = runPtyTransport({
+			hookListener: ({ sendState }) => {
+				ref.fn = sendState;
+				return {
+					close() {
+						// no-op listener
+					},
+				};
+			},
+			identity: identity(),
+			serverUrl: "http://x",
+			signal: controller.signal,
+			spawn: () => createFakePty().handle,
+			sleep: () => {
+				controller.abort();
+				return Promise.resolve();
+			},
+			wsFactory: () => {
+				const socket = new FakeSocket();
+				created.push(socket);
+				return socket;
+			},
+		});
+		await tick();
+		const socket = socketAt(created, 0);
+		socket.emit("open");
+		await tick();
+		ref.fn?.(SID, "working");
+		const state = socket.decoded().find((f) => f.type === PtyFrameType.STATE);
+		if (state?.type === PtyFrameType.STATE) {
+			expect(state.sessionId).toBe(SID);
+			expect(state.state).toBe("working");
+		} else {
+			throw new Error("expected a STATE frame from the hook report");
+		}
+		socket.close();
+		await run;
+	});
+});
+
 describe("runPtyTransport — reconnect resume", () => {
 	it("replays scrollback from the ACK cursor on reconnect", async () => {
 		const controller = new AbortController();
@@ -149,6 +203,7 @@ describe("runPtyTransport — reconnect resume", () => {
 		const fake = createFakePty();
 		const sleepResolvers: (() => void)[] = [];
 		const run = runPtyTransport({
+			hookListener: noopHookListener,
 			identity: identity(),
 			serverUrl: "http://x",
 			signal: controller.signal,

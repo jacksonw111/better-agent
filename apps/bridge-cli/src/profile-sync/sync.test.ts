@@ -11,6 +11,7 @@ const ROOTS: SyncRoots = {
 };
 const CLAUDE_MD = "/home/.claude/CLAUDE.md";
 const MCP_JSON = "/home/.claude/.mcp.json";
+const SETTINGS = "/home/.claude/settings.json";
 const STATE = "/home/.better-agent/profile-state.json";
 
 function bundle(over: Partial<ProfileBundle> = {}): ProfileBundle {
@@ -123,6 +124,34 @@ it("re-lands an unchanged version when force is set", async () => {
 	await run(fs, bundle({ version: 5 }));
 	const result = await run(fs, bundle({ version: 5 }), { force: true });
 	expect(result.changed).toBe(true);
+});
+
+it("injects hooks into settings.json when a hook command path is given", async () => {
+	const fs = createFakeFs();
+	await run(fs, bundle(), { hookCommandPath: "/opt/agent-cli" });
+	const settings = JSON.parse(fs.get(SETTINGS) ?? "{}");
+	expect(settings.hooks.SessionStart[0].hooks[0].command).toBe(
+		'"/opt/agent-cli" hook-emit SessionStart'
+	);
+	expect(settings.hooks.Stop[0].hooks[0].command).toBe(
+		'"/opt/agent-cli" hook-emit Stop'
+	);
+});
+
+it("preserves existing settings.json keys when injecting hooks", async () => {
+	const fs = createFakeFs({
+		[SETTINGS]: JSON.stringify({ model: "opus" }),
+	});
+	await run(fs, bundle(), { hookCommandPath: "/opt/agent-cli" });
+	const settings = JSON.parse(fs.get(SETTINGS) ?? "{}");
+	expect(settings.model).toBe("opus");
+	expect(settings.hooks.PreToolUse).toBeDefined();
+});
+
+it("does not write settings.json without a hook command path", async () => {
+	const fs = createFakeFs();
+	await run(fs, bundle());
+	expect(fs.get(SETTINGS)).toBeUndefined();
 });
 
 function std(title: string, body: string) {
