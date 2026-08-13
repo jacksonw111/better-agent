@@ -414,6 +414,13 @@
       "when": 1785229608803,
       "tag": "0058_hot_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1786614884280,
+      "tag": "0059_futuristic_praxagora",
+      "breakpoints": true
     }
   ]
 }

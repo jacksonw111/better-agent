@@ -7,7 +7,6 @@ import { adminRouter } from "./admin";
 import { agentsRouter } from "./agents";
 import { authRouter } from "./auth";
 import { composioRouter } from "./composio";
-import { githubRouter } from "./github";
 import { inviteRouter } from "./invite";
 import { knowledgeBaseRouter } from "./knowledge-base";
 import { mcpRouter } from "./mcp";
@@ -26,7 +25,6 @@ export const appRouter = {
 	activity: activityRouter,
 	admin: adminRouter,
 	composio: composioRouter,
-	github: githubRouter,
 	invite: inviteRouter,
 	knowledgeBase: knowledgeBaseRouter,
 	mcp: mcpRouter,

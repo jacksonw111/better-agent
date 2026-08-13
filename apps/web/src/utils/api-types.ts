@@ -29,14 +29,6 @@ export type McpServerRow = Awaited<
 	ReturnType<Client["mcp"]["listServers"]>
 >[number];
 
-export type GithubRepositoryItem = Awaited<
-	ReturnType<Client["github"]["searchRepositories"]>
->[number];
-
-export type GithubIssueItem = Awaited<
-	ReturnType<Client["github"]["searchIssues"]>
->[number];
-
 export type CloudAgentUsageServerRow = Awaited<
 	ReturnType<Client["usage"]["byAgent"]>
 >["byAgent"][number];

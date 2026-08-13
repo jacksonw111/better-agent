@@ -1,12 +1,10 @@
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
-import { createGithubClient } from "@better-agent/agent/github/github-client";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
-import { createGithubConnectionStore } from "@better-agent/db/repositories/github-connection-store";
 import { createKnowledgeDocumentStore } from "@better-agent/db/repositories/knowledge-document-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
 import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item-store";
@@ -50,7 +48,6 @@ interface StoreParts {
 	db: Db;
 	deps: ReturnType<typeof buildProviderDeps>;
 	embeddingClient: ReturnType<typeof buildEmbeddingClient>;
-	githubConnectionStore: ReturnType<typeof createGithubConnectionStore>;
 	knowledgeStore: ReturnType<typeof createKnowledgeStore>;
 	mcpServerStore: ReturnType<typeof createMcpServerStore>;
 	memoryItemStore: ReturnType<typeof createMemoryItemStore>;
@@ -88,7 +85,6 @@ function buildStores(
 		usageRecord: parts.usageRecordStore,
 		activity: parts.activityStore,
 		webAuthzCache: parts.webAuthzCache,
-		githubConnection: parts.githubConnectionStore,
 		knowledge: parts.knowledgeStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
@@ -127,10 +123,6 @@ function assembleServices(
 			parts.openConnectorAccount
 		),
 		embeddingClient: parts.embeddingClient,
-		// S4-T1 (D7): real fetch-based GitHub client, one instance per decrypted
-		// PAT. Routers decrypt via secretBox right before calling this — the
-		// token never rests anywhere but as secret-box ciphertext.
-		githubClient: (token: string) => createGithubClient({ token }),
 		secretBox: parts.secretBox,
 		mcp: buildMcpResolver(parts.mcpServerStore),
 		authz: buildAuthzClient(),
@@ -152,7 +144,6 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		openConnectorAccount: createOpenConnectorAccountStore(db, secretBox),
 		mcpServerStore: createMcpServerStore(db, secretBox),
 		webAuthzCache: createWebAuthzCacheStore(db),
-		githubConnectionStore: createGithubConnectionStore(db),
 		secretBox,
 	};
 }

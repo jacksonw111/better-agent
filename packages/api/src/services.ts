@@ -3,10 +3,6 @@ import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
 import type { TokenService } from "@better-agent/agent/crypto/agent-token";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type { SecretBox } from "@better-agent/agent/crypto/secret-box";
-import type {
-	GithubClient,
-	GithubConnectionStore,
-} from "@better-agent/agent/github/github-ports";
 import type { KnowledgeStore } from "@better-agent/agent/knowledge-ports";
 import type {
 	AgentStore,
@@ -62,9 +58,6 @@ export interface AgentServices {
 	emailSender: EmailSender;
 	/** Memory embeddings via Workers AI (decision D1); null when CF creds unset. */
 	embeddingClient: EmbeddingClient | null;
-	/** S4-T1 (D7): builds a GithubClient bound to one decrypted PAT. The
-	 * server wires the real fetch client; tests inject fakes (§19.6). */
-	githubClient: (token: string) => GithubClient;
 	googleOAuth: GoogleOAuth | null;
 	jwtService: JwtService;
 	mcp: (serverId: string) => Promise<McpService | null>;
@@ -97,7 +90,6 @@ export interface AgentServices {
 		usageRecord: UsageRecordStore;
 		activity: ActivityStore;
 		webAuthzCache: WebAuthzCacheStore;
-		githubConnection: GithubConnectionStore;
 		knowledge: KnowledgeStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
