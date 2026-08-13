@@ -11,9 +11,8 @@
 /** Whether a linked agent may only read a memory or also write to it. */
 export type MemoryRole = "read" | "read_write";
 
-/** A memory's reach (P1-B, decision DP2). `global` memories are visible in
- * every session; `project` memories only in a session bound to their
- * `projectId` — a project memory is never surfaced to another project. */
+/** Legacy reach column (kept so existing DB rows keep mapping); all memories
+ * are effectively `global` now. */
 export type MemoryScope = "global" | "project";
 
 /** How a memory item came to be. M1 only writes `user`; the rest are for the
@@ -26,15 +25,14 @@ export interface MemoryRow {
 	description: string | null;
 	id: string;
 	name: string;
-	/** DP2 reach. `project` rows carry a non-null `projectId`; `global` rows
-	 * always have `projectId === null`. */
+	/** Legacy column; always null for new rows. */
 	projectId: string | null;
 	scope: MemoryScope;
 	updatedAt: Date;
 	userId: string;
 }
 
-/** A memory link (agent↔memory or bridge-token↔memory) with its access role. */
+/** A memory link (agent↔memory) with its access role. */
 export interface AgentMemoryRow {
 	memoryId: string;
 	role: MemoryRole;
@@ -71,25 +69,15 @@ export interface MemoryStore {
 		memoryId: string;
 		role?: MemoryRole;
 	}): Promise<void>;
-	/** Links a memory to a local/bridge agent (or updates the role). */
-	assignToken(input: {
-		tokenId: string;
-		memoryId: string;
-		role?: MemoryRole;
-	}): Promise<void>;
 	create(input: {
 		userId: string;
 		name: string;
 		description?: string;
-		/** DP2 reach; defaults to "global". Must pair with `projectId` when
-		 * "project". */
-		scope?: MemoryScope;
-		projectId?: string | null;
 	}): Promise<MemoryRow>;
 	/** Owner-scoped delete: only removes the row when it belongs to `userId`. */
 	delete(id: string, userId: string): Promise<void>;
 	/** Owner-scoped cascade delete: removes the memory plus its items,
-	 * embeddings and agent/token links in one transaction. No-op if not owned. */
+	 * embeddings and agent links in one transaction. No-op if not owned. */
 	deleteWithChildren(id: string, userId: string): Promise<void>;
 	get(id: string): Promise<MemoryRow | null>;
 	/** Batch fetch: the memories for the given ids in one query (order and
@@ -98,19 +86,7 @@ export interface MemoryStore {
 	/** The memory ids (+role) assigned to an agent. */
 	listAgentMemories(agentId: string): Promise<AgentMemoryRow[]>;
 	listByUser(userId: string): Promise<MemoryRow[]>;
-	/** The memory ids (+role) assigned to a local/bridge agent. */
-	listTokenMemories(tokenId: string): Promise<AgentMemoryRow[]>;
-	/** Owner-scoped scope change (DP2): re-homes a memory to "global"
-	 * (clearing projectId) or to a "project" (setting it). Returns the updated
-	 * row, or null when the memory isn't owned by `userId`. */
-	setScope(input: {
-		id: string;
-		userId: string;
-		scope: MemoryScope;
-		projectId: string | null;
-	}): Promise<MemoryRow | null>;
 	unassignAgent(agentId: string, memoryId: string): Promise<void>;
-	unassignToken(tokenId: string, memoryId: string): Promise<void>;
 }
 
 export interface MemoryItemStore {

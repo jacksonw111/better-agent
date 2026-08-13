@@ -40,9 +40,7 @@ function withClient(children: ReactNode) {
 
 function renderList(onDelete: (id: string) => void, memories = [makeMemory()]) {
 	const { container } = render(
-		withClient(
-			<MemoryCardList memories={memories} onDelete={onDelete} projects={[]} />
-		)
+		withClient(<MemoryCardList memories={memories} onDelete={onDelete} />)
 	);
 	return {
 		body: within(container.ownerDocument.body),

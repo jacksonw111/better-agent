@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-// P2-T4 (docs/local-agent-workspace-plan.md): typed, localStorage-backed
-// client preferences, reactive across components via `useClientPref` +
+// Typed, localStorage-backed client preferences, reactive across components via `useClientPref` +
 // `useSyncExternalStore`. Storage is read on every snapshot (the values are
 // boolean primitives, so snapshots stay referentially stable without a
 // cache), which keeps the module stateless apart from its listener set —

@@ -4,10 +4,10 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AssignedSkills } from "./assigned-skills";
 
-// Mirrors local-agent-settings-dialog.test.tsx's mocked-orpc pattern: no
-// RouterProvider/backend needed, just a fake orpc client whose mutation
-// functions record their args so the test can assert the right procedure
-// (assignAgent/unassignAgent) was called with the right ids.
+// Mocked-orpc pattern: no RouterProvider/backend needed, just a fake orpc
+// client whose mutation functions record their args so the test can assert
+// the right procedure (assignAgent/unassignAgent) was called with the right
+// ids.
 
 vi.mock("sonner", () => ({
 	toast: { error: vi.fn(), success: vi.fn() },

@@ -3,7 +3,7 @@ import { BotIcon } from "lucide-react";
 import {
 	formatCostUsd,
 	formatTokenCount,
-} from "@/components/bridge/bridge-usage-format";
+} from "@/components/dashboard/usage-format";
 import type { CloudAgentUsageRow } from "@/utils/api-types";
 import type { WindowDays } from "./dashboard-constants";
 import { useCloudAgentUsage } from "./use-cloud-agent-usage";

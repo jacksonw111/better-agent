@@ -1,6 +1,6 @@
 import { Collapsible } from "@base-ui/react/collapsible";
 import { cn } from "@better-agent/ui/lib/utils";
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
@@ -25,6 +25,10 @@ function firstLinePreview(text: string): string {
 	return firstLine;
 }
 
+/** Left rail indent (beautifului.dev thinking-state): content hangs off a
+ * hairline vertical rule aligned under the header's sparkle icon. */
+const RAIL_CLASSES = "mt-1 ml-2 border-border border-l pl-4";
+
 export function Reasoning({
 	isStreaming,
 	text,
@@ -45,7 +49,7 @@ export function Reasoning({
 	const [open, setOpen] = useState(false);
 	return (
 		<Collapsible.Root
-			className={cn("rounded-md bg-muted/40 p-2", className)}
+			className={cn("flex w-full flex-col", className)}
 			onOpenChange={setOpen}
 			open={open}
 		>
@@ -75,7 +79,10 @@ function ReasoningTicker({ text }: { text: string }) {
 	}
 	return (
 		<div
-			className="reasoning-ticker mt-1 flex flex-col justify-end overflow-hidden"
+			className={cn(
+				"reasoning-ticker flex flex-col justify-end overflow-hidden",
+				RAIL_CLASSES
+			)}
 			data-testid="reasoning-ticker"
 		>
 			<p className="whitespace-pre-wrap break-words text-muted-foreground text-xs leading-5">
@@ -91,25 +98,70 @@ function ReasoningSnippet({ text }: { text: string }) {
 		return null;
 	}
 	return (
-		<p className="mt-1 truncate text-muted-foreground text-xs leading-5">
+		<p
+			className={cn(
+				"truncate text-muted-foreground text-xs leading-5",
+				RAIL_CLASSES
+			)}
+		>
 			{text}
 		</p>
 	);
 }
 
-export function ReasoningTrigger({ label }: { label: string }) {
+/** Four-point sparkle (beautifului.dev thinking-state header icon). */
+function SparkleIcon({ className }: { className?: string }) {
 	return (
-		<Collapsible.Trigger className="flex w-full items-center gap-1.5 text-muted-foreground text-xs hover:text-foreground">
-			<BrainIcon className="size-3.5" />
-			<span>{label}</span>
-			<ChevronDownIcon className="ml-auto size-3.5 transition-transform data-[panel-open]:rotate-180" />
+		<svg
+			aria-hidden="true"
+			className={className}
+			fill="currentColor"
+			height="16"
+			viewBox="0 0 24 24"
+			width="16"
+		>
+			<path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
+		</svg>
+	);
+}
+
+export function ReasoningTrigger({
+	label,
+	isStreaming = false,
+}: {
+	label: string;
+	/** Shimmers the label while the reasoning is still streaming in. */
+	isStreaming?: boolean;
+}) {
+	return (
+		<Collapsible.Trigger className="group -mx-1.5 flex w-fit items-center gap-2 rounded-lg px-1.5 py-1 transition-colors duration-100 hover:bg-accent">
+			<SparkleIcon
+				className={cn(
+					"shrink-0",
+					isStreaming ? "text-muted-foreground" : "text-muted-foreground/70"
+				)}
+			/>
+			<span
+				className={cn(
+					"whitespace-nowrap font-medium text-sm",
+					isStreaming ? "bui-shimmer" : "text-muted-foreground"
+				)}
+			>
+				{label}
+			</span>
+			<ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-300 group-data-[panel-open]:rotate-180" />
 		</Collapsible.Trigger>
 	);
 }
 
 export function ReasoningContent({ children }: { children: ReactNode }) {
 	return (
-		<Collapsible.Panel className="mt-2 text-muted-foreground text-xs leading-relaxed">
+		<Collapsible.Panel
+			className={cn(
+				"py-1 text-muted-foreground text-xs leading-relaxed",
+				RAIL_CLASSES
+			)}
+		>
 			{children}
 		</Collapsible.Panel>
 	);

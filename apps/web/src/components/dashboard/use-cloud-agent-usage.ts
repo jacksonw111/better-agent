@@ -5,10 +5,9 @@ import { CENTS_PER_DOLLAR, type WindowDays } from "./dashboard-constants";
 
 /**
  * Cloud (hosted web) agent usage broken down by agent, for the given window.
- * Cloud counterpart of `useLocalAgentUsage`: unlike local agent kinds (a
- * fixed enum, always zero-filled), cloud agents are a dynamic per-user set,
- * so rows aren't zero-filled — `isEmpty` is true only when the user has no
- * cloud-agent usage in the window at all.
+ * Cloud agents are a dynamic per-user set, so rows aren't zero-filled —
+ * `isEmpty` is true only when the user has no cloud-agent usage in the
+ * window at all.
  */
 export function useCloudAgentUsage(windowDays: WindowDays) {
 	const query = useQuery(

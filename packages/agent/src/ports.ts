@@ -126,8 +126,6 @@ export type {
 	UserStore,
 } from "./auth/store-ports";
 
-export type { RelayDir, RelayEvent, RelayStore } from "./bridge/relay-store";
-
 // Memory-system ports live in memory-ports.ts (split out for the 300-line
 // limit) and are re-exported so the public ports surface is unchanged.
 export type {
@@ -205,47 +203,10 @@ export interface ComposioAccountStore {
 	list(): Promise<ComposioAccountRow[]>;
 	listByUser(userId: string): Promise<ComposioAccountRow[]>;
 }
-// Bridge-session/message ports live in bridge-session-ports.ts (split out for
-// the 300-line limit) and are re-exported so the public surface is unchanged.
-export type {
-	BridgeSessionCursor,
-	BridgeSessionRow,
-	BridgeSessionStatus,
-	BridgeSessionStore,
-} from "./bridge-session-ports";
-export type {
-	BridgeAgentKind,
-	BridgeTokenConfig,
-	BridgeTokenRow,
-	BridgeTokenStore,
-} from "./bridge-token-ports";
 export type {
 	OpenConnectorAccountRow,
 	OpenConnectorAccountStore,
 } from "./open-connector-ports";
-// Profile ports (Phase 1, DP1) live in profile-ports.ts (split out for the
-// 300-line limit) and are re-exported so the public surface is unchanged.
-export type {
-	CreateStandardInput,
-	CreateTemplateInput,
-	ProfileRow,
-	ProfileStandardRow,
-	ProfileStore,
-	ProfileWithRelations,
-	ProjectTemplateRow,
-	TemplateScaffold,
-	UpdateStandardPatch,
-	UpdateTemplatePatch,
-} from "./profile-ports";
-// Web Push ports (P3-T3) live in push-ports.ts (split out for the 300-line
-// limit) and are re-exported so the public surface is unchanged.
-export type {
-	PushPayload,
-	PushSender,
-	PushService,
-	PushSubscriptionRow,
-	PushSubscriptionStore,
-} from "./push-ports";
 
 export interface WebAuthzCacheRow {
 	authorized: boolean;

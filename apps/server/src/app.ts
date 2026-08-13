@@ -11,7 +11,6 @@ import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { applyKnowledgeContentRoute } from "./knowledge-content";
-import { buildMemoryMcpApp } from "./memory-mcp";
 import { createPdfProxyHandler } from "./pdf-proxy";
 
 // The PDF proxy streams multi-MB report bodies — like the streaming endpoints
@@ -142,9 +141,6 @@ export function buildApp(services: AgentServices): Hono<EvlogVariables> {
 	applyKnowledgeContentRoute(app, services);
 	applyPdfProxyRoute(app);
 	applyInternalRoutes(app, services);
-	// Registered BEFORE the catch-all oRPC middleware so /mcp/memory requests
-	// terminate here (bridge-token auth) instead of paying an oRPC dispatch.
-	app.route("/mcp/memory", buildMemoryMcpApp(services));
 	applyRpcHandler(app, services);
 	app.get("/", (c) => c.text("OK"));
 	return app;

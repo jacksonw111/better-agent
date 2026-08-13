@@ -1,9 +1,6 @@
-// Shared usage-record type. Only imports `BridgeAgentKind` from its
-// self-contained canonical module (`../bridge-token-ports`, not `../ports`)
+// Shared usage-record type. Self-contained (no imports back into `../ports`)
 // to avoid a circular type-only dependency — `ports.ts` itself re-exports
-// `UsageRecordStore` from this file, so importing `../ports` here would cycle.
-
-import type { BridgeAgentKind } from "../bridge-token-ports";
+// `UsageRecordStore` from this file.
 
 /** Per-kind token counts for a single usage snapshot. All fields are counts
  * (never null) — callers coalesce missing provider fields to 0 before
@@ -18,11 +15,8 @@ export interface UsageTokens {
 }
 
 /** A single billable unit of agent usage, ready to persist to
- * `usage_records`. Covers both first-party chat sessions and local/bridge
- * agent runs. */
+ * `usage_records`. */
 export interface UsageSnapshot {
-	/** Set by the bridge (local-agent) source; omitted for chat. */
-	agentKind?: BridgeAgentKind;
 	/** USD, null when `priced` is false (pricing unknown for this model). */
 	costUsd: number | null;
 	/** Unique; prevents double-counting the same event across retries/replays. */
@@ -32,7 +26,7 @@ export interface UsageSnapshot {
 	priced: boolean;
 	providerId?: string;
 	sessionId: string;
-	source: "chat" | "bridge";
+	source: "chat";
 	tokens: UsageTokens;
 	userId: string;
 }

@@ -6,7 +6,6 @@ import {
 } from "@better-agent/ui/components/popover";
 import { SlidersHorizontalIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { PushNotificationsRow } from "@/components/push-notifications-row";
 import { SettingRow } from "@/components/setting-row";
 import {
 	type ClientPrefKey,
@@ -15,11 +14,11 @@ import {
 } from "@/utils/preferences";
 import { toggleTheme } from "@/utils/theme";
 
-// P2-T4: the workspace header's quick-settings popover — three client prefs
-// (see utils/preferences.ts) plus the theme toggle (and, P3-T3, the push
-// notifications row), each a compact borderless label+switch row. Theme is
-// NOT a pref: the row just reflects the <html> class and calls the existing
-// `toggleTheme()` (utils/theme.ts). The row itself lives in setting-row.tsx.
+// The header's quick-settings popover — three client prefs (see
+// utils/preferences.ts) plus the theme toggle, each a compact borderless
+// label+switch row. Theme is NOT a pref: the row just reflects the <html>
+// class and calls the existing `toggleTheme()` (utils/theme.ts). The row
+// itself lives in setting-row.tsx.
 
 function PrefRow({
 	label,
@@ -77,7 +76,6 @@ export function QuickSettings() {
 				<PrefRow label="Show raw parameters" prefKey="showRawParameters" />
 				<PrefRow label="Send with ⌃↵" prefKey="sendByCtrlEnter" />
 				<ThemeRow />
-				<PushNotificationsRow />
 			</PopoverContent>
 		</Popover>
 	);

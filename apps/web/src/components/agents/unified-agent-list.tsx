@@ -26,10 +26,7 @@ import {
 	useRevealToken,
 } from "./use-agent-mutations";
 
-// S3-T3: the /local list (and with it the "unified" cloud+local merge) is
-// retired — this is the /agents cloud-agent list only. Local bridge tokens
-// have no list page anymore; an existing token's workspace stays reachable by
-// direct link at /local/$tokenId.
+// The /agents cloud-agent list.
 
 const CLOUD_EMPTY: AgentListEmptyCopy = {
 	body: "Add one to get started.",

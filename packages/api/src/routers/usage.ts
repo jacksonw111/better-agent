@@ -98,7 +98,7 @@ const EMPTY_AGGREGATE_TOTALS: Omit<UsageAggregateRow, "key"> = {
 
 export const usageAggregateInput = z.object({
 	range: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
-	groupBy: z.enum(["day", "model", "agent", "session", "source"]),
+	groupBy: z.enum(["day", "model", "session", "source"]),
 });
 
 function sumAggregateTotals(
@@ -119,10 +119,9 @@ function sumAggregateTotals(
 	);
 }
 
-/** Per-cloud-agent token/cost totals + turn count for one user over a rolling
- * window (3/7/12 days) — the cloud (hosted web) counterpart of the Local
- * Agents bridge's `usageByAgentKind`. Grouped by the owning session's
- * `agentId`, joined to `agents` for the display name. */
+/** Per-agent token/cost totals + turn count for one user over a rolling
+ * window (3/7/12 days). Grouped by the owning session's `agentId`, joined to
+ * `agents` for the display name. */
 export async function usageByAgent(
 	store: UsageStore,
 	userId: string,
@@ -197,10 +196,9 @@ export const usageRouter = {
 				input.days
 			)
 		),
-	// Per-cloud-agent token/cost breakdown over the same rolling window (3/7/12
+	// Per-agent token/cost breakdown over the same rolling window (3/7/12
 	// days) `summary` uses. Aggregated from messages.usage (owner's sessions),
-	// grouped by the session's agentId. Cloud counterpart of
-	// `bridge.usageByAgentKind` (Local Agents).
+	// grouped by the session's agentId.
 	byAgent: authorizedUserProcedure
 		.input(usageWindowInput)
 		.handler(({ input, context }) =>
@@ -210,9 +208,9 @@ export const usageRouter = {
 				input.windowDays
 			)
 		),
-	// Unified token/cost aggregation over `usage_records` (chat + bridge),
-	// grouped by day/model/agent/session/source. `userId` always comes from
-	// the authed session, never the client.
+	// Unified token/cost aggregation over `usage_records`, grouped by
+	// day/model/session/source. `userId` always comes from the authed session,
+	// never the client.
 	aggregate: authorizedUserProcedure
 		.input(usageAggregateInput)
 		.handler(({ input, context }) =>

@@ -9,10 +9,8 @@ import type { MessageWithParts } from "./types";
 
 // B1 retrieval injection: each turn, kNN-search the agent's assigned memories
 // against the latest user message and inject the top-k items into the system
-// prompt. This is the only path web chat agents have into their assigned
-// memories today — the memory MCP server is bridge-token-auth-only, so web
-// agents can't call memory tools directly (that gap is a separate, bigger
-// follow-up: local/bridge-agent MCP auto-wiring).
+// prompt. This is the only path chat agents have into their assigned memories
+// today — agents can't call memory tools directly.
 
 const DEFAULT_MEMORY_K = 5;
 

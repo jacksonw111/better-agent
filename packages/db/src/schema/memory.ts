@@ -3,7 +3,7 @@ import type {
 	MemoryRole,
 	MemoryScope,
 } from "@better-agent/agent/ports";
-import { sql } from "drizzle-orm";
+import { isNull } from "drizzle-orm";
 import {
 	index,
 	jsonb,
@@ -17,8 +17,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { agents } from "./agents";
 import { users } from "./auth";
-import { bridgeTokens } from "./bridge";
-import { projects } from "./projects";
 
 // SiliconFlow `BAAI/bge-m3` output width (decision D1, self-hosted-compatible
 // provider). The embedding table is split from memory_items so switching models
@@ -39,11 +37,10 @@ export const memories = pgTable(
 			.references(() => users.id),
 		name: text("name").notNull(),
 		description: text("description"),
-		// DP2 reach: "global" (visible in every session) vs "project" (only in a
-		// session bound to `projectId`). A project memory is never returned to
-		// another project. `projectId` is non-null exactly when scope="project".
+		// Legacy reach column: every memory is "global" now (project scoping was
+		// removed with the local-agent plane); the column stays for old rows.
 		scope: text("scope").$type<MemoryScope>().notNull().default("global"),
-		projectId: uuid("project_id").references(() => projects.id),
+		projectId: uuid("project_id"),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
@@ -51,23 +48,12 @@ export const memories = pgTable(
 			.notNull()
 			.defaultNow(),
 	},
-	(table) => [
-		index("memories_user_id_idx").on(table.userId),
-		// Backs the scoped read paths: a session filters its owner's memories to
-		// global ∪ (project = current), so (user_id, scope, project_id) is the
-		// natural covering order.
-		index("memories_user_scope_idx").on(
-			table.userId,
-			table.scope,
-			table.projectId
-		),
-	]
+	(table) => [index("memories_user_id_idx").on(table.userId)]
 );
 
 // Many-to-many agent↔memory link with a per-link role (decision C2): one
 // knowledge base can be shared across agents, and each agent is read-only by
-// default unless explicitly granted read_write. Keyed to `agents` for M1;
-// local/bridge agents reuse the same table via their agent id.
+// default unless explicitly granted read_write.
 export const agentMemories = pgTable(
 	"agent_memories",
 	{
@@ -83,27 +69,6 @@ export const agentMemories = pgTable(
 			.defaultNow(),
 	},
 	(table) => [primaryKey({ columns: [table.agentId, table.memoryId] })]
-);
-
-// The parallel link for LOCAL/bridge agents, which key off `bridge_tokens`
-// rather than `agents` — so a local agent gets memory the same many-to-many,
-// role-scoped way a web agent does (decision C2). Same shape as
-// `agent_memories`, just keyed to a token id.
-export const bridgeTokenMemories = pgTable(
-	"bridge_token_memories",
-	{
-		tokenId: uuid("token_id")
-			.notNull()
-			.references(() => bridgeTokens.id),
-		memoryId: uuid("memory_id")
-			.notNull()
-			.references(() => memories.id),
-		role: text("role").$type<MemoryRole>().notNull().default("read"),
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-	},
-	(table) => [primaryKey({ columns: [table.tokenId, table.memoryId] })]
 );
 
 // The atomic, retrievable facts. `validTo` is a soft-delete watermark: null =
@@ -135,7 +100,7 @@ export const memoryItems = pgTable(
 	(table) => [
 		index("memory_items_memory_id_current_idx")
 			.on(table.memoryId)
-			.where(sql`${table.validTo} IS NULL`),
+			.where(isNull(table.validTo)),
 	]
 );
 

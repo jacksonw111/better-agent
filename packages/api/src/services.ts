@@ -1,9 +1,6 @@
 import type { AgentValidator } from "@better-agent/agent/agent/agent-validator";
 import type { RateLimiter } from "@better-agent/agent/auth/rate-limiter";
-import type { BridgeUsageStore } from "@better-agent/agent/bridge/usage-ports";
-import type { ComputerStore } from "@better-agent/agent/computer-ports";
 import type { TokenService } from "@better-agent/agent/crypto/agent-token";
-import type { ComputerReplayGuard } from "@better-agent/agent/crypto/computer-signature";
 import type { JwtService } from "@better-agent/agent/crypto/jwt";
 import type { SecretBox } from "@better-agent/agent/crypto/secret-box";
 import type {
@@ -15,8 +12,6 @@ import type {
 	AgentStore,
 	AttachmentStore,
 	AuthzClient,
-	BridgeSessionStore,
-	BridgeTokenStore,
 	ComposioAccountStore,
 	EmailSender,
 	EmbeddingClient,
@@ -29,27 +24,19 @@ import type {
 	ModelCacheStore,
 	OpenConnectorAccountStore,
 	PasswordResetStore,
-	ProfileStore,
 	ProviderCatalogStore,
 	ProviderCredentialStore,
-	PushService,
-	PushSubscriptionStore,
 	RefreshTokenStore,
-	RelayStore,
 	SessionStore,
 	SettingsStore,
 	SkillStore,
 	UserStore,
 	WebAuthzCacheStore,
 } from "@better-agent/agent/ports";
-import type { ProjectStore } from "@better-agent/agent/project-ports";
 import type { ModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import type { ModelFactory } from "@better-agent/agent/provider/model-factory";
-import type { PtySessionStore } from "@better-agent/agent/pty-session-ports";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
 import type { SessionRuntime } from "@better-agent/agent/session/runtime";
-import type { ActiveSessionStore } from "@better-agent/agent/task/active-session-ports";
-import type { RunStore, TaskStore } from "@better-agent/agent/task-ports";
 import type { ComposioService } from "@better-agent/agent/tool/composio-tools";
 import type { McpService } from "@better-agent/agent/tool/mcp-tools";
 import type { OpenConnectorService } from "@better-agent/agent/tool/openconnector-tools";
@@ -57,8 +44,6 @@ import type { PendingToolCallStore } from "@better-agent/agent/tool/pending-stor
 import type { ActivityStore } from "@better-agent/db/repositories/activity-store";
 import type { UsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import type { UsageStore } from "@better-agent/db/repositories/usage-store";
-import type { ComputerControlChannel } from "./computers/control-channel";
-import type { PtyRelayHub } from "./pty/relay-hub";
 
 export interface AgentServices {
 	agentValidator: AgentValidator;
@@ -74,13 +59,6 @@ export interface AgentServices {
 	cancellation: CancellationRegistry;
 	catalog: ModelCatalog;
 	composio: (accountId: string) => Promise<ComposioService | null>;
-	/** S2-T2 (D4): the /computer-ws registry + launch push path. In-process on
-	 * purpose (same rationale as commandBus); heartbeat pendingCommands is the
-	 * cross-process/no-WS fallback. */
-	computerControl: ComputerControlChannel;
-	/** In-memory anti-replay for computer-plane signatures (S1-T2, design D1):
-	 * per-computer strictly increasing timestamps within the auth window. */
-	computerReplayGuard: ComputerReplayGuard;
 	emailSender: EmailSender;
 	/** Memory embeddings via Workers AI (decision D1); null when CF creds unset. */
 	embeddingClient: EmbeddingClient | null;
@@ -93,15 +71,7 @@ export interface AgentServices {
 	modelFactory: ModelFactory;
 	openConnector: (accountId: string) => Promise<OpenConnectorService | null>;
 	pendingToolCallStore: PendingToolCallStore;
-	/** P2-1: in-process PTY byte relay pairing a computer's CLI agent WS with its
-	 * web viewer WSs (see pty/relay-hub.ts). In-memory like commandBus. */
-	ptyRelay: PtyRelayHub;
-	/** Web Push (P3-T3) — null when VAPID keys are not configured, which
-	 * disables the whole feature fail-open (subscribe routes error clearly,
-	 * the ingest notify hook no-ops). */
-	push: PushService | null;
 	rateLimiter: RateLimiter;
-	relayStore: RelayStore;
 	runtime: SessionRuntime;
 	/** Symmetric credential encryption (CREDENTIALS_SECRET). Routers use it to
 	 * encrypt tokens before they reach a store and to decrypt server-side —
@@ -127,22 +97,11 @@ export interface AgentServices {
 		usageRecord: UsageRecordStore;
 		activity: ActivityStore;
 		webAuthzCache: WebAuthzCacheStore;
-		bridgeToken: BridgeTokenStore;
-		bridgeSession: BridgeSessionStore;
-		bridgeUsage: BridgeUsageStore;
-		computer: ComputerStore;
 		githubConnection: GithubConnectionStore;
 		knowledge: KnowledgeStore;
 		memory: MemoryStore;
 		memoryItem: MemoryItemStore;
-		profile: ProfileStore;
-		project: ProjectStore;
-		ptySession: PtySessionStore;
-		pushSubscription: PushSubscriptionStore;
-		activeSession: ActiveSessionStore;
-		run: RunStore;
 		skill: SkillStore;
-		task: TaskStore;
 	};
 	tokenService: TokenService;
 }

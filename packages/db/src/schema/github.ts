@@ -5,7 +5,7 @@ import { users } from "./auth";
 // per user (user_id unique — upsert replaces the token). The PAT is
 // secret-box ciphertext at rest and NEVER leaves the server; API responses
 // only ever carry token_last4. credential_type is "pat" in v1, reserved so a
-// GitHub App credential can slot in later without touching the Task side.
+// GitHub App credential can slot in later without touching callers.
 export const githubConnections = pgTable("github_connections", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	userId: uuid("user_id")

@@ -5,7 +5,6 @@ import type {
 	MemoryItemSource,
 	MemoryItemStore,
 	MemoryRow,
-	MemoryScope,
 } from "@better-agent/agent/ports";
 import { ORPCError } from "@orpc/server";
 import { log } from "evlog";
@@ -28,34 +27,17 @@ export const idInput = z.object({ id: z.uuid() });
 export const memoryIdInput = z.object({ memoryId: z.uuid() });
 export const itemIdInput = z.object({ itemId: z.uuid() });
 
-// A memory is assigned to EITHER a web agent (agentId → agent_memories) OR a
-// local agent (tokenId → bridge_token_memories) — exactly one (see assertOneTarget).
+// A memory is assigned to a web agent (agentId → agent_memories).
 export const targetInput = z.object({
-	agentId: z.uuid().optional(),
-	tokenId: z.uuid().optional(),
+	agentId: z.uuid(),
 });
 
 export type Target = z.infer<typeof targetInput>;
 
-// DP2 scope inputs. `scope` defaults to "global"; a "project" memory must name
-// the owning project. A global memory never carries a projectId (enforced by
-// resolveScope below), so the two fields can't drift out of sync.
-export const scopeFields = {
-	scope: z.enum(["global", "project"]).default("global"),
-	projectId: z.uuid().optional(),
-};
-
 export const createMemoryInput = z.object({
 	name: z.string().min(1),
 	description: z.string().min(1).optional(),
-	...scopeFields,
 });
-
-export const setScopeInput = z.object({ id: z.uuid(), ...scopeFields });
-
-export const listMemoriesInput = z
-	.object({ scope: z.enum(["global", "project"]).optional() })
-	.optional();
 
 export const addItemInput = z.object({
 	memoryId: z.uuid(),
@@ -96,32 +78,6 @@ export async function requireOwnedMemory(
 		throw new ORPCError("NOT_FOUND", { message: "Memory not found" });
 	}
 	return memory;
-}
-
-// Validates a DP2 scope choice against the owner and normalizes the pair: a
-// "project" memory must name a project the caller owns; a "global" memory
-// always drops any projectId so the invariant (global ⇒ projectId null) holds.
-export async function resolveScope(
-	context: Context,
-	userId: string,
-	input: { scope: MemoryScope; projectId?: string }
-): Promise<{ scope: MemoryScope; projectId: string | null }> {
-	if (input.scope !== "project") {
-		return { scope: "global", projectId: null };
-	}
-	if (!input.projectId) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "A project-scoped memory needs a projectId",
-		});
-	}
-	const project = await context.services.stores.project.getById(
-		input.projectId,
-		userId
-	);
-	if (!project) {
-		throw new ORPCError("NOT_FOUND", { message: "Project not found" });
-	}
-	return { scope: "project", projectId: project.id };
 }
 
 // The embedding client must be wired (a real provider is chosen post-slice; the
@@ -211,14 +167,6 @@ export async function embedAndSearchItems(
 	});
 }
 
-function assertOneTarget(input: Target): void {
-	if (Boolean(input.agentId) === Boolean(input.tokenId)) {
-		throw new ORPCError("BAD_REQUEST", {
-			message: "Provide exactly one of agentId or tokenId",
-		});
-	}
-}
-
 async function assertOwnedAgent(
 	context: Context,
 	userId: string,
@@ -230,63 +178,29 @@ async function assertOwnedAgent(
 	}
 }
 
-async function assertOwnedToken(
-	context: Context,
-	userId: string,
-	tokenId: string
-): Promise<void> {
-	const token = await context.services.stores.bridgeToken.getById(
-		tokenId,
-		userId
-	);
-	if (!token) {
-		throw new ORPCError("NOT_FOUND", { message: "Local agent not found" });
-	}
-}
-
-// Asserts the caller owns the targeted agent/token, then returns its memory
-// links (memoryId + role). The read path both web + MCP call through.
+// Asserts the caller owns the targeted agent, then returns its memory links
+// (memoryId + role). The read path both web + MCP call through.
 export async function resolveTargetLinks(
 	context: Context,
 	userId: string,
 	input: Target
 ): Promise<AgentMemoryRow[]> {
-	assertOneTarget(input);
-	const { agentId, tokenId } = input;
-	if (agentId) {
-		await assertOwnedAgent(context, userId, agentId);
-		return context.services.stores.memory.listAgentMemories(agentId);
-	}
-	if (tokenId) {
-		await assertOwnedToken(context, userId, tokenId);
-		return context.services.stores.memory.listTokenMemories(tokenId);
-	}
-	return [];
+	await assertOwnedAgent(context, userId, input.agentId);
+	return context.services.stores.memory.listAgentMemories(input.agentId);
 }
 
-// Assigns (agentId) or unassigns (tokenId) a memory to/from the targeted
-// agent/token, after asserting the caller owns BOTH the memory and the target.
+// Assigns or unassigns a memory to/from the targeted agent, after asserting
+// the caller owns BOTH the memory and the target.
 export async function mutateAssignment(
 	context: Context,
 	userId: string,
 	input: Target & { memoryId: string; role?: "read" | "read_write" },
 	mode: "assign" | "unassign"
 ): Promise<void> {
-	assertOneTarget(input);
 	await requireOwnedMemory(context, userId, input.memoryId);
-	const { memory } = context.services.stores;
-	const { agentId, tokenId, memoryId, role } = input;
-	if (agentId) {
-		await assertOwnedAgent(context, userId, agentId);
-		await (mode === "assign"
-			? memory.assignAgent({ agentId, memoryId, role })
-			: memory.unassignAgent(agentId, memoryId));
-		return;
-	}
-	if (tokenId) {
-		await assertOwnedToken(context, userId, tokenId);
-		await (mode === "assign"
-			? memory.assignToken({ tokenId, memoryId, role })
-			: memory.unassignToken(tokenId, memoryId));
-	}
+	const { agentId, memoryId, role } = input;
+	await assertOwnedAgent(context, userId, agentId);
+	await (mode === "assign"
+		? context.services.stores.memory.assignAgent({ agentId, memoryId, role })
+		: context.services.stores.memory.unassignAgent(agentId, memoryId));
 }

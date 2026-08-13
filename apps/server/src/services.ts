@@ -1,19 +1,11 @@
 import { createTokenService } from "@better-agent/agent/crypto/agent-token";
-import { createReplayGuard } from "@better-agent/agent/crypto/computer-signature";
 import { createGithubClient } from "@better-agent/agent/github/github-client";
 import { createModelCatalog } from "@better-agent/agent/provider/model-catalog";
 import { fetchModelsDev } from "@better-agent/agent/provider/models-dev";
 import type { CancellationRegistry } from "@better-agent/agent/session/cancellation";
-import { createComputerControlChannel } from "@better-agent/api/computers/control-channel";
-import { createPtyRelayHub } from "@better-agent/api/pty/relay-hub";
-import { createActiveSessionStore } from "@better-agent/db/repositories/active-session-store";
 import { createActivityStore } from "@better-agent/db/repositories/activity-store";
 import { createAttachmentMetaStore } from "@better-agent/db/repositories/attachment-meta-store";
-import { createBridgeSessionStore } from "@better-agent/db/repositories/bridge-session-store";
-import { createBridgeTokenStore } from "@better-agent/db/repositories/bridge-token-store";
-import { createBridgeUsageStore } from "@better-agent/db/repositories/bridge-usage-store";
 import { createComposioAccountStore } from "@better-agent/db/repositories/composio-account-store";
-import { createComputerStore } from "@better-agent/db/repositories/computer-store";
 import { createGithubConnectionStore } from "@better-agent/db/repositories/github-connection-store";
 import { createKnowledgeDocumentStore } from "@better-agent/db/repositories/knowledge-document-store";
 import { createMcpServerStore } from "@better-agent/db/repositories/mcp-server-store";
@@ -21,15 +13,9 @@ import { createMemoryItemStore } from "@better-agent/db/repositories/memory-item
 import { createMemoryStore } from "@better-agent/db/repositories/memory-store";
 import { createMessageStore } from "@better-agent/db/repositories/message-store";
 import { createOpenConnectorAccountStore } from "@better-agent/db/repositories/openconnector-account-store";
-import { createProfileStore } from "@better-agent/db/repositories/profile-store";
-import { createProjectStore } from "@better-agent/db/repositories/project-store";
-import { createPtySessionStore } from "@better-agent/db/repositories/pty-session-store";
-import { createPushSubscriptionStore } from "@better-agent/db/repositories/push-subscription-store";
-import { createRunStore } from "@better-agent/db/repositories/run-store";
 import { createSessionStore } from "@better-agent/db/repositories/session-store";
 import { createSettingsStore } from "@better-agent/db/repositories/settings-store";
 import { createSkillStore } from "@better-agent/db/repositories/skill-store";
-import { createTaskStore } from "@better-agent/db/repositories/task-store";
 import { createUsageRecordStore } from "@better-agent/db/repositories/usage-record-store";
 import { createUsageStore } from "@better-agent/db/repositories/usage-store";
 import { createWebAuthzCacheStore } from "@better-agent/db/repositories/web-authz-cache-store";
@@ -45,13 +31,11 @@ import {
 	buildGoogleOAuth,
 	buildOpenConnectorAccountResolver,
 } from "./optional-services";
-import { buildPushService } from "./push-sender";
 import {
 	buildCancellation,
 	buildPendingToolCallStore,
 	buildProviderDeps,
 	buildRateLimiter,
-	buildRelayStore,
 	type Db,
 	getSecretBox,
 } from "./services-infra";
@@ -60,14 +44,9 @@ import { buildRuntime } from "./services-runtime";
 // Shared by buildStores + assembleServices (both take "everything needed to
 // construct a store"); factored out so neither signature repeats the list.
 interface StoreParts {
-	activeSessionStore: ReturnType<typeof createActiveSessionStore>;
 	activityStore: ReturnType<typeof createActivityStore>;
 	attachmentStore: ReturnType<typeof createAttachmentStore>;
-	bridgeSessionStore: ReturnType<typeof createBridgeSessionStore>;
-	bridgeTokenStore: ReturnType<typeof createBridgeTokenStore>;
-	bridgeUsageStore: ReturnType<typeof createBridgeUsageStore>;
 	composioAccount: ReturnType<typeof createComposioAccountStore>;
-	computerStore: ReturnType<typeof createComputerStore>;
 	db: Db;
 	deps: ReturnType<typeof buildProviderDeps>;
 	embeddingClient: ReturnType<typeof buildEmbeddingClient>;
@@ -78,16 +57,10 @@ interface StoreParts {
 	memoryStore: ReturnType<typeof createMemoryStore>;
 	messageStore: ReturnType<typeof createMessageStore>;
 	openConnectorAccount: ReturnType<typeof createOpenConnectorAccountStore>;
-	profileStore: ReturnType<typeof createProfileStore>;
-	projectStore: ReturnType<typeof createProjectStore>;
-	ptySessionStore: ReturnType<typeof createPtySessionStore>;
-	pushSubscriptionStore: ReturnType<typeof createPushSubscriptionStore>;
-	runStore: ReturnType<typeof createRunStore>;
 	secretBox: ReturnType<typeof getSecretBox>;
 	sessionStore: ReturnType<typeof createSessionStore>;
 	settings: ReturnType<typeof createSettingsStore>;
 	skillStore: ReturnType<typeof createSkillStore>;
-	taskStore: ReturnType<typeof createTaskStore>;
 	usageRecordStore: ReturnType<typeof createUsageRecordStore>;
 	usageStore: ReturnType<typeof createUsageStore>;
 	webAuthzCache: ReturnType<typeof createWebAuthzCacheStore>;
@@ -115,37 +88,13 @@ function buildStores(
 		usageRecord: parts.usageRecordStore,
 		activity: parts.activityStore,
 		webAuthzCache: parts.webAuthzCache,
-		bridgeToken: parts.bridgeTokenStore,
-		bridgeSession: parts.bridgeSessionStore,
-		bridgeUsage: parts.bridgeUsageStore,
-		computer: parts.computerStore,
 		githubConnection: parts.githubConnectionStore,
 		knowledge: parts.knowledgeStore,
 		memory: parts.memoryStore,
 		memoryItem: parts.memoryItemStore,
-		profile: parts.profileStore,
-		project: parts.projectStore,
-		ptySession: parts.ptySessionStore,
-		pushSubscription: parts.pushSubscriptionStore,
-		activeSession: parts.activeSessionStore,
-		run: parts.runStore,
 		skill: parts.skillStore,
-		task: parts.taskStore,
 		...authStores,
 	};
-}
-// S2-T2 (D4): /computer-ws registry + command push (launch + Q1 clone).
-// In-process like commandBus — a live WS is always on the same Node process;
-// heartbeat pendingCommands covers the no-WS gap.
-function buildComputerControl(parts: StoreParts) {
-	return createComputerControlChannel({
-		bridgeToken: parts.bridgeTokenStore,
-		computer: parts.computerStore,
-		project: parts.projectStore,
-		run: parts.runStore,
-		secretBox: parts.secretBox,
-		task: parts.taskStore,
-	});
 }
 
 function assembleServices(
@@ -185,19 +134,7 @@ function assembleServices(
 		secretBox: parts.secretBox,
 		mcp: buildMcpResolver(parts.mcpServerStore),
 		authz: buildAuthzClient(),
-		// P3-T3: Web Push — null (feature disabled fail-open) without VAPID keys.
-		push: buildPushService(parts.pushSubscriptionStore),
 		rateLimiter: buildRateLimiter(),
-		relayStore: buildRelayStore(),
-		// Computer-plane anti-replay (S1-T2, design D1). In-memory on purpose:
-		// signature timestamps must strictly increase per computer, and the
-		// single-instance Docker deployment means one process sees them all.
-		computerReplayGuard: createReplayGuard(),
-		computerControl: buildComputerControl(parts),
-		// P2-1: in-process PTY byte relay — pairs one computer's CLI agent WS with
-		// its web viewer WSs and routes binary frames by sessionId. In-memory like
-		// commandBus/computerControl (agent + viewers share one Node process).
-		ptyRelay: createPtyRelayHub(),
 		stores: buildStores({ ...parts, authStores: auth.authStores }),
 	};
 }
@@ -213,20 +150,9 @@ function buildMiscStores(db: Db, secretBox: ReturnType<typeof getSecretBox>) {
 		settings: createSettingsStore(db, secretBox),
 		composioAccount: createComposioAccountStore(db, secretBox),
 		openConnectorAccount: createOpenConnectorAccountStore(db, secretBox),
-		profileStore: createProfileStore(db),
 		mcpServerStore: createMcpServerStore(db, secretBox),
-		pushSubscriptionStore: createPushSubscriptionStore(db),
 		webAuthzCache: createWebAuthzCacheStore(db),
-		bridgeTokenStore: createBridgeTokenStore(db),
-		bridgeSessionStore: createBridgeSessionStore(db),
-		bridgeUsageStore: createBridgeUsageStore(db),
-		computerStore: createComputerStore(db),
 		githubConnectionStore: createGithubConnectionStore(db),
-		projectStore: createProjectStore(db),
-		ptySessionStore: createPtySessionStore(db),
-		taskStore: createTaskStore(db),
-		runStore: createRunStore(db),
-		activeSessionStore: createActiveSessionStore(db),
 		secretBox,
 	};
 }

@@ -9,28 +9,20 @@ const usageSummary = {
 	totals: { inputTokens: 0, outputTokens: 0, costCents: 0, turns: 0 },
 };
 
-const localAgentUsage = {
+const cloudAgentUsage = {
 	windowDays: 7,
-	byKind: [
+	byAgent: [
 		{
-			agentKind: "claude-code",
-			costUsd: 2.5,
+			agentId: "agent-1",
+			name: "Research Agent",
+			costCents: 250,
 			inputTokens: 900,
 			outputTokens: 300,
-			cacheReadTokens: 0,
-			cacheCreationTokens: 0,
 			turns: 5,
 		},
 	],
 };
 
-const cloudAgentUsage = {
-	windowDays: 7,
-	byAgent: [],
-};
-
-// LiveSessions reattaches via the router; give it a no-op navigate while
-// keeping the real createFileRoute the route module needs.
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@tanstack/react-router")>()),
 	useNavigate: () => vi.fn(),
@@ -38,22 +30,6 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 
 vi.mock("@/utils/orpc", () => ({
 	orpc: {
-		computers: {
-			list: {
-				queryOptions: () => ({
-					queryKey: ["computers", "list"],
-					queryFn: () => Promise.resolve([]),
-				}),
-			},
-		},
-		pty: {
-			listSessions: {
-				queryOptions: () => ({
-					queryKey: ["pty", "listSessions"],
-					queryFn: () => Promise.resolve({ sessions: [] }),
-				}),
-			},
-		},
 		usage: {
 			summary: {
 				queryOptions: () => ({
@@ -74,14 +50,6 @@ vi.mock("@/utils/orpc", () => ({
 				}),
 			},
 		},
-		bridge: {
-			usageByAgentKind: {
-				queryOptions: () => ({
-					queryKey: ["bridge", "usageByAgentKind"],
-					queryFn: () => Promise.resolve(localAgentUsage),
-				}),
-			},
-		},
 	},
 }));
 
@@ -96,14 +64,12 @@ async function renderDashboard() {
 	return within(container);
 }
 
-it("renders the Local Agents breakdown and no Recent Activity timeline", async () => {
+it("renders the Cloud Agents breakdown and no Recent Activity timeline", async () => {
 	const view = await renderDashboard();
 
 	await waitFor(() => {
-		expect(view.getByText("Agent Breakdown")).toBeDefined();
+		expect(view.getByText("Research Agent")).toBeDefined();
 	});
-	// A row for the populated claude-code kind.
-	expect(view.getByText("Claude Code")).toBeDefined();
 	expect(view.getByText("$2.5000")).toBeDefined();
 	// The Recent Activity timeline is gone.
 	expect(view.queryByText("Recent Activity")).toBeNull();

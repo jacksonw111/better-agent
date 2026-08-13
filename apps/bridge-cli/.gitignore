@@ -1,7 +1,0 @@
-# Standalone binary produced by `pnpm compile` (bun --compile). Local build
-# artifact — distributed by copying the file, not committed.
-agent-cli
-
-# Cross-compiled pty-broker binaries + local verification scratch (build inputs
-# for `bun --compile`, embedded as base64; never committed).
-.broker-build/

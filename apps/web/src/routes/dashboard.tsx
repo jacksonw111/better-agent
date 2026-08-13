@@ -8,9 +8,7 @@ import {
 	DEFAULT_WINDOW,
 	type WindowDays,
 } from "@/components/dashboard/dashboard-constants";
-import { LiveSessions } from "@/components/dashboard/live-sessions";
 import { StatsPanel } from "@/components/dashboard/stats-panel";
-import { UsageOverview } from "@/components/dashboard/usage-overview";
 import { useUsageData } from "@/components/dashboard/use-usage-data";
 import { WindowToggle } from "@/components/dashboard/window-toggle";
 import { EmptyState } from "@/components/layout/empty-state";
@@ -68,9 +66,9 @@ function DashboardBody({
 	windowDays: WindowDays;
 }) {
 	// Only the chat stats/chart fall back to EmptyState when the (short) chat
-	// window has no data — the 180-day activity heatmap and the Local Agents
-	// breakdown have their own data sources and must always render, or a user
-	// with no recent chat would see nothing at all.
+	// window has no data — the 180-day activity heatmap has its own data source
+	// and must always render, or a user with no recent chat would see nothing
+	// at all.
 	return (
 		<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
 			<div className="flex flex-col gap-4 lg:col-span-2">
@@ -95,8 +93,6 @@ function DashboardBody({
 				<ActivityHeatmap />
 			</div>
 			<div className="flex flex-col gap-4 lg:col-span-1">
-				<LiveSessions />
-				<UsageOverview windowDays={windowDays} />
 				<CloudAgentUsage windowDays={windowDays} />
 			</div>
 		</div>

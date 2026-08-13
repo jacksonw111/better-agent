@@ -34,8 +34,8 @@ function ChatViewHeader({
 }: Omit<ChatViewProps, "agentClient" | "initialText">) {
 	return (
 		<header className="shrink-0 border-b">
-			{/* Inner column matches the bridge terminal's header/feed `max-w-3xl
-			 * mx-auto` so the two chats' chrome sits on the same grid lines. */}
+			{/* Inner column matches the feed's `max-w-3xl mx-auto` so header and
+			 * messages sit on the same grid lines. */}
 			<div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4">
 				<div className="flex min-w-0 flex-1 items-baseline gap-2">
 					<span className="truncate font-medium text-sm">{agent.name}</span>

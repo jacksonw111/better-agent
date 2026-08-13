@@ -30,7 +30,7 @@ function SkillPickerRow({
 			aria-label={skill.name}
 			aria-selected={active}
 			className={cn(
-				"flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left text-sm",
+				"flex h-9 w-full items-center gap-2.5 rounded-[6px] px-2 text-left",
 				active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
 			)}
 			id={itemId}
@@ -45,14 +45,14 @@ function SkillPickerRow({
 			role="option"
 			type="button"
 		>
-			<span className="flex items-center gap-1.5">
+			<span className="flex shrink-0 items-center gap-1 font-medium text-sm">
 				<span aria-hidden className="text-muted-foreground">
 					/
 				</span>
 				{skill.name}
 			</span>
 			<span
-				className="truncate text-muted-foreground text-xs"
+				className="min-w-0 flex-1 truncate text-muted-foreground text-xs"
 				id={descriptionId}
 			>
 				{skill.description}
@@ -90,7 +90,7 @@ export function SkillPickerList({
 }: SkillPickerListProps) {
 	return (
 		<div
-			className="absolute inset-x-0 bottom-full z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-md"
+			className="bui-pop-in absolute inset-x-0 bottom-full z-20 mb-2 max-h-64 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg"
 			id={listId}
 			role="listbox"
 		>

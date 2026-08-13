@@ -7,8 +7,6 @@ import { MobileTabBar } from "./mobile-tab-bar";
 
 const DASHBOARD_LABEL_PATTERN = /Dashboard/;
 const AGENTS_LABEL_PATTERN = /^Agents/;
-const COMPUTERS_LABEL_PATTERN = /Computers/;
-const TASKS_LABEL_PATTERN = /Tasks/;
 const MEMORIES_LABEL_PATTERN = /Memories/;
 const MORE_LABEL_PATTERN = /More/;
 
@@ -16,22 +14,6 @@ const store = vi.hoisted(() => ({
 	pathname: "/dashboard",
 	search: {} as Record<string, unknown>,
 	setOpenMobileCalls: [] as boolean[],
-}));
-
-// The dock carries the global active-session tab, which queries
-// tasks.listActive — stubbed here so these tests stay about the dock itself.
-vi.mock("@/utils/orpc", () => ({
-	orpc: {
-		tasks: {
-			listActive: {
-				key: () => ["tasks", "listActive"],
-				queryOptions: () => ({
-					queryKey: ["tasks", "listActive"],
-					queryFn: () => Promise.resolve({ sessions: [] }),
-				}),
-			},
-		},
-	},
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -91,20 +73,9 @@ it("renders a tab for each primary destination plus More", () => {
 	).toBeDefined();
 	expect(view.getByRole("link", { name: AGENTS_LABEL_PATTERN })).toBeDefined();
 	expect(
-		view.getByRole("link", { name: COMPUTERS_LABEL_PATTERN })
-	).toBeDefined();
-	// Tasks left the dock along with the top nav — Computers took its slot.
-	expect(view.queryByRole("link", { name: TASKS_LABEL_PATTERN })).toBeNull();
-	expect(
 		view.getByRole("link", { name: MEMORIES_LABEL_PATTERN })
 	).toBeDefined();
 	expect(view.getByRole("button", { name: MORE_LABEL_PATTERN })).toBeDefined();
-});
-
-it("carries the global active-sessions tab so running work is reachable from the dock", () => {
-	const view = renderBar();
-
-	expect(view.getByTestId("active-sessions-trigger")).toBeDefined();
 });
 
 it("tints the tab matching the current route as active", () => {
@@ -125,26 +96,6 @@ it("treats /chat as part of the Agents tab's active match", () => {
 
 	expect(
 		view.getByRole("link", { name: AGENTS_LABEL_PATTERN }).className
-	).toContain("text-primary");
-});
-
-it("activates the Computers tab on the list and a computer's detail alike", () => {
-	store.pathname = "/computers";
-	let view = renderBar();
-	expect(
-		view.getByRole("link", { name: COMPUTERS_LABEL_PATTERN }).className
-	).toContain("text-primary");
-	expect(
-		view.getByRole("link", { name: AGENTS_LABEL_PATTERN }).className
-	).not.toContain("text-primary");
-
-	cleanup();
-	store.pathname = "/computers/computer-1";
-	view = renderBar();
-	// /computers/$computerId shares the /computers prefix, so the tab stays
-	// lit on the detail page.
-	expect(
-		view.getByRole("link", { name: COMPUTERS_LABEL_PATTERN }).className
 	).toContain("text-primary");
 });
 
@@ -172,20 +123,6 @@ it("keeps the dock on the bare /chat agent-picker grid", () => {
 it("suppresses the dock when /chat has a selected cloud agent", () => {
 	store.pathname = "/chat";
 	store.search = { agentId: "agent-1" };
-	const view = renderBar();
-
-	expect(view.queryByRole("navigation")).toBeNull();
-});
-
-it("keeps the dock on the /tasks list even though Tasks has no tab", () => {
-	store.pathname = "/tasks";
-	const view = renderBar();
-
-	expect(view.getByRole("navigation", { name: "Primary" })).toBeDefined();
-});
-
-it("suppresses the dock inside a local agent's workspace", () => {
-	store.pathname = "/local/token-1";
 	const view = renderBar();
 
 	expect(view.queryByRole("navigation")).toBeNull();

@@ -1,12 +1,9 @@
 import { configure } from "@testing-library/react";
 import { beforeEach } from "vitest";
 
-// fix-send-outbox: the bridge terminal's send outbox persists undelivered
-// sends in `sessionStorage` keyed by session id (see send-outbox.ts), and the
-// terminal tests all drive the SAME fixture session. Without this, a test that
-// leaves a send in flight bleeds a restored (re-echoed, still-queued) message
-// into the next test in the file. Guarded so the node-environment test files,
-// which have no `sessionStorage`, are unaffected.
+// Some components persist state in `sessionStorage`; clear it between tests
+// so one test's leftovers can't bleed into the next. Guarded so the
+// node-environment test files, which have no `sessionStorage`, are unaffected.
 if (typeof sessionStorage !== "undefined") {
 	beforeEach(() => {
 		sessionStorage.clear();

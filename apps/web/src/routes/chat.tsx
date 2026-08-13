@@ -1,8 +1,8 @@
-import { PixelLoading } from "@better-agent/ui/components/pixel-loading";
+import { LoadingState } from "@better-agent/ui/components/loading-state";
 import { Skeleton } from "@better-agent/ui/components/skeleton";
 import type { AgentClient } from "@jacksonw111/agent-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AgentGrid } from "@/components/chat/agent-grid";
@@ -15,24 +15,9 @@ import { userAgentClient } from "@/utils/chat-client";
 import { client, orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/chat")({
-	// Local agents moved to their own route tree (P0 route split). The
-	// `localAgentId` search param survives only as a legacy alias so old
-	// links/bookmarks land on the new workspace instead of 404-ing here.
-	beforeLoad: ({ search }) => {
-		if (search.localAgentId) {
-			throw redirect({
-				params: { tokenId: search.localAgentId },
-				to: "/local/$tokenId",
-			});
-		}
-	},
 	component: CloudHome,
-	validateSearch: (
-		search: Record<string, unknown>
-	): { agentId?: string; localAgentId?: string } => ({
+	validateSearch: (search: Record<string, unknown>): { agentId?: string } => ({
 		agentId: typeof search.agentId === "string" ? search.agentId : undefined,
-		localAgentId:
-			typeof search.localAgentId === "string" ? search.localAgentId : undefined,
 	}),
 });
 
@@ -129,8 +114,8 @@ function useHomeActions(setters: HomeSetters): HomeActions {
 	const startFresh = (agent: AgentRow) => {
 		setSelectedAgent(agent);
 		setSessionId("");
-		// Mirror the agent into the URL (like the local branch's localAgentId) —
-		// the `useImmersiveChat` signal. `replace`: no intermediate /chat history
+		// Mirror the agent into the URL — the `useImmersiveChat` signal.
+		// `replace`: no intermediate /chat history
 		// entry, so browser back can't desync URL from the state-rendered view.
 		navigate({ replace: true, search: { agentId: agent.id }, to: "/chat" });
 		createSession(agent, setters).catch(() => undefined);
@@ -247,10 +232,9 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 	}
 	if (sending || sessionId === "") {
 		return (
-			<PixelLoading
-				className="h-full flex-1 justify-center"
-				label="Opening chat…"
-			/>
+			<div className="flex h-full flex-1 items-center justify-center">
+				<LoadingState label="Opening chat…" />
+			</div>
 		);
 	}
 	return (
@@ -266,8 +250,7 @@ function HomeContent({ home }: { home: ReturnType<typeof useHomeState> }) {
 	);
 }
 
-// The cloud chat experience (agent picker → session). Local agents render on
-// /local/$tokenId — the beforeLoad redirect keeps them out of this subtree.
+// The cloud chat experience (agent picker → session).
 function CloudHome() {
 	const home = useHomeState();
 	const step =

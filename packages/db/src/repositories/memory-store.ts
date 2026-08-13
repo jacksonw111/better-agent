@@ -58,47 +58,6 @@ function makeAgentLinkOps(
 	};
 }
 
-// The bridge-token↔memory link ops (local agents), mirroring the agent link
-// ops in their own factory so createMemoryStore stays under the max-lines gate.
-function makeTokenLinkOps(
-	db: Db
-): Pick<MemoryStore, "assignToken" | "unassignToken" | "listTokenMemories"> {
-	return {
-		async assignToken({ tokenId, memoryId, role = "read" }) {
-			await db
-				.insert(schema.bridgeTokenMemories)
-				.values({ tokenId, memoryId, role })
-				.onConflictDoUpdate({
-					target: [
-						schema.bridgeTokenMemories.tokenId,
-						schema.bridgeTokenMemories.memoryId,
-					],
-					set: { role },
-				});
-		},
-		async unassignToken(tokenId, memoryId) {
-			await db
-				.delete(schema.bridgeTokenMemories)
-				.where(
-					and(
-						eq(schema.bridgeTokenMemories.tokenId, tokenId),
-						eq(schema.bridgeTokenMemories.memoryId, memoryId)
-					)
-				);
-		},
-		async listTokenMemories(tokenId) {
-			const rows = await db
-				.select({
-					memoryId: schema.bridgeTokenMemories.memoryId,
-					role: schema.bridgeTokenMemories.role,
-				})
-				.from(schema.bridgeTokenMemories)
-				.where(eq(schema.bridgeTokenMemories.tokenId, tokenId));
-			return rows.map((row) => ({ memoryId: row.memoryId, role: row.role }));
-		},
-	};
-}
-
 // Owner-scoped cascade delete in one transaction: FKs are ON DELETE no action
 // (matching the repo convention), so children are removed explicitly, innermost
 // first (embeddings → items → links → memory). The final memory delete is
@@ -126,55 +85,11 @@ async function deleteMemoryWithChildren(
 			.delete(schema.agentMemories)
 			.where(eq(schema.agentMemories.memoryId, id));
 		await tx
-			.delete(schema.bridgeTokenMemories)
-			.where(eq(schema.bridgeTokenMemories.memoryId, id));
-		await tx
 			.delete(schema.memories)
 			.where(
 				and(eq(schema.memories.id, id), eq(schema.memories.userId, userId))
 			);
 	});
-}
-
-// The create + scope-change writes, in their own factory so createMemoryStore
-// stays under the max-lines-per-function gate (same pattern as the link ops).
-function makeWriteOps(db: Db): Pick<MemoryStore, "create" | "setScope"> {
-	return {
-		async create({ userId, name, description, scope, projectId }) {
-			const rows = await db
-				.insert(schema.memories)
-				.values({
-					userId,
-					name,
-					description,
-					scope: scope ?? "global",
-					// Guard the invariant at the write edge: a global memory never
-					// keeps a projectId, whatever the caller passes.
-					projectId: scope === "project" ? (projectId ?? null) : null,
-				})
-				.returning();
-			const row = rows[0];
-			if (!row) {
-				throw new Error("Failed to create memory");
-			}
-			return toRow(row);
-		},
-		async setScope({ id, userId, scope, projectId }) {
-			const rows = await db
-				.update(schema.memories)
-				.set({
-					scope,
-					projectId: scope === "project" ? projectId : null,
-					updatedAt: new Date(),
-				})
-				.where(
-					and(eq(schema.memories.id, id), eq(schema.memories.userId, userId))
-				)
-				.returning();
-			const row = rows[0];
-			return row ? toRow(row) : null;
-		},
-	};
 }
 
 function selectMemoriesByIds(db: Db, ids: string[]): Promise<MemoryRow[]> {
@@ -191,8 +106,17 @@ function selectMemoriesByIds(db: Db, ids: string[]): Promise<MemoryRow[]> {
 export function createMemoryStore(db: Db): MemoryStore {
 	return {
 		...makeAgentLinkOps(db),
-		...makeTokenLinkOps(db),
-		...makeWriteOps(db),
+		async create({ userId, name, description }) {
+			const rows = await db
+				.insert(schema.memories)
+				.values({ userId, name, description })
+				.returning();
+			const row = rows[0];
+			if (!row) {
+				throw new Error("Failed to create memory");
+			}
+			return toRow(row);
+		},
 		deleteWithChildren: (id, userId) =>
 			deleteMemoryWithChildren(db, id, userId),
 		async get(id) {

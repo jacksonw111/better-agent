@@ -8,8 +8,7 @@ const SECS_PER_YEAR = 31_536_000;
 
 const FORMATTERS = {
 	en: new Intl.RelativeTimeFormat("en", { numeric: "auto" }),
-	// The quota section's copy is Chinese per the refactor plan
-	// (docs/local-agent-refactor-plan.md §4.4 "剩余x%·y后重置").
+	// Chinese copy uses the zh-CN formatter ("剩余x%·y后重置").
 	"zh-CN": new Intl.RelativeTimeFormat("zh-CN", { numeric: "auto" }),
 } as const;
 

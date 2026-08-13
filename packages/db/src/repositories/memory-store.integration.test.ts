@@ -2,7 +2,6 @@ import type { PGlite } from "@electric-sql/pglite";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { agents } from "../schema/agents";
 import { users } from "../schema/auth";
-import { bridgeTokens } from "../schema/bridge";
 import { createTestDb, type TestDb } from "../testing/test-db";
 import { createMemoryItemStore } from "./memory-item-store";
 import { createMemoryStore } from "./memory-store";
@@ -34,14 +33,6 @@ async function seedAgent(tokenHash: string): Promise<string> {
 			modelId: "claude-opus-4-5",
 			tokenHash,
 		})
-		.returning();
-	return row?.id ?? "";
-}
-
-async function seedToken(userId: string, tokenHash: string): Promise<string> {
-	const [row] = await db
-		.insert(bridgeTokens)
-		.values({ userId, agentKind: "claude-code", tokenHash })
 		.returning();
 	return row?.id ?? "";
 }
@@ -167,28 +158,11 @@ it("unassignAgent removes the link", async () => {
 	expect(await store.listAgentMemories(agentId)).toHaveLength(0);
 });
 
-it("assignToken links a memory to a bridge token, upserts role, unassigns", async () => {
-	const store = createMemoryStore(db);
-	const userId = await seedUser("alice@x.com");
-	const tokenId = await seedToken(userId, "token-hash");
-	const memory = await store.create({ userId, name: "Prefs" });
-
-	await store.assignToken({ tokenId, memoryId: memory.id });
-	expect((await store.listTokenMemories(tokenId))[0]?.role).toBe("read");
-
-	await store.assignToken({ tokenId, memoryId: memory.id, role: "read_write" });
-	expect((await store.listTokenMemories(tokenId))[0]?.role).toBe("read_write");
-
-	await store.unassignToken(tokenId, memory.id);
-	expect(await store.listTokenMemories(tokenId)).toHaveLength(0);
-});
-
 it("deleteWithChildren removes items, embeddings and links in one txn", async () => {
 	const store = createMemoryStore(db);
 	const items = createMemoryItemStore(db);
 	const userId = await seedUser("alice@x.com");
 	const agentId = await seedAgent("hash-a");
-	const tokenId = await seedToken(userId, "token-hash");
 	const memory = await store.create({ userId, name: "Prefs" });
 	await items.add({
 		memoryId: memory.id,
@@ -197,14 +171,12 @@ it("deleteWithChildren removes items, embeddings and links in one txn", async ()
 		model: "fake",
 	});
 	await store.assignAgent({ agentId, memoryId: memory.id });
-	await store.assignToken({ tokenId, memoryId: memory.id });
 
 	await store.deleteWithChildren(memory.id, userId);
 
 	expect(await store.get(memory.id)).toBeNull();
 	expect(await items.listCurrent(memory.id)).toHaveLength(0);
 	expect(await store.listAgentMemories(agentId)).toHaveLength(0);
-	expect(await store.listTokenMemories(tokenId)).toHaveLength(0);
 });
 
 it("deleteWithChildren is owner-scoped: a non-owner call keeps the memory", async () => {

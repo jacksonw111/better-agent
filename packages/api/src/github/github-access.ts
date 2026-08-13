@@ -4,8 +4,8 @@ import type { AgentServices } from "../services";
 
 // Shared server-side GitHub access (S4-T1/S4-T2, design D7): decrypt the
 // caller's stored PAT and build a client bound to it. Used by the github
-// router (search/lookup) and by tasks.create/retry (issue snapshots) so the
-// credential boundary lives in exactly one place.
+// router (search/lookup) so the credential boundary lives in exactly one
+// place.
 
 /** The slice of AgentServices GitHub access needs — keeps test rigs small. */
 export type GithubAccessServices = Pick<

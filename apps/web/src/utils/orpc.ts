@@ -45,9 +45,9 @@ const refreshClient = createORPCClient(refreshLink) as RouterClient<AppRouter>;
 
 let refreshInFlight: Promise<boolean> | null = null;
 
-// Exported so callers that talk to the server outside the oRPC link (e.g. the
-// bridge SSE stream, a plain fetch that can't run through RPCLink's own
-// interceptor) can reuse the exact same refresh-then-retry semantics on a 401.
+// Exported so callers that talk to the server outside the oRPC link (a plain
+// fetch that can't run through RPCLink's own interceptor) can reuse the exact
+// same refresh-then-retry semantics on a 401.
 export async function refreshAccessToken(): Promise<boolean> {
 	const refreshToken = loadRefreshToken();
 	if (!refreshToken) {

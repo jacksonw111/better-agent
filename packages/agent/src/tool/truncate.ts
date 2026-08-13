@@ -1,6 +1,6 @@
 // Tool-result caps. Raised from 50 KiB / 2000 lines so richer structured
-// outputs (e.g. accessibility trees for computer-use) survive without being
-// cut off, while still bounding token cost per tool result.
+// outputs survive without being cut off, while still bounding token cost per
+// tool result.
 export const MAX_OUTPUT_BYTES = 131_072;
 export const MAX_OUTPUT_LINES = 4000;
 

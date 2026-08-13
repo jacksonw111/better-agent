@@ -146,8 +146,7 @@ function groupRowsByAgent(
  * Per-user token usage aggregated from assistant messages (messages.usage),
  * joined to sessions for the owner. `dailySummary` buckets by UTC day;
  * `byAgent` groups by the session's `agentId` (joined to `agents` for the
- * display name) — cloud (hosted web) agents' per-agent cost/token breakdown,
- * the counterpart of the Local Agents bridge's `usageByAgentKind`.
+ * display name) — the per-agent cost/token breakdown.
  */
 export function createUsageStore(db: Db): UsageStore {
 	return {

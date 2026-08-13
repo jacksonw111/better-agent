@@ -14,7 +14,7 @@ import { authorizedUserProcedure } from "../index";
 const TOKEN_LAST4 = 4;
 
 // The connect-time verifyToken call is the single sanctioned "preflight" —
-// it's the user's own configuration action, not a task-start gate (§16).
+// it's the user's own configuration action (§16).
 async function verifiedLogin(client: GithubClient): Promise<string> {
 	let identity: { login: string } | null = null;
 	try {

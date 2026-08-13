@@ -1,4 +1,3 @@
-import { Button } from "@better-agent/ui/components/button";
 import { cn } from "@better-agent/ui/lib/utils";
 import { ArrowUpIcon, SquareIcon } from "lucide-react";
 import type { FormEvent, KeyboardEvent, ReactNode } from "react";
@@ -17,7 +16,10 @@ export function PromptInput({
 }) {
 	return (
 		<form
-			className={cn("rounded-lg border bg-background p-2", className)}
+			className={cn(
+				"rounded-xl border bg-background p-2 transition-[border-color,_box-shadow] duration-150 focus-within:border-ring/60",
+				className
+			)}
 			onSubmit={(event: FormEvent) => {
 				event.preventDefault();
 				onSubmit();
@@ -29,9 +31,9 @@ export function PromptInput({
 }
 
 /** Optional ARIA wiring for a caller that layers a combobox-style popup (e.g.
- * the bridge terminal's slash-command picker) on top of this plain textarea —
- * `undefined` when no such popup is open, so the textarea stays a bare
- * `aria-label="Message"` field the rest of the time. */
+ * the "/" skill picker) on top of this plain textarea — `undefined` when no
+ * such popup is open, so the textarea stays a bare `aria-label="Message"`
+ * field the rest of the time. */
 export interface PromptInputComboboxAria {
 	activeDescendant?: string;
 	controls: string;
@@ -119,29 +121,73 @@ export function PromptInputTools({ children }: { children?: ReactNode }) {
 	return <div className="flex items-center gap-1">{children}</div>;
 }
 
+/** 28px square icon button (beautifului.dev control size) for composer
+ * toolbars — color-only hover, press scales to 0.94. */
+export function PromptInputIconButton({
+	label,
+	onClick,
+	children,
+	pressed,
+}: {
+	label: string;
+	onClick: () => void;
+	children: ReactNode;
+	pressed?: boolean;
+}) {
+	return (
+		<button
+			aria-label={label}
+			aria-pressed={pressed}
+			className={cn(
+				"flex size-7 items-center justify-center rounded-lg transition-[background-color,_color,_transform] duration-150 active:scale-95",
+				pressed
+					? "bg-accent text-foreground"
+					: "text-muted-foreground hover:bg-accent hover:text-foreground"
+			)}
+			onClick={onClick}
+			type="button"
+		>
+			{children}
+		</button>
+	);
+}
+
 export function PromptInputSubmit({
 	status,
 	onStop,
+	canSend = true,
 }: {
 	status: "idle" | "streaming";
 	onStop: () => void;
+	/** Colors the send button: ink inversion when sendable, muted gray when
+	 * there's nothing to send (the button is also disabled then). */
+	canSend?: boolean;
 }) {
 	if (status === "streaming") {
 		return (
-			<Button
+			<button
 				aria-label="Stop"
+				className="flex size-7 items-center justify-center rounded-lg bg-destructive text-white transition-[background-color,_transform] duration-200 hover:bg-destructive/90 active:scale-95"
 				onClick={onStop}
-				size="icon-sm"
 				type="button"
-				variant="destructive"
 			>
-				<SquareIcon className="size-3.5" />
-			</Button>
+				<SquareIcon className="size-3" fill="currentColor" />
+			</button>
 		);
 	}
 	return (
-		<Button aria-label="Send" size="icon-sm" type="submit">
-			<ArrowUpIcon className="size-4" />
-		</Button>
+		<button
+			aria-label="Send"
+			className={cn(
+				"flex size-7 items-center justify-center rounded-lg transition-[background-color,_color,_transform] duration-200 enabled:active:scale-95",
+				canSend
+					? "bg-foreground text-background hover:bg-foreground/90"
+					: "bg-secondary text-muted-foreground"
+			)}
+			disabled={!canSend}
+			type="submit"
+		>
+			<ArrowUpIcon className="size-4" strokeWidth={2.4} />
+		</button>
 	);
 }

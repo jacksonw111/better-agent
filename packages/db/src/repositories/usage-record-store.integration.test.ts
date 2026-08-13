@@ -1,4 +1,3 @@
-import type { BridgeAgentKind } from "@better-agent/agent/ports";
 import type { UsageSnapshot } from "@better-agent/agent/usage/usage-record";
 import type { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
@@ -41,7 +40,6 @@ function snapshot(overrides: Partial<UsageSnapshot> = {}): UsageSnapshot {
 		source: "chat",
 		userId: crypto.randomUUID(),
 		sessionId: crypto.randomUUID(),
-		agentKind: "claude-code",
 		providerId: "anthropic",
 		model: "claude-opus-4-5",
 		tokens: {
@@ -71,7 +69,6 @@ it("insert persists a row with the mapped columns", async () => {
 	expect(row.userId).toBe(snap.userId);
 	expect(row.sessionId).toBe(snap.sessionId);
 	expect(row.source).toBe("chat");
-	expect(row.agentKind).toBe("claude-code");
 	expect(row.providerId).toBe("anthropic");
 	expect(row.modelId).toBe("claude-opus-4-5");
 	expect(row.inputTokens).toBe(100);
@@ -87,11 +84,10 @@ it("insert persists a row with the mapped columns", async () => {
 
 it("insert is idempotent on dedupKey: a duplicate insert is a no-op", async () => {
 	const store = createUsageRecordStore(db);
-	const dedupKey = `bridge:${crypto.randomUUID()}:1`;
-	const first = snapshot({ dedupKey, source: "bridge" });
+	const dedupKey = `chat:${crypto.randomUUID()}`;
+	const first = snapshot({ dedupKey });
 	const second = snapshot({
 		dedupKey,
-		source: "bridge",
 		tokens: {
 			input: 999,
 			output: 999,
@@ -114,7 +110,6 @@ it("persists unpriced snapshots with null costUsd and DB defaults for omitted fi
 	const snap = snapshot({
 		costUsd: null,
 		priced: false,
-		agentKind: undefined,
 		providerId: undefined,
 		model: undefined,
 		durationMs: undefined,
@@ -125,7 +120,6 @@ it("persists unpriced snapshots with null costUsd and DB defaults for omitted fi
 	const row = requireRow(await selectByDedupKey(snap.dedupKey));
 	expect(row.costUsd).toBeNull();
 	expect(row.priced).toBe(false);
-	expect(row.agentKind).toBeNull();
 	expect(row.providerId).toBeNull();
 	expect(row.modelId).toBeNull();
 	expect(row.durationMs).toBeNull();
@@ -141,8 +135,6 @@ const WINDOW = {
 type Tokens = [number, number, number, number, number]; // input, output, cacheRead, cacheWrite, reasoning
 type Row = [
 	dedupKey: string,
-	source: "chat" | "bridge",
-	agentKind: BridgeAgentKind | null,
 	modelId: string | null,
 	tokens: Tokens,
 	costUsd: string | null,
@@ -150,53 +142,34 @@ type Row = [
 	bucketedAt: Date,
 ];
 
-// Two days, a mix of chat/bridge, priced/unpriced, and named/null model+agent
-// dimensions — shared by the groupBy:day/model/source assertions below.
+// Two days, a mix of priced/unpriced and named/null model dimensions — shared
+// by the groupBy:day/model/source assertions below.
 const ROWS: Row[] = [
-	["r1", "chat", null, "claude-opus-4-5", [10, 5, 1, 1, 0], "1.00", true, DAY1],
-	[
-		"r2",
-		"bridge",
-		"claude-code",
-		"gpt-5",
-		[20, 10, 2, 2, 1],
-		null,
-		false,
-		DAY1,
-	],
-	[
-		"r3",
-		"chat",
-		null,
-		"claude-opus-4-5",
-		[30, 15, 3, 3, 0],
-		"2.50",
-		true,
-		DAY2,
-	],
-	["r4", "bridge", "codex", null, [40, 20, 4, 4, 2], "0.75", true, DAY2],
+	["r1", "claude-opus-4-5", [10, 5, 1, 1, 0], "1.00", true, DAY1],
+	["r2", "gpt-5", [20, 10, 2, 2, 1], null, false, DAY1],
+	["r3", "claude-opus-4-5", [30, 15, 3, 3, 0], "2.50", true, DAY2],
+	["r4", null, [40, 20, 4, 4, 2], "0.75", true, DAY2],
 ];
 
 // Inserts directly (bypassing `store.insert`, which always stamps `bucketedAt`
 // via the DB's `defaultNow()`) so tests can control which calendar day a row
 // falls on and pin every other dimension.
 async function insertRow(userId: string, row: Row) {
-	const [input, output, cacheRead, cacheWrite, reasoning] = row[4];
+	const [input, output, cacheRead, cacheWrite, reasoning] = row[2];
 	await db.insert(usageRecords).values({
 		userId,
-		source: row[1],
+		source: "chat",
 		sessionId: crypto.randomUUID(),
-		agentKind: row[2],
-		modelId: row[3],
+		modelId: row[1],
 		inputTokens: input,
 		outputTokens: output,
 		cacheReadTokens: cacheRead,
 		cacheWriteTokens: cacheWrite,
 		reasoningTokens: reasoning,
-		costUsd: row[5],
-		priced: row[6],
+		costUsd: row[3],
+		priced: row[4],
 		dedupKey: `${userId}:${row[0]}`,
-		bucketedAt: row[7],
+		bucketedAt: row[5],
 	});
 }
 
@@ -208,8 +181,6 @@ async function seedRows(userId: string) {
 	}
 	await insertRow(crypto.randomUUID(), [
 		"other-user",
-		"chat",
-		null,
 		"claude-opus-4-5",
 		[9999, 9999, 9999, 9999, 9999],
 		"999.00",
@@ -273,7 +244,6 @@ it("aggregate groupBy:source sums per-source tokens, excluding unpriced from cos
 	const rows = await store.aggregate({ userId, ...WINDOW, groupBy: "source" });
 
 	expect(rows).toEqual([
-		aggregateRow("bridge", [60, 30, 6, 6, 3], 0.75, 1, 2),
-		aggregateRow("chat", [40, 20, 4, 4, 0], 3.5, 0, 2),
+		aggregateRow("chat", [100, 50, 10, 10, 3], 4.25, 1, 4),
 	]);
 });

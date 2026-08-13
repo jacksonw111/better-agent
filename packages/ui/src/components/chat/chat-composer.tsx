@@ -1,7 +1,7 @@
-import { Button } from "@better-agent/ui/components/button";
 import {
 	PromptInput,
 	type PromptInputComboboxAria,
+	PromptInputIconButton,
 	PromptInputSubmit,
 	PromptInputTextarea,
 	PromptInputToolbar,
@@ -39,25 +39,24 @@ function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }) {
 				ref={fileRef}
 				type="file"
 			/>
-			<Button
-				aria-label="Attach image"
+			<PromptInputIconButton
+				label="Attach image"
 				onClick={() => fileRef.current?.click()}
-				size="icon"
-				type="button"
-				variant="ghost"
 			>
 				<ImagePlusIcon className="size-4" />
-			</Button>
+			</PromptInputIconButton>
 		</div>
 	);
 }
 
 function ComposerToolbar({
+	canSend,
 	onFiles,
 	onStop,
 	streaming,
 	toolsSlot,
 }: {
+	canSend: boolean;
 	onFiles: (files: File[]) => void;
 	onStop: () => void;
 	streaming: boolean;
@@ -70,6 +69,7 @@ function ComposerToolbar({
 				{toolsSlot}
 			</PromptInputTools>
 			<PromptInputSubmit
+				canSend={canSend}
 				onStop={onStop}
 				status={streaming ? "streaming" : "idle"}
 			/>
@@ -111,6 +111,9 @@ function useComposerState({
 		sessionId
 	);
 	const uploading = items.some((it) => it.status === "uploading");
+	const canSend =
+		!(streaming || uploading) &&
+		(text.trim() !== "" || readyAttachments(items).length > 0);
 	const submit = () => {
 		const trimmed = text.trim();
 		const ready = readyAttachments(items);
@@ -121,7 +124,7 @@ function useComposerState({
 		setText("");
 		clear();
 	};
-	return { text, setText, items, addFiles, remove, submit, picker };
+	return { text, setText, items, addFiles, remove, submit, picker, canSend };
 }
 
 /** `aria-activedescendant`/`aria-controls` wiring for the textarea while the
@@ -141,6 +144,7 @@ function comboboxAriaFor(
 }
 
 interface ComposerBoxProps {
+	canSend: boolean;
 	items: PendingAttachment[];
 	onFiles: (files: File[]) => void;
 	onRemove: (localId: string) => void;
@@ -158,6 +162,7 @@ interface ComposerBoxProps {
  * repo's max-lines-per-function gate, same as `ComposerBox` in the bridge
  * terminal's composer. */
 function ComposerBox({
+	canSend,
 	items,
 	onFiles,
 	onRemove,
@@ -182,7 +187,7 @@ function ComposerBox({
 				/>
 			)}
 			<PromptInput
-				className="rounded-2xl border bg-background/85 p-2 shadow-lg backdrop-blur-md md:bg-background md:shadow-sm md:backdrop-blur-none"
+				className="rounded-xl border bg-background/85 p-2 shadow-lg backdrop-blur-md md:bg-background md:shadow-sm md:backdrop-blur-none"
 				onSubmit={submit}
 			>
 				<ChipRow items={items} onRemove={onRemove} />
@@ -196,6 +201,7 @@ function ComposerBox({
 					value={text}
 				/>
 				<ComposerToolbar
+					canSend={canSend}
 					onFiles={onFiles}
 					onStop={onStop}
 					streaming={streaming}
@@ -215,7 +221,7 @@ export function ChatComposer({
 	skills,
 	toolsSlot,
 }: ChatComposerProps) {
-	const { text, setText, items, addFiles, remove, submit, picker } =
+	const { text, setText, items, addFiles, remove, submit, picker, canSend } =
 		useComposerState({
 			agentClient,
 			sessionId,
@@ -224,14 +230,13 @@ export function ChatComposer({
 			onSend,
 		});
 
-	// Keep this wrapper's classes AND the inner PromptInput's classes in sync
-	// with their twin in apps/web/src/components/bridge/terminal-composer.tsx
-	// (TerminalComposer) — the two composers are styled to match. On <md the box
-	// floats as a glass pill (shadow-lg + backdrop-blur, matching the dock) and
-	// `pb-safe-composer` clears the home indicator; desktop keeps the solid card.
+	// On <md the box floats as a glass pill (shadow-lg + backdrop-blur, matching
+	// the dock) and `pb-safe-composer` clears the home indicator; desktop keeps
+	// the solid card.
 	return (
 		<div className="mx-auto w-full max-w-3xl shrink-0 px-3 pb-safe-composer sm:px-4 md:pb-4">
 			<ComposerBox
+				canSend={canSend}
 				items={items}
 				onFiles={addFiles}
 				onRemove={remove}

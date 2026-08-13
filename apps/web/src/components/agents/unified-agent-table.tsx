@@ -23,9 +23,7 @@ import {
 	rowSubtitle,
 } from "./unified-agent-row";
 
-// S3-T3: cloud-only — the /local list this table also served is retired, so
-// the local row branches (status chip, bridge-token cell, local delete) are
-// gone along with the Status column they filled.
+// The /agents table: one row per cloud agent.
 
 const AVATAR_INITIALS_LENGTH = 2;
 const COLUMN_COUNT = 4;

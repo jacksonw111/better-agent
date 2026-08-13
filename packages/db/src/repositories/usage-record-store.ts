@@ -11,7 +11,7 @@ import * as schema from "../schema";
 // Driver-agnostic db type: satisfied by node-postgres (production) and PGlite (tests).
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export type UsageGroupBy = "day" | "model" | "agent" | "session" | "source";
+export type UsageGroupBy = "day" | "model" | "session" | "source";
 
 export interface UsageAggregateRow {
 	cacheReadTokens: number;
@@ -21,8 +21,8 @@ export interface UsageAggregateRow {
 	/** Total rows (turns) in the group. */
 	count: number;
 	inputTokens: number;
-	/** ISO date (day, "YYYY-MM-DD") | modelId | agentKind | sessionId | source;
-	 * a null dimension column (modelId/agentKind) groups under "unknown". */
+	/** ISO date (day, "YYYY-MM-DD") | modelId | sessionId | source; a null
+	 * dimension column (modelId) groups under "unknown". */
 	key: string;
 	outputTokens: number;
 	reasoningTokens: number;
@@ -53,7 +53,6 @@ function toValues(snapshot: UsageSnapshot) {
 		userId: snapshot.userId,
 		source: snapshot.source,
 		sessionId: snapshot.sessionId,
-		agentKind: snapshot.agentKind,
 		providerId: snapshot.providerId,
 		modelId: snapshot.model,
 		inputTokens: snapshot.tokens.input,
@@ -76,7 +75,6 @@ function toValues(snapshot: UsageSnapshot) {
 // `groupBy()` query with builder-native `sum()`/`count()` aggregates.
 const GROUP_BY_COLUMN: Record<Exclude<UsageGroupBy, "day">, PgColumn> = {
 	model: schema.usageRecords.modelId,
-	agent: schema.usageRecords.agentKind,
 	session: schema.usageRecords.sessionId,
 	source: schema.usageRecords.source,
 };
@@ -215,11 +213,11 @@ function groupRowsByDay(rows: DayRow[]): UsageAggregateRow[] {
 }
 
 /**
- * Write-side of the unified token-usage ledger (`usage_records`). Both the
- * chat runtime and the local-agent bridge dual-write here via `insert`;
- * `dedupKey` uniqueness makes re-finalizes/replays a no-op instead of
- * double-counting. `aggregate` is the shared read-side for the usage
- * dashboard: token/cost totals grouped by day/model/agent/session/source.
+ * Write-side of the unified token-usage ledger (`usage_records`). The chat
+ * runtime writes here via `insert`; `dedupKey` uniqueness makes
+ * re-finalizes/replays a no-op instead of double-counting. `aggregate` is the
+ * shared read-side for the usage dashboard: token/cost totals grouped by
+ * day/model/session/source.
  */
 export function createUsageRecordStore(db: Db): UsageRecordStore {
 	return {

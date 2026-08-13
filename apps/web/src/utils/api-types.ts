@@ -29,20 +29,6 @@ export type McpServerRow = Awaited<
 	ReturnType<Client["mcp"]["listServers"]>
 >[number];
 
-export type BridgeTokenRow = Awaited<
-	ReturnType<Client["bridge"]["listTokens"]>
->[number];
-
-export type ComputerListItem = Awaited<
-	ReturnType<Client["computers"]["list"]>
->[number];
-
-export type TaskListItem = Awaited<ReturnType<Client["tasks"]["list"]>>[number];
-
-export type ProjectListItem = Awaited<
-	ReturnType<Client["projects"]["list"]>
->[number];
-
 export type GithubRepositoryItem = Awaited<
 	ReturnType<Client["github"]["searchRepositories"]>
 >[number];
@@ -51,34 +37,13 @@ export type GithubIssueItem = Awaited<
 	ReturnType<Client["github"]["searchIssues"]>
 >[number];
 
-export type TaskDetail = Awaited<ReturnType<Client["tasks"]["get"]>>;
-
-export type TaskRun = TaskDetail["runs"][number];
-
-export type BridgeSessionRow = Awaited<
-	ReturnType<Client["bridge"]["listSessions"]>
->["sessions"][number];
-
-export type LocalAgentUsageRow = Awaited<
-	ReturnType<Client["bridge"]["usageByAgentKind"]>
->["byKind"][number];
-
 export type CloudAgentUsageServerRow = Awaited<
 	ReturnType<Client["usage"]["byAgent"]>
 >["byAgent"][number];
 
 /** Display row for the Cloud Agents card: same shape the server returns, but
  * with `costCents` converted to `costUsd` (dollars) so the view can reuse
- * `formatCostUsd` — the same formatter the Local Agents card uses. */
+ * `formatCostUsd`. */
 export type CloudAgentUsageRow = Omit<CloudAgentUsageServerRow, "costCents"> & {
 	costUsd: number;
 };
-
-/** The user's profile envelope: version + standards + templates, resolved. */
-export type ProfileData = Awaited<ReturnType<Client["profiles"]["get"]>>;
-
-export type ProfileStandard = ProfileData["standards"][number];
-
-export type ProjectTemplate = ProfileData["templates"][number];
-
-export type TemplateScaffold = ProjectTemplate["scaffold"];

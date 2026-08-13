@@ -34,8 +34,7 @@ function useUpdateSkill(onSaved: () => void) {
 }
 
 /** Owns the draft state, re-seeded from `skill` whenever the dialog opens for
- * a (possibly different) skill — same re-seed-on-open pattern as
- * LocalAgentSettingsDialog's useSettingsDraft. */
+ * a (possibly different) skill. */
 function useEditSkillDraft(
 	skill: SkillRow,
 	open: boolean,

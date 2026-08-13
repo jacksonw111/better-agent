@@ -60,10 +60,9 @@ it("an errored tool defaults open with the error text and destructive tint", () 
 	// No click needed: defaultOpen shows the banner and the raw sections.
 	expect(scope.getAllByText("boom: tool failed").length).toBeGreaterThan(0);
 	expect(scope.getByText("Arguments")).toBeDefined();
-	// Borderless: the error state is a background tint, never a colored border.
-	expect(container.querySelector('[class*="bg-destructive/10"]')).not.toBe(
-		null
-	);
+	// Borderless: the error state is a destructive TEXT tint on the rail-indented
+	// paragraph — never a colored card border or ring.
+	expect(container.querySelector('[class*="text-destructive"]')).not.toBe(null);
 });
 
 it("a running tool renders no Result section", () => {

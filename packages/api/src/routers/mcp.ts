@@ -2,7 +2,6 @@ import { ORPCError } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "../context";
 import { authorizedUserProcedure } from "../index";
-import { bumpProfileVersion } from "../profile-version";
 
 const serverIdInput = z.object({ serverId: z.uuid() });
 const MAX_DETAIL_LEN = 300;
@@ -105,10 +104,6 @@ export const mcpRouter = {
 				context.authedUser.id,
 				input
 			);
-			await bumpProfileVersion(
-				context.services.stores.profile,
-				context.authedUser.id
-			);
 			return server;
 		}),
 
@@ -145,10 +140,6 @@ export const mcpRouter = {
 				type: "mcp_server_updated",
 				summary: `Updated MCP server “${updated.name}”`,
 			});
-			await bumpProfileVersion(
-				context.services.stores.profile,
-				context.authedUser.id
-			);
 			return updated;
 		}),
 
@@ -171,10 +162,6 @@ export const mcpRouter = {
 				type: "mcp_server_removed",
 				summary: `Removed MCP server “${server.name}”`,
 			});
-			await bumpProfileVersion(
-				context.services.stores.profile,
-				context.authedUser.id
-			);
 			return { ok: true };
 		}),
 

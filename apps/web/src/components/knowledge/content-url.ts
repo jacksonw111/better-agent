@@ -3,8 +3,7 @@ import { getAccessToken } from "@/utils/auth";
 
 // The server's authed streaming route for a document's bytes (see
 // apps/server/src/knowledge-content.ts). <img>/<iframe>/react-pdf can't set
-// an Authorization header, so the bearer rides in ?access_token= — the same
-// convention as the VNC viewer and bridge SSE stream.
+// an Authorization header, so the bearer rides in ?access_token=.
 export function documentContentUrl(
 	documentId: string,
 	options?: { download?: boolean }

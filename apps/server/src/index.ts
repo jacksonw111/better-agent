@@ -3,11 +3,8 @@ import { env } from "@better-agent/env/server";
 import { serve } from "@hono/node-server";
 import { initLogger, log } from "evlog";
 import { buildApp } from "./app";
-import { registerComputerWsRoute } from "./computer-ws";
-import { registerPtyWsRoutes } from "./pty-ws";
 import { createS3Bucket } from "./s3-bucket";
 import { buildServices } from "./services";
-import { createVncRouteDeps, registerVncRoutes } from "./vnc-proxy";
 
 initLogger({
 	env: { service: "better-agent-server" },
@@ -30,20 +27,8 @@ const uploads =
 		: undefined;
 const services = buildServices(db, uploads);
 const app = buildApp(services);
-// Session-scoped VNC WebSocket proxy (video plane). Wired here, not in
-// buildApp, so buildApp stays transport-agnostic while this Node entry injects
-// the WS upgrade handler onto the http server below.
-const { injectWebSocket, upgradeWebSocket } = registerVncRoutes(
-	app,
-	createVncRouteDeps(services)
-);
-// Computer control channel (S2-T2, D4): launch delivery to client-mode CLIs.
-registerComputerWsRoute(app, upgradeWebSocket, services);
-// P2-1 PTY byte-relay plane: CLI daemon (/pty/agent-ws) <-> web viewers
-// (/pty/viewer-ws), pure sessionId-routed binary relay through services.ptyRelay.
-registerPtyWsRoutes(app, upgradeWebSocket, services);
 
-const server = serve(
+serve(
 	{
 		fetch: app.fetch,
 		port: 3000,
@@ -52,4 +37,3 @@ const server = serve(
 		log.info("server", `Server is running on http://localhost:${info.port}`);
 	}
 );
-injectWebSocket(server);

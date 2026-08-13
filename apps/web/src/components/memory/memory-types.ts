@@ -34,8 +34,8 @@ export function memoryDescription(
 	return memory.description ?? "—";
 }
 
-/** The agent a memory is assigned to: exactly one of a web agent (agentId) or
- * a local/bridge agent (tokenId) — mirrors the router's targetInput. */
-export type MemoryTarget =
-	| { agentId: string; tokenId?: undefined }
-	| { tokenId: string; agentId?: undefined };
+/** The cloud agent a memory is assigned to — mirrors the router's
+ * targetInput. */
+export interface MemoryTarget {
+	agentId: string;
+}

@@ -16,30 +16,16 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as TasksIndexRouteImport } from './routes/tasks.index'
 import { Route as SkillsIndexRouteImport } from './routes/skills.index'
-import { Route as ProfileIndexRouteImport } from './routes/profile.index'
 import { Route as MemoriesIndexRouteImport } from './routes/memories.index'
-import { Route as LocalIndexRouteImport } from './routes/local.index'
-import { Route as LocalAgentsIndexRouteImport } from './routes/local-agents.index'
 import { Route as KnowledgeIndexRouteImport } from './routes/knowledge.index'
 import { Route as IntegrationsIndexRouteImport } from './routes/integrations.index'
-import { Route as ComputersIndexRouteImport } from './routes/computers.index'
-import { Route as BridgeIndexRouteImport } from './routes/bridge.index'
 import { Route as AgentsIndexRouteImport } from './routes/agents.index'
-import { Route as TerminalComputerIdRouteImport } from './routes/terminal.$computerId'
-import { Route as TasksNewRouteImport } from './routes/tasks.new'
-import { Route as TasksTaskIdRouteImport } from './routes/tasks.$taskId'
 import { Route as MemoriesMemoryIdRouteImport } from './routes/memories.$memoryId'
-import { Route as LocalTokenIdRouteImport } from './routes/local.$tokenId'
-import { Route as LocalAgentsTokenIdRouteImport } from './routes/local-agents.$tokenId'
 import { Route as IntegrationsAccountIdRouteImport } from './routes/integrations.$accountId'
-import { Route as ComputersComputerIdRouteImport } from './routes/computers.$computerId'
 import { Route as AuthVerifyRouteImport } from './routes/auth.verify'
 import { Route as IntegrationsOcAccountIdRouteImport } from './routes/integrations.oc.$accountId'
 import { Route as AuthGoogleCallbackRouteImport } from './routes/auth.google.callback'
-import { Route as ComputersComputerIdProjectsProjectIdRouteImport } from './routes/computers.$computerId_.projects.$projectId'
-import { Route as ComputersComputerIdAgentsAgentKindRouteImport } from './routes/computers.$computerId_.agents.$agentKind'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -76,34 +62,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TasksIndexRoute = TasksIndexRouteImport.update({
-  id: '/tasks/',
-  path: '/tasks/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SkillsIndexRoute = SkillsIndexRouteImport.update({
   id: '/skills/',
   path: '/skills/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProfileIndexRoute = ProfileIndexRouteImport.update({
-  id: '/profile/',
-  path: '/profile/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const MemoriesIndexRoute = MemoriesIndexRouteImport.update({
   id: '/memories/',
   path: '/memories/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LocalIndexRoute = LocalIndexRouteImport.update({
-  id: '/local/',
-  path: '/local/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LocalAgentsIndexRoute = LocalAgentsIndexRouteImport.update({
-  id: '/local-agents/',
-  path: '/local-agents/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KnowledgeIndexRoute = KnowledgeIndexRouteImport.update({
@@ -116,34 +82,9 @@ const IntegrationsIndexRoute = IntegrationsIndexRouteImport.update({
   path: '/integrations/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ComputersIndexRoute = ComputersIndexRouteImport.update({
-  id: '/computers/',
-  path: '/computers/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BridgeIndexRoute = BridgeIndexRouteImport.update({
-  id: '/bridge/',
-  path: '/bridge/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AgentsIndexRoute = AgentsIndexRouteImport.update({
   id: '/agents/',
   path: '/agents/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TerminalComputerIdRoute = TerminalComputerIdRouteImport.update({
-  id: '/terminal/$computerId',
-  path: '/terminal/$computerId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TasksNewRoute = TasksNewRouteImport.update({
-  id: '/tasks/new',
-  path: '/tasks/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TasksTaskIdRoute = TasksTaskIdRouteImport.update({
-  id: '/tasks/$taskId',
-  path: '/tasks/$taskId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MemoriesMemoryIdRoute = MemoriesMemoryIdRouteImport.update({
@@ -151,24 +92,9 @@ const MemoriesMemoryIdRoute = MemoriesMemoryIdRouteImport.update({
   path: '/memories/$memoryId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LocalTokenIdRoute = LocalTokenIdRouteImport.update({
-  id: '/local/$tokenId',
-  path: '/local/$tokenId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LocalAgentsTokenIdRoute = LocalAgentsTokenIdRouteImport.update({
-  id: '/local-agents/$tokenId',
-  path: '/local-agents/$tokenId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IntegrationsAccountIdRoute = IntegrationsAccountIdRouteImport.update({
   id: '/integrations/$accountId',
   path: '/integrations/$accountId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComputersComputerIdRoute = ComputersComputerIdRouteImport.update({
-  id: '/computers/$computerId',
-  path: '/computers/$computerId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthVerifyRoute = AuthVerifyRouteImport.update({
@@ -186,18 +112,6 @@ const AuthGoogleCallbackRoute = AuthGoogleCallbackRouteImport.update({
   path: '/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ComputersComputerIdProjectsProjectIdRoute =
-  ComputersComputerIdProjectsProjectIdRouteImport.update({
-    id: '/computers/$computerId_/projects/$projectId',
-    path: '/computers/$computerId/projects/$projectId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ComputersComputerIdAgentsAgentKindRoute =
-  ComputersComputerIdAgentsAgentKindRouteImport.update({
-    id: '/computers/$computerId_/agents/$agentKind',
-    path: '/computers/$computerId/agents/$agentKind',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -208,29 +122,15 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
-  '/computers/$computerId': typeof ComputersComputerIdRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
-  '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
-  '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
-  '/tasks/$taskId': typeof TasksTaskIdRoute
-  '/tasks/new': typeof TasksNewRoute
-  '/terminal/$computerId': typeof TerminalComputerIdRoute
   '/agents/': typeof AgentsIndexRoute
-  '/bridge/': typeof BridgeIndexRoute
-  '/computers/': typeof ComputersIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/knowledge/': typeof KnowledgeIndexRoute
-  '/local-agents/': typeof LocalAgentsIndexRoute
-  '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
-  '/profile/': typeof ProfileIndexRoute
   '/skills/': typeof SkillsIndexRoute
-  '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
-  '/computers/$computerId/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
-  '/computers/$computerId/projects/$projectId': typeof ComputersComputerIdProjectsProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -241,29 +141,15 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
-  '/computers/$computerId': typeof ComputersComputerIdRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
-  '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
-  '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
-  '/tasks/$taskId': typeof TasksTaskIdRoute
-  '/tasks/new': typeof TasksNewRoute
-  '/terminal/$computerId': typeof TerminalComputerIdRoute
   '/agents': typeof AgentsIndexRoute
-  '/bridge': typeof BridgeIndexRoute
-  '/computers': typeof ComputersIndexRoute
   '/integrations': typeof IntegrationsIndexRoute
   '/knowledge': typeof KnowledgeIndexRoute
-  '/local-agents': typeof LocalAgentsIndexRoute
-  '/local': typeof LocalIndexRoute
   '/memories': typeof MemoriesIndexRoute
-  '/profile': typeof ProfileIndexRoute
   '/skills': typeof SkillsIndexRoute
-  '/tasks': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
-  '/computers/$computerId/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
-  '/computers/$computerId/projects/$projectId': typeof ComputersComputerIdProjectsProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -275,29 +161,15 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/reset-password': typeof ResetPasswordRoute
   '/auth/verify': typeof AuthVerifyRoute
-  '/computers/$computerId': typeof ComputersComputerIdRoute
   '/integrations/$accountId': typeof IntegrationsAccountIdRoute
-  '/local-agents/$tokenId': typeof LocalAgentsTokenIdRoute
-  '/local/$tokenId': typeof LocalTokenIdRoute
   '/memories/$memoryId': typeof MemoriesMemoryIdRoute
-  '/tasks/$taskId': typeof TasksTaskIdRoute
-  '/tasks/new': typeof TasksNewRoute
-  '/terminal/$computerId': typeof TerminalComputerIdRoute
   '/agents/': typeof AgentsIndexRoute
-  '/bridge/': typeof BridgeIndexRoute
-  '/computers/': typeof ComputersIndexRoute
   '/integrations/': typeof IntegrationsIndexRoute
   '/knowledge/': typeof KnowledgeIndexRoute
-  '/local-agents/': typeof LocalAgentsIndexRoute
-  '/local/': typeof LocalIndexRoute
   '/memories/': typeof MemoriesIndexRoute
-  '/profile/': typeof ProfileIndexRoute
   '/skills/': typeof SkillsIndexRoute
-  '/tasks/': typeof TasksIndexRoute
   '/auth/google/callback': typeof AuthGoogleCallbackRoute
   '/integrations/oc/$accountId': typeof IntegrationsOcAccountIdRoute
-  '/computers/$computerId_/agents/$agentKind': typeof ComputersComputerIdAgentsAgentKindRoute
-  '/computers/$computerId_/projects/$projectId': typeof ComputersComputerIdProjectsProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -310,29 +182,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/auth/verify'
-    | '/computers/$computerId'
     | '/integrations/$accountId'
-    | '/local-agents/$tokenId'
-    | '/local/$tokenId'
     | '/memories/$memoryId'
-    | '/tasks/$taskId'
-    | '/tasks/new'
-    | '/terminal/$computerId'
     | '/agents/'
-    | '/bridge/'
-    | '/computers/'
     | '/integrations/'
     | '/knowledge/'
-    | '/local-agents/'
-    | '/local/'
     | '/memories/'
-    | '/profile/'
     | '/skills/'
-    | '/tasks/'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
-    | '/computers/$computerId/agents/$agentKind'
-    | '/computers/$computerId/projects/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -343,29 +201,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/auth/verify'
-    | '/computers/$computerId'
     | '/integrations/$accountId'
-    | '/local-agents/$tokenId'
-    | '/local/$tokenId'
     | '/memories/$memoryId'
-    | '/tasks/$taskId'
-    | '/tasks/new'
-    | '/terminal/$computerId'
     | '/agents'
-    | '/bridge'
-    | '/computers'
     | '/integrations'
     | '/knowledge'
-    | '/local-agents'
-    | '/local'
     | '/memories'
-    | '/profile'
     | '/skills'
-    | '/tasks'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
-    | '/computers/$computerId/agents/$agentKind'
-    | '/computers/$computerId/projects/$projectId'
   id:
     | '__root__'
     | '/'
@@ -376,29 +220,15 @@ export interface FileRouteTypes {
     | '/login'
     | '/reset-password'
     | '/auth/verify'
-    | '/computers/$computerId'
     | '/integrations/$accountId'
-    | '/local-agents/$tokenId'
-    | '/local/$tokenId'
     | '/memories/$memoryId'
-    | '/tasks/$taskId'
-    | '/tasks/new'
-    | '/terminal/$computerId'
     | '/agents/'
-    | '/bridge/'
-    | '/computers/'
     | '/integrations/'
     | '/knowledge/'
-    | '/local-agents/'
-    | '/local/'
     | '/memories/'
-    | '/profile/'
     | '/skills/'
-    | '/tasks/'
     | '/auth/google/callback'
     | '/integrations/oc/$accountId'
-    | '/computers/$computerId_/agents/$agentKind'
-    | '/computers/$computerId_/projects/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -410,29 +240,15 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   AuthVerifyRoute: typeof AuthVerifyRoute
-  ComputersComputerIdRoute: typeof ComputersComputerIdRoute
   IntegrationsAccountIdRoute: typeof IntegrationsAccountIdRoute
-  LocalAgentsTokenIdRoute: typeof LocalAgentsTokenIdRoute
-  LocalTokenIdRoute: typeof LocalTokenIdRoute
   MemoriesMemoryIdRoute: typeof MemoriesMemoryIdRoute
-  TasksTaskIdRoute: typeof TasksTaskIdRoute
-  TasksNewRoute: typeof TasksNewRoute
-  TerminalComputerIdRoute: typeof TerminalComputerIdRoute
   AgentsIndexRoute: typeof AgentsIndexRoute
-  BridgeIndexRoute: typeof BridgeIndexRoute
-  ComputersIndexRoute: typeof ComputersIndexRoute
   IntegrationsIndexRoute: typeof IntegrationsIndexRoute
   KnowledgeIndexRoute: typeof KnowledgeIndexRoute
-  LocalAgentsIndexRoute: typeof LocalAgentsIndexRoute
-  LocalIndexRoute: typeof LocalIndexRoute
   MemoriesIndexRoute: typeof MemoriesIndexRoute
-  ProfileIndexRoute: typeof ProfileIndexRoute
   SkillsIndexRoute: typeof SkillsIndexRoute
-  TasksIndexRoute: typeof TasksIndexRoute
   AuthGoogleCallbackRoute: typeof AuthGoogleCallbackRoute
   IntegrationsOcAccountIdRoute: typeof IntegrationsOcAccountIdRoute
-  ComputersComputerIdAgentsAgentKindRoute: typeof ComputersComputerIdAgentsAgentKindRoute
-  ComputersComputerIdProjectsProjectIdRoute: typeof ComputersComputerIdProjectsProjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -486,13 +302,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tasks/': {
-      id: '/tasks/'
-      path: '/tasks'
-      fullPath: '/tasks/'
-      preLoaderRoute: typeof TasksIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/skills/': {
       id: '/skills/'
       path: '/skills'
@@ -500,32 +309,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkillsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/profile/': {
-      id: '/profile/'
-      path: '/profile'
-      fullPath: '/profile/'
-      preLoaderRoute: typeof ProfileIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/memories/': {
       id: '/memories/'
       path: '/memories'
       fullPath: '/memories/'
       preLoaderRoute: typeof MemoriesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/local/': {
-      id: '/local/'
-      path: '/local'
-      fullPath: '/local/'
-      preLoaderRoute: typeof LocalIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/local-agents/': {
-      id: '/local-agents/'
-      path: '/local-agents'
-      fullPath: '/local-agents/'
-      preLoaderRoute: typeof LocalAgentsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/knowledge/': {
@@ -542,46 +330,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/computers/': {
-      id: '/computers/'
-      path: '/computers'
-      fullPath: '/computers/'
-      preLoaderRoute: typeof ComputersIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bridge/': {
-      id: '/bridge/'
-      path: '/bridge'
-      fullPath: '/bridge/'
-      preLoaderRoute: typeof BridgeIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/agents/': {
       id: '/agents/'
       path: '/agents'
       fullPath: '/agents/'
       preLoaderRoute: typeof AgentsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/terminal/$computerId': {
-      id: '/terminal/$computerId'
-      path: '/terminal/$computerId'
-      fullPath: '/terminal/$computerId'
-      preLoaderRoute: typeof TerminalComputerIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tasks/new': {
-      id: '/tasks/new'
-      path: '/tasks/new'
-      fullPath: '/tasks/new'
-      preLoaderRoute: typeof TasksNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tasks/$taskId': {
-      id: '/tasks/$taskId'
-      path: '/tasks/$taskId'
-      fullPath: '/tasks/$taskId'
-      preLoaderRoute: typeof TasksTaskIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/memories/$memoryId': {
@@ -591,32 +344,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemoriesMemoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/local/$tokenId': {
-      id: '/local/$tokenId'
-      path: '/local/$tokenId'
-      fullPath: '/local/$tokenId'
-      preLoaderRoute: typeof LocalTokenIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/local-agents/$tokenId': {
-      id: '/local-agents/$tokenId'
-      path: '/local-agents/$tokenId'
-      fullPath: '/local-agents/$tokenId'
-      preLoaderRoute: typeof LocalAgentsTokenIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/integrations/$accountId': {
       id: '/integrations/$accountId'
       path: '/integrations/$accountId'
       fullPath: '/integrations/$accountId'
       preLoaderRoute: typeof IntegrationsAccountIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/computers/$computerId': {
-      id: '/computers/$computerId'
-      path: '/computers/$computerId'
-      fullPath: '/computers/$computerId'
-      preLoaderRoute: typeof ComputersComputerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/verify': {
@@ -640,20 +372,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/computers/$computerId_/projects/$projectId': {
-      id: '/computers/$computerId_/projects/$projectId'
-      path: '/computers/$computerId/projects/$projectId'
-      fullPath: '/computers/$computerId/projects/$projectId'
-      preLoaderRoute: typeof ComputersComputerIdProjectsProjectIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/computers/$computerId_/agents/$agentKind': {
-      id: '/computers/$computerId_/agents/$agentKind'
-      path: '/computers/$computerId/agents/$agentKind'
-      fullPath: '/computers/$computerId/agents/$agentKind'
-      preLoaderRoute: typeof ComputersComputerIdAgentsAgentKindRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -666,31 +384,15 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   AuthVerifyRoute: AuthVerifyRoute,
-  ComputersComputerIdRoute: ComputersComputerIdRoute,
   IntegrationsAccountIdRoute: IntegrationsAccountIdRoute,
-  LocalAgentsTokenIdRoute: LocalAgentsTokenIdRoute,
-  LocalTokenIdRoute: LocalTokenIdRoute,
   MemoriesMemoryIdRoute: MemoriesMemoryIdRoute,
-  TasksTaskIdRoute: TasksTaskIdRoute,
-  TasksNewRoute: TasksNewRoute,
-  TerminalComputerIdRoute: TerminalComputerIdRoute,
   AgentsIndexRoute: AgentsIndexRoute,
-  BridgeIndexRoute: BridgeIndexRoute,
-  ComputersIndexRoute: ComputersIndexRoute,
   IntegrationsIndexRoute: IntegrationsIndexRoute,
   KnowledgeIndexRoute: KnowledgeIndexRoute,
-  LocalAgentsIndexRoute: LocalAgentsIndexRoute,
-  LocalIndexRoute: LocalIndexRoute,
   MemoriesIndexRoute: MemoriesIndexRoute,
-  ProfileIndexRoute: ProfileIndexRoute,
   SkillsIndexRoute: SkillsIndexRoute,
-  TasksIndexRoute: TasksIndexRoute,
   AuthGoogleCallbackRoute: AuthGoogleCallbackRoute,
   IntegrationsOcAccountIdRoute: IntegrationsOcAccountIdRoute,
-  ComputersComputerIdAgentsAgentKindRoute:
-    ComputersComputerIdAgentsAgentKindRoute,
-  ComputersComputerIdProjectsProjectIdRoute:
-    ComputersComputerIdProjectsProjectIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

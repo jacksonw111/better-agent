@@ -35,18 +35,14 @@ export function createFakeMemoryStore(
 		listAgentMemories(agentId) {
 			return Promise.resolve(linksByAgent[agentId] ?? []);
 		},
-		listTokenMemories: () => Promise.resolve([]),
 		assignAgent: notImplemented,
-		assignToken: notImplemented,
 		unassignAgent: notImplemented,
-		unassignToken: notImplemented,
 		create: notImplemented,
 		delete: notImplemented,
 		deleteWithChildren: notImplemented,
 		get: notImplemented,
 		getMany: notImplemented,
 		listByUser: notImplemented,
-		setScope: notImplemented,
 	};
 }
 

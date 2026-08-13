@@ -1,4 +1,4 @@
-import { PixelLoading } from "@better-agent/ui/components/pixel-loading";
+import { LoadingState } from "@better-agent/ui/components/loading-state";
 import {
 	SidebarInset,
 	SidebarProvider,
@@ -115,12 +115,11 @@ function AuthedShell() {
 	);
 }
 
-// The global boot loader. The pixel platformer replaced the RocketLoader
-// here by request; the rocket stays alive for route-level waits (chat.tsx).
+// The global boot loader.
 function LoadingScreen() {
 	return (
 		<div className="flex h-svh items-center justify-center">
-			<PixelLoading label="Loading" />
+			<LoadingState label="Loading" />
 		</div>
 	);
 }

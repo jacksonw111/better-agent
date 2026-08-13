@@ -3,10 +3,9 @@ import { ChatComposer } from "@better-agent/ui/components/chat/chat-composer";
 import { fireEvent, render, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-// Render-level test for the web chat composer's "/" skill picker (T5),
-// mirroring apps/web/src/components/bridge/terminal-composer.test.tsx (the
-// bridge terminal's equivalent picker) — typing "/" filters, and selecting
-// (by keyboard or click) inserts the token without sending.
+// Render-level test for the web chat composer's "/" skill picker (T5) —
+// typing "/" filters, and selecting (by keyboard or click) inserts the token
+// without sending.
 
 const fakeAgentClient = {} as unknown as Parameters<
 	typeof ChatComposer

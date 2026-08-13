@@ -85,7 +85,7 @@ function Chip({
 	onRemove: (localId: string) => void;
 }) {
 	return (
-		<div className="relative">
+		<div className="bui-pop-in relative">
 			<img
 				alt={item.name}
 				className="size-14 rounded-md border object-cover"

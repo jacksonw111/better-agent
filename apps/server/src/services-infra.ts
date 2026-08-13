@@ -1,6 +1,5 @@
 import { createAgentValidator } from "@better-agent/agent/agent/agent-validator";
 import { createInMemoryRateLimiter } from "@better-agent/agent/auth/rate-limiter";
-import { createInMemoryRelayStore } from "@better-agent/agent/bridge/relay-store";
 import { createSecretBox } from "@better-agent/agent/crypto/secret-box";
 import { createModelFactory } from "@better-agent/agent/provider/model-factory";
 import {
@@ -20,7 +19,6 @@ import Redis from "ioredis";
 import { createRedisCancellationRegistry } from "./redis-cancellation";
 import { createRedisPendingToolCallStore } from "./redis-pending-store";
 import { createRedisRateLimiter } from "./redis-rate-limiter";
-import { createRedisRelayStore } from "./redis-relay-store";
 import { createRedisSessionLock } from "./redis-session-lock";
 
 // Low-level infra builders shared by services.ts, split out so that file
@@ -86,10 +84,4 @@ export function buildRateLimiter() {
 	return env.REDIS_URL
 		? createRedisRateLimiter(new Redis(env.REDIS_URL))
 		: createInMemoryRateLimiter();
-}
-
-export function buildRelayStore() {
-	return env.REDIS_URL
-		? createRedisRelayStore(new Redis(env.REDIS_URL))
-		: createInMemoryRelayStore();
 }

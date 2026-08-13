@@ -42,7 +42,10 @@ function BlockView({
 	if (block.kind === "reasoning") {
 		return (
 			<Reasoning isStreaming={streaming} text={block.text}>
-				<ReasoningTrigger label="Reasoning" />
+				<ReasoningTrigger
+					isStreaming={streaming}
+					label={streaming ? "Thinking" : "Reasoning"}
+				/>
 				<ReasoningContent>
 					<Response isAnimating={streaming}>{block.text}</Response>
 				</ReasoningContent>
@@ -116,7 +119,7 @@ function AssistantBody({
 				// h-8 matches the size-8 avatar, so the shimmer sits vertically
 				// centered beside it instead of hugging the top of the row.
 				<div className="flex h-8 items-center">
-					<span className="shimmer font-medium text-sm">Thinking…</span>
+					<span className="bui-shimmer font-medium text-sm">Thinking…</span>
 				</div>
 			) : null}
 			<div ref={contentRef}>
@@ -200,7 +203,7 @@ function UserRow({
 	const text = messageText(message);
 	const files = fileBlocks(message);
 	return (
-		<Message align="end">
+		<Message align="end" className="bui-fade-up">
 			<RoleAvatar avatars={avatars} from="user" />
 			<MessageContent>
 				{files.length > 0 && agentClient ? (
@@ -215,7 +218,9 @@ function UserRow({
 					</div>
 				) : null}
 				{text.length > 0 ? (
-					<Bubble align="end">
+					// beautifului.dev user bubble: a quiet field-toned bubble with
+					// normal ink, not an inverted primary block.
+					<Bubble align="end" variant="muted">
 						<BubbleContent className="whitespace-pre-wrap text-sm">
 							{text}
 						</BubbleContent>
@@ -249,7 +254,7 @@ export function ChatRow({
 		);
 	}
 	return (
-		<Message align="start">
+		<Message align="start" className="bui-fade-up">
 			<RoleAvatar avatars={avatars} from="assistant" />
 			<MessageContent>
 				<Bubble variant="ghost">
