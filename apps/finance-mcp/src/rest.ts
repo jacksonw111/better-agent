@@ -5,20 +5,22 @@ import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { getEarningsForecast } from "./core/eastmoney/forecast";
 import { getHsgtFlow } from "./core/eastmoney/hsgt";
-import { getFinancialIndicators } from "./core/eastmoney/indicators";
 import { getMacroCn } from "./core/eastmoney/macro";
 import { getMoneyFlow } from "./core/eastmoney/money-flow";
 import { getMarketNews, getStockNews } from "./core/eastmoney/news";
 import { listReports } from "./core/eastmoney/periodic-reports";
-import { getCompanyProfile } from "./core/eastmoney/profile";
 import { getStockResearch } from "./core/eastmoney/research";
 import { searchAStocks } from "./core/eastmoney/search";
 import { getSectorConstituents, getSectorList } from "./core/eastmoney/sector";
-import { getStatements } from "./core/eastmoney/statements";
-import { getKeyMetrics } from "./core/eastmoney/valuation";
 import { economicCalendar } from "./core/fred/economic";
 import { getMacroUs } from "./core/fred/macro";
 import { getYieldCurve } from "./core/fred/yield-curve";
+import {
+	getCompanyProfile,
+	getFinancialIndicators,
+	getKeyMetrics,
+	getStatements,
+} from "./core/fundamentals";
 import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";

@@ -170,15 +170,16 @@ TOOL_NAMES.add("finance_central_bank");
 TOOLS.push({
 	name: "finance_key_metrics",
 	description:
-		"A股估值快照 (EastMoney): 市盈率 PE (TTM/静态), 市净率 PB, 市销率 PS, PCF, PEG, " +
-		"总市值/流通市值, 股本. Use for: 估值 贵不贵 便宜 市值多少 valuation multiples. Not for: " +
-		"ROE 等财务指标 → finance_financial_indicators; 美股估值 → finance_sec_facts.",
+		"估值快照 (A股 EastMoney / 美股 Yahoo): PE (TTM/静态/forward), PB, PS, PEG, 市值, " +
+		"股本; 美股另含 beta, 股息率, 52周高低, TTM 利润率/ROE, 目标价. Use for: 估值 贵不贵 便宜 " +
+		"市值多少 valuation multiples. Not for: ROE 等财务指标序列 → " +
+		"finance_financial_indicators.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			symbol: {
 				type: "string",
-				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+				description: "Ticker, e.g. 600519.SH / 000001.SZ / AAPL.",
 			},
 		},
 		required: ["symbol"],
@@ -190,15 +191,15 @@ TOOL_NAMES.add("finance_key_metrics");
 TOOLS.push({
 	name: "finance_company_profile",
 	description:
-		"A股公司资料 F10 profile: 所属行业, 主营业务范围, 董事长, 员工数, 注册资本, 上市日期, 地址. Use for: " +
-		"公司简介 做什么的 主营 基本资料 introduction. Not for: 板块概念归属 → " +
-		"finance_stock_boards.",
+		"公司资料 profile (A股 F10 / 美股 Yahoo): 行业, 主营/业务简介, 员工数; A股含董事长/注册资本/" +
+		"上市日期; 美股含 sector/industry, 官网, 总部. Use for: 公司简介 做什么的 主营 基本资料 " +
+		"introduction. Not for: 板块概念归属 → finance_stock_boards.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			symbol: {
 				type: "string",
-				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+				description: "Ticker, e.g. 600519.SH / 000001.SZ / AAPL.",
 			},
 		},
 		required: ["symbol"],
@@ -210,16 +211,16 @@ TOOL_NAMES.add("finance_company_profile");
 TOOLS.push({
 	name: "finance_financial_statements",
 	description:
-		"A股财务三表原始科目 (EastMoney). statement=income 利润表 (营收/成本/净利润) | balance " +
-		"资产负债表 (资产/负债/权益/负债率) | cashflow 现金流量表 (经营/投资/筹资). periods 默认 4. Use " +
-		"for: 三大报表 资产 负债 现金流 balance sheet income statement. Not for: 衍生指标同比 " +
-		"→ finance_financial_indicators; 美股 → finance_sec_facts.",
+		"财务三表 (A股 EastMoney 每期 / 美股 SEC XBRL 年度 10-K). statement=income 利润表 " +
+		"(营收/成本/净利润) | balance 资产负债表 (资产/负债/权益/负债率) | cashflow 现金流量表 " +
+		"(经营/投资/筹资). periods 默认 4. Use for: 三大报表 资产 负债 现金流 balance sheet " +
+		"income statement. Not for: 衍生指标同比 → finance_financial_indicators.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			symbol: {
 				type: "string",
-				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+				description: "Ticker, e.g. 600519.SH / 000001.SZ / AAPL.",
 			},
 			statement: {
 				type: "string",
@@ -241,16 +242,16 @@ TOOL_NAMES.add("finance_financial_statements");
 TOOLS.push({
 	name: "finance_financial_indicators",
 	description:
-		"A股每期关键财务指标 (基本面首选): EPS, BPS, 营收+同比, 净利润+同比, 毛利率, 净利率, ROE, 负债率, " +
-		"每股经营现金流. periods 默认 8. Use for: 基本面 业绩 盈利能力 成长性 同比增速 fundamentals. " +
-		"Not for: 原始报表科目 → finance_financial_statements; 估值 → " +
-		"finance_key_metrics.",
+		"关键财务指标 (基本面首选; A股 EastMoney 每期 / 美股 SEC XBRL 年度): EPS, 营收+同比, " +
+		"净利润+同比, 毛利率, 净利率, ROE, 负债率; A股另含 BPS/每股经营现金流. periods 默认 8. Use " +
+		"for: 基本面 业绩 盈利能力 成长性 同比增速 fundamentals. Not for: 原始报表科目 → " +
+		"finance_financial_statements; 估值 → finance_key_metrics.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			symbol: {
 				type: "string",
-				description: "A-share ticker, e.g. 600519.SH / 000001.SZ.",
+				description: "Ticker, e.g. 600519.SH / 000001.SZ / AAPL.",
 			},
 			periods: {
 				type: "number",

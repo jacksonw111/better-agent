@@ -2,13 +2,15 @@ import { withCache } from "./core/cache";
 import { centralBank } from "./core/eastmoney/central-bank";
 import { earningsCalendar } from "./core/eastmoney/earnings";
 import { getEarningsForecast } from "./core/eastmoney/forecast";
-import { getFinancialIndicators } from "./core/eastmoney/indicators";
 import { listReports } from "./core/eastmoney/periodic-reports";
-import { getCompanyProfile } from "./core/eastmoney/profile";
 import { getStockResearch } from "./core/eastmoney/research";
 import { searchAStocks } from "./core/eastmoney/search";
-import { getStatements } from "./core/eastmoney/statements";
-import { getKeyMetrics } from "./core/eastmoney/valuation";
+import {
+	getCompanyProfile,
+	getFinancialIndicators,
+	getKeyMetrics,
+	getStatements,
+} from "./core/fundamentals";
 import { getTechnical } from "./core/technical/indicators";
 import { getIndices } from "./core/tencent/indices";
 import { coerceKlinePeriod, getKline } from "./core/tencent/kline";

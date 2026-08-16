@@ -99,10 +99,10 @@ TOOL_NAMES.add("finance_sec_filings");
 TOOLS.push({
 	name: "finance_sec_facts",
 	description:
-		"SEC XBRL 结构化财务数据 (US GAAP, 美股): 多年审计值如 NetIncomeLoss, " +
+		"SEC XBRL 原始财务数据 (US GAAP, 美股): 任意 us-gaap 指标的多年审计值如 NetIncomeLoss, " +
 		"EarningsPerShareDiluted, Assets; metrics 留空则列出全部可用指标名. Use for: 美股 " +
-		"财务数据 营收 净利润 历史 fundamentals. Not for: A股 → " +
-		"finance_financial_indicators.",
+		"非常用科目 原始 XBRL 数据. Not for: 常用指标/同比/利润率 → " +
+		"finance_financial_indicators (A股+美股); 三表 → finance_financial_statements.",
 	inputSchema: {
 		type: "object",
 		properties: {
