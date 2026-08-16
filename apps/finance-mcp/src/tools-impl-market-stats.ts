@@ -8,6 +8,9 @@ import { getMarketBreadth } from "./core/market/breadth";
 import { getTradeCalendar } from "./core/market/trade-calendar";
 import { getUsInsider } from "./core/openinsider/insider";
 import { getHistoricalVolatility } from "./core/technical/volatility";
+import { getUsMarketBreadth } from "./core/us/breadth";
+import { getM7 } from "./core/us/m7";
+import { getUsTradeCalendar } from "./core/us/trade-calendar";
 import type { ToolEnv, ToolResult } from "./tools-impl";
 import {
 	argNumber,
@@ -25,6 +28,7 @@ const VOLATILITY_TTL_SECONDS = 600;
 const INSIDER_TTL_SECONDS = 3600;
 const DEFAULT_INSIDER_LIMIT = 25;
 const DEFAULT_INSIDER_DAYS = 365;
+const M7_TTL_SECONDS = 60;
 
 function resolveCalendar() {
 	return withCache("trade-calendar", CALENDAR_TTL_SECONDS, () =>
@@ -88,6 +92,29 @@ async function handleVolatility(
 	);
 }
 
+async function handleUsTradeCalendar(): Promise<ToolResult> {
+	const cal = await withCache("us-trade-calendar", CALENDAR_TTL_SECONDS, () =>
+		getUsTradeCalendar()
+	);
+	return toolJson(
+		cal ?? { lastTradeDate: "", isTodayTradingDay: false, tradeDays: [] }
+	);
+}
+
+async function handleUsMarketBreadth(): Promise<ToolResult> {
+	const breadth = await withCache(
+		"us-market-breadth",
+		BREADTH_TTL_SECONDS,
+		() => getUsMarketBreadth()
+	);
+	return toolJson(breadth ?? { error: "nasdaq screener unavailable" });
+}
+
+async function handleM7(): Promise<ToolResult> {
+	const snapshot = await withCache("m7", M7_TTL_SECONDS, () => getM7());
+	return toolJson(snapshot ?? { error: "yahoo quotes unavailable" });
+}
+
 async function handleUsInsider(
 	args: Record<string, unknown>
 ): Promise<ToolResult> {
@@ -113,4 +140,7 @@ export const MARKET_STATS_HANDLERS: Record<
 	finance_index_valuation: (args) => handleIndexValuation(args),
 	finance_volatility: (args) => handleVolatility(args),
 	finance_us_insider: (args) => handleUsInsider(args),
+	finance_us_trade_calendar: () => handleUsTradeCalendar(),
+	finance_us_market_breadth: () => handleUsMarketBreadth(),
+	finance_m7: () => handleM7(),
 };

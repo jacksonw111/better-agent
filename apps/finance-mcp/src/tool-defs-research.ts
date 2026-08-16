@@ -8,14 +8,16 @@ import { TOOL_NAMES, TOOLS } from "./tool-defs";
 TOOLS.push({
 	name: "finance_search",
 	description:
-		"A股股票搜索: 按名称/代码查 {code, name, exchange}. 不知道股票代码时的第一步工具. Use for: 查代码 " +
-		"股票叫什么 代码是多少 搜索上市公司 ticker lookup.",
+		"股票搜索 (A股 EastMoney + 美股 Yahoo, 并行合并): 按名称/代码查 {code, name, exchange, market}. " +
+		"不知道股票代码时的第一步工具; 美股命中含 EQUITY/ETF 类型. Use for: 查代码 股票叫什么 代码是多少 " +
+		"搜索上市公司 ticker lookup 美股代码.",
 	inputSchema: {
 		type: "object",
 		properties: {
 			query: {
 				type: "string",
-				description: "Chinese name or code to search, e.g. 茅台 or 600519.",
+				description:
+					"Name or code to search, e.g. 茅台 / 600519 / apple / NVDA.",
 			},
 		},
 		required: ["query"],

@@ -10,7 +10,6 @@ import { getMoneyFlow } from "./core/eastmoney/money-flow";
 import { getMarketNews, getStockNews } from "./core/eastmoney/news";
 import { listReports } from "./core/eastmoney/periodic-reports";
 import { getStockResearch } from "./core/eastmoney/research";
-import { searchAStocks } from "./core/eastmoney/search";
 import { getSectorConstituents, getSectorList } from "./core/eastmoney/sector";
 import { economicCalendar } from "./core/fred/economic";
 import { getMacroUs } from "./core/fred/macro";
@@ -21,6 +20,7 @@ import {
 	getKeyMetrics,
 	getStatements,
 } from "./core/fundamentals";
+import { searchStocks } from "./core/search";
 import { getTechnical } from "./core/technical/indicators";
 import { getCommodities } from "./core/tencent/commodity";
 import { getIndices } from "./core/tencent/indices";
@@ -133,7 +133,7 @@ async function financialIndicatorsHandler(c: Context) {
 async function searchHandler(c: Context) {
 	const query = c.req.query("query") ?? "";
 	return c.json(
-		await withCache(`search:${query}`, 3600, () => searchAStocks(query))
+		await withCache(`search:${query}`, 3600, () => searchStocks(query))
 	);
 }
 

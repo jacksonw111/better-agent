@@ -9,7 +9,8 @@ TOOLS.push({
 	description:
 		"A股交易日历 (derived from 上证综指 sh000001 daily kline): lastTradeDate 最近交易日, " +
 		"isTodayTradingDay 今天是否开市, tradeDays 最近约40个交易日 (ascending). Use for: 最近交易日 " +
-		"是否休市 今天开市吗 某日是否交易日 复盘取数日期 定时任务判交易日. Not for: 未来交易日前瞻 (尚未支持).",
+		"是否休市 今天开市吗 某日是否交易日 复盘取数日期 定时任务判交易日. Not for: 未来交易日前瞻 (尚未支持); " +
+		"美股 → finance_us_trade_calendar.",
 	inputSchema: {
 		type: "object",
 		properties: {},
@@ -25,7 +26,8 @@ TOOLS.push({
 		"limitUp/limitDown/breakBoard 涨停/跌停/炸板家数, maxHeight 最高连板, ladder 连板梯队, breakRatePct " +
 		"炸板率. 涨跌家数为实时快照 (收盘后运行=当日复盘); 涨跌停/连板按 date 精确取历史. date=交易日 " +
 		"YYYYMMDD, 缺省=最近交易日. Use for: 涨跌家数 市场宽度 赚钱效应 普涨普跌 涨跌停家数 情绪. Not for: " +
-		"个股涨停明细 → finance_limit_up_pool; 板块涨跌 → finance_sector_list.",
+		"个股涨停明细 → finance_limit_up_pool; 板块涨跌 → finance_sector_list; 美股 → " +
+		"finance_us_market_breadth.",
 	inputSchema: {
 		type: "object",
 		properties: {
@@ -98,6 +100,51 @@ TOOLS.push({
 	},
 });
 TOOL_NAMES.add("finance_volatility");
+
+TOOLS.push({
+	name: "finance_us_trade_calendar",
+	description:
+		"美股交易日历 (derived from 标普500 daily kline): lastTradeDate 最近交易日 (美东 " +
+		"YYYY-MM-DD), isTodayTradingDay 今天(美东)是否有交易, tradeDays 最近约40个交易日 (ascending). " +
+		"Use for: 美股最近交易日 美股今天开市吗 美股休市 某日美股是否交易日. Not for: A股 → " +
+		"finance_trade_calendar; 未来交易日前瞻 (尚未支持).",
+	inputSchema: {
+		type: "object",
+		properties: {},
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_us_trade_calendar");
+
+TOOLS.push({
+	name: "finance_us_market_breadth",
+	description:
+		"美股全市场宽度快照 (NASDAQ+NYSE+AMEX ~7000只, Nasdaq screener): advancers/decliners/" +
+		"unchanged 涨/跌/平家数, distribution 涨跌幅分布桶 (±3/5/7/10%, 美股无涨跌停), medianChangePct " +
+		"中位涨跌幅. 实时快照 (美股收盘后运行=当日复盘), 不支持按历史日期取数. Use for: 美股涨跌家数 美股市场宽度 " +
+		"美股普涨普跌 美股情绪. Not for: A股 → finance_market_breadth; 指数点位 → finance_index_quote.",
+	inputSchema: {
+		type: "object",
+		properties: {},
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_us_market_breadth");
+
+TOOLS.push({
+	name: "finance_m7",
+	description:
+		"美股七巨头 Magnificent 7 (AAPL MSFT GOOGL AMZN NVDA META TSLA) 一键快照: 每只 现价 涨跌幅 " +
+		"市值 PE(TTM/forward) PB EPS 52周高低 距52周高点% 成交量 (按市值降序), 外加 totalMarketCap 合计市值, " +
+		"capWeightedChangePct 市值加权涨跌幅, advancers/decliners. Use for: 七巨头 M7 七朵金花 Mag7 " +
+		"美股科技巨头 大盘股风向. Not for: 单只深挖 → finance_key_metrics / finance_financial_indicators.",
+	inputSchema: {
+		type: "object",
+		properties: {},
+		additionalProperties: false,
+	},
+});
+TOOL_NAMES.add("finance_m7");
 
 TOOLS.push({
 	name: "finance_us_insider",
